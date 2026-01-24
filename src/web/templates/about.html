@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>关于系统</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background-color: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+        }
+        h2 {
+            color: #555;
+            margin-top: 30px;
+            border-bottom: 2px solid #f0f0f0;
+            padding-bottom: 10px;
+        }
+        p {
+            line-height: 1.6;
+            color: #666;
+        }
+        .feature-list {
+            list-style-type: none;
+            padding: 0;
+        }
+        .feature-list li {
+            padding: 10px 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        .feature-list li:before {
+            content: "✓ ";
+            color: #4CAF50;
+            font-weight: bold;
+        }
+        .tech-stack {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin: 20px 0;
+        }
+        .tech-item {
+            background-color: #f0f0f0;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 14px;
+        }
+        .back-button {
+            text-align: center;
+            margin: 30px 0;
+        }
+        .back-button a {
+            display: inline-block;
+            background-color: #2196F3;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 5px;
+            text-decoration: none;
+            font-size: 16px;
+        }
+        .back-button a:hover {
+            background-color: #0b7dda;
+        }
+        .footer {
+            text-align: center;
+            margin-top: 40px;
+            padding: 20px;
+            background-color: #f9f9f9;
+            border-top: 1px solid #ddd;
+            border-radius: 0 0 10px 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>ℹ️ 关于角色分类系统</h1>
+        
+        <h2>🎯 系统简介</h2>
+        <p>角色分类系统是一个基于人工智能的图片识别工具，专门用于识别游戏和动漫中的角色。系统使用先进的深度学习技术，能够快速准确地识别上传图片中的角色。</p>
+        
+        <h2>✨ 核心功能</h2>
+        <ul class="feature-list">
+            <li>支持多种图片格式上传（PNG、JPG、JPEG、GIF、BMP）</li>
+            <li>自动识别图片中的游戏角色</li>
+            <li>提供识别置信度和详细结果</li>
+            <li>支持批量处理和API调用</li>
+            <li>用户友好的Web界面</li>
+        </ul>
+        
+        <h2>🔧 技术栈</h2>
+        <div class="tech-stack">
+            <div class="tech-item">Python</div>
+            <div class="tech-item">Flask</div>
+            <div class="tech-item">PyTorch</div>
+            <div class="tech-item">CLIP模型</div>
+            <div class="tech-item">YOLOv8</div>
+            <div class="tech-item">Faiss</div>
+            <div class="tech-item">HTML/CSS</div>
+        </div>
+        
+        <h2>🎮 支持的游戏</h2>
+        <p>目前系统主要支持以下游戏的角色识别：</p>
+        <ul class="feature-list">
+            <li>蔚蓝档案 (Blue Archive)</li>
+            <li>原神 (Genshin Impact)</li>
+            <li>鸣潮 (Wuthering Waves)</li>
+        </ul>
+        
+        <h2>📊 系统性能</h2>
+        <p>根据测试数据，系统的平均识别准确率约为54%，不同角色的识别准确率有所差异：</p>
+        <ul class="feature-list">
+            <li>优花梨: 100%</li>
+            <li>阿罗娜: 83.33%</li>
+            <li>宫子: 60%</li>
+            <li>白子: 37.50%</li>
+            <li>星野: 40%</li>
+            <li>日奈: 30%</li>
+        </ul>
+        
+        <h2>🚀 未来计划</h2>
+        <ul class="feature-list">
+            <li>增加更多游戏和动漫角色的支持</li>
+            <li>提高识别准确率和速度</li>
+            <li>添加角色属性和背景信息</li>
+            <li>支持多角色同时识别</li>
+            <li>开发移动应用版本</li>
+        </ul>
+        
+        <div class="back-button">
+            <a href="/">🏠 返回首页</a>
+        </div>
+        
+        <div class="footer">
+            <p>© 2026 角色分类系统 | 基于开源技术构建</p>
+        </div>
+    </div>
+</body>
+</html>

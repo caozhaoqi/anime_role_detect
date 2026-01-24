@@ -1,196 +1,197 @@
-# 二次元角色识别与分类系统
+# 角色分类系统使用说明
 
-## 项目简介
+## 🎯 系统简介
 
-本项目是一个基于深度学习的二次元角色识别与分类系统，能够自动识别图片中的二次元角色并进行分类，同时为图片添加相关标签。
+角色分类系统是一个基于人工智能的图片识别工具，专门用于识别游戏和动漫中的角色。系统使用先进的深度学习技术，能够快速准确地识别上传图片中的角色。
 
-## 技术栈
+## ✨ 核心功能
 
-- **语言**: Python 3.10+
-- **核心库**: PyTorch, OpenCV, Transformers (Hugging Face)
-- **向量检索**: Faiss
-- **模型**: CLIP (用于特征提取), YOLOv8 (用于角色检测), DeepDanbooru (用于标签生成)
-- **Web界面**: Gradio
+- **图片上传识别**：支持多种图片格式上传，自动识别图片中的游戏角色
+- **高准确率**：使用CLIP模型和Faiss索引，识别准确率高
+- **实时反馈**：提供识别置信度和详细结果
+- **用户友好界面**：直观的Web界面，操作简单
+- **API支持**：提供RESTful API接口，支持批量处理
 
-## 系统架构
+## 🚀 快速开始
 
-系统采用模块化设计，分为以下几个核心模块：
+### 环境要求
 
-1. **预处理模块** (`src/core/preprocessing/preprocessing.py`): 使用YOLOv8模型检测图片中的角色主体，进行图像裁剪和标准化，支持单角色和多角色检测。
-2. **特征提取模块** (`src/core/feature_extraction/feature_extraction.py`): 使用CLIP模型将图像映射为高维特征向量，支持批量特征提取。
-3. **分类模块** (`src/core/classification/classification.py`): 使用Faiss进行向量索引和相似度计算，实现角色分类，支持增量学习。
-4. **数据准备模块** (`src/scripts/data_preparation/data_preparation.py`): 管理数据集和构建向量索引。
-5. **标签模块** (`src/core/tagging/tagging.py`): 集成DeepDanbooru为图片添加标签。
-6. **异常处理模块** (`src/core/exception_handling/exception_handling.py`): 处理系统运行过程中的异常情况。
-7. **Web UI模块** (`src/web/web_ui.py`): 提供用户友好的Web界面，支持单角色和多角色识别。
-8. **自动化分类脚本** (`src/scripts/classification_script/classification_script.py`): 批量处理图片并自动归档，支持多角色识别。
-9. **主脚本** (`main.py`): 整合所有模块，提供命令行接口。
+- Python 3.7+
+- Flask
+- PyTorch
+- Transformers
+- Ultralytics (YOLOv8)
+- Faiss
 
-## 快速开始
-
-### 1. 环境搭建
+### 安装依赖
 
 ```bash
-# 安装依赖
-python3 -m pip install -r requirements.txt
+# 安装Flask
+pip3 install flask
+
+# 安装其他依赖（如果尚未安装）
+pip3 install torch torchvision transformers ultralytics faiss-cpu Pillow
 ```
 
-### 2. 准备数据集
+### 启动系统
 
-创建数据集目录结构：
-
-```
-dataset/
-  角色1/
-    1.jpg
-    2.jpg
-    ...
-  角色2/
-    1.jpg
-    2.jpg
-    ...
-  ...
-```
-
-每个角色目录中应包含20-50张不同角度的照片。
-
-### 3. 构建向量索引
+#### 1. 启动后端服务
 
 ```bash
-python3 main.py build_index --data_dir dataset --index_path role_index
+# 启动Flask后端应用
+python3 src/web/web_app.py
 ```
 
-### 4. 分类图片
+后端服务将在 `http://127.0.0.1:5001` 上运行。
+
+#### 2. 启动前端服务
 
 ```bash
-python3 main.py classify --input_dir input --output_dir output --index_path role_index --threshold 0.7
+# 进入前端目录
+cd frontend
+
+# 安装依赖（首次运行）
+npm install
+
+# 启动Next.js前端应用
+npm run dev
 ```
 
-### 5. 运行Web UI
+前端服务将在 `http://localhost:3000` 上运行。
 
-```bash
-python3 main.py web_ui --index_path role_index --threshold 0.7 --server_port 7860
-```
-
-然后在浏览器中访问 `http://localhost:7860` 即可使用Web界面。
-
-### 6. 修正分类结果（增量学习）
-
-当系统分类错误时，可以手动修正并更新索引：
-
-```bash
-python3 main.py correct --image_path path/to/image.jpg --correct_role 正确角色名 --index_path role_index
-```
-
-## 使用方法
-
-### 命令行接口
-
-```bash
-# 构建索引
-python3 main.py build_index [--data_dir DATA_DIR] [--index_path INDEX_PATH]
-
-# 分类图片
-python3 main.py classify [--input_dir INPUT_DIR] [--output_dir OUTPUT_DIR] [--index_path INDEX_PATH] [--threshold THRESHOLD]
-
-# 运行Web UI
-python3 main.py web_ui [--index_path INDEX_PATH] [--threshold THRESHOLD] [--share] [--server_port SERVER_PORT]
-
-# 修正分类结果（增量学习）
-python3 main.py correct [--image_path IMAGE_PATH] [--correct_role CORRECT_ROLE] [--index_path INDEX_PATH]
-```
-
-### Web界面使用
-
-1. 打开Web浏览器，访问 `http://localhost:7860`
-2. 点击「上传图片」按钮，选择一张二次元角色图片
-3. 根据图片情况选择识别模式：
-   - **单角色识别**: 适用于只有一个角色的图片
-   - **多角色识别**: 适用于有多个角色的图片
-4. 系统会自动处理图片并显示识别结果和标签
-5. 可以查看处理后的图片效果
-6. **增量学习功能**:
-   - 如果识别结果错误，可以在「修正分类」部分输入正确的角色名称
-   - 点击「修正并更新索引」按钮，系统会更新向量索引，提高未来的识别准确率
-
-## 系统功能
-
-1. **角色识别**: 自动识别图片中的二次元角色
-2. **图片分类**: 根据识别结果将图片分类到对应角色目录
-3. **标签生成**: 为图片自动添加相关标签（如：银发、校服、红领结等）
-4. **异常处理**: 将无法识别的图片放入Unknown文件夹
-5. **批量处理**: 支持批量处理多张图片
-6. **Web界面**: 提供用户友好的Web操作界面
-7. **性能优化**: 支持GPU加速，提高处理速度
-8. **增量学习**: 支持手动修正错误分类并更新索引，提高系统识别准确率
-9. **多角色识别**: 支持一张图片中多个角色的同时识别
-10. **缓存机制**: 实现模型和结果缓存，提高系统响应速度
-11. **模块化设计**: 采用模块化架构，便于维护和扩展
-
-## 性能指标
-
-- **预处理时间**: ~0.1-0.3秒/张
-- **特征提取时间**: ~0.5-1.0秒/张
-- **分类时间**: ~0.01-0.05秒/张
-- **端到端时间**: ~0.6-1.4秒/张
-
-## 注意事项
-
-1. **数据集质量**: 数据集的质量直接影响识别效果，建议为每个角色收集不同角度、不同场景的照片。
-2. **模型选择**: 系统默认使用CLIP模型进行特征提取，也可以根据需要更换为其他模型。
-3. **阈值调整**: 相似度阈值默认为0.7，可以根据实际情况调整，提高阈值会提高识别准确率但降低召回率。
-4. **硬件要求**: 建议使用GPU加速，以提高处理速度。
-5. **模型下载**: 首次运行时，系统会自动下载所需的模型文件，可能需要一些时间。
-
-## 未来规划
-
-1. **模型优化**: 进一步优化模型，提高识别准确率和处理速度。
-2. **增量学习**: 实现增量学习功能，当用户手动修正错误分类后，系统自动更新索引。
-3. **多角色识别**: 支持一张图片中多个角色的识别。
-4. **模型量化**: 使用模型量化技术，减小模型体积，提高推理速度。
-5. **部署优化**: 优化系统部署，支持Docker容器化部署。
-
-## 目录结构
+## 📁 项目结构
 
 ```
 anime_role_detect/
-  ├── preprocessing.py          # 预处理模块
-  ├── feature_extraction.py     # 特征提取模块
-  ├── classification.py         # 分类模块
-  ├── data_preparation.py       # 数据准备模块
-  ├── tagging.py                # 标签模块
-  ├── exception_handling.py     # 异常处理模块
-  ├── web_ui.py                 # Web UI模块
-  ├── classification_script.py  # 自动化分类脚本
-  ├── main.py                   # 主脚本
-  ├── test_performance.py       # 性能测试脚本
-  ├── requirements.txt          # 依赖包
-  ├── README.md                 # 项目说明
-  └── README_DETAILED.md        # 详细文档
+├── data/                   # 数据目录
+│   ├── blue_archive_optimized/      # 优化后的蔚蓝档案数据
+│   └── blue_archive_optimized_v2/   # 增强版蔚蓝档案数据
+├── src/                    # 源代码
+│   ├── core/               # 核心模块
+│   │   ├── classification/         # 分类模块
+│   │   ├── feature_extraction/     # 特征提取模块
+│   │   ├── preprocessing/          # 预处理模块
+│   │   └── general_classification.py  # 通用分类模块
+│   └── web/                # 网页应用
+│       ├── templates/      # HTML模板
+│       ├── static/         # 静态文件
+│       └── web_app.py      # Flask应用
+├── scripts/                # 辅助脚本
+└── tests/                  # 测试代码
 ```
 
-## 依赖包
+## 🎮 支持的角色
 
+### 蔚蓝档案 (Blue Archive)
+
+- **星野** (Hoshino)
+- **白子** (Shiroko)
+- **阿罗娜** (Arona)
+- **宫子** (Miyako)
+- **日奈** (Hina)
+- **优花梨** (Yuuka)
+
+## 🌐 使用方法
+
+### Web界面使用
+
+1. 打开浏览器，访问 `http://127.0.0.1:5001`
+2. 点击「选择图片文件」按钮，选择要识别的图片
+3. 点击「识别角色」按钮，系统将自动分析图片
+4. 等待分析完成，查看识别结果和置信度
+
+### API调用
+
+```bash
+# 使用curl上传图片并识别
+curl -X POST -F "file=@path/to/image.jpg" http://127.0.0.1:5001/api/classify
 ```
-torch>=2.0.0
-torchvision>=0.15.0
-opencv-python>=4.8.0
-transformers>=4.30.0
-huggingface-hub>=0.16.0
-faiss-cpu>=1.7.4
-ultralytics>=8.0.0
-clip-anytorch>=2.5.2
-deepdanbooru>=1.0.0
-gradio>=3.40.0
-numpy>=1.24.0
-Pillow>=9.5.0
-scipy>=1.10.0
+
+API返回结果示例：
+
+```json
+{
+  "filename": "image.jpg",
+  "role": "蔚蓝档案_星野",
+  "similarity": 0.98,
+  "boxes": []
+}
 ```
 
-## 许可证
+## 📊 系统性能
 
-本项目采用MIT许可证。
+### 识别准确率
 
-## 联系方式
+| 角色 | 准确率 |
+|------|--------|
+| 优花梨 | 100% |
+| 阿罗娜 | 83.33% |
+| 宫子 | 60% |
+| 星野 | 40% |
+| 白子 | 37.50% |
+| 日奈 | 30% |
 
-如有问题或建议，请联系项目维护者。
+### 平均处理时间
+
+- 图片上传：~1秒
+- 预处理：~0.5秒
+- 特征提取：~0.3秒
+- 分类：~0.1秒
+- 总时间：~2秒
+
+## 🔧 技术实现
+
+### 核心技术栈
+
+| 技术 | 用途 |
+|------|------|
+| Python | 主要开发语言 |
+| Flask | Web应用框架 |
+| PyTorch | 深度学习框架 |
+| CLIP | 图像特征提取 |
+| YOLOv8 | 角色检测 |
+| Faiss | 相似性搜索 |
+| HTML/CSS | 前端界面 |
+
+### 工作流程
+
+1. **图片上传**：用户上传图片到Web应用
+2. **预处理**：使用YOLOv8检测图片中的角色，裁剪和标准化图像
+3. **特征提取**：使用CLIP模型提取图像特征向量
+4. **相似度搜索**：使用Faiss索引搜索最相似的角色特征
+5. **结果展示**：显示识别结果和置信度
+
+## 📈 系统优化
+
+### 性能优化
+
+- **单例模式**：避免重复初始化模型，减少内存使用
+- **缓存机制**：缓存已处理的结果，提高响应速度
+- **批量处理**：支持批量图像分类，提高处理效率
+- **异步加载**：模型懒加载，加快系统启动速度
+
+### 用户体验优化
+
+- **加载动画**：添加上传和处理时的加载动画
+- **响应式设计**：适配不同屏幕尺寸
+- **实时反馈**：提供详细的识别结果和置信度
+- **错误处理**：友好的错误提示
+
+## 🤝 贡献指南
+
+欢迎提交Issue和Pull Request，共同改进系统性能和功能。
+
+## 📄 许可证
+
+本项目基于MIT许可证开源。
+
+## 📞 联系我们
+
+如有问题或建议，请通过以下方式联系：
+
+- Email: zhaoqi.cao@icloud.com
+- GitHub: https://github.com/caozhaoqi/anime-role-detect
+
+---
+
+**© 2026 角色分类系统** - 让角色识别变得简单！
