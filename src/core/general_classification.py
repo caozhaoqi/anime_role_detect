@@ -15,6 +15,13 @@ os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
 # 添加项目根目录到Python路径
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 
+# 导入日志记录模块
+try:
+    from src.core.log_fusion.log_recorder import record_classification_log
+except Exception as e:
+    print(f"导入日志记录模块失败: {e}")
+    record_classification_log = None
+
 
 class GeneralClassification:
     """通用分类器类"""
@@ -150,6 +157,16 @@ class GeneralClassification:
             
             # 分类
             role, similarity = self.classifier.classify(feature)
+            
+            # 记录分类日志
+            if record_classification_log is not None:
+                record_classification_log(
+                    image_path=image_path,
+                    role=role,
+                    similarity=similarity,
+                    feature=feature,
+                    boxes=boxes
+                )
             
             return role, similarity, boxes
         except Exception as e:

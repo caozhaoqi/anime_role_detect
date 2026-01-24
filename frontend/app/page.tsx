@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
   Upload,
@@ -18,6 +18,10 @@ import {
   Zap,
   BarChart2,
   RefreshCw,
+  Download,
+  Trash2,
+  X,
+  Clock,
 } from 'lucide-react';
 
 interface ClassificationResult {
@@ -27,6 +31,11 @@ interface ClassificationResult {
   boxes: any[];
 }
 
+interface HistoryItem extends ClassificationResult {
+  timestamp: number;
+  imageData?: string;
+}
+
 export default function Home() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
@@ -34,7 +43,79 @@ export default function Home() {
   const [result, setResult] = useState<ClassificationResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+  const [history, setHistory] = useState<HistoryItem[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // 保存结果到本地存储
+  const saveToHistory = (result: ClassificationResult) => {
+    if (typeof window === 'undefined') return;
+    
+    const historyItem: HistoryItem = {
+      ...result,
+      timestamp: Date.now(),
+      imageData: previewImage
+    };
+
+    try {
+      const storedData = localStorage.getItem('classificationHistory');
+      const existingHistory = storedData ? JSON.parse(storedData) : [];
+      const updatedHistory = [historyItem, ...existingHistory].slice(0, 50); // 保留最近50条
+      
+      localStorage.setItem('classificationHistory', JSON.stringify(updatedHistory));
+      setHistory(updatedHistory);
+    } catch (error) {
+      console.error('保存历史记录失败:', error);
+      // 出错时使用空数组
+      const updatedHistory = [historyItem];
+      localStorage.setItem('classificationHistory', JSON.stringify(updatedHistory));
+      setHistory(updatedHistory);
+    }
+  };
+
+  // 加载历史记录
+  const loadHistory = () => {
+    if (typeof window === 'undefined') return;
+    
+    try {
+      const storedData = localStorage.getItem('classificationHistory');
+      const existingHistory = storedData ? JSON.parse(storedData) : [];
+      setHistory(existingHistory);
+    } catch (error) {
+      console.error('加载历史记录失败:', error);
+      // 出错时使用空数组
+      setHistory([]);
+    }
+  };
+
+  // 清空历史记录
+  const clearHistory = () => {
+    if (typeof window === 'undefined') return;
+    
+    localStorage.removeItem('classificationHistory');
+    setHistory([]);
+  };
+
+  // 导出历史记录
+  const exportHistory = () => {
+    if (typeof window === 'undefined') return;
+    
+    try {
+      const storedData = localStorage.getItem('classificationHistory');
+      const historyData = storedData ? JSON.parse(storedData) : [];
+      const dataStr = JSON.stringify(historyData, null, 2);
+      const dataBlob = new Blob([dataStr], { type: 'application/json' });
+      
+      const url = URL.createObjectURL(dataBlob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `classification-history-${new Date().toISOString().split('T')[0]}.json`;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('导出历史记录失败:', error);
+    }
+  };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -81,11 +162,14 @@ export default function Home() {
   };
 
   const handleUpload = async () => {
+    console.log('handleUpload函数被调用');
     if (!selectedFile) {
       setError('请先选择图片');
+      console.log('没有选择文件');
       return;
     }
 
+    console.log('开始分类流程，文件:', selectedFile.name);
     setIsLoading(true);
     setError(null);
 
@@ -93,25 +177,50 @@ export default function Home() {
       const formData = new FormData();
       formData.append('file', selectedFile);
 
+      console.log('开始分类请求...');
+      // 使用fetch API发送请求
       const response = await fetch('http://127.0.0.1:5001/api/classify', {
         method: 'POST',
         body: formData,
-        headers: {
-          'Accept': 'application/json',
-        },
+        // 注意：不要设置Content-Type，让浏览器自动处理
       });
 
+      console.log('响应状态:', response.status);
+      
+      // 检查响应是否成功
       if (!response.ok) {
-        throw new Error('服务器错误');
+        throw new Error(`服务器响应错误: ${response.status}`);
       }
 
+      // 解析响应数据
       const data = await response.json();
-      setResult(data);
+      console.log('分类结果数据:', data);
+      
+      // 确保数据结构正确
+      const classificationResult: ClassificationResult = {
+        filename: data.filename || selectedFile.name,
+        role: data.role || '未知',
+        similarity: data.similarity || 0,
+        boxes: data.boxes || []
+      };
+      
+      console.log('处理后的分类结果:', classificationResult);
+      
+      // 更新result状态
+      console.log('更新result状态前:', result);
+      setResult(classificationResult);
+      console.log('更新result状态后:', classificationResult);
+      
+      // 保存到历史记录
+      saveToHistory(classificationResult);
+      console.log('分类结果已保存');
+      
     } catch (err) {
-      setError('分类失败，请重试');
-      console.error('Error:', err);
+      console.error('分类错误:', err);
+      setError(`分类失败: ${err.message}`);
     } finally {
       setIsLoading(false);
+      console.log('分类请求完成');
     }
   };
 
@@ -171,6 +280,18 @@ export default function Home() {
               >
                 <Sparkles className="h-4 w-4 mr-2" />
                 <span className="font-medium">AI 分类</span>
+              </motion.button>
+              <motion.button
+                whileHover={{ scale: 1.05, backgroundColor: "#f3f4f6" }}
+                whileTap={{ scale: 0.95 }}
+                className="px-4 py-2 bg-gray-100 text-gray-800 rounded-lg flex items-center shadow-sm hover:shadow-md transition-all"
+                onClick={() => {
+                  setShowHistory(true);
+                  loadHistory();
+                }}
+              >
+                <BarChart2 className="h-4 w-4 mr-2" />
+                <span className="font-medium">历史记录</span>
               </motion.button>
               <motion.button
                 whileHover={{ scale: 1.05, backgroundColor: "#f3f4f6" }}
@@ -389,6 +510,12 @@ export default function Home() {
         )}
 
         {/* 分类结果 */}
+        <div className="mb-4">
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">Result State Debug:</h3>
+          <pre className="bg-gray-100 p-4 rounded-lg text-sm">
+            Result: {JSON.stringify(result, null, 2)}
+          </pre>
+        </div>
         {result && (
           <motion.div
             initial={{ opacity: 0, y: 30 }}
@@ -629,6 +756,138 @@ export default function Home() {
           </div>
         </motion.div>
       </main>
+
+      {/* 历史记录模态框 */}
+      {showHistory && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4"
+        >
+          <motion.div
+            initial={{ scale: 0.9, y: 20, opacity: 0 }}
+            animate={{ scale: 1, y: 0, opacity: 1 }}
+            exit={{ scale: 0.9, y: 20, opacity: 0 }}
+            transition={{ type: "spring", damping: 25, stiffness: 300 }}
+            className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col"
+          >
+            {/* 模态框头部 */}
+            <div className="bg-gradient-to-r from-primary to-secondary p-6 text-white flex justify-between items-center">
+              <h2 className="text-2xl font-bold flex items-center">
+                <BarChart2 className="h-6 w-6 mr-2" />
+                分类历史记录
+              </h2>
+              <div className="flex space-x-3">
+                <motion.button
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.9 }}
+                  onClick={exportHistory}
+                  className="bg-white bg-opacity-20 hover:bg-opacity-30 px-4 py-2 rounded-lg flex items-center"
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  导出
+                </motion.button>
+                <motion.button
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.9 }}
+                  onClick={clearHistory}
+                  className="bg-white bg-opacity-20 hover:bg-opacity-30 px-4 py-2 rounded-lg flex items-center"
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  清空
+                </motion.button>
+                <motion.button
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.9 }}
+                  onClick={() => setShowHistory(false)}
+                  className="bg-white bg-opacity-30 hover:bg-opacity-40 p-2 rounded-full"
+                >
+                  <X className="h-5 w-5" />
+                </motion.button>
+              </div>
+            </div>
+
+            {/* 历史记录列表 */}
+            <div className="flex-1 overflow-y-auto p-6">
+              {history.length === 0 ? (
+                <div className="text-center py-20">
+                  <Clock className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+                  <h3 className="text-xl font-medium text-gray-500">暂无历史记录</h3>
+                  <p className="text-gray-400 mt-2">上传并分类图片后，结果会显示在这里</p>
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {history.map((item, index) => (
+                    <motion.div
+                      key={index}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.3, delay: index * 0.05 }}
+                      className="bg-gray-50 rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow"
+                    >
+                      <div className="flex items-start space-x-4">
+                        {/* 图片预览 */}
+                        {item.imageData && (
+                          <div className="flex-shrink-0 w-24 h-24 rounded-lg overflow-hidden bg-gray-200">
+                            <img 
+                              src={item.imageData} 
+                              alt={item.filename} 
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+                        )}
+                        
+                        {/* 分类信息 */}
+                        <div className="flex-1">
+                          <div className="flex justify-between items-start mb-2">
+                            <h4 className="text-lg font-semibold text-gray-900">{item.role}</h4>
+                            <span className="text-sm text-gray-500">
+                              {new Date(item.timestamp).toLocaleString()}
+                            </span>
+                          </div>
+                          <div className="mb-3">
+                            <div className="flex justify-between text-sm mb-1">
+                              <span className="text-gray-600">置信度</span>
+                              <span className="font-medium text-gray-900">
+                                {(item.similarity * 100).toFixed(2)}%
+                              </span>
+                            </div>
+                            <div className="w-full bg-gray-200 rounded-full h-2">
+                              <div 
+                                className="bg-gradient-to-r from-primary to-secondary h-2 rounded-full" 
+                                style={{ width: `${Math.min(item.similarity * 100, 100)}%` }}
+                              />
+                            </div>
+                          </div>
+                          <div className="text-sm text-gray-600">
+                            文件名: {item.filename}
+                          </div>
+                        </div>
+                      </div>
+                    </motion.div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* 模态框底部 */}
+            <div className="border-t border-gray-200 p-6 flex justify-between items-center">
+              <div className="text-sm text-gray-500">
+                共 {history.length} 条记录
+              </div>
+              <motion.button
+                whileHover={{ scale: 1.05, backgroundColor: "#e5e7eb" }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => setShowHistory(false)}
+                className="px-6 py-3 bg-gray-200 text-gray-800 rounded-lg font-medium"
+              >
+                关闭
+              </motion.button>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
 
       {/* 页脚 */}
       <footer className="bg-gray-800 text-white py-8">

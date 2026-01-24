@@ -1,20 +1,21 @@
-# 角色分类系统使用说明
+# Character Classification System User Guide
 
-## 🎯 系统简介
+## 🎯 System Introduction
 
-角色分类系统是一个基于人工智能的图片识别工具，专门用于识别游戏和动漫中的角色。系统使用先进的深度学习技术，能够快速准确地识别上传图片中的角色。
+The Character Classification System is an AI-based image recognition tool specifically designed to identify characters from games and anime. The system uses advanced deep learning techniques to quickly and accurately identify characters in uploaded images.
 
-## ✨ 核心功能
+## ✨ Core Features
 
-- **图片上传识别**：支持多种图片格式上传，自动识别图片中的游戏角色
-- **高准确率**：使用CLIP模型和Faiss索引，识别准确率高
-- **实时反馈**：提供识别置信度和详细结果
-- **用户友好界面**：直观的Web界面，操作简单
-- **API支持**：提供RESTful API接口，支持批量处理
+- **Image Upload Recognition**: Supports multiple image formats for upload, automatically identifies game characters in images
+- **High Accuracy**: Uses CLIP model and Faiss indexing for high recognition accuracy
+- **Real-time Feedback**: Provides recognition confidence and detailed results
+- **User-friendly Interface**: Intuitive web interface with simple operation
+- **API Support**: Provides RESTful API interface for batch processing
+- **Log Fusion**: Supports fusing features from classification logs to build new models
 
-## 🚀 快速开始
+## 🚀 Quick Start
 
-### 环境要求
+### Environment Requirements
 
 - Python 3.7+
 - Flask
@@ -23,175 +24,211 @@
 - Ultralytics (YOLOv8)
 - Faiss
 
-### 安装依赖
+### Install Dependencies
 
 ```bash
-# 安装Flask
+# Install Flask
 pip3 install flask
 
-# 安装其他依赖（如果尚未安装）
+# Install other dependencies (if not already installed)
 pip3 install torch torchvision transformers ultralytics faiss-cpu Pillow
 ```
 
-### 启动系统
+### Start System
 
-#### 1. 启动后端服务
+#### 1. Start Backend Service
 
 ```bash
-# 启动Flask后端应用
+# Start Flask backend application
 python3 src/web/web_app.py
 ```
 
-后端服务将在 `http://127.0.0.1:5001` 上运行。
+The backend service will run at `http://127.0.0.1:5001`.
 
-#### 2. 启动前端服务
+#### 2. Start Frontend Service
 
 ```bash
-# 进入前端目录
+# Enter frontend directory
 cd frontend
 
-# 安装依赖（首次运行）
+# Install dependencies (first run)
 npm install
 
-# 启动Next.js前端应用
+# Start Next.js frontend application
 npm run dev
 ```
 
-前端服务将在 `http://localhost:3000` 上运行。
+The frontend service will run at `http://localhost:3000`.
 
-## 📁 项目结构
+## 📁 Project Structure
 
 ```
 anime_role_detect/
-├── data/                   # 数据目录
-│   ├── blue_archive_optimized/      # 优化后的蔚蓝档案数据
-│   └── blue_archive_optimized_v2/   # 增强版蔚蓝档案数据
-├── src/                    # 源代码
-│   ├── core/               # 核心模块
-│   │   ├── classification/         # 分类模块
-│   │   ├── feature_extraction/     # 特征提取模块
-│   │   ├── preprocessing/          # 预处理模块
-│   │   └── general_classification.py  # 通用分类模块
-│   └── web/                # 网页应用
-│       ├── templates/      # HTML模板
-│       ├── static/         # 静态文件
-│       └── web_app.py      # Flask应用
-├── scripts/                # 辅助脚本
-└── tests/                  # 测试代码
+├── data/                   # Data directory
+│   ├── blue_archive_optimized/      # Optimized Blue Archive data
+│   └── blue_archive_optimized_v2/   # Enhanced Blue Archive data
+├── src/                    # Source code
+│   ├── core/               # Core modules
+│   │   ├── classification/         # Classification module
+│   │   ├── feature_extraction/     # Feature extraction module
+│   │   ├── preprocessing/          # Preprocessing module
+│   │   ├── general_classification.py  # General classification module
+│   │   └── log_fusion/              # Log fusion module
+│   └── web/                # Web application
+│       ├── templates/      # HTML templates
+│       ├── static/         # Static files
+│       └── web_app.py      # Flask application
+├── scripts/                # Helper scripts
+├── tests/                  # Test code
+├── README.md               # English documentation
+└── README.zh.md            # Chinese documentation
 ```
 
-## 🎮 支持的角色
+## 🎮 Supported Characters
 
-### 蔚蓝档案 (Blue Archive)
+### Blue Archive
 
-- **星野** (Hoshino)
-- **白子** (Shiroko)
-- **阿罗娜** (Arona)
-- **宫子** (Miyako)
-- **日奈** (Hina)
-- **优花梨** (Yuuka)
+- **Hoshino**
+- **Shiroko**
+- **Arona**
+- **Miyako**
+- **Hina**
+- **Yuuka**
 
-## 🌐 使用方法
+## 🌐 Usage
 
-### Web界面使用
+### Web Interface Usage
 
-1. 打开浏览器，访问 `http://127.0.0.1:5001`
-2. 点击「选择图片文件」按钮，选择要识别的图片
-3. 点击「识别角色」按钮，系统将自动分析图片
-4. 等待分析完成，查看识别结果和置信度
+1. Open your browser and visit `http://127.0.0.1:5001`
+2. Click the "Select Image File" button to choose the image to be recognized
+3. Click the "Identify Character" button, and the system will automatically analyze the image
+4. Wait for the analysis to complete, and view the recognition result and confidence
 
-### API调用
+### API Call
 
 ```bash
-# 使用curl上传图片并识别
+# Use curl to upload image and identify
 curl -X POST -F "file=@path/to/image.jpg" http://127.0.0.1:5001/api/classify
 ```
 
-API返回结果示例：
+API response example:
 
 ```json
 {
   "filename": "image.jpg",
-  "role": "蔚蓝档案_星野",
+  "role": "Blue Archive_Hoshino",
   "similarity": 0.98,
   "boxes": []
 }
 ```
 
-## 📊 系统性能
+## 📊 System Performance
 
-### 识别准确率
+### Recognition Accuracy
 
-| 角色 | 准确率 |
-|------|--------|
-| 优花梨 | 100% |
-| 阿罗娜 | 83.33% |
-| 宫子 | 60% |
-| 星野 | 40% |
-| 白子 | 37.50% |
-| 日奈 | 30% |
+| Character | Accuracy |
+|-----------|----------|
+| Yuuka     | 100%     |
+| Arona     | 83.33%   |
+| Miyako    | 60%      |
+| Hoshino   | 40%      |
+| Shiroko   | 37.50%   |
+| Hina      | 30%      |
 
-### 平均处理时间
+### Average Processing Time
 
-- 图片上传：~1秒
-- 预处理：~0.5秒
-- 特征提取：~0.3秒
-- 分类：~0.1秒
-- 总时间：~2秒
+- Image Upload: ~1 second
+- Preprocessing: ~0.5 seconds
+- Feature Extraction: ~0.3 seconds
+- Classification: ~0.1 seconds
+- Total Time: ~2 seconds
 
-## 🔧 技术实现
+## 🔧 Technical Implementation
 
-### 核心技术栈
+### Core Technology Stack
 
-| 技术 | 用途 |
-|------|------|
-| Python | 主要开发语言 |
-| Flask | Web应用框架 |
-| PyTorch | 深度学习框架 |
-| CLIP | 图像特征提取 |
-| YOLOv8 | 角色检测 |
-| Faiss | 相似性搜索 |
-| HTML/CSS | 前端界面 |
+| Technology | Purpose |
+|------------|---------|
+| Python     | Main development language |
+| Flask      | Web application framework |
+| PyTorch    | Deep learning framework |
+| CLIP       | Image feature extraction |
+| YOLOv8     | Character detection |
+| Faiss      | Similarity search |
+| HTML/CSS   | Frontend interface |
 
-### 工作流程
+### Workflow
 
-1. **图片上传**：用户上传图片到Web应用
-2. **预处理**：使用YOLOv8检测图片中的角色，裁剪和标准化图像
-3. **特征提取**：使用CLIP模型提取图像特征向量
-4. **相似度搜索**：使用Faiss索引搜索最相似的角色特征
-5. **结果展示**：显示识别结果和置信度
+1. **Image Upload**: User uploads image to web application
+2. **Preprocessing**: Uses YOLOv8 to detect characters in the image, crops and normalizes the image
+3. **Feature Extraction**: Uses CLIP model to extract image feature vectors
+4. **Similarity Search**: Uses Faiss indexing to search for most similar character features
+5. **Result Display**: Shows recognition result and confidence
+6. **Log Fusion**: Collects classification logs, fuses features to build new models
 
-## 📈 系统优化
+## 📈 System Optimization
 
-### 性能优化
+### Performance Optimization
 
-- **单例模式**：避免重复初始化模型，减少内存使用
-- **缓存机制**：缓存已处理的结果，提高响应速度
-- **批量处理**：支持批量图像分类，提高处理效率
-- **异步加载**：模型懒加载，加快系统启动速度
+- **Singleton Pattern**: Avoids repeated model initialization, reduces memory usage
+- **Caching Mechanism**: Caches processed results, improves response speed
+- **Batch Processing**: Supports batch image classification, improves processing efficiency
+- **Asynchronous Loading**: Lazy loading of models, speeds up system startup
 
-### 用户体验优化
+### User Experience Optimization
 
-- **加载动画**：添加上传和处理时的加载动画
-- **响应式设计**：适配不同屏幕尺寸
-- **实时反馈**：提供详细的识别结果和置信度
-- **错误处理**：友好的错误提示
+- **Loading Animation**: Adds loading animations during upload and processing
+- **Responsive Design**: Adapts to different screen sizes
+- **Real-time Feedback**: Provides detailed recognition results and confidence
+- **Error Handling**: Friendly error prompts
 
-## 🤝 贡献指南
+## 🔄 Log Fusion Feature
 
-欢迎提交Issue和Pull Request，共同改进系统性能和功能。
+### Feature Introduction
 
-## 📄 许可证
+The log fusion feature is an important characteristic of the system, which can:
 
-本项目基于MIT许可证开源。
+- **Collect Classification Logs**: Automatically collects results and features from each classification
+- **Fuse Features**: Fuses features from multiple classification results into a new model
+- **Continuous Learning**: Learns from historical classification data, continuously improving classification accuracy
+- **Model Update**: Regularly updates models to maintain system performance
 
-## 📞 联系我们
+### Usage Method
 
-如有问题或建议，请通过以下方式联系：
+#### 1. Collect Classification Logs
+
+The system automatically collects results from each classification, including:
+- Uploaded images
+- Extracted feature vectors
+- Classification results
+- Confidence scores
+
+#### 2. Fuse Features to Build New Model
+
+```bash
+# Run log fusion script
+python3 src/core/log_fusion/log_fusion.py --log_dir ./logs --output_model ./models/fused_model
+```
+
+#### 3. Use New Model for Classification
+
+The system automatically uses the latest built model for classification without additional configuration.
+
+## 🤝 Contribution Guide
+
+Welcome to submit Issues and Pull Requests to jointly improve system performance and functionality.
+
+## 📄 License
+
+This project is open source under the MIT license.
+
+## 📞 Contact Us
+
+If you have any questions or suggestions, please contact us through:
 
 - Email: zhaoqi.cao@icloud.com
 - GitHub: https://github.com/caozhaoqi/anime-role-detect
 
 ---
 
-**© 2026 角色分类系统** - 让角色识别变得简单！
+**© 2026 Character Classification System** - Making character recognition simple!
