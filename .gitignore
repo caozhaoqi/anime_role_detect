@@ -4,3 +4,6 @@
 yolov8s.pt
 ./tests/test_images/
 ./tests/test_results/
+./.idea/
+./data/
+./dataset/
