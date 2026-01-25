@@ -41,24 +41,36 @@ def initialize_system():
     print("初始化分类系统...")
     classifier = get_classifier()
     
-    # 从所有角色数据构建索引
-    data_dir = "data/all_characters"
+    # 从增强后的数据构建索引
+    data_dir = "data/augmented_characters"
     if os.path.exists(data_dir):
         success = classifier.build_index_from_directory(data_dir)
         if success:
-            print("系统初始化成功!")
+            print("系统初始化成功! 使用增强后的数据")
         else:
-            print("系统初始化失败，使用备用数据...")
-            # 尝试使用备用数据
-            backup_dir = "data/blue_archive_optimized_v2"
-            if os.path.exists(backup_dir):
-                classifier.build_index_from_directory(backup_dir)
+            print("系统初始化失败，使用原始数据...")
+            # 尝试使用原始数据
+            original_dir = "data/all_characters"
+            if os.path.exists(original_dir):
+                classifier.build_index_from_directory(original_dir)
             else:
-                backup_dir = "data/blue_archive_optimized"
+                print("原始数据目录不存在，使用备用数据...")
+                # 尝试使用备用数据
+                backup_dir = "data/blue_archive_optimized_v2"
                 if os.path.exists(backup_dir):
                     classifier.build_index_from_directory(backup_dir)
+                else:
+                    backup_dir = "data/blue_archive_optimized"
+                    if os.path.exists(backup_dir):
+                        classifier.build_index_from_directory(backup_dir)
     else:
-        print("数据目录不存在，系统初始化失败")
+        print("增强数据目录不存在，使用原始数据...")
+        # 尝试使用原始数据
+        original_dir = "data/all_characters"
+        if os.path.exists(original_dir):
+            classifier.build_index_from_directory(original_dir)
+        else:
+            print("数据目录不存在，系统初始化失败")
 
 @app.route('/', methods=['GET', 'POST'])
 def index():
