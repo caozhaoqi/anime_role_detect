@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>测试前端分类功能</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+      padding: 20px;
+      background-color: #f5f5f5;
+    }
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      background-color: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .form-group {
+      margin-bottom: 20px;
+    }
+    .form-group label {
+      display: block;
+      margin-bottom: 5px;
+      font-weight: bold;
+    }
+    .form-group input {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+    }
+    .form-group button {
+      padding: 10px 20px;
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .form-group button:hover {
+      background-color: #45a049;
+    }
+    .result {
+      margin-top: 20px;
+      padding: 20px;
+      background-color: #f9f9f9;
+      border-radius: 4px;
+    }
+    .result h3 {
+      margin-top: 0;
+    }
+    .debug {
+      margin-top: 20px;
+      padding: 20px;
+      background-color: #f0f0f0;
+      border-radius: 4px;
+      font-family: monospace;
+      white-space: pre-wrap;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>测试前端分类功能</h1>
+    
+    <div class="form-group">
+      <label for="file">选择图片文件：</label>
+      <input type="file" id="file" accept="image/*">
+    </div>
+    
+    <div class="form-group">
+      <button onclick="handleUpload()">开始识别</button>
+    </div>
+    
+    <div id="loading" style="display: none;">
+      识别中...
+    </div>
+    
+    <div id="error" style="display: none; color: red;"></div>
+    
+    <div id="result" class="result" style="display: none;">
+      <h3>分类结果：</h3>
+      <div id="result-content"></div>
+    </div>
+    
+    <div id="debug" class="debug"></div>
+  </div>
+  
+  <script>
+    function log(message) {
+      const debugDiv = document.getElementById('debug');
+      debugDiv.innerHTML += new Date().toLocaleTimeString() + ': ' + message + '\n';
+      debugDiv.scrollTop = debugDiv.scrollHeight;
+    }
+    
+    function handleUpload() {
+      log('handleUpload函数被调用');
+      const fileInput = document.getElementById('file');
+      const file = fileInput.files[0];
+      
+      if (!file) {
+        log('没有选择文件');
+        document.getElementById('error').textContent = '请先选择图片';
+        document.getElementById('error').style.display = 'block';
+        return;
+      }
+      
+      log('开始分类流程，文件: ' + file.name);
+      document.getElementById('loading').style.display = 'block';
+      document.getElementById('error').style.display = 'none';
+      document.getElementById('result').style.display = 'none';
+      
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      log('开始分类请求...');
+      fetch('http://127.0.0.1:5001/api/classify', {
+        method: 'POST',
+        body: formData,
+        headers: {
+          'Accept': 'application/json',
+        },
+      })
+      .then(response => {
+        log('响应状态: ' + response.status);
+        log('响应头: ' + JSON.stringify(Object.fromEntries(response.headers.entries())));
+        
+        if (!response.ok) {
+          return response.json().then(errorData => {
+            log('响应错误: ' + JSON.stringify(errorData));
+            throw new Error(errorData.error || '服务器错误');
+          });
+        }
+        
+        return response.json();
+      })
+      .then(data => {
+        log('分类结果数据: ' + JSON.stringify(data));
+        
+        // 确保数据结构正确
+        const classificationResult = {
+          filename: data.filename || file.name,
+          role: data.role || '未知',
+          similarity: data.similarity || 0,
+          boxes: data.boxes || []
+        };
+        
+        log('处理后的分类结果: ' + JSON.stringify(classificationResult));
+        
+        // 显示分类结果
+        const resultContent = document.getElementById('result-content');
+        resultContent.innerHTML = `
+          <p><strong>文件名:</strong> ${classificationResult.filename}</p>
+          <p><strong>角色:</strong> ${classificationResult.role}</p>
+          <p><strong>相似度:</strong> ${(classificationResult.similarity * 100).toFixed(2)}%</p>
+          <p><strong>检测框:</strong> ${JSON.stringify(classificationResult.boxes)}</p>
+        `;
+        
+        document.getElementById('result').style.display = 'block';
+        log('分类结果已显示');
+      })
+      .catch(err => {
+        log('分类错误: ' + err.message);
+        document.getElementById('error').textContent = '分类失败，请重试';
+        document.getElementById('error').style.display = 'block';
+      })
+      .finally(() => {
+        document.getElementById('loading').style.display = 'none';
+        log('分类请求完成');
+      });
+    }
+  </script>
+</body>
+</html>
