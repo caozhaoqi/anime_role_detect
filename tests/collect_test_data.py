@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """
-从Danbooru/Safebooru采集测试数据脚本 - 修复版
-确保下载图片与角色匹配
+从Danbooru、Pixiv等网站采集测试数据脚本
 """
 import os
 import requests
@@ -10,7 +9,7 @@ import json
 import random
 import base64
 from time import sleep
-import urllib.parse
+from pixivpy3 import *
 
 def download_image(url, save_path, headers=None):
     """下载图片"""
@@ -18,7 +17,7 @@ def download_image(url, save_path, headers=None):
         # 设置默认请求头
         default_headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
-            "Referer": url,
+            "Referer": "https://www.pixiv.net/",  # Pixiv需要Referer
             "Accept": "image/*"
         }
         
@@ -26,16 +25,8 @@ def download_image(url, save_path, headers=None):
         if headers:
             default_headers.update(headers)
         
-        print(f"正在下载: {url}")
         response = requests.get(url, headers=default_headers, timeout=20)
         response.raise_for_status()
-        
-        # 检查是否是图片内容
-        content_type = response.headers.get('content-type', '')
-        if 'image' not in content_type and 'octet-stream' not in content_type:
-            print(f"跳过非图片内容: {content_type}")
-            return False
-
         with open(save_path, 'wb') as f:
             f.write(response.content)
         return True
@@ -43,80 +34,84 @@ def download_image(url, save_path, headers=None):
         print(f"下载图片失败: {e}")
         return False
 
-def collect_from_safebooru(tags, limit, output_dir):
-    """从Safebooru搜索并下载（无需API Key，比较稳定）"""
-    print(f"正在从Safebooru搜索标签: {tags}")
+def collect_from_pixiv_api(tags, limit, output_dir, refresh_token):
+    """使用pixivpy API从Pixiv采集图片"""
+    print(f"使用Pixiv API搜索标签: {tags}")
     
-    # 简单的标签清理
-    clean_tags = tags.replace(" ", "_")
-    
-    # 构建API URL
-    # Safebooru API: index.php?page=dapi&s=post&q=index&json=1&tags=...
-    base_url = "https://safebooru.org/index.php"
-    params = {
-        "page": "dapi",
-        "s": "post",
-        "q": "index",
-        "json": "1",
-        "limit": limit,
-        "tags": tags
-    }
-    
-    try:
-        response = requests.get(base_url, params=params, timeout=15)
-        response.raise_for_status()
+    if not refresh_token:
+        print("未提供refresh_token，跳过Pixiv API采集")
+        return 0
         
-        # Safebooru 有时返回空或非JSON
-        try:
-            posts = response.json()
-        except json.JSONDecodeError:
-            print("Safebooru返回了非JSON数据，可能是标签搜索无结果。")
-            return 0
-            
-        if not posts:
-            print("Safebooru未找到相关图片。")
-            return 0
-            
-        print(f"Safebooru找到 {len(posts)} 个结果")
+    try:
+        # 初始化API
+        api = AppPixivAPI()
+        
+        # 登录
+        # 建议将refresh_token存储在环境变量中，而不是直接写在代码里
+        # export PIXIV_REFRESH_TOKEN="your_token"
+        # refresh_token = os.getenv("PIXIV_REFRESH_TOKEN")
+        api.auth(refresh_token=refresh_token)
+        print("Pixiv API登录成功")
+        
+        # 搜索插画
+        json_result = api.search_illust(tags, search_target='exact_tag_for_title_and_caption')
         
         downloaded = 0
-        for i, post in enumerate(posts):
-            if downloaded >= limit:
+        illust_count = 0
+        
+        for illust in json_result.illusts:
+            if illust_count >= limit:
                 break
-                
-            # Safebooru 图片字段通常是 'file_url'，有时只有 'image' 和 'directory'
-            if "file_url" in post:
-                image_url = post["file_url"]
-            elif "image" in post and "directory" in post:
-                image_url = f"https://safebooru.org/images/{post['directory']}/{post['image']}"
-            else:
+            
+            # 过滤R-18内容
+            if illust.x_restrict > 0:
+                print(f"跳过受限内容: {illust.title}")
                 continue
 
-            # 处理扩展名
-            file_ext = os.path.splitext(image_url)[1]
-            if not file_ext:
-                file_ext = ".jpg"
-            
-            save_path = os.path.join(output_dir, f"safebooru_{clean_tags}_{post['id']}{file_ext}")
-            
-            if download_image(image_url, save_path):
-                downloaded += 1
-                sleep(1) # 礼貌延时
+            # 下载单张或多张图片
+            if illust.page_count == 1:
+                image_url = illust.meta_single_page.get('original_image_url', illust.image_urls.large)
+                print(f"准备下载: {illust.title} - {image_url}")
+                
+                file_ext = os.path.splitext(image_url)[1]
+                save_path = os.path.join(output_dir, f"pixiv_{illust.id}_p0{file_ext}")
+                
+                if download_image(image_url, save_path):
+                    downloaded += 1
+                    illust_count += 1
+                    sleep(random.uniform(1, 3)) # 随机延时
+            else:
+                for page in illust.meta_pages:
+                    if illust_count >= limit:
+                        break
+                    
+                    image_url = page.image_urls.original
+                    print(f"准备下载: {illust.title} (p{page.image_urls.original.split('_p')[-1].split('.')[0]}) - {image_url}")
+                    
+                    file_ext = os.path.splitext(image_url)[1]
+                    page_num = page.image_urls.original.split('_p')[-1].split('.')[0]
+                    save_path = os.path.join(output_dir, f"pixiv_{illust.id}_p{page_num}{file_ext}")
+
+                    if download_image(image_url, save_path):
+                        downloaded += 1
+                        illust_count += 1
+                        sleep(random.uniform(1, 3)) # 随机延时
         
+        print(f"Pixiv API下载完成，成功下载 {downloaded} 张图片")
         return downloaded
 
     except Exception as e:
-        print(f"Safebooru采集异常: {e}")
+        print(f"Pixiv API采集失败: {e}")
         return 0
 
 def collect_from_danbooru(tags, limit, output_dir, api_key=None, user=None):
-    """从Danbooru搜索并下载"""
+    """从Danbooru搜索并下载二次元图片"""
     print(f"从Danbooru搜索标签: {tags}")
     
     try:
+        import urllib.parse
         encoded_tags = urllib.parse.quote(tags)
-        # Danbooru限制非会员只能搜2个标签，这里尽量保证只用关键标签
-        api_url = f"https://danbooru.donmai.us/posts.json?limit={limit}&tags={encoded_tags}"
+        api_url = f"https://danbooru.donmai.us/posts.json?limit={limit*2}&tags={encoded_tags}" # 多获取一些以备过滤
         
         headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
@@ -129,316 +124,132 @@ def collect_from_danbooru(tags, limit, output_dir, api_key=None, user=None):
         response.raise_for_status()
         
         posts = response.json()
-        print(f"Danbooru找到 {len(posts)} 个结果")
+        
+        image_urls = []
+        for post in posts:
+            # 过滤不合适的tag
+            if 'file_url' in post and 'rating' in post and post['rating'] == 's': # 只选择安全内容
+                image_urls.append(post["file_url"])
+        
+        print(f"找到 {len(image_urls)} 个安全结果")
         
         downloaded = 0
-        for i, post in enumerate(posts):
-            if downloaded >= limit:
-                break
-                
-            if "file_url" in post:
-                image_url = post["file_url"]
-                file_ext = os.path.splitext(image_url)[1]
-                if not file_ext: file_ext = ".jpg"
-                
-                clean_tags = tags.replace(" ", "_")
-                # 截断过长的文件名
-                clean_tags = clean_tags[:50]
-                save_path = os.path.join(output_dir, f"danbooru_{clean_tags}_{post['id']}{file_ext}")
-                
-                if download_image(image_url, save_path):
-                    downloaded += 1
-                    sleep(1)
+        for i, image_url in enumerate(image_urls[:limit]):
+            file_ext = os.path.splitext(image_url)[1]
+            if not file_ext:
+                file_ext = ".jpg"
+            
+            clean_tags = tags.replace(" ", "_").replace(":", "")
+            save_path = os.path.join(output_dir, f"danbooru_{clean_tags}_{i+1}{file_ext}")
+            
+            print(f"下载 {image_url} 到 {save_path}")
+            if download_image(image_url, save_path):
+                downloaded += 1
+                sleep(1)
         
         return downloaded
     except Exception as e:
         print(f"Danbooru采集失败: {e}")
         return 0
 
-def collect_from_konachan(tags, limit, output_dir):
-    """从Konachan采集"""
-    print(f"从Konachan搜索标签: {tags}")
-    # 确保输出目录存在
+def collect_from_pixiv(tags, limit, output_dir, refresh_token=None):
+    """从Pixiv采集二次元图片，失败时尝试其他来源"""
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
+    
+    print(f"开始从Pixiv采集，搜索标签: {tags}")
+    
+    # 优先使用API
+    downloaded = collect_from_pixiv_api(tags, limit, output_dir, refresh_token)
+    
+    # 如果API失败，回退到旧的网页抓取/备用方法
+    if downloaded == 0:
+        print("Pixiv API采集失败或未配置，尝试备用方法...")
+        # 这里可以保留旧的网页抓取逻辑，或者直接切换到其他源
+        # 为了简化，我们直接切换到Danbooru
+        print("切换到Danbooru作为备用源")
+        downloaded = collect_from_danbooru(tags, limit, output_dir)
 
+    # 如果仍然没有下载到图片，使用本地样本作为备选
+    if downloaded == 0:
+        print("所有主要源都采集失败，使用本地样本作为备选")
+        downloaded = collect_from_local_sample(output_dir, limit)
+    
+    print(f"采集完成，共成功下载 {downloaded} 张图片")
+    return downloaded
+
+def collect_from_local_sample(output_dir, count=5):
+    """从本地样本获取图片"""
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+    
+    print("正在下载/生成本地样本图片...")
+    downloaded = 0
     try:
-        params = {
-            "tags": tags,
-            "limit": limit
-        }
-        # Konachan API
-        api_url = "https://konachan.net/post.json"
+        from PIL import Image, ImageDraw, ImageFont
         
-        response = requests.get(api_url, params=params, timeout=15)
-        response.raise_for_status()
-        
-        posts = response.json()
-        print(f"Konachan找到 {len(posts)} 个结果")
-        
-        downloaded = 0
-        for post in posts:
-            if downloaded >= limit:
-                break
-            if "file_url" in post:
-                image_url = post["file_url"]
-                # 处理以 // 开头的URL
-                if image_url.startswith("//"):
-                    image_url = "https:" + image_url
-                
-                file_ext = os.path.splitext(image_url)[1]
-                save_path = os.path.join(output_dir, f"konachan_{post['id']}{file_ext}")
-                
-                if download_image(image_url, save_path):
-                    downloaded += 1
-                    sleep(1)
-                    
-        return downloaded
+        for i in range(count):
+            img = Image.new('RGB', (800, 600), color=(random.randint(0, 255), random.randint(0, 255), random.randint(0, 255)))
+            d = ImageDraw.Draw(img)
+            text = f"Sample Image {i+1}"
+            try:
+                font = ImageFont.truetype("Arial.ttf", 36)
+            except IOError:
+                font = ImageFont.load_default()
+            
+            text_bbox = d.textbbox((0, 0), text, font=font)
+            text_width = text_bbox[2] - text_bbox[0]
+            text_height = text_bbox[3] - text_bbox[1]
+            text_x = (800 - text_width) // 2
+            text_y = (600 - text_height) // 2
+            
+            d.text((text_x, text_y), text, fill=(255, 255, 255), font=font)
+            
+            save_path = os.path.join(output_dir, f"sample_{i+1}.jpg")
+            img.save(save_path)
+            print(f"生成本地样本图片到 {save_path}")
+            downloaded += 1
     except Exception as e:
-        print(f"Konachan采集失败: {e}")
-        return 0
+        print(f"生成本地样本失败: {e}")
+    
+    return downloaded
 
-def collect_smart_images(tags, limit, output_dir, api_key=None, user=None):
-    """
-    智能采集：依次尝试 Safebooru -> Danbooru -> Konachan
-    这取代了原有的 Pixiv 采集逻辑，因为通过脚本直接采集 Pixiv 极其困难且容易封号。
-    这些图站实际上就是 Pixiv 的镜像，使用相同的标签搜索可以得到精准的角色图片。
-    """
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
-
-    print(f"=== 开始为 [{tags}] 采集图片，目标: {limit} 张 ===")
-    
-    total_downloaded = 0
-    
-    # 1. 尝试 Safebooru (最容易成功，无需认证)
-    if total_downloaded < limit:
-        print("--- 尝试源: Safebooru ---")
-        count = collect_from_safebooru(tags, limit - total_downloaded, output_dir)
-        total_downloaded += count
-    
-    # 2. 尝试 Danbooru
-    if total_downloaded < limit:
-        print("--- 尝试源: Danbooru ---")
-        count = collect_from_danbooru(tags, limit - total_downloaded, output_dir, api_key, user)
-        total_downloaded += count
-
-    # 3. 尝试 Konachan
-    if total_downloaded < limit:
-        print("--- 尝试源: Konachan ---")
-        count = collect_from_konachan(tags, limit - total_downloaded, output_dir)
-        total_downloaded += count
-
-    # 4. 只有在完全失败时才使用本地样本，避免生成不匹配的图
-    if total_downloaded == 0:
-        print("警告: 所有在线来源均未找到匹配图片，尝试放宽搜索条件...")
-        # 尝试只搜索第一个标签（通常是角色名）
-        simple_tag = tags.split()[0]
-        if simple_tag != tags:
-            print(f"尝试简化标签搜索: {simple_tag}")
-            return collect_smart_images(simple_tag, limit, output_dir, api_key, user)
-        else:
-            print("无法下载匹配图片。")
-    
-    print(f"采集完成，共下载 {total_downloaded} 张图片")
-    return total_downloaded
-
-def collect_wuthering_waves_specific_characters(limit, output_dir, api_key=None, user=None):
-    """专门采集鸣潮特定角色数据"""
-    # 修正了标签格式，使其符合 Booru 风格 (Character_Name_(Series))
-    # 这样才能搜索到准确的图片
-    characters = [
-        {"name": "守岸人", "tag": "shorekeeper_(wuthering_waves)"},
-        {"name": "椿", "tag": "camellya_(wuthering_waves)"}, # 国际服名为 Camellya
-        {"name": "卡提西亚", "tag": "katya_(wuthering_waves)"}, # 如果是尘白禁区的Katya需改为 katya_(snowbreak)
-        # 备用：如果是指 炽霞 (Chixia)
-        # {"name": "炽霞", "tag": "chixia_(wuthering_waves)"},
-    ]
-    
-    total_downloaded = 0
-    
-    for char_info in characters:
-        char_name = char_info["name"]
-        char_tag = char_info["tag"]
-        # 为每个角色创建独立文件夹
-        char_output_dir = os.path.join(output_dir, f"鸣潮_{char_name}")
-        
-        print(f"\n>>> 处理角色: {char_name} (标签: {char_tag})")
-        downloaded = collect_smart_images(char_tag, limit, char_output_dir, api_key, user)
-        total_downloaded += downloaded
-        sleep(2)
-    
-    return total_downloaded
-
-def collect_genshin_impact_characters(limit, output_dir, api_key=None, user=None):
-    """专门采集原神角色数据"""
-    characters = [
-        {"name": "荧", "tag": "lumine_(genshin_impact)"},
-        {"name": "空", "tag": "aether_(genshin_impact)"},
-        {"name": "琴", "tag": "jean_(genshin_impact)"},
-        {"name": "丽莎", "tag": "lisa_(genshin_impact)"},
-        {"name": "芭芭拉", "tag": "barbara_(genshin_impact)"},
-        {"name": "温迪", "tag": "venti_(genshin_impact)"}
-    ]
-    
-    total_downloaded = 0
-    
-    for char_info in characters:
-        char_name = char_info["name"]
-        char_tag = char_info["tag"]
-        char_output_dir = os.path.join(output_dir, f"原神_{char_name}")
-        
-        print(f"\n>>> 处理角色: {char_name} (标签: {char_tag})")
-        downloaded = collect_smart_images(char_tag, limit, char_output_dir, api_key, user)
-        total_downloaded += downloaded
-        sleep(2)
-    
-    return total_downloaded
-
-def collect_single_character_data(character_name, limit, output_dir, api_key=None, user=None):
+def collect_single_character_data(character_name, limit, output_dir, refresh_token=None, api_key=None, user=None):
     """采集单角色数据"""
-    # 智能推断标签格式
-    tags = character_name
+    tags = character_name # 默认使用角色名作为tag
     
-    # 游戏标签映射字典
-    game_tag_mappings = {
-        "鸣潮": "wuthering_waves",
-        "原神": "genshin_impact",
-        "蔚蓝档案": "blue_archive",
-        "blue archive": "blue_archive"
-    }
+    # 针对特定游戏优化tag
+    if "鸣潮" in character_name or "wuthering_waves" in character_name.lower():
+        character_tag = character_name.replace("鸣潮_", "").replace("鸣潮 ", "")
+        tags = f"wuthering_waves {character_tag}"
+    elif "原神" in character_name or "genshin" in character_name.lower():
+        character_tag = character_name.replace("原神_", "").replace("原神 ", "")
+        tags = f"genshin_impact {character_tag}"
     
-    # 蔚蓝档案角色标准标签映射
-    blue_archive_tag_mappings = {
-        "星野": "hoshino_(blue_archive)",
-        "白子": "shiroko_(blue_archive)",
-        "一之濑明日奈": "ichinose_asuna_(blue_archive)",
-        "黑子": "kuroko_(blue_archive)",
-        "阿罗娜": "arona_(blue_archive)",
-        "宫子": "miyako_(blue_archive)",
-        "日奈": "hina_(blue_archive)",
-        "优花梨": "yuuka_(blue_archive)",
-        "hoshino": "hoshino_(blue_archive)",
-        "shiroko": "shiroko_(blue_archive)",
-        "ichinose_asuna": "ichinose_asuna_(blue_archive)",
-        "kuroko": "kuroko_(blue_archive)",
-        "arona": "arona_(blue_archive)",
-        "miyako": "miyako_(blue_archive)",
-        "hina": "hina_(blue_archive)",
-        "yuuka": "yuuka_(blue_archive)"
-    }
-    
-    # 鸣潮角色标准标签映射
-    wuthering_waves_tag_mappings = {
-        "守岸人": "shorekeeper_(wuthering_waves)",
-        "椿": "camellya_(wuthering_waves)",
-        "卡提西亚": "katya_(wuthering_waves)",
-        "anby": "anby_(wuthering_waves)",
-        "bianca": "bianca_(wuthering_waves)",
-        "corin": "corin_(wuthering_waves)",
-        "lin": "lin_(wuthering_waves)",
-        "lyra": "lyra_(wuthering_waves)",
-        "seth": "seth_(wuthering_waves)"
-    }
-    
-    # 原神角色标准标签映射
-    genshin_impact_tag_mappings = {
-        "荧": "lumine_(genshin_impact)",
-        "空": "aether_(genshin_impact)",
-        "琴": "jean_(genshin_impact)",
-        "丽莎": "lisa_(genshin_impact)",
-        "芭芭拉": "barbara_(genshin_impact)",
-        "温迪": "venti_(genshin_impact)",
-        "lumine": "lumine_(genshin_impact)",
-        "aether": "aether_(genshin_impact)",
-        "jean": "jean_(genshin_impact)",
-        "lisa": "lisa_(genshin_impact)",
-        "barbara": "barbara_(genshin_impact)",
-        "venti": "venti_(genshin_impact)"
-    }
-    
-    # 检测游戏类型并生成标准标签
-    game_detected = None
-    character_name_clean = character_name
-    
-    # 检测游戏前缀
-    for game_cn, game_en in game_tag_mappings.items():
-        if game_cn in character_name:
-            game_detected = game_en
-            character_name_clean = character_name.replace(game_cn + "_", "").replace(game_cn + " ", "")
-            break
-    
-    # 处理不同游戏的标签映射
-    if game_detected == "blue_archive":
-        # 蔚蓝档案角色标签映射
-        if character_name_clean in blue_archive_tag_mappings:
-            tags = blue_archive_tag_mappings[character_name_clean]
-        else:
-            # 如果没有精确映射，使用通用格式
-            tags = f"{character_name_clean} blue_archive"
-            print(f"提示: 未找到 {character_name_clean} 的标准标签映射，使用通用标签格式")
-            
-    elif game_detected == "wuthering_waves":
-        # 鸣潮角色标签映射
-        if character_name_clean in wuthering_waves_tag_mappings:
-            tags = wuthering_waves_tag_mappings[character_name_clean]
-        else:
-            tags = f"{character_name_clean} wuthering_waves"
-            print(f"提示: 未找到 {character_name_clean} 的标准标签映射，使用通用标签格式")
-            
-    elif game_detected == "genshin_impact":
-        # 原神角色标签映射
-        if character_name_clean in genshin_impact_tag_mappings:
-            tags = genshin_impact_tag_mappings[character_name_clean]
-        else:
-            tags = f"{character_name_clean} genshin_impact"
-            print(f"提示: 未找到 {character_name_clean} 的标准标签映射，使用通用标签格式")
-            
-    else:
-        # 自动检测游戏类型
-        for game_keyword in ["blue_archive", "wuthering_waves", "genshin_impact"]:
-            if game_keyword in character_name.lower():
-                tags = character_name
-                break
-        else:
-            # 默认处理
-            print("提示: 建议使用标准格式，如 '游戏名_角色名' 或直接使用标准Booru标签")
-            tags = character_name
-    
-    print(f"使用标签: {tags}")
-    return collect_smart_images(tags, limit, output_dir, api_key, user)
+    return collect_from_pixiv(tags, limit, output_dir, refresh_token)
 
 def main():
     """主函数"""
-    parser = argparse.ArgumentParser(description="二次元角色图片采集脚本 (Fix)")
-    parser.add_argument("--mode", choices=["single", "honkai star rail", "genshin_impact"], required=True, help="采集模式")
-    parser.add_argument("--character", help="角色名称/标签 (仅在 single 模式下需要，推荐英文，如 'shorekeeper')")
-    parser.add_argument("--limit", type=int, default=50, help="每个角色采集图片数量")
-    parser.add_argument("--output_dir", help="输出目录")
+    parser = argparse.ArgumentParser(description="从Pixiv等网站采集测试数据脚本")
+    parser.add_argument("--character", required=True, help="角色名称 (例如: 'rem_(re:zero)', 'genshin_impact klee')")
+    parser.add_argument("--limit", type=int, default=5, help="采集图片数量")
+    parser.add_argument("--output_dir", help="输出目录 (默认为 'tests/test_images/single_character/<character_name>')")
+    
+    # API认证参数
+    parser.add_argument("--refresh_token", help="Pixiv API的refresh_token。强烈建议使用环境变量 PIXIV_REFRESH_TOKEN")
     parser.add_argument("--api_key", help="Danbooru API密钥 (可选)")
     parser.add_argument("--user", help="Danbooru用户名 (可选)")
     
     args = parser.parse_args()
     
-    # 确定输出目录根路径
-    root_output_dir = args.output_dir if args.output_dir else "tests/test_images"
-
+    # 优先从环境变量获取refresh_token
+    refresh_token = args.refresh_token or os.getenv("PIXIV_REFRESH_TOKEN")
+    
+    # 确定输出目录
+    output_dir = args.output_dir or os.path.join("tests/test_images/single_character", args.character.replace(" ", "_").replace(":", "_"))
+    
     # 执行采集
-    if args.mode == "single":
-        if not args.character:
-            print("错误: 在 single 模式下必须指定角色名称/标签")
-            return
-        # single模式直接输出到指定文件夹
-        final_dir = os.path.join(root_output_dir, "single_character", args.character)
-        collect_single_character_data(args.character, args.limit, final_dir, args.api_key, args.user)
-        
-    elif args.mode == "wuthering_waves_specific":
-        final_dir = os.path.join(root_output_dir, "wuthering_waves")
-        collect_wuthering_waves_specific_characters(args.limit, final_dir, args.api_key, args.user)
-        
-    elif args.mode == "genshin_impact":
-        final_dir = os.path.join(root_output_dir, "genshin_impact")
-        collect_genshin_impact_characters(args.limit, final_dir, args.api_key, args.user)
+    collect_single_character_data(args.character, args.limit, output_dir, refresh_token, args.api_key, args.user)
 
 if __name__ == "__main__":
     main()
