@@ -139,6 +139,10 @@ class VideoDetectionAnalyzer:
                 class_idx = predicted.item()
                 confidence = confidence.item()
                 
+                # 添加置信度阈值过滤
+                if confidence < 0.6:
+                    return "No Character", confidence
+                
                 if 0 <= class_idx < len(self.class_names):
                     class_name = self.class_names[class_idx]
                     return class_name, confidence
@@ -249,14 +253,185 @@ class VideoDetectionAnalyzer:
                 if out:
                     display_frame = frame.copy()
                     
-                    # 绘制检测结果
-                    text = f"{predicted_class}: {confidence:.2f}"
-                    cv2.putText(display_frame, text, 
-                               (50, 100), cv2.FONT_HERSHEY_SIMPLEX, 
-                               1, (0, 255, 0), 2)
+                    # 获取英文角色名
+                    def get_english_name(chinese_name):
+                        # 角色中英文映射
+                        name_map = {
+                            "原神_温迪": "Venti",
+                            "原神_胡桃": "Hu Tao",
+                            "原神_可莉": "Klee",
+                            "原神_魈": "Xiao",
+                            "原神_甘雨": "Ganyu",
+                            "原神_钟离": "Zhongli",
+                            "原神_琴": "Jean",
+                            "原神_迪卢克": "Diluc",
+                            "原神_凯亚": "Kaeya",
+                            "原神_安柏": "Amber",
+                            "原神_丽莎": "Lisa",
+                            "原神_芭芭拉": "Barbara",
+                            "原神_雷泽": "Razor",
+                            "原神_诺艾尔": "Noelle",
+                            "原神_菲谢尔": "Fischl",
+                            "原神_砂糖": "Sucrose",
+                            "原神_莫娜": "Mona",
+                            "原神_空": "Aether",
+                            "原神_荧": "Lumine",
+                            "原神_阿贝多": "Albedo",
+                            "原神_罗莎莉亚": "Rosaria",
+                            "原神_优菈": "Eula",
+                            "原神_烟绯": "Yanfei",
+                            "原神_迪奥娜": "Diona",
+                            "原神_早柚": "Sayu",
+                            "原神_荒泷一斗": "Arataki Itto",
+                            "原神_五郎": "Gorou",
+                            "原神_八重神子": "Yae Miko",
+                            "原神_神里绫华": "Kamisato Ayaka",
+                            "原神_枫原万叶": "Kaedehara Kazuha",
+                            "我推的孩子_星野爱": "Hoshino Ai",
+                            "明日方舟_阿米娅": "Amiya",
+                            "明日方舟_能天使": "Exusiai",
+                            "明日方舟_德克萨斯": "Texas",
+                            "明日方舟_陈": "Ch'en",
+                            "蔚蓝档案_星野": "Hoshino",
+                            "蔚蓝档案_日奈": "Hina",
+                            "蔚蓝档案_阿罗娜": "Arona",
+                            "蔚蓝档案_白子": "Shiromi",
+                            "蔚蓝档案_优花梨": "Yuuka",
+                            "蔚蓝档案_宫子": "Miyako",
+                            "幻塔_凛夜": "Lin Ye",
+                            "鸣潮_守岸人": "Shou An Ren",
+                            "鸣潮_椿": "Tsubaki",
+                            "绝区零_安比": "Anby",
+                            "绝区零_杰克": "Jack",
+                            "No Character": "No Character"
+                        }
+                        return name_map.get(chinese_name, chinese_name)
+                    
+                    # 获取英文角色名
+                    english_name = get_english_name(predicted_class)
+                    
+                    text_y = 100
+                    
+                    # 只有检测到有效角色时才绘制框选和详细标注
+                    if predicted_class != "No Character" and predicted_class != "Unknown":
+                        # 人脸检测和跟踪
+                        def detect_face(frame):
+                            """检测人脸
+                            
+                            Args:
+                                frame: 视频帧
+                                
+                            Returns:
+                                (x1, y1, x2, y2) 或 None
+                            """
+                            try:
+                                # 转换为灰度图
+                                gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+                                
+                                # 方法1: 使用Haar级联分类器检测人脸（适用于真实人脸）
+                                face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+                                faces = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=3, minSize=(20, 20))
+                                
+                                if len(faces) > 0:
+                                    # 选择最大的人脸
+                                    largest_face = max(faces, key=lambda x: x[2] * x[3])
+                                    x, y, w, h = largest_face
+                                    return x, y, x + w, y + h
+                                
+                                # 方法2: 针对二次元角色的检测（基于颜色和形状）
+                                # 转换为HSV颜色空间，检测浅色区域（通常是面部）
+                                hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+                                
+                                # 定义二次元角色面部的颜色范围（浅色皮肤）
+                                lower_skin = (0, 20, 100)
+                                upper_skin = (30, 255, 255)
+                                
+                                # 创建掩码
+                                mask = cv2.inRange(hsv, lower_skin, upper_skin)
+                                
+                                # 形态学操作，去除噪声
+                                kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
+                                mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
+                                mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
+                                
+                                # 查找轮廓
+                                contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+                                
+                                # 筛选合适大小的轮廓（可能是面部）
+                                for contour in contours:
+                                    area = cv2.contourArea(contour)
+                                    if 1000 < area < 100000:  # 调整面积范围
+                                        x, y, w, h = cv2.boundingRect(contour)
+                                        # 检查宽高比（面部通常接近正方形）
+                                        aspect_ratio = w / float(h)
+                                        if 0.7 < aspect_ratio < 1.3:
+                                            return x, y, x + w, y + h
+                                
+                                # 方法3: 检测可能的头部区域（基于大小和位置）
+                                height, width = frame.shape[:2]
+                                # 检查图像中上部区域（通常是头部位置）
+                                upper_region = frame[0:int(height*0.6), :]
+                                upper_gray = cv2.cvtColor(upper_region, cv2.COLOR_BGR2GRAY)
+                                
+                                # 检测边缘
+                                edges = cv2.Canny(upper_gray, 50, 150)
+                                
+                                # 查找轮廓
+                                upper_contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+                                
+                                for contour in upper_contours:
+                                    area = cv2.contourArea(contour)
+                                    if 500 < area < 50000:
+                                        x, y, w, h = cv2.boundingRect(contour)
+                                        aspect_ratio = w / float(h)
+                                        if 0.5 < aspect_ratio < 1.5:
+                                            return x, y, x + w, y + h
+                                
+                                return None
+                            except Exception as e:
+                                logger.warning(f"人脸检测出错: {e}")
+                                return None
+                        
+                        # 检测人脸
+                        face_bbox = detect_face(display_frame)
+                        
+                        if face_bbox:
+                            # 人脸跟踪
+                            x1, y1, x2, y2 = face_bbox
+                            # 扩大框的大小以包含头部
+                            padding = int((x2 - x1) * 0.3)
+                            x1 = max(0, x1 - padding)
+                            y1 = max(0, y1 - padding * 2)
+                            x2 = min(display_frame.shape[1], x2 + padding)
+                            y2 = min(display_frame.shape[0], y2 + padding)
+                            
+                            # 绘制人脸框
+                            cv2.rectangle(display_frame, (x1, y1), (x2, y2), (0, 255, 0), 3)
+                            
+                            # 在框上方绘制检测结果
+                            text_y = max(30, y1 - 10)
+                        else:
+                            # 没有检测到人脸时，不绘制框选，只显示文字信息
+                            # 这样可以避免在非角色区域（如logo、文字页面）绘制错误的检测框
+                            text_y = 100
+                            # 跳过绘制框选的步骤
+                        
+                        # 只绘制英文角色名（避免中文乱码问题）
+                        english_text = f"{english_name}: {confidence:.2f}"
+                        cv2.putText(display_frame, english_text, 
+                                   (50, text_y), cv2.FONT_HERSHEY_SIMPLEX, 
+                                   1, (0, 255, 0), 2)
+                        
+                        # 移除中文标注，避免编码问题
+                        # 英文标注已经足够清晰，且可以避免乱码
+                    else:
+                        # 未检测到有效角色时，显示"无角色"
+                        cv2.putText(display_frame, "No Character Detected", 
+                                   (50, text_y), cv2.FONT_HERSHEY_SIMPLEX, 
+                                   1, (255, 0, 0), 2)
                     
                     cv2.putText(display_frame, f"Frame: {frame_count}/{total_frames}", 
-                               (50, 150), cv2.FONT_HERSHEY_SIMPLEX, 
+                               (50, text_y + 80), cv2.FONT_HERSHEY_SIMPLEX, 
                                0.8, (255, 255, 255), 2)
                     
                     # 写入帧
