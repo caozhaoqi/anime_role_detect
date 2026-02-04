@@ -244,13 +244,13 @@ class DetectionGuidedGenerator:
         for param in self.vgg.parameters():
             param.requires_grad = False
         
-        # 优化器
-        self.optimizer_g = optim.Adam(self.generator.parameters(), lr=0.0002, betas=(0.5, 0.999), weight_decay=1e-5)
-        self.optimizer_d = optim.Adam(self.discriminator.parameters(), lr=0.0002, betas=(0.5, 0.999), weight_decay=1e-5)
+        # 优化器 - 调整初始学习率
+        self.optimizer_g = optim.Adam(self.generator.parameters(), lr=0.0001, betas=(0.5, 0.999), weight_decay=1e-5)
+        self.optimizer_d = optim.Adam(self.discriminator.parameters(), lr=0.0001, betas=(0.5, 0.999), weight_decay=1e-5)
         
-        # 学习率调度器
-        self.scheduler_g = optim.lr_scheduler.CosineAnnealingLR(self.optimizer_g, T_max=2000, eta_min=1e-6)
-        self.scheduler_d = optim.lr_scheduler.CosineAnnealingLR(self.optimizer_d, T_max=2000, eta_min=1e-6)
+        # 学习率调度器 - 调整衰减策略
+        self.scheduler_g = optim.lr_scheduler.CosineAnnealingLR(self.optimizer_g, T_max=1000, eta_min=1e-7)
+        self.scheduler_d = optim.lr_scheduler.CosineAnnealingLR(self.optimizer_d, T_max=1000, eta_min=1e-7)
         
         # 初始化损失函数
         self.criterion_ce = nn.CrossEntropyLoss()
@@ -420,7 +420,14 @@ class DetectionGuidedGenerator:
                 img_pil = img_pil.rotate(angle, expand=False)
                 augmented_images[i] = torch.tensor(np.array(img_pil).transpose(2, 0, 1) / 255.0 * 2 - 1, device=self.device, dtype=torch.float32)
             
-            # 2. 更大范围的随机裁剪和调整大小
+            # 2. 水平翻转，增加图像多样性
+            for i in range(batch_size):
+                if random.random() > 0.5:
+                    img_pil = Image.fromarray((((augmented_images[i].detach().cpu().numpy() * 0.5) + 0.5) * 255).astype(np.uint8).transpose(1, 2, 0))
+                    img_pil = img_pil.transpose(Image.FLIP_LEFT_RIGHT)
+                    augmented_images[i] = torch.tensor(np.array(img_pil).transpose(2, 0, 1) / 255.0 * 2 - 1, device=self.device, dtype=torch.float32)
+            
+            # 3. 更大范围的随机裁剪和调整大小
             for i in range(batch_size):
                 crop_size = random.randint(150, 200)
                 img_pil = Image.fromarray((((augmented_images[i].detach().cpu().numpy() * 0.5) + 0.5) * 255).astype(np.uint8).transpose(1, 2, 0))
@@ -430,7 +437,7 @@ class DetectionGuidedGenerator:
                 img_pil = img_pil.resize((224, 224))
                 augmented_images[i] = torch.tensor(np.array(img_pil).transpose(2, 0, 1) / 255.0 * 2 - 1, device=self.device, dtype=torch.float32)
             
-            # 3. 随机模糊
+            # 4. 随机模糊
             for i in range(batch_size):
                 img_pil = Image.fromarray((((augmented_images[i].detach().cpu().numpy() * 0.5) + 0.5) * 255).astype(np.uint8).transpose(1, 2, 0))
                 if random.random() > 0.5:
@@ -438,41 +445,47 @@ class DetectionGuidedGenerator:
                     img_pil = img_pil.filter(ImageFilter.GaussianBlur(radius=blur_radius))
                 augmented_images[i] = torch.tensor(np.array(img_pil).transpose(2, 0, 1) / 255.0 * 2 - 1, device=self.device, dtype=torch.float32)
             
-            # 4. 随机色彩调整
+            # 5. 随机色彩调整
             for i in range(batch_size):
                 img_pil = Image.fromarray((((augmented_images[i].detach().cpu().numpy() * 0.5) + 0.5) * 255).astype(np.uint8).transpose(1, 2, 0))
                 if random.random() > 0.5:
                     # 随机对比度调整
-                    factor = random.uniform(0.8, 1.2)
+                    factor = random.uniform(0.7, 1.3)
                     img_pil = ImageEnhance.Contrast(img_pil).enhance(factor)
                 if random.random() > 0.5:
                     # 随机亮度调整
-                    factor = random.uniform(0.8, 1.2)
+                    factor = random.uniform(0.7, 1.3)
                     img_pil = ImageEnhance.Brightness(img_pil).enhance(factor)
+                if random.random() > 0.5:
+                    # 随机饱和度调整
+                    factor = random.uniform(0.7, 1.3)
+                    img_pil = ImageEnhance.Color(img_pil).enhance(factor)
                 augmented_images[i] = torch.tensor(np.array(img_pil).transpose(2, 0, 1) / 255.0 * 2 - 1, device=self.device, dtype=torch.float32)
             
-            # 5. 添加随机噪声
-            noise_aug = torch.randn_like(augmented_images) * 0.03
+            # 6. 添加随机噪声，调整噪声强度
+            noise_aug = torch.randn_like(augmented_images) * random.uniform(0.02, 0.04)
             augmented_images = augmented_images + noise_aug
             augmented_images = torch.clamp(augmented_images, -1, 1)
             
-            # 训练判别器
-            self.optimizer_d.zero_grad()
-            
-            # 判别真实图像（使用目标图像作为伪真实图像）
-            real_outputs = self.discriminator(target_img)
-            real_labels = torch.ones(batch_size, 1, device=self.device)
-            loss_d_real = self.criterion_bce(real_outputs, real_labels)
-            
-            # 判别生成图像
-            fake_outputs = self.discriminator(augmented_images.detach())
-            fake_labels = torch.zeros(batch_size, 1, device=self.device)
-            loss_d_fake = self.criterion_bce(fake_outputs, fake_labels)
-            
-            # 总判别器损失
-            loss_d = (loss_d_real + loss_d_fake) * 0.5
-            loss_d.backward()
-            self.optimizer_d.step()
+            # 每2个epoch训练一次判别器，避免判别器过强
+            if epoch % 2 == 0:
+                # 训练判别器
+                self.optimizer_d.zero_grad()
+                
+                # 判别真实图像（使用目标图像作为伪真实图像）
+                real_outputs = self.discriminator(target_img)
+                real_labels = torch.ones(batch_size, 1, device=self.device)
+                loss_d_real = self.criterion_bce(real_outputs, real_labels)
+                
+                # 判别生成图像
+                fake_outputs = self.discriminator(augmented_images.detach())
+                fake_labels = torch.zeros(batch_size, 1, device=self.device)
+                loss_d_fake = self.criterion_bce(fake_outputs, fake_labels)
+                
+                # 总判别器损失
+                loss_d = (loss_d_real + loss_d_fake) * 0.5
+                loss_d.backward()
+                self.optimizer_d.step()
             
             # 训练生成器
             self.optimizer_g.zero_grad()
@@ -497,8 +510,12 @@ class DetectionGuidedGenerator:
             # 计算多样性损失
             loss_div = self.diversity_loss(augmented_images)
             
-            # 总生成器损失
-            loss_g = loss_ce + 0.5 * loss_adv + 0.01 * loss_perceptual + 1e-8 * loss_tv + 0.1 * loss_div
+            # 计算目标类别概率损失，直接最大化目标类别的概率
+            target_probs = torch.softmax(detection_outputs, dim=1)[:, target_class]
+            loss_target_prob = -torch.mean(torch.log(target_probs + 1e-8))
+            
+            # 总生成器损失 - 增加目标类别概率损失的权重
+            loss_g = 0.5 * loss_ce + 0.2 * loss_adv + 0.1 * loss_perceptual + 1e-8 * loss_tv + 0.2 * loss_div + 1.0 * loss_target_prob
             loss_g.backward()
             self.optimizer_g.step()
             

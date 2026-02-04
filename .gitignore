@@ -7,3 +7,14 @@ yolov8s.pt
 ./.idea/
 ./data/
 ./dataset/
+./trained_generators/
+./generated_images/
+./reports/
+./data/
+./benchmark_result/
+./idea/
+./venv/
+./frontend/node_modules/
+./frontend/dist/
+./frontend/.next/
+
