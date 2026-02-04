@@ -2,7 +2,7 @@
 
 ## 🎯 System Introduction
 
-The Character Classification System is an AI-based image recognition tool specifically designed to identify characters from games and anime. The system uses advanced deep learning techniques to quickly and accurately identify characters in uploaded images.
+The Character Classification System is an AI-based image recognition tool specifically designed to identify characters from games and anime. The system uses advanced deep learning techniques to quickly and accurately identify characters in uploaded images, now with support for end-to-end character detection workflows.
 
 ## ✨ Core Features
 
@@ -12,6 +12,10 @@ The Character Classification System is an AI-based image recognition tool specif
 - **User-friendly Interface**: Intuitive web interface with simple operation
 - **API Support**: Provides RESTful API interface for batch processing
 - **Log Fusion**: Supports fusing features from classification logs to build new models
+- **End-to-End Workflow**: Complete character detection workflow from data collection to model training
+- **EfficientNet-B0 Model**: Uses state-of-the-art EfficientNet-B0 for classification
+- **Data Collection**: Supports automatic image collection via Bing Image Search API
+- **Dataset Splitting**: Automatically splits collected data into training and validation sets
 
 ## 🚀 Quick Start
 
@@ -23,6 +27,7 @@ The Character Classification System is an AI-based image recognition tool specif
 - Transformers
 - Ultralytics (YOLOv8)
 - Faiss
+- EfficientNet-B0
 
 ### Install Dependencies
 
@@ -31,7 +36,7 @@ The Character Classification System is an AI-based image recognition tool specif
 pip3 install flask
 
 # Install other dependencies (if not already installed)
-pip3 install torch torchvision transformers ultralytics faiss-cpu Pillow
+pip3 install torch torchvision transformers ultralytics faiss-cpu Pillow efficientnet_pytorch
 ```
 
 ### Start System
@@ -65,8 +70,11 @@ The frontend service will run at `http://localhost:3000`.
 ```
 anime_role_detect/
 ├── data/                   # Data directory
-│   ├── blue_archive_optimized/      # Optimized Blue Archive data
-│   └── blue_archive_optimized_v2/   # Enhanced Blue Archive data
+│   ├── all_characters/            # All character images (including BangDream MyGo!)
+│   ├── blue_archive_optimized/    # Optimized Blue Archive data
+│   ├── blue_archive_optimized_v2/ # Enhanced Blue Archive data
+│   ├── augmented_characters/      # Augmented character data
+│   └── split_dataset/             # Split training/validation data
 ├── src/                    # Source code
 │   ├── core/               # Core modules
 │   │   ├── classification/         # Classification module
@@ -79,6 +87,10 @@ anime_role_detect/
 │       ├── static/         # Static files
 │       └── web_app.py      # Flask application
 ├── scripts/                # Helper scripts
+│   ├── data_collection/    # Data collection scripts
+│   ├── data_processing/    # Data processing scripts
+│   ├── model_training/     # Model training scripts
+│   └── workflow/           # End-to-end workflow scripts
 ├── tests/                  # Test code
 ├── README.md               # English documentation
 └── README.zh.md            # Chinese documentation
@@ -95,6 +107,26 @@ anime_role_detect/
 - **Hina**
 - **Yuuka**
 
+### BangDream MyGo!
+
+- **Aimi Kanazawa** (千早爱音)
+- **Ritsuki椎名立希** (椎名立希)
+- **Touko Takamatsu** (高松灯)
+- **Soyo Nagasaki** (长崎素世)
+- **Sakiko Tamagawa** (玉井祥子)
+- **Mutsumi Wakaba** (若叶睦)
+- **Rana Himemiya** (姬川瑠夏)
+
+### Other Characters
+
+- **Genshin Impact** characters (原神)
+- **Spy × Family** characters (间谍过家家)
+- **Attack on Titan** characters (进击的巨人)
+- **One Piece** characters (海贼王)
+- **Naruto** characters (火影忍者)
+- **My Hero Academia** characters (我的英雄学院)
+- **Tokyo Revengers** characters (东京复仇者)
+
 ## 🌐 Usage
 
 ### Web Interface Usage
@@ -103,6 +135,15 @@ anime_role_detect/
 2. Click the "Select Image File" button to choose the image to be recognized
 3. Click the "Identify Character" button, and the system will automatically analyze the image
 4. Wait for the analysis to complete, and view the recognition result and confidence
+
+### Role Detection Workflow
+
+1. Open your browser and visit `http://127.0.0.1:5001/workflow`
+2. Enter character information in JSON format (e.g., `[{"name": "Aimi Kanazawa", "series": "bangdream_mygo"}]`)
+3. Enter test image path
+4. Adjust training parameters (batch size, epochs, learning rate, etc.)
+5. Click "Start Workflow" to begin end-to-end process
+6. Monitor progress in the terminal
 
 ### API Call
 
@@ -143,6 +184,14 @@ API response example:
 - Classification: ~0.1 seconds
 - Total Time: ~2 seconds
 
+### Model Training Performance
+
+- **Training Speed**: ~2.05 batch/s on MPS
+- **Per Epoch Time**: ~1 hour 8 minutes
+- **Total Training Time**: ~54 hours for 50 epochs
+- **Initial Loss**: 4.79
+- **Current Loss**: 1.06 (after 1st epoch)
+
 ## 🔧 Technical Implementation
 
 ### Core Technology Stack
@@ -155,16 +204,25 @@ API response example:
 | CLIP       | Image feature extraction |
 | YOLOv8     | Character detection |
 | Faiss      | Similarity search |
+| EfficientNet-B0 | Character classification |
 | HTML/CSS   | Frontend interface |
 
-### Workflow
+### End-to-End Workflow
 
-1. **Image Upload**: User uploads image to web application
-2. **Preprocessing**: Uses YOLOv8 to detect characters in the image, crops and normalizes the image
-3. **Feature Extraction**: Uses CLIP model to extract image feature vectors
-4. **Similarity Search**: Uses Faiss indexing to search for most similar character features
-5. **Result Display**: Shows recognition result and confidence
-6. **Log Fusion**: Collects classification logs, fuses features to build new models
+1. **Data Collection**: Collect character images via Bing Image Search API
+2. **Dataset Splitting**: Split collected data into training (80%) and validation (20%) sets
+3. **Model Training**: Train EfficientNet-B0 model with data augmentation
+4. **Model Evaluation**: Evaluate model performance on validation set
+5. **Character Detection**: Use trained model to detect characters in new images
+
+### Model Training Pipeline
+
+- **Data Augmentation**: Random resized crop, horizontal/vertical flip, rotation, color jitter
+- **Optimizer**: AdamW with weight decay
+- **Learning Rate Scheduler**: Cosine annealing
+- **Batch Size**: 16
+- **Training Epochs**: 50
+- **Initial Learning Rate**: 5e-5
 
 ## 📈 System Optimization
 
@@ -174,6 +232,7 @@ API response example:
 - **Caching Mechanism**: Caches processed results, improves response speed
 - **Batch Processing**: Supports batch image classification, improves processing efficiency
 - **Asynchronous Loading**: Lazy loading of models, speeds up system startup
+- **MPS Acceleration**: Uses Apple Silicon GPU for faster training and inference
 
 ### User Experience Optimization
 
@@ -181,6 +240,7 @@ API response example:
 - **Responsive Design**: Adapts to different screen sizes
 - **Real-time Feedback**: Provides detailed recognition results and confidence
 - **Error Handling**: Friendly error prompts
+- **Workflow Interface**: Dedicated interface for end-to-end character detection
 
 ## 🔄 Log Fusion Feature
 
@@ -232,3 +292,25 @@ If you have any questions or suggestions, please contact us through:
 ---
 
 **© 2026 Character Classification System** - Making character recognition simple!
+
+## 📋 Latest Updates
+
+### February 2026
+
+- **Added BangDream MyGo! characters** with 50-102 images per character
+- **Implemented end-to-end character detection workflow** from data collection to model training
+- **Added EfficientNet-B0 model** for character classification
+- **Improved API documentation** with GET request support
+- **Enhanced data processing pipeline** with automatic dataset splitting
+- **Added MPS acceleration** for faster training on Apple Silicon
+
+### Training Progress
+
+- **Current Status**: Training in progress (1st epoch completed)
+- **Model**: EfficientNet-B0
+- **Training Data**: 131 classes, 133,049 images
+- **Validation Data**: 49,741 images
+- **Current Loss**: 1.06
+- **Training Speed**: ~2.05 batch/s
+- **Expected Completion**: February 6, 2026
+
