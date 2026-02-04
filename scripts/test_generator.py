@@ -22,31 +22,37 @@ logging.basicConfig(
 logger = logging.getLogger('test_generator')
 
 
-class View(nn.Module):
-    """重塑层"""
-    def __init__(self, *shape):
+class UpsampleBlock(nn.Module):
+    """上采样块：Upsample + Conv2d + BN + LeakyReLU
+    代替 ConvTranspose2d 以消除棋盘格效应
+    """
+    def __init__(self, in_channels, out_channels):
         super().__init__()
-        self.shape = shape
-    
-    def forward(self, x):
-        return x.view(*self.shape)
+        self.block = nn.Sequential(
+            nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True),
+            nn.Conv2d(in_channels, out_channels, kernel_size=3, stride=1, padding=1, bias=False),
+            nn.BatchNorm2d(out_channels),
+            nn.LeakyReLU(0.2, inplace=True)
+        )
 
+    def forward(self, x):
+        return self.block(x)
 
 class Generator(nn.Module):
-    """简化版生成器模型，专为二次元角色设计"""
-    
-    def __init__(self, latent_dim=128):
-        """初始化生成器
-        
-        Args:
-            latent_dim: 潜在空间维度
-        """
+    """条件生成器模型，专为二次元角色设计
+    使用 Upsample + Conv2d 结构
+    """
+    def __init__(self, latent_dim=128, num_classes=26):
         super().__init__()
         self.latent_dim = latent_dim
+        self.num_classes = num_classes
         
-        # 输入处理
+        # 类别嵌入
+        self.class_embedding = nn.Embedding(num_classes, latent_dim)
+        
+        # 输入处理：将噪声映射到 7x7x256 的特征图
         self.fc = nn.Sequential(
-            nn.Linear(latent_dim, 512),
+            nn.Linear(latent_dim * 2, 512),
             nn.BatchNorm1d(512),
             nn.LeakyReLU(0.2, inplace=True),
             nn.Linear(512, 256 * 7 * 7),
@@ -57,50 +63,46 @@ class Generator(nn.Module):
         # 上采样网络
         self.upsample = nn.Sequential(
             # 7x7 -> 14x14
-            nn.ConvTranspose2d(256, 256, kernel_size=4, stride=2, padding=1, bias=False),
-            nn.BatchNorm2d(256),
-            nn.LeakyReLU(0.2, inplace=True),
-            
+            UpsampleBlock(256, 256),
             # 14x14 -> 28x28
-            nn.ConvTranspose2d(256, 128, kernel_size=4, stride=2, padding=1, bias=False),
-            nn.BatchNorm2d(128),
-            nn.LeakyReLU(0.2, inplace=True),
-            
+            UpsampleBlock(256, 128),
             # 28x28 -> 56x56
-            nn.ConvTranspose2d(128, 64, kernel_size=4, stride=2, padding=1, bias=False),
-            nn.BatchNorm2d(64),
-            nn.LeakyReLU(0.2, inplace=True),
-            
+            UpsampleBlock(128, 64),
             # 56x56 -> 112x112
-            nn.ConvTranspose2d(64, 32, kernel_size=4, stride=2, padding=1, bias=False),
-            nn.BatchNorm2d(32),
-            nn.LeakyReLU(0.2, inplace=True),
-            
+            UpsampleBlock(64, 32),
             # 112x112 -> 224x224
-            nn.ConvTranspose2d(32, 16, kernel_size=4, stride=2, padding=1, bias=False),
-            nn.BatchNorm2d(16),
-            nn.LeakyReLU(0.2, inplace=True),
-            
+            UpsampleBlock(32, 16),
             # 输出层
             nn.Conv2d(16, 3, kernel_size=3, stride=1, padding=1, bias=False),
-            nn.Tanh()
+            nn.Sigmoid()  # 改为 Sigmoid 以匹配 ImageNet 标准化
         )
     
-    def forward(self, z):
+    def forward(self, z, labels=None):
         """前向传播
         
         Args:
             z: 随机噪声 [batch_size, latent_dim]
+            labels: 类别标签 [batch_size]
             
         Returns:
             生成的图像 [batch_size, 3, 224, 224]
         """
+        # 如果没有提供标签，使用默认标签 0
+        if labels is None:
+            labels = torch.zeros(z.size(0), dtype=torch.long, device=z.device)
+        
+        # 处理类别嵌入
+        class_emb = self.class_embedding(labels)
+        # 连接噪声和类别嵌入
+        z = torch.cat([z, class_emb], dim=1)
+        
         # 处理输入噪声
         x = self.fc(z)
         # 重塑为特征图
-        x = x.view(x.size(0), 256, 7, 7)
+        x = x.view(-1, 256, 7, 7)
         # 上采样生成图像
-        return self.upsample(x)
+        x = self.upsample(x)
+        return x
 
 
 class CharacterClassifier(nn.Module):
@@ -140,12 +142,98 @@ class GeneratorTester:
         
         # 加载生成器
         checkpoint = torch.load(generator_path, map_location=self.device)
-        # 从检查点中读取潜在空间维度
-        self.latent_dim = checkpoint.get('latent_dim', 128)
-        self.generator = Generator(latent_dim=self.latent_dim).to(self.device)
-        self.generator.load_state_dict(checkpoint['model_state_dict'])
+        # 处理可能的 state_dict 键名不匹配问题
+        if 'model_state_dict' in checkpoint:
+            state_dict = checkpoint['model_state_dict']
+            # 从检查点中读取潜在空间维度
+            self.latent_dim = checkpoint.get('latent_dim', 128)
+        else:
+            state_dict = checkpoint
+            # 直接使用固定的潜在空间维度
+            self.latent_dim = 128
+        # 使用固定的类别数量，与训练时一致
+        num_classes = 26
+        
+        # 检查state_dict中的fc.0.weight形状，确定输入维度
+        if 'fc.0.weight' in state_dict:
+            input_dim = state_dict['fc.0.weight'].shape[1]
+            logger.info(f"从state_dict中检测到输入维度: {input_dim}")
+            # 计算正确的latent_dim
+            if input_dim == 256:
+                # 输入维度是256，latent_dim应该是128
+                correct_latent_dim = 128
+            else:
+                # 输入维度不是256，使用默认值
+                correct_latent_dim = 128
+            
+            # 创建一个临时模型来加载权重，使用正确的输入维度
+            class TempGenerator(nn.Module):
+                def __init__(self, latent_dim=128, num_classes=26):
+                    super().__init__()
+                    self.latent_dim = latent_dim
+                    self.num_classes = num_classes
+                    
+                    # 类别嵌入
+                    self.class_embedding = nn.Embedding(num_classes, latent_dim)
+                    
+                    # 输入处理
+                    self.fc = nn.Sequential(
+                        nn.Linear(input_dim, 512),
+                        nn.BatchNorm1d(512),
+                        nn.LeakyReLU(0.2, inplace=True),
+                        nn.Linear(512, 256 * 7 * 7),
+                        nn.BatchNorm1d(256 * 7 * 7),
+                        nn.LeakyReLU(0.2, inplace=True)
+                    )
+                    
+                    # 上采样网络 - 使用UpsampleBlock，与训练时保持一致
+                    self.upsample = nn.Sequential(
+                        # 7x7 -> 14x14
+                        UpsampleBlock(256, 256),
+                        # 14x14 -> 28x28
+                        UpsampleBlock(256, 128),
+                        # 28x28 -> 56x56
+                        UpsampleBlock(128, 64),
+                        # 56x56 -> 112x112
+                        UpsampleBlock(64, 32),
+                        # 112x112 -> 224x224
+                        UpsampleBlock(32, 16),
+                        # 输出层
+                        nn.Conv2d(16, 3, kernel_size=3, stride=1, padding=1, bias=False),
+                        nn.Sigmoid()
+                    )
+                
+                def forward(self, z, labels=None):
+                    # 如果没有提供标签，使用默认标签 0
+                    if labels is None:
+                        labels = torch.zeros(z.size(0), dtype=torch.long, device=z.device)
+                    
+                    # 处理类别嵌入
+                    class_emb = self.class_embedding(labels)
+                    # 连接噪声和类别嵌入
+                    z = torch.cat([z, class_emb], dim=1)
+                    
+                    # 处理输入噪声
+                    x = self.fc(z)
+                    # 重塑为特征图
+                    x = x.view(x.size(0), 256, 7, 7)
+                    # 上采样生成图像
+                    x = self.upsample(x)
+                    return x
+            
+            self.generator = TempGenerator(latent_dim=correct_latent_dim, num_classes=num_classes).to(self.device)
+            # 更新latent_dim
+            self.latent_dim = correct_latent_dim
+        else:
+            # 如果没有fc.0.weight，使用默认模型
+            self.generator = Generator(latent_dim=self.latent_dim, num_classes=num_classes).to(self.device)
+        
+        # 加载state_dict，忽略不匹配的键
+        self.generator.load_state_dict(state_dict, strict=False)
         self.generator.eval()
         logger.info(f"生成器潜在空间维度: {self.latent_dim}")
+        logger.info(f"生成器类别数量: {num_classes}")
+        logger.info("使用 strict=False 加载模型权重，忽略结构不匹配的键")
         
         # 加载检测模型
         self.detection_model = None
@@ -209,14 +297,22 @@ class GeneratorTester:
         # 生成随机噪声
         noise = torch.randn(num_images, self.latent_dim, device=self.device)
         
-        # 生成图像
-        self.generator.eval()
-        with torch.no_grad():
-            generated_images = self.generator(noise)
+        # 创建目标类别标签（使用第一个类别，即原神_丽莎）
+        target_labels = torch.full((num_images,), 0, dtype=torch.long, device=self.device)
         
-        # 反标准化
+        # 尝试使用条件GAN方式生成图像
+        self.generator.eval()
+        try:
+            # 生成图像（条件GAN）
+            with torch.no_grad():
+                generated_images = self.generator(noise, target_labels)
+        except TypeError:
+            # 如果是旧的非条件GAN模型，只传递噪声参数
+            with torch.no_grad():
+                generated_images = self.generator(noise)
+        
+        # 反标准化 - 由于使用了 Sigmoid 激活函数，生成的图像值范围已经是 [0, 1]
         generated_images_np = generated_images.cpu().numpy()
-        generated_images_np = (generated_images_np * 0.5) + 0.5
         generated_images_np = (generated_images_np * 255).astype(np.uint8)
         
         # 测试检测模型分类结果

@@ -135,11 +135,31 @@ def about():
     """关于页面"""
     return render_template('about.html')
 
-@app.route('/api/classify', methods=['POST'])
+@app.route('/api/classify', methods=['GET', 'POST'])
 def api_classify():
     """API分类端点"""
     import json
     
+    if request.method == 'GET':
+        # GET 请求返回 API 文档
+        api_doc = {
+            'endpoint': '/api/classify',
+            'method': 'POST',
+            'description': '角色分类API',
+            'parameters': {
+                'file': '图像文件（必填）'
+            },
+            'response': {
+                'filename': '文件名',
+                'role': '识别的角色',
+                'similarity': '相似度',
+                'boxes': '边界框信息'
+            },
+            'example': 'curl -X POST -F "file=@image.jpg" http://localhost:5001/api/classify'
+        }
+        return json.dumps(api_doc, ensure_ascii=False), 200, {'Content-Type': 'application/json'}
+    
+    # POST 请求处理图像分类
     if 'file' not in request.files:
         return json.dumps({'error': '没有文件部分'}), 400
     
@@ -175,6 +195,60 @@ def api_classify():
                 os.remove(temp_path)
     
     return json.dumps({'error': '不支持的文件类型'}), 400
+
+@app.route('/workflow', methods=['GET', 'POST'])
+def workflow():
+    """角色检测工作流"""
+    if request.method == 'POST':
+        try:
+            # 获取表单数据
+            characters = request.form.get('characters')
+            test_image = request.form.get('test_image')
+            max_images = int(request.form.get('max_images', 50))
+            batch_size = int(request.form.get('batch_size', 16))
+            num_epochs = int(request.form.get('num_epochs', 50))
+            learning_rate = float(request.form.get('learning_rate', 5e-5))
+            num_workers = int(request.form.get('num_workers', 4))
+            threshold = float(request.form.get('threshold', 0.5))
+            multiple = 'multiple' in request.form
+            grid_size = int(request.form.get('grid_size', 3))
+            
+            # 验证输入
+            if not characters or not test_image:
+                flash('角色信息和测试图像路径不能为空')
+                return redirect(request.url)
+            
+            # 检查测试图像是否存在
+            if not os.path.exists(test_image):
+                flash(f'测试图像不存在: {test_image}')
+                return redirect(request.url)
+            
+            # 构建命令
+            cmd = f'python scripts/workflow/character_detection_workflow.py '
+            cmd += f'--characters "{characters}" '
+            cmd += f'--test_image "{test_image}" '
+            cmd += f'--max_images {max_images} '
+            cmd += f'--batch_size {batch_size} '
+            cmd += f'--num_epochs {num_epochs} '
+            cmd += f'--learning_rate {learning_rate} '
+            cmd += f'--num_workers {num_workers} '
+            cmd += f'--threshold {threshold} '
+            if multiple:
+                cmd += f'--multiple '
+            cmd += f'--grid_size {grid_size}'
+            
+            # 执行工作流
+            import subprocess
+            subprocess.Popen(cmd, shell=True, cwd=os.getcwd())
+            
+            flash('工作流已启动！请查看终端输出了解进度。')
+            return redirect(url_for('workflow'))
+        except Exception as e:
+            flash(f'工作流启动失败: {str(e)}')
+            return redirect(request.url)
+    
+    # GET请求，显示工作流表单
+    return render_template('workflow.html')
 
 # 创建HTML模板
 @app.template_filter('format_similarity')

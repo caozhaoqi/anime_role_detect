@@ -30,3 +30,5 @@ deepdanbooru>=1.0.0
 # 可选：Pixiv采集
 pixivpy3>=3.7.0
 requests>=2.31.0
+
+flask
