@@ -19,7 +19,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..',
 try:
     from src.core.log_fusion.log_recorder import record_classification_log
 except Exception as e:
-    print(f"导入日志记录模块失败: {e}")
+    # print(f"导入日志记录模块失败: {e}") # 暂时屏蔽，避免干扰
     record_classification_log = None
 
 
@@ -28,25 +28,24 @@ class GeneralClassification:
     
     # 全局缓存
     _instance_cache = None
-    _index_cache = {}
     
-    def __new__(cls, threshold=0.7):
+    def __new__(cls, threshold=0.7, index_path=None):
         """单例模式，避免重复初始化"""
         if cls._instance_cache is None:
             cls._instance_cache = super(GeneralClassification, cls).__new__(cls)
         return cls._instance_cache
     
-    def __init__(self, threshold=0.7):
+    def __init__(self, threshold=0.7, index_path=None):
         """初始化通用分类器"""
         if hasattr(self, 'is_initialized') and self.is_initialized:
             return
         
         self.threshold = threshold
+        self.index_path = index_path
         self.extractor = None
         self.classifier = None
         self.preprocessor = None
         self.is_initialized = False
-        self.initialized_modules = set()
         
     def initialize(self):
         """初始化所有模块"""
@@ -69,6 +68,14 @@ class GeneralClassification:
             print("初始化分类模块...")
             self.classifier = Classification(threshold=self.threshold)
             
+            # 如果指定了索引路径，尝试加载
+            if self.index_path:
+                if os.path.exists(f"{self.index_path}.faiss") and os.path.exists(f"{self.index_path}_mapping.json"):
+                    print(f"加载索引文件: {self.index_path}")
+                    self.classifier.load_index(self.index_path)
+                else:
+                    print(f"警告: 索引文件不存在: {self.index_path}")
+            
             self.is_initialized = True
             print("所有模块初始化成功!")
             return True
@@ -86,7 +93,7 @@ class GeneralClassification:
             print(f"从目录构建索引: {data_dir}")
             
             # 收集所有角色目录，过滤掉非角色目录
-            exclude_dirs = ['shuffled', 'classification_results', 'downloaded']
+            exclude_dirs = ['shuffled', 'classification_results', 'downloaded', '.DS_Store']
             role_dirs = [d for d in os.listdir(data_dir) 
                         if os.path.isdir(os.path.join(data_dir, d)) and d not in exclude_dirs]
             
@@ -112,6 +119,7 @@ class GeneralClassification:
                     continue
                 
                 # 为每个角色选择第一张图片作为代表
+                # TODO: 未来可以优化为提取多张图片的平均特征
                 image_path = os.path.join(role_dir, image_files[0])
                 print(f"处理角色: {role}, 使用图片: {image_files[0]}")
                 
@@ -147,6 +155,10 @@ class GeneralClassification:
         """分类单个图像"""
         if not self.initialize():
             return None, 0.0, None
+            
+        # 检查索引是否已加载
+        if self.classifier.index is None:
+            raise ValueError("索引尚未构建或加载。请先运行 scripts/build_faiss_index.py 构建索引。")
         
         try:
             # 预处理
@@ -171,7 +183,7 @@ class GeneralClassification:
             return role, similarity, boxes
         except Exception as e:
             print(f"分类图像失败: {e}")
-            return None, 0.0, None
+            raise e # 抛出异常以便上层捕获
     
     def classify_pil_image(self, pil_image):
         """分类PIL图像对象"""
@@ -208,13 +220,20 @@ class GeneralClassification:
         
         results = []
         for image_path in image_paths:
-            role, similarity, boxes = self.classify_image(image_path)
-            results.append({
-                'image_path': image_path,
-                'role': role,
-                'similarity': similarity,
-                'boxes': boxes
-            })
+            try:
+                role, similarity, boxes = self.classify_image(image_path)
+                results.append({
+                    'image_path': image_path,
+                    'role': role,
+                    'similarity': similarity,
+                    'boxes': boxes
+                })
+            except Exception as e:
+                print(f"处理图片 {image_path} 失败: {e}")
+                results.append({
+                    'image_path': image_path,
+                    'error': str(e)
+                })
         return results
     
     def get_available_roles(self):
@@ -256,11 +275,11 @@ class GeneralClassification:
 # 全局分类器实例
 _global_classifier = None
 
-def get_classifier():
+def get_classifier(index_path="role_index"):
     """获取全局分类器实例"""
     global _global_classifier
     if _global_classifier is None:
-        _global_classifier = GeneralClassification()
+        _global_classifier = GeneralClassification(index_path=index_path)
     return _global_classifier
 
 def classify_image(image_path):
@@ -280,10 +299,9 @@ def build_index_from_directory(data_dir):
 
 if __name__ == "__main__":
     """测试通用分类模块"""
-    classifier = GeneralClassification()
-    
     # 测试初始化
     print("测试模块初始化...")
+    classifier = GeneralClassification()
     classifier.initialize()
     
     # 测试从目录构建索引

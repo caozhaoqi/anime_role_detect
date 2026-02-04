@@ -21,7 +21,7 @@ from src.core.general_classification import GeneralClassification, get_classifie
 # 初始化Flask应用
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'your-secret-key-here'
-app.config['UPLOAD_FOLDER'] = os.path.join('static', 'uploads')
+app.config['UPLOAD_FOLDER'] = os.path.join('src', 'web', 'static', 'uploads') # 修正上传路径
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB
 
 # 确保上传目录存在
@@ -39,38 +39,10 @@ def allowed_file(filename):
 def initialize_system():
     """初始化分类系统"""
     print("初始化分类系统...")
-    classifier = get_classifier()
-    
-    # 从增强后的数据构建索引
-    data_dir = "data/augmented_characters"
-    if os.path.exists(data_dir):
-        success = classifier.build_index_from_directory(data_dir)
-        if success:
-            print("系统初始化成功! 使用增强后的数据")
-        else:
-            print("系统初始化失败，使用原始数据...")
-            # 尝试使用原始数据
-            original_dir = "data/all_characters"
-            if os.path.exists(original_dir):
-                classifier.build_index_from_directory(original_dir)
-            else:
-                print("原始数据目录不存在，使用备用数据...")
-                # 尝试使用备用数据
-                backup_dir = "data/blue_archive_optimized_v2"
-                if os.path.exists(backup_dir):
-                    classifier.build_index_from_directory(backup_dir)
-                else:
-                    backup_dir = "data/blue_archive_optimized"
-                    if os.path.exists(backup_dir):
-                        classifier.build_index_from_directory(backup_dir)
-    else:
-        print("增强数据目录不存在，使用原始数据...")
-        # 尝试使用原始数据
-        original_dir = "data/all_characters"
-        if os.path.exists(original_dir):
-            classifier.build_index_from_directory(original_dir)
-        else:
-            print("数据目录不存在，系统初始化失败")
+    # 这里只负责初始化，具体的索引加载由 GeneralClassification 内部处理
+    # 默认加载 'role_index'
+    classifier = get_classifier(index_path="role_index")
+    classifier.initialize()
 
 @app.route('/', methods=['GET', 'POST'])
 def index():
@@ -118,6 +90,9 @@ def index():
                 }
                 
                 return render_template('result.html', result=result)
+            except ValueError as e:
+                flash(f'系统错误: {str(e)}')
+                return redirect(request.url)
             except Exception as e:
                 flash(f'分类失败: {str(e)}')
                 return redirect(request.url)
