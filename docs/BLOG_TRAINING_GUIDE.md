@@ -61,7 +61,7 @@ graph TD
     Detector -->|是不是Miku?| Loss2[分类 Loss]
     VGG -->|纹理细节对不对?| Loss3[感知 Loss]
     
-    Loss1 & Loss2 & Loss3 --> Update[毒打(更新)生成器]
+    Loss1 & Loss2 & Loss3 --> Update[毒打 更新 生成器]
 ```
 
 *   **生成器 (Generator)**: 负责画画的考生。

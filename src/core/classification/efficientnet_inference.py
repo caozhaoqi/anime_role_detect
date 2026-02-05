@@ -60,6 +60,20 @@ class EfficientNetInference:
 
     def _load_classes(self):
         """加载类别映射"""
+        # 尝试从模型文件中加载class_to_idx
+        try:
+            checkpoint = torch.load(self.model_path, map_location=self.device)
+            if 'class_to_idx' in checkpoint:
+                class_to_idx = checkpoint['class_to_idx']
+                # 转换为按索引排序的类别列表
+                idx_to_class = {v: k for k, v in class_to_idx.items()}
+                classes = [idx_to_class[i] for i in sorted(idx_to_class.keys())]
+                print(f"从模型文件加载了 {len(classes)} 个类别")
+                return classes
+        except Exception as e:
+            print(f"从模型文件加载类别失败: {e}")
+        
+        # 如果从模型文件加载失败，回退到从目录加载
         if not os.path.exists(self.data_dir):
             raise FileNotFoundError(f"数据目录不存在: {self.data_dir}")
             
@@ -68,7 +82,7 @@ class EfficientNetInference:
         classes = [d for d in os.listdir(self.data_dir) 
                   if os.path.isdir(os.path.join(self.data_dir, d)) and not d.startswith('.')]
         classes.sort()
-        print(f"加载了 {len(classes)} 个类别")
+        print(f"从目录加载了 {len(classes)} 个类别")
         return classes
 
     def _load_model(self):

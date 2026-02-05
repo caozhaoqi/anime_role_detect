@@ -35,7 +35,15 @@ class FeatureExtraction:
                 features = self.model.get_image_features(**inputs)
             
             # 归一化特征向量
-            features = features / features.norm(dim=-1, keepdim=True)
+            norm = features.norm(dim=-1, keepdim=True)
+            # 防止除以零
+            if norm.item() > 1e-10:
+                features = features / norm
+            else:
+                # 如果范数为零，使用随机向量
+                print("警告: 特征向量范数为零，使用随机向量")
+                features = torch.randn_like(features)
+                features = features / features.norm(dim=-1, keepdim=True)
             
             # 转换为numpy数组
             features_np = features.cpu().numpy().squeeze()

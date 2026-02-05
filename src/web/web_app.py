@@ -7,6 +7,7 @@ import os
 import sys
 import tempfile
 import platform
+import numpy as np
 from flask import Flask, request, render_template, redirect, url_for, flash
 from PIL import Image
 
@@ -96,12 +97,20 @@ def classify_with_coreml(image_path):
         if len(predictions.shape) == 2:
             predictions = predictions[0]
         
-        predicted_idx = int(np.argmax(predictions))
-        similarity = float(predictions[predicted_idx])
+        # 应用softmax转换为概率
+        exp_predictions = np.exp(predictions - np.max(predictions))  # 数值稳定
+        probabilities = exp_predictions / np.sum(exp_predictions)
+        
+        predicted_idx = int(np.argmax(probabilities))
+        similarity = float(probabilities[predicted_idx])
         
         # 转换为角色名称
-        if idx_to_class and predicted_idx in idx_to_class:
-            role = idx_to_class[predicted_idx]
+        if idx_to_class:
+            # 尝试将predicted_idx转换为字符串查找
+            if str(predicted_idx) in idx_to_class:
+                role = idx_to_class[str(predicted_idx)]
+            else:
+                role = f"类别_{predicted_idx}"
         else:
             role = f"类别_{predicted_idx}"
         
@@ -131,8 +140,13 @@ def index():
             return redirect(request.url)
         
         file = request.files['file']
+        # 在Mac平台默认使用Core ML模型
+        if platform.system() == 'Darwin' and coreml_model is not None:
+            use_coreml = True
+        else:
+            use_coreml = 'use_coreml' in request.form and request.form['use_coreml'] == 'true'
+        
         use_model = 'use_model' in request.form and request.form['use_model'] == 'true'
-        use_coreml = 'use_coreml' in request.form and request.form['use_coreml'] == 'true'
         
         # 检查Core ML模型是否可用
         if use_coreml and coreml_model is None:
@@ -161,6 +175,12 @@ def index():
                     classifier = get_classifier()
                     role, similarity, boxes = classifier.classify_image(temp_path, use_model=use_model)
                     mode = '专用模型 (EfficientNet)' if use_model else '通用索引 (CLIP)'
+                
+                # 安全检查：处理无穷大或无效值
+                if similarity is None or not isinstance(similarity, (int, float)):
+                    similarity = 0.0
+                elif np.isinf(similarity) or np.isnan(similarity):
+                    similarity = 0.0
                 
                 # 转换相似度为百分比
                 similarity_percent = similarity * 100
@@ -329,14 +349,16 @@ def workflow():
                 return redirect(request.url)
             
             # 检查测试图像是否存在
-            if not os.path.exists(test_image):
+            # 转换为绝对路径
+            test_image_abs = os.path.abspath(test_image)
+            if not os.path.exists(test_image_abs):
                 flash(f'测试图像不存在: {test_image}')
                 return redirect(request.url)
             
             # 构建命令
             cmd = f'python scripts/workflow/character_detection_workflow.py '
             cmd += f'--characters "{characters}" '
-            cmd += f'--test_image "{test_image}" '
+            cmd += f'--test_image "{test_image_abs}" '
             cmd += f'--max_images {max_images} '
             cmd += f'--batch_size {batch_size} '
             cmd += f'--num_epochs {num_epochs} '
@@ -371,7 +393,7 @@ if __name__ == '__main__':
     initialize_system()
     
     # 运行应用
-    port = 5001
+    port = 5003
     print("启动Flask应用...")
     print(f"访问地址: http://127.0.0.1:{port}")
     app.run(debug=True, host='0.0.0.0', port=port)

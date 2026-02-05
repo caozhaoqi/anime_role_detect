@@ -98,9 +98,13 @@ class ModelTester:
                            std=[0.229, 0.224, 0.225])
         ])
     
-    def load_data(self):
-        """加载测试数据"""
-        logger.info(f"加载数据: {self.data_dir}")
+    def load_data(self, sample_ratio=1.0):
+        """加载测试数据
+        
+        Args:
+            sample_ratio: 数据采样比例 (0.0-1.0)，1.0表示使用全部数据
+        """
+        logger.info(f"加载数据: {self.data_dir} (采样比例: {sample_ratio*100:.0f}%)")
         
         data = []
         labels = []
@@ -128,6 +132,14 @@ class ModelTester:
             for ext in ['*.jpg', '*.jpeg', '*.png', '*.bmp', '*.gif']:
                 image_files.extend(Path(character_path).glob(ext))
             
+            # 根据采样比例选择图片
+            if sample_ratio < 1.0:
+                import random
+                random.shuffle(image_files)
+                num_samples = int(len(image_files) * sample_ratio)
+                image_files = image_files[:num_samples]
+                logger.info(f"角色 '{character_name}': 原始{len(image_files)}张，采样{num_samples}张")
+            
             for img_file in image_files:
                 data.append({
                     'path': str(img_file),
@@ -139,12 +151,16 @@ class ModelTester:
         logger.info(f"加载了 {len(data)} 张图片，{len(set(labels))} 个类别")
         return data, labels
     
-    def test(self):
-        """执行测试"""
+    def test(self, sample_ratio=1.0):
+        """执行测试
+        
+        Args:
+            sample_ratio: 数据采样比例 (0.0-1.0)，1.0表示使用全部数据
+        """
         if self.model is None:
             raise ValueError("模型未加载")
         
-        data, true_labels = self.load_data()
+        data, true_labels = self.load_data(sample_ratio=sample_ratio)
         
         if len(data) == 0:
             logger.error("没有可用的测试数据")
@@ -260,12 +276,18 @@ class ModelTester:
             true_labels = self.results['true_labels']
             predictions = self.results['predictions']
             
+            # 获取所有实际的类别索引
+            actual_classes = sorted(set(true_labels))
+            
+            # 为每个实际类别生成名称
             target_names = []
-            for idx in sorted(set(true_labels)):
+            for idx in actual_classes:
                 class_name = self.idx_to_class.get(idx, f"Class_{idx}")
                 target_names.append(class_name)
             
+            # 使用labels参数指定实际的类别
             report = classification_report(true_labels, predictions, 
+                                      labels=actual_classes,
                                       target_names=target_names, 
                                       digits=4,
                                       zero_division=0)
@@ -364,6 +386,8 @@ def main():
     parser.add_argument('--output_json', type=str, 
                        default='detailed_results.json',
                        help='详细结果JSON输出路径')
+    parser.add_argument('--sample_ratio', type=float, default=0.1,
+                       help='数据采样比例 (0.0-1.0), 默认1.0表示使用全部数据')
     
     args = parser.parse_args()
     
@@ -379,7 +403,7 @@ def main():
     tester.load_model()
     
     # 执行测试
-    test_results = tester.test()
+    test_results = tester.test(sample_ratio=args.sample_ratio)
     
     if test_results:
         # 生成报告

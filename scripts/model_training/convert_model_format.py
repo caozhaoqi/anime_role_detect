@@ -234,10 +234,11 @@ def convert_to_coreml(model_path, output_path, input_size=(224, 224)):
     # 将模型转换为TorchScript对象
     traced_model = torch.jit.trace(model, dummy_input)
     
-    # 转换为CoreML
+    # 转换为CoreML，确保使用FP32精度
     coreml_model = coremltools.convert(
         model=traced_model,
-        inputs=[coremltools.ImageType(name="input", shape=dummy_input.shape)]
+        inputs=[coremltools.ImageType(name="input", shape=dummy_input.shape)],
+        compute_precision=coremltools.precision.FLOAT32
     )
     
     # 保存CoreML模型
