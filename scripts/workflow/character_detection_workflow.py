@@ -118,7 +118,7 @@ class TempImageCrawler:
                 response = self.session.get(search_url, headers=self.headers, timeout=10)
                 response.raise_for_status()
             except Exception as e:
-                logger.error(f"搜索失败: {{e}}")
+                logger.error(f"搜索失败: {e}")
                 page += 1
                 continue
             
@@ -129,7 +129,7 @@ class TempImageCrawler:
             image_elements = soup.find_all('img', {'class': 'mimg'})
             
             if not image_elements:
-                logger.warning(f"第 {{page}} 页未找到图片")
+                logger.warning(f"第 {page} 页未找到图片")
                 page += 1
                 continue
             
@@ -144,7 +144,7 @@ class TempImageCrawler:
                 
                 # 确保URL完整
                 if not img_url.startswith('http'):
-                    img_url = f"https://www.bing.com{{img_url}}"
+                    img_url = f"https://www.bing.com{img_url}"
                 
                 try:
                     # 下载图片
@@ -167,12 +167,12 @@ class TempImageCrawler:
                     time.sleep(random.uniform(0.5, 2.0))
                     
                 except Exception as e:
-                    logger.error(f"下载图片失败: {{e}}")
+                    logger.error(f"下载图片失败: {e}")
                     continue
             
             page += 1
         
-        logger.info(f"角色 {{character_name}} 图片采集完成，共下载 {{image_count}} 张图片")
+        logger.info(f"角色 {character_name} 图片采集完成，共下载 {image_count} 张图片")
         return image_count
 
 def main():
@@ -201,8 +201,8 @@ def main():
         # 每个角色之间的延迟
         time.sleep(random.uniform(2.0, 5.0))
     
-    logger.info(f"所有角色图片采集完成，共下载 {{total_images}} 张图片")
-    print(f"{{total_images}}")
+    logger.info(f"所有角色图片采集完成，共下载 {total_images} 张图片")
+    print(f"{total_images}")
 
 if __name__ == "__main__":
     main()
