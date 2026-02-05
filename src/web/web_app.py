@@ -6,6 +6,7 @@ Flask网页应用
 import os
 import sys
 import tempfile
+import platform
 from flask import Flask, request, render_template, redirect, url_for, flash
 from PIL import Image
 
@@ -17,6 +18,20 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..',
 
 # 导入通用分类模块
 from src.core.general_classification import GeneralClassification, get_classifier
+
+# Core ML模型加载（仅在macOS上）
+coreml_model = None
+if platform.system() == 'Darwin':
+    try:
+        import coremltools
+        coreml_model_path = os.path.join('models', 'character_classifier_best_improved.mlpackage')
+        if os.path.exists(coreml_model_path):
+            coreml_model = coremltools.models.MLModel(coreml_model_path)
+            print(f"Core ML模型已加载: {coreml_model_path}")
+    except ImportError:
+        print("coremltools未安装，Core ML功能不可用")
+    except Exception as e:
+        print(f"Core ML模型加载失败: {e}")
 
 # 初始化Flask应用
 app = Flask(__name__)
@@ -35,6 +50,68 @@ def allowed_file(filename):
     """检查文件扩展名是否允许"""
     return '.' in filename and \
            filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+def classify_with_coreml(image_path):
+    """使用Core ML模型进行分类
+    
+    Args:
+        image_path: 图像路径
+    
+    Returns:
+        (role, similarity, boxes): 角色名称、相似度、边界框
+    """
+    import json
+    import numpy as np
+    
+    # 加载类别映射
+    mapping_path = os.path.join('models', 'character_classifier_best_improved_class_mapping.json')
+    idx_to_class = None
+    if os.path.exists(mapping_path):
+        with open(mapping_path, 'r') as f:
+            mapping = json.load(f)
+            idx_to_class = mapping['idx_to_class']
+    
+    # 加载并预处理图像
+    image = Image.open(image_path).convert('RGB')
+    image = image.resize((224, 224))
+    
+    # Core ML推理
+    try:
+        output = coreml_model.predict({'input': image})
+        
+        # 获取预测结果
+        if 'var_874' in output:
+            predictions = output['var_874']
+        elif 'output' in output:
+            predictions = output['output']
+        else:
+            # 尝试找到输出键
+            output_keys = [k for k in output.keys() if k != 'input']
+            if output_keys:
+                predictions = output[output_keys[0]]
+            else:
+                raise ValueError("无法找到Core ML模型输出")
+        
+        # 获取最高概率的类别
+        if len(predictions.shape) == 2:
+            predictions = predictions[0]
+        
+        predicted_idx = int(np.argmax(predictions))
+        similarity = float(predictions[predicted_idx])
+        
+        # 转换为角色名称
+        if idx_to_class and predicted_idx in idx_to_class:
+            role = idx_to_class[predicted_idx]
+        else:
+            role = f"类别_{predicted_idx}"
+        
+        # Core ML模型不提供边界框信息
+        boxes = []
+        
+        return role, similarity, boxes
+        
+    except Exception as e:
+        raise ValueError(f"Core ML推理失败: {e}")
 
 def initialize_system():
     """初始化分类系统"""
@@ -55,6 +132,12 @@ def index():
         
         file = request.files['file']
         use_model = 'use_model' in request.form and request.form['use_model'] == 'true'
+        use_coreml = 'use_coreml' in request.form and request.form['use_coreml'] == 'true'
+        
+        # 检查Core ML模型是否可用
+        if use_coreml and coreml_model is None:
+            flash('Core ML模型不可用，将使用默认模型')
+            use_coreml = False
         
         # 检查用户是否选择了文件
         if file.filename == '':
@@ -69,8 +152,15 @@ def index():
             
             try:
                 # 分类图像
-                classifier = get_classifier()
-                role, similarity, boxes = classifier.classify_image(temp_path, use_model=use_model)
+                if use_coreml:
+                    # 使用Core ML模型
+                    role, similarity, boxes = classify_with_coreml(temp_path)
+                    mode = 'Core ML模型 (Apple设备)'
+                else:
+                    # 使用默认模型
+                    classifier = get_classifier()
+                    role, similarity, boxes = classifier.classify_image(temp_path, use_model=use_model)
+                    mode = '专用模型 (EfficientNet)' if use_model else '通用索引 (CLIP)'
                 
                 # 转换相似度为百分比
                 similarity_percent = similarity * 100
@@ -88,7 +178,7 @@ def index():
                     'image_width': img_width,
                     'image_height': img_height,
                     'boxes': boxes,
-                    'mode': '专用模型 (EfficientNet)' if use_model else '通用索引 (CLIP)'
+                    'mode': mode
                 }
                 
                 return render_template('result.html', result=result)
@@ -111,6 +201,11 @@ def index():
 def about():
     """关于页面"""
     return render_template('about.html')
+
+@app.route('/monitoring')
+def monitoring():
+    """性能监控页面"""
+    return render_template('monitoring.html')
 
 @app.route('/api/classify', methods=['GET', 'POST'])
 def api_classify():
@@ -143,6 +238,11 @@ def api_classify():
     
     file = request.files['file']
     use_model = request.form.get('use_model') == 'true'
+    use_coreml = request.form.get('use_coreml') == 'true'
+    
+    # 检查Core ML模型是否可用
+    if use_coreml and coreml_model is None:
+        return json.dumps({'error': 'Core ML模型不可用'}), 400
     
     if file.filename == '':
         return json.dumps({'error': '没有选择文件'}), 400
@@ -154,8 +254,15 @@ def api_classify():
         
         try:
             # 分类图像
-            classifier = get_classifier()
-            role, similarity, boxes = classifier.classify_image(temp_path, use_model=use_model)
+            if use_coreml:
+                # 使用Core ML模型
+                role, similarity, boxes = classify_with_coreml(temp_path)
+                mode = 'Core ML'
+            else:
+                # 使用默认模型
+                classifier = get_classifier()
+                role, similarity, boxes = classifier.classify_image(temp_path, use_model=use_model)
+                mode = 'EfficientNet' if use_model else 'CLIP'
             
             # 准备结果
             result = {
@@ -163,7 +270,7 @@ def api_classify():
                 'role': role if role else '未知',
                 'similarity': float(similarity),
                 'boxes': boxes,
-                'mode': 'EfficientNet' if use_model else 'CLIP'
+                'mode': mode
             }
             
             return json.dumps(result), 200, {'Content-Type': 'application/json'}
@@ -175,6 +282,29 @@ def api_classify():
                 os.remove(temp_path)
     
     return json.dumps({'error': '不支持的文件类型'}), 400
+
+@app.route('/api/track_inference', methods=['POST'])
+def track_inference():
+    """接收用户体验数据"""
+    import json
+    from datetime import datetime
+    
+    try:
+        data = request.json
+        
+        # 创建日志目录
+        log_dir = os.path.join('logs', 'user_experience')
+        os.makedirs(log_dir, exist_ok=True)
+        
+        # 保存到日志文件
+        log_file = os.path.join(log_dir, f'inference_{datetime.now().strftime("%Y%m%d")}.log')
+        
+        with open(log_file, 'a') as f:
+            f.write(json.dumps(data, ensure_ascii=False) + '\n')
+        
+        return json.dumps({'status': 'success'}), 200
+    except Exception as e:
+        return json.dumps({'error': str(e)}), 500
 
 @app.route('/workflow', methods=['GET', 'POST'])
 def workflow():

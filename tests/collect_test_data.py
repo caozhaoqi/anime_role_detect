@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-从Danbooru、Pixiv等网站采集测试数据脚本
+从Danbooru、Pixiv、Bing等网站采集测试数据脚本
 """
 import os
 import requests
@@ -8,6 +8,7 @@ import argparse
 import json
 import random
 import base64
+import re
 from time import sleep
 from pixivpy3 import *
 
@@ -152,6 +153,100 @@ def collect_from_danbooru(tags, limit, output_dir, api_key=None, user=None):
         print(f"Danbooru采集失败: {e}")
         return 0
 
+def collect_from_safebooru(tags, limit, output_dir):
+    """从Safebooru搜索并下载二次元图片（无需API Key，内容相对安全）"""
+    print(f"从Safebooru搜索标签: {tags}")
+    
+    try:
+        import urllib.parse
+        encoded_tags = urllib.parse.quote(tags)
+        # Safebooru API URL
+        api_url = f"https://safebooru.org/index.php?page=dapi&s=post&q=index&json=1&limit={limit*2}&tags={encoded_tags}"
+        
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+        }
+        
+        response = requests.get(api_url, headers=headers, timeout=15)
+        response.raise_for_status()
+        
+        posts = response.json()
+        
+        image_urls = []
+        for post in posts:
+            if 'file_url' in post:
+                # Safebooru的file_url有时是相对路径
+                url = post["file_url"]
+                if not url.startswith("http"):
+                    url = "https://safebooru.org/images/" + post["directory"] + "/" + post["image"]
+                image_urls.append(url)
+        
+        print(f"找到 {len(image_urls)} 个结果")
+        
+        downloaded = 0
+        for i, image_url in enumerate(image_urls[:limit]):
+            file_ext = os.path.splitext(image_url)[1]
+            if not file_ext:
+                file_ext = ".jpg"
+            
+            clean_tags = tags.replace(" ", "_").replace(":", "")
+            save_path = os.path.join(output_dir, f"safebooru_{clean_tags}_{i+1}{file_ext}")
+            
+            print(f"下载 {image_url} 到 {save_path}")
+            if download_image(image_url, save_path):
+                downloaded += 1
+                sleep(1)
+        
+        return downloaded
+    except Exception as e:
+        print(f"Safebooru采集失败: {e}")
+        return 0
+
+def collect_from_bing(query, limit, output_dir):
+    """从Bing搜索并下载图片（无需API Key，模拟浏览器）"""
+    print(f"从Bing搜索: {query}")
+    
+    try:
+        import urllib.parse
+        encoded_query = urllib.parse.quote(query)
+        # Bing图片搜索URL
+        url = f"https://www.bing.com/images/async?q={encoded_query}&first=0&count={limit*2}&adlt=off&qft="
+        
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+        }
+        
+        response = requests.get(url, headers=headers, timeout=15)
+        response.raise_for_status()
+        
+        # 使用正则提取图片URL (murl)
+        # Bing返回的HTML中包含类似 murl&quot;:&quot;http...&quot; 的结构
+        image_urls = re.findall(r'murl&quot;:&quot;(http[^&]+)&quot;', response.text)
+        
+        print(f"找到 {len(image_urls)} 个结果")
+        
+        downloaded = 0
+        for i, image_url in enumerate(image_urls[:limit]):
+            # 尝试推断文件扩展名
+            file_ext = ".jpg"
+            if ".png" in image_url.lower():
+                file_ext = ".png"
+            elif ".jpeg" in image_url.lower():
+                file_ext = ".jpeg"
+                
+            clean_query = query.replace(" ", "_").replace(":", "")
+            save_path = os.path.join(output_dir, f"bing_{clean_query}_{i+1}{file_ext}")
+            
+            print(f"下载 {image_url} 到 {save_path}")
+            if download_image(image_url, save_path):
+                downloaded += 1
+                sleep(1)
+        
+        return downloaded
+    except Exception as e:
+        print(f"Bing采集失败: {e}")
+        return 0
+
 def collect_from_pixiv(tags, limit, output_dir, refresh_token=None):
     """从Pixiv采集二次元图片，失败时尝试其他来源"""
     if not os.path.exists(output_dir):
@@ -162,13 +257,22 @@ def collect_from_pixiv(tags, limit, output_dir, refresh_token=None):
     # 优先使用API
     downloaded = collect_from_pixiv_api(tags, limit, output_dir, refresh_token)
     
-    # 如果API失败，回退到旧的网页抓取/备用方法
+    # 如果API失败，回退到Danbooru
     if downloaded == 0:
-        print("Pixiv API采集失败或未配置，尝试备用方法...")
-        # 这里可以保留旧的网页抓取逻辑，或者直接切换到其他源
-        # 为了简化，我们直接切换到Danbooru
-        print("切换到Danbooru作为备用源")
+        print("Pixiv API采集失败或未配置，尝试Danbooru...")
         downloaded = collect_from_danbooru(tags, limit, output_dir)
+
+    # 如果Danbooru失败，尝试Safebooru
+    if downloaded == 0:
+        print("Danbooru采集失败，尝试Safebooru...")
+        downloaded = collect_from_safebooru(tags, limit, output_dir)
+
+    # 如果Safebooru失败，尝试Bing
+    if downloaded == 0:
+        print("Safebooru采集失败，尝试Bing...")
+        # Bing搜索时加上 "anime" 或 "genshin" 等关键词以提高相关性
+        bing_query = f"{tags} anime character"
+        downloaded = collect_from_bing(bing_query, limit, output_dir)
 
     # 如果仍然没有下载到图片，使用本地样本作为备选
     if downloaded == 0:
