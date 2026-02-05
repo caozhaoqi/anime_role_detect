@@ -45,9 +45,9 @@ class Preprocessing:
                 conf = box.conf[0].item()
                 cls = box.cls[0].item()
                 
-                # 只保留人物或类似人物的检测结果
-                # 注意：YOLOv8默认类别中，人物是类别0
-                if cls == 0 and conf > 0.5:
+                # 修改：降低置信度阈值到 0.25，提高召回率
+                # 修改：放宽类别限制，不仅限于 person (0)，防止二次元角色被误识别
+                if conf > 0.25:
                     boxes.append({
                         'bbox': [x1, y1, x2, y2],
                         'confidence': conf

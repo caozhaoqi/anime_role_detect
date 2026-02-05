@@ -113,9 +113,9 @@ anime_role_detect/
 - **椎名立希** (Ritsuki)
 - **高松灯** (Touko Takamatsu)
 - **长崎素世** (Soyo Nagasaki)
-- **玉井祥子** (Sakiko Tamagawa)
+- **丰川祥子** (Sakiko Tamagawa)
 - **若叶睦** (Mutsumi Wakaba)
-- **姬川瑠夏** (Rana Himemiya)
+
 
 ### 其他角色
 
@@ -124,7 +124,6 @@ anime_role_detect/
 - **进击的巨人** (Attack on Titan) 角色
 - **海贼王** (One Piece) 角色
 - **火影忍者** (Naruto) 角色
-- **我的英雄学院** (My Hero Academia) 角色
 - **东京复仇者** (Tokyo Revengers) 角色
 
 ## 🌐 使用方法
@@ -191,6 +190,7 @@ API返回结果示例：
 - **总训练时间**：50轮约54小时
 - **初始损失**：4.79
 - **当前损失**：1.06（第1轮后）
+- **最佳验证准确率**：0.9386（第18轮后）
 
 ## 🔧 技术实现
 
@@ -223,6 +223,29 @@ API返回结果示例：
 - **批量大小**：16
 - **训练轮数**：50
 - **初始学习率**：5e-5
+
+### 分布式训练
+
+系统支持跨多个GPU的分布式训练，以加快训练速度：
+
+```bash
+# 启动分布式训练
+python scripts/model_training/train_model_distributed.py --batch_size 8 --num_epochs 50 --learning_rate 5e-5 --weight_decay 1e-4 --num_workers 4
+```
+
+**主要特性：**
+- 自动检测可用GPU
+- DistributedDataParallel (DDP) 实现
+- 多GPU同步训练
+- 自动批量大小缩放（每个GPU的批量大小）
+- 如果只有一个GPU，自动回退到单GPU模式
+
+**预期加速效果：**
+- 2个GPU：约2倍训练速度
+- 4个GPU：约4倍训练速度
+- 8个GPU：约8倍训练速度
+
+**注意：** 分布式训练需要至少2个GPU才能有效。
 
 ## 📈 系统优化
 
@@ -304,12 +327,3 @@ python3 src/core/log_fusion/log_fusion.py --log_dir ./logs --output_model ./mode
 - **增强数据处理流水线**，自动数据集分割
 - **添加MPS加速**，在Apple Silicon上更快训练
 
-### 训练进度
-
-- **当前状态**：训练进行中（第1轮已完成）
-- **模型**：EfficientNet-B0
-- **训练数据**：131个类别，133,049张图片
-- **验证数据**：49,741张图片
-- **当前损失**：1.06
-- **训练速度**：约2.05 batch/s
-- **预计完成时间**：2026年2月6日

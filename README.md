@@ -113,9 +113,8 @@ anime_role_detect/
 - **Ritsuki椎名立希** (椎名立希)
 - **Touko Takamatsu** (高松灯)
 - **Soyo Nagasaki** (长崎素世)
-- **Sakiko Tamagawa** (玉井祥子)
+- **Sakiko Tamagawa** (丰川祥子)
 - **Mutsumi Wakaba** (若叶睦)
-- **Rana Himemiya** (姬川瑠夏)
 
 ### Other Characters
 
@@ -124,7 +123,6 @@ anime_role_detect/
 - **Attack on Titan** characters (进击的巨人)
 - **One Piece** characters (海贼王)
 - **Naruto** characters (火影忍者)
-- **My Hero Academia** characters (我的英雄学院)
 - **Tokyo Revengers** characters (东京复仇者)
 
 ## 🌐 Usage
@@ -191,6 +189,7 @@ API response example:
 - **Total Training Time**: ~54 hours for 50 epochs
 - **Initial Loss**: 4.79
 - **Current Loss**: 1.06 (after 1st epoch)
+- **Best Validation Accuracy**: 0.9386 (after 18th epoch)
 
 ## 🔧 Technical Implementation
 
@@ -223,6 +222,29 @@ API response example:
 - **Batch Size**: 16
 - **Training Epochs**: 50
 - **Initial Learning Rate**: 5e-5
+
+### Distributed Training
+
+The system supports distributed training across multiple GPUs for faster training:
+
+```bash
+# Start distributed training
+python scripts/model_training/train_model_distributed.py --batch_size 8 --num_epochs 50 --learning_rate 5e-5 --weight_decay 1e-4 --num_workers 4
+```
+
+**Key Features:**
+- Automatic detection of available GPUs
+- DistributedDataParallel (DDP) implementation
+- Synchronized training across multiple GPUs
+- Automatic batch size scaling (batch size per GPU)
+- Fallback to single GPU mode if only one GPU is available
+
+**Expected Speedup:**
+- 2 GPUs: ~2x faster training
+- 4 GPUs: ~4x faster training
+- 8 GPUs: ~8x faster training
+
+**Note:** Distributed training requires at least 2 GPUs to be effective.
 
 ## 📈 System Optimization
 
@@ -304,13 +326,4 @@ If you have any questions or suggestions, please contact us through:
 - **Enhanced data processing pipeline** with automatic dataset splitting
 - **Added MPS acceleration** for faster training on Apple Silicon
 
-### Training Progress
-
-- **Current Status**: Training in progress (1st epoch completed)
-- **Model**: EfficientNet-B0
-- **Training Data**: 131 classes, 133,049 images
-- **Validation Data**: 49,741 images
-- **Current Loss**: 1.06
-- **Training Speed**: ~2.05 batch/s
-- **Expected Completion**: February 6, 2026
 

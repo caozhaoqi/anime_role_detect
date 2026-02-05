@@ -54,6 +54,7 @@ def index():
             return redirect(request.url)
         
         file = request.files['file']
+        use_model = 'use_model' in request.form and request.form['use_model'] == 'true'
         
         # 检查用户是否选择了文件
         if file.filename == '':
@@ -69,7 +70,7 @@ def index():
             try:
                 # 分类图像
                 classifier = get_classifier()
-                role, similarity, boxes = classifier.classify_image(temp_path)
+                role, similarity, boxes = classifier.classify_image(temp_path, use_model=use_model)
                 
                 # 转换相似度为百分比
                 similarity_percent = similarity * 100
@@ -86,7 +87,8 @@ def index():
                     'image_path': file.filename,  # 只使用文件名
                     'image_width': img_width,
                     'image_height': img_height,
-                    'boxes': boxes
+                    'boxes': boxes,
+                    'mode': '专用模型 (EfficientNet)' if use_model else '通用索引 (CLIP)'
                 }
                 
                 return render_template('result.html', result=result)
@@ -122,7 +124,8 @@ def api_classify():
             'method': 'POST',
             'description': '角色分类API',
             'parameters': {
-                'file': '图像文件（必填）'
+                'file': '图像文件（必填）',
+                'use_model': '是否使用专用模型 (true/false, 默认false)'
             },
             'response': {
                 'filename': '文件名',
@@ -130,7 +133,7 @@ def api_classify():
                 'similarity': '相似度',
                 'boxes': '边界框信息'
             },
-            'example': 'curl -X POST -F "file=@image.jpg" http://localhost:5001/api/classify'
+            'example': 'curl -X POST -F "file=@image.jpg" -F "use_model=true" http://localhost:5001/api/classify'
         }
         return json.dumps(api_doc, ensure_ascii=False), 200, {'Content-Type': 'application/json'}
     
@@ -139,6 +142,7 @@ def api_classify():
         return json.dumps({'error': '没有文件部分'}), 400
     
     file = request.files['file']
+    use_model = request.form.get('use_model') == 'true'
     
     if file.filename == '':
         return json.dumps({'error': '没有选择文件'}), 400
@@ -151,14 +155,15 @@ def api_classify():
         try:
             # 分类图像
             classifier = get_classifier()
-            role, similarity, boxes = classifier.classify_image(temp_path)
+            role, similarity, boxes = classifier.classify_image(temp_path, use_model=use_model)
             
             # 准备结果
             result = {
                 'filename': file.filename,
                 'role': role if role else '未知',
                 'similarity': float(similarity),
-                'boxes': boxes
+                'boxes': boxes,
+                'mode': 'EfficientNet' if use_model else 'CLIP'
             }
             
             return json.dumps(result), 200, {'Content-Type': 'application/json'}
