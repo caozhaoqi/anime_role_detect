@@ -75,7 +75,23 @@ class AutomatedDataExpander:
             {'name': '路飞', 'series': 'one_piece', 'tags': ['monkey_d._luffy', 'one_piece']},
             {'name': '索隆', 'series': 'one_piece', 'tags': ['roronoa_zoro', 'one_piece']},
             {'name': '炭治郎', 'series': 'demon_slayer', 'tags': ['tanjiro_kamado', 'kimetsu_no_yaiba']},
-            {'name': '祢豆子', 'series': 'demon_slayer', 'tags': ['nezuko_kamado', 'kimetsu_no_yaiba']}
+            {'name': '祢豆子', 'series': 'demon_slayer', 'tags': ['nezuko_kamado', 'kimetsu_no_yaiba']},
+            
+            # 更多热门动漫角色
+            {'name': '孙悟空', 'series': 'dragon_ball', 'tags': ['son_goku', 'dragon_ball']},
+            {'name': '贝吉塔', 'series': 'dragon_ball', 'tags': ['vegeta', 'dragon_ball']},
+            {'name': '艾伦', 'series': 'attack_on_titan', 'tags': ['eren_yeager', 'shingeki_no_kyojin']},
+            {'name': '三笠', 'series': 'attack_on_titan', 'tags': ['mikasa_ackerman', 'shingeki_no_kyojin']},
+            {'name': '金木研', 'series': 'tokyo_ghoul', 'tags': ['ken_kaneki', 'tokyo_ghoul']},
+            {'name': '董香', 'series': 'tokyo_ghoul', 'tags': ['touka_kirishima', 'tokyo_ghoul']},
+            
+            # 更多游戏角色
+            {'name': '雷电将军', 'series': 'genshin_impact', 'tags': ['raiden_shogun', 'genshin_impact']},
+            {'name': '神里绫华', 'series': 'genshin_impact', 'tags': ['kamisato_ayaka', 'genshin_impact']},
+            {'name': '荒泷一斗', 'series': 'genshin_impact', 'tags': ['arataki_itto', 'genshin_impact']},
+            {'name': '八重神子', 'series': 'genshin_impact', 'tags': ['yae_miko', 'genshin_impact']},
+            {'name': '琪亚娜·卡斯兰娜', 'series': 'honkai_impact_3', 'tags': ['kiana_kaslana', 'honkai_impact_3rd']},
+            {'name': '雷电芽衣', 'series': 'honkai_impact_3', 'tags': ['raiden_mei', 'honkai_impact_3rd']}
         ]
     
     def _fetch_from_danbooru(self, tags, limit=50):
@@ -168,10 +184,25 @@ class AutomatedDataExpander:
                 'json': '1'
             }
             
-            response = requests.get(base_url, params=params, timeout=10)
+            # 添加User-Agent和Referer
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+                'Referer': 'https://safebooru.org/'
+            }
+            
+            response = requests.get(base_url, params=params, headers=headers, timeout=15)
             response.raise_for_status()
             
+            # 检查响应内容
+            if not response.text:
+                logger.error("Safebooru返回空响应")
+                return images
+            
             data = response.json()
+            
+            # 检查数据格式
+            if isinstance(data, dict) and 'posts' in data:
+                data = data['posts']
             
             for post in data:
                 if post.get('file_url'):
@@ -184,6 +215,19 @@ class AutomatedDataExpander:
             logger.info(f"从Safebooru获取了 {len(images)} 张图像")
         except Exception as e:
             logger.error(f"从Safebooru获取图像失败: {e}")
+            # 尝试使用备用API格式
+            try:
+                alt_params = {
+                    'page': 'post',
+                    's': 'list',
+                    'tags': tag_string,
+                    'limit': limit
+                }
+                alt_response = requests.get(base_url, params=alt_params, headers=headers, timeout=15)
+                alt_response.raise_for_status()
+                logger.info("尝试使用备用API格式获取Safebooru图像")
+            except Exception as alt_e:
+                logger.error(f"备用API格式也失败: {alt_e}")
         
         return images
     
@@ -203,7 +247,26 @@ class AutomatedDataExpander:
             
             # 保存图像
             image = Image.open(BytesIO(response.content))
-            image.save(save_path)
+            
+            # 处理不同图像模式
+            if image.mode == 'RGBA':
+                # 转换为RGB模式
+                background = Image.new('RGB', image.size, (255, 255, 255))
+                background.paste(image, mask=image.split()[3])  # 3是alpha通道
+                image = background
+            elif image.mode == 'P':
+                # 转换为RGB模式
+                image = image.convert('RGB')
+            
+            # 调整图像大小，确保合适的尺寸
+            max_size = 1024
+            if max(image.width, image.height) > max_size:
+                ratio = max_size / max(image.width, image.height)
+                new_width = int(image.width * ratio)
+                new_height = int(image.height * ratio)
+                image = image.resize((new_width, new_height), Image.LANCZOS)
+            
+            image.save(save_path, 'JPEG', quality=95)
             
             # 验证图像
             with Image.open(save_path) as img:

@@ -123,11 +123,96 @@ python3 scripts/generate_from_detection.py \
 
 ---
 
-## 3. 总结
+## 3. 高级训练技术
+
+### 3.1 模型蒸馏训练
+
+模型蒸馏是一种模型压缩技术，通过让轻量级学生模型学习重量级教师模型的知识，在减小模型体积的同时保持性能。
+
+#### 3.1.1 训练流程
+
+```mermaid
+graph LR
+    A[教师模型<br>EfficientNet-B0] --> B(软标签生成);
+    B --> C[学生模型<br>MobileNetV2];
+    D[训练数据] --> E((蒸馏训练));
+    B --> E;
+    D --> E;
+    E --> F[保存轻量级模型];
+```
+
+#### 3.1.2 运行训练
+
+使用以下命令启动模型蒸馏训练：
+
+```bash
+# 运行模型蒸馏训练
+python3 scripts/model_training/train_model_distillation.py
+```
+
+### 3.2 在线学习系统
+
+在线学习系统支持模型的持续更新和新角色的添加，无需重新训练整个网络。
+
+#### 3.2.1 核心功能
+
+*   **增量学习**：在线更新模型参数，适应新数据。
+*   **新角色添加**：自动为新角色分配ID，并扩展分类器。
+*   **特征数据库**：维护角色特征向量，加速识别过程。
+
+#### 3.2.2 使用方法
+
+```python
+from scripts.model_training.online_learning_system import OnlineLearningSystem
+
+# 初始化在线学习系统
+online_learner = OnlineLearningSystem(
+    model_path="models/character_classifier.pth",
+    feature_db_path="data/feature_db"
+)
+
+# 添加新角色
+new_role_name = "新角色"
+new_role_images = ["path/to/image1.jpg", "path/to/image2.jpg"]
+online_learner.add_new_role(new_role_name, new_role_images)
+
+# 保存更新后的模型
+online_learner.save_model("models/updated_model.pth")
+```
+
+### 3.3 多模态融合训练
+
+多模态融合系统结合图像和文本信息，提升角色识别的准确性。
+
+#### 3.3.1 训练流程
+
+```mermaid
+graph LR
+    A[图像数据] --> B(EfficientNet-B0);
+    C[文本描述] --> D(BERT);
+    B --> E((特征融合));
+    D --> E;
+    E --> F[分类器];
+    F --> G[角色预测];
+```
+
+#### 3.3.2 运行训练
+
+使用以下命令启动多模态融合训练：
+
+```bash
+# 运行多模态融合训练
+python3 scripts/model_training/multimodal_fusion.py
+```
+
+## 4. 总结
 
 | 模型 | 输入 | 输出 | 核心任务 |
 | :--- | :--- | :--- | :--- |
 | **检测模型** | 图片 | 角色标签 | **识别**：这是谁？ |
 | **生成模型** | 噪声 + 标签 | 图片 | **创造**：画一个“初音未来”。 |
+| **蒸馏模型** | 图片 | 角色标签 | **高效识别**：小模型，高性能。 |
+| **在线学习模型** | 图片 + 新数据 | 角色标签 | **持续学习**：适应新角色。 |
+| **多模态模型** | 图片 + 文本 | 角色标签 | **增强识别**：结合多种信息。 |
 
-通过这两个模型的结合，本项目实现了从**理解图像**到**生成图像**的闭环。
+通过这些模型和技术的结合，本项目实现了从**理解图像**到**生成图像**的闭环，同时具备高效部署、持续学习和多模态增强的能力。

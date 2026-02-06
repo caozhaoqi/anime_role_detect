@@ -743,15 +743,19 @@ export default function Home() {
                 <li>• 最大文件大小: 16MB</li>
               </ul>
               <h4 className="text-sm font-medium text-gray-500 mt-4 mb-2">
-                技术特点
-              </h4>
-              <ul className="text-gray-900 space-y-1">
-                <li>• 基于CLIP模型的特征提取</li>
-                <li>• Faiss索引加速相似度搜索</li>
-                <li>• YOLOv8目标检测</li>
-                <li>• 实时分类结果</li>
-                <li>• 响应式Web界面</li>
-              </ul>
+              技术特点
+            </h4>
+            <ul className="text-gray-900 space-y-1">
+              <li>• 基于CLIP模型的特征提取</li>
+              <li>• Faiss索引加速相似度搜索</li>
+              <li>• YOLOv8目标检测</li>
+              <li>• 实时分类结果</li>
+              <li>• 响应式Web界面</li>
+              <li>• 自动化数据集扩充</li>
+              <li>• 模型蒸馏技术</li>
+              <li>• 在线学习能力</li>
+              <li>• 多模态融合系统</li>
+            </ul>
             </div>
           </div>
         </motion.div>

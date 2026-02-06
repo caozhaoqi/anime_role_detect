@@ -133,7 +133,7 @@ def get_student_model(num_classes, model_type='mobilenet'):
     
     Args:
         num_classes: 类别数量
-        model_type: 学生模型类型 ('mobilenet', 'shufflenet', 'squeezenet')
+        model_type: 学生模型类型 ('mobilenet', 'shufflenet', 'squeezenet', 'resnet18', 'efficientnet_lite')
     
     Returns:
         学生模型
@@ -151,6 +151,21 @@ def get_student_model(num_classes, model_type='mobilenet'):
         model = models.squeezenet1_0(pretrained=True)
         model.classifier[1] = nn.Conv2d(512, num_classes, kernel_size=(1, 1), stride=(1, 1))
         model.num_classes = num_classes
+    elif model_type == 'resnet18':
+        logger.info("加载学生模型: ResNet18")
+        model = models.resnet18(pretrained=True)
+        model.fc = nn.Linear(model.fc.in_features, num_classes)
+    elif model_type == 'efficientnet_lite':
+        logger.info("加载学生模型: EfficientNet-Lite")
+        # 尝试加载EfficientNet-Lite，如果不可用则使用MobileNetV2
+        try:
+            # 这里使用timm库中的EfficientNet-Lite
+            import timm
+            model = timm.create_model('efficientnet_lite0', pretrained=True, num_classes=num_classes)
+        except Exception as e:
+            logger.warning(f"无法加载EfficientNet-Lite: {e}，使用MobileNetV2作为替代")
+            model = models.mobilenet_v2(pretrained=True)
+            model.classifier[1] = nn.Linear(model.classifier[1].in_features, num_classes)
     else:
         raise ValueError(f"不支持的学生模型类型: {model_type}")
     
@@ -439,7 +454,7 @@ def main():
     parser.add_argument('--teacher-model-path', type=str,
                        help='教师模型权重路径')
     parser.add_argument('--student-model-type', type=str, default='mobilenet',
-                       choices=['mobilenet', 'shufflenet', 'squeezenet'],
+                       choices=['mobilenet', 'shufflenet', 'squeezenet', 'resnet18', 'efficientnet_lite'],
                        help='学生模型类型')
     
     # 训练参数

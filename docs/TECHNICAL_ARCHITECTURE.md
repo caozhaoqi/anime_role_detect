@@ -6,10 +6,12 @@
 
 ## 1. 系统总体架构
 
-本项目采用模块化设计，主要包含三个核心子系统：
+本项目采用模块化设计，主要包含五个核心子系统：
 1.  **数据采集与预处理流水线**：负责数据的获取、清洗和标准化。
 2.  **识别与检索子系统**：基于深度学习特征提取和向量检索技术。
 3.  **生成子系统**：基于检测模型指导的生成对抗网络。
+4.  **在线学习子系统**：支持模型的持续更新和新角色添加。
+5.  **多模态融合子系统**：结合图像和文本信息提升识别准确性。
 
 ### 1.1 目录结构映射
 
@@ -18,6 +20,11 @@
 *   `src/core/classification`: 向量检索与分类（FAISS）。
 *   `scripts/generate_from_detection.py`: 图像生成模型训练与推理。
 *   `tests/collect_test_data.py`: 多源数据采集爬虫。
+*   `scripts/data_augmentation/automated_data_expansion.py`: 自动化数据集扩充。
+*   `scripts/model_training/train_model_distillation.py`: 模型蒸馏训练。
+*   `scripts/model_training/online_learning_system.py`: 在线学习系统。
+*   `scripts/model_training/multimodal_fusion.py`: 多模态融合系统。
+*   `scripts/evaluation/comprehensive_evaluation.py`: 综合评估框架。
 
 ---
 
@@ -57,18 +64,77 @@
 ### 2.4 图像生成 (Detection Guided Generation)
 *   **实现文件**: `scripts/generate_from_detection.py`
 *   **架构设计**: **Conditional GAN (cGAN)** + **Classifier Guidance**。
-*   **生成器 (Generator)**:
+*   **生成器 (Generator)**: 
     *   **输入**: 128维噪声 + 类别标签嵌入。
     *   **上采样**: 摒弃了 `ConvTranspose2d`，采用 **`Upsample(bilinear)` + `Conv2d`** 结构。
     *   **目的**: 彻底消除生成图像中的棋盘格伪影 (Checkerboard Artifacts)，使图像纹理更平滑。
-*   **判别器 (Discriminator)**:
+*   **判别器 (Discriminator)**: 
     *   标准 CNN 结构，输出图像为“真”的概率。
     *   引入 **Label Smoothing** (真实标签设为 0.9)，稳定对抗训练。
-*   **混合损失函数 (Hybrid Loss)**:
+*   **混合损失函数 (Hybrid Loss)**: 
     $$ L_{total} = 0.1 L_{adv} + 0.2 L_{cls} + 10.0 L_{perc} $$
     *   **$L_{adv}$ (对抗损失)**: 保证图像真实感。
     *   **$L_{cls}$ (分类损失)**: 利用冻结的检测模型，强迫生成器生成符合目标角色特征的图像。
     *   **$L_{perc}$ (感知损失)**: 利用冻结的 VGG16 提取特征，计算生成图与真实图在特征空间的 MSE 距离。**高权重 (10.0)** 确保了纹理细节的高度还原。
+
+### 2.5 自动化数据集扩充 (Automated Data Expansion)
+*   **实现文件**: `scripts/data_augmentation/automated_data_expansion.py`
+*   **核心功能**:
+    *   **多源数据采集**: 支持从 Safebooru 等多个源自动收集角色图片。
+    *   **预设角色列表**: 内置多个系列的角色列表，包括原神、崩坏、鬼灭之刃、火影忍者和海贼王等。
+    *   **图像验证**: 自动验证下载的图像是否有效。
+    *   **数据集统计**: 提供详细的数据集统计信息，包括每个角色的图像数量。
+*   **技术实现**:
+    *   使用 `requests` 库发送 HTTP 请求获取图像。
+    *   使用 `PIL` 库验证图像有效性。
+    *   多线程并发下载，提高数据采集速度。
+
+### 2.6 模型蒸馏 (Model Distillation)
+*   **实现文件**: `scripts/model_training/train_model_distillation.py`
+*   **架构设计**: **Teacher-Student** 架构。
+*   **教师模型**: 使用 **EfficientNet-B0** 作为教师模型，提供丰富的特征表示。
+*   **学生模型**: 支持多种轻量级模型作为学生模型，包括 **MobileNetV2**、**ShuffleNetV2** 和 **SqueezeNet**。
+*   **蒸馏损失函数**:
+    $$ L_{total} = \alpha L_{soft} + (1-\alpha) L_{hard} $$
+    *   **$L_{soft}$ (软标签损失)**: 学生模型学习教师模型的概率分布，捕捉更丰富的类别间关系。
+    *   **$L_{hard}$ (硬标签损失)**: 确保学生模型学习正确的类别标签。
+    *   **温度参数**: 控制软标签的平滑程度，默认值为 3.0。
+*   **模型压缩效果**:
+    *   压缩率达到 1.79x (从 15.39MB 减少到 8.59MB)。
+    *   在保持性能的同时，显著减小模型体积，提高部署效率。
+
+### 2.7 在线学习系统 (Online Learning System)
+*   **实现文件**: `scripts/model_training/online_learning_system.py`
+*   **核心功能**:
+    *   **增量学习**: 支持模型的在线更新，无需重新训练整个网络。
+    *   **新角色添加**: 自动为新角色分配 ID，并扩展分类器以支持新角色。
+    *   **特征数据库**: 维护角色特征数据库，加速识别过程。
+*   **技术实现**:
+    *   使用 **ArcFace** 模型进行特征提取，提高特征的判别能力。
+    *   使用 **FAISS** 库构建特征索引，支持高效的相似性搜索。
+    *   动态扩展分类器层，适应新角色的添加。
+
+### 2.8 多模态融合系统 (Multimodal Fusion System)
+*   **实现文件**: `scripts/model_training/multimodal_fusion.py`
+*   **架构设计**: **双编码器 + 融合层** 架构。
+*   **图像编码器**: 使用 **EfficientNet-B0** 提取图像特征。
+*   **文本编码器**: 使用 **BERT** 处理文本描述，提取文本特征。
+*   **融合方法**: 支持多种融合方法，包括:
+    *   **Concat**: 拼接图像和文本特征，充分利用两种模态的信息。
+    *   **Add**: 对图像和文本特征进行逐元素相加，捕捉两种模态的共同信息。
+    *   **Multiply**: 对图像和文本特征进行逐元素相乘，增强两种模态的相关信息。
+*   **分类器**: 多层全连接网络，用于最终的角色分类。
+
+### 2.9 综合评估框架 (Comprehensive Evaluation Framework)
+*   **实现文件**: `scripts/evaluation/comprehensive_evaluation.py`
+*   **核心功能**:
+    *   **模型性能评估**: 评估不同模型的准确率、推理时间和 FPS。
+    *   **数据集扩充效果评估**: 评估数据集扩充的比例和类别增加情况。
+    *   **在线学习能力评估**: 评估模型的在线学习能力，包括基础模型和更新后模型的性能对比。
+*   **技术实现**:
+    *   使用 `torch.utils.data.DataLoader` 加载测试数据。
+    *   批量处理测试图像，计算模型性能指标。
+    *   生成详细的评估报告，包括图表和统计数据。
 
 ---
 
