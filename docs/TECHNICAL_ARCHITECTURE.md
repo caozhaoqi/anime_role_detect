@@ -15,7 +15,7 @@
 
 ### 1.1 目录结构映射
 
-*   `src/core/preprocessing`: 图像预处理（YOLOv8 检测与裁剪）。
+*   `src/core/preprocessing`: 图像/视频预处理（YOLOv8 检测与裁剪）。
 *   `src/core/feature_extraction`: 特征提取（CLIP / EfficientNet）。
 *   `src/core/classification`: 向量检索与分类（FAISS）。
 *   `scripts/generate_from_detection.py`: 图像生成模型训练与推理。
@@ -136,6 +136,19 @@
     *   批量处理测试图像，计算模型性能指标。
     *   生成详细的评估报告，包括图表和统计数据。
 
+### 2.10 视频处理模块 (Video Processing Module)
+*   **实现文件**: 集成到现有预处理和分类模块中
+*   **核心功能**:
+    *   **视频帧提取**: 从视频文件中提取关键帧进行处理。
+    *   **帧级检测**: 对每个提取的帧应用角色检测算法。
+    *   **时序分析**: 分析视频中角色的出现时间和持续时间。
+    *   **结果聚合**: 将多帧检测结果聚合为视频级别的识别结果。
+*   **技术实现**:
+    *   使用 `OpenCV` 或 `moviepy` 库进行视频帧提取。
+    *   对每个帧应用与图像相同的预处理和分类流程。
+    *   实现帧采样策略，平衡处理速度和检测精度。
+    *   提供视频播放和结果可视化界面。
+
 ---
 
 ## 3. 数据流向图
@@ -150,6 +163,15 @@ graph TD
     Vectors -->|Build Index| FAISS[FAISS 向量索引库]
     NewImg[新图片] -->|Query| FAISS
     FAISS --> Result[识别结果: 角色名]
+    end
+    
+    subgraph 视频处理路径
+    VideoFile[视频文件] -->|Frame Extraction| Frames[视频帧序列]
+    Frames -->|Preprocessing| ProcessedFrames[处理后的帧]
+    ProcessedFrames -->|CLIP Encoder| VideoVectors[视频帧特征向量]
+    VideoVectors -->|Query| FAISS
+    FAISS --> FrameResults[帧级识别结果]
+    FrameResults -->|Temporal Analysis| VideoResult[视频识别结果]
     end
     
     subgraph 生成路径

@@ -6,7 +6,7 @@ The Character Classification System is an AI-based image recognition tool specif
 
 ## ✨ Core Features
 
-- **Image Upload Recognition**: Supports multiple image formats for upload, automatically identifies game characters in images
+- **Image/Video Upload Recognition**: Supports multiple image and video formats for upload, automatically identifies game characters in images and videos
 - **High Accuracy**: Uses CLIP model and Faiss indexing for high recognition accuracy
 - **Real-time Feedback**: Provides recognition confidence and detailed results
 - **User-friendly Interface**: Intuitive web interface with simple operation
@@ -325,5 +325,9 @@ If you have any questions or suggestions, please contact us through:
 - **Improved API documentation** with GET request support
 - **Enhanced data processing pipeline** with automatic dataset splitting
 - **Added MPS acceleration** for faster training on Apple Silicon
+- **Added video detection support** for anime character recognition in videos
+- **Implemented video frame analysis** with frame-by-frame character detection
+- **Updated frontend interface** to support video upload and playback
+- **Enhanced API** to handle both image and video files for detection
 
 

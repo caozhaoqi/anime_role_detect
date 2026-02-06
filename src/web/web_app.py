@@ -9,7 +9,9 @@ import tempfile
 import platform
 import numpy as np
 from flask import Flask, request, render_template, redirect, url_for, flash
+from flask_cors import CORS
 from PIL import Image
+from loguru import logger
 
 # 解决OpenMP冲突问题
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
@@ -31,11 +33,11 @@ if platform.system() == 'Darwin':
         coreml_model_path = os.path.join('models', 'character_classifier_best_improved.mlpackage')
         if os.path.exists(coreml_model_path):
             coreml_model = coremltools.models.MLModel(coreml_model_path)
-            print(f"Core ML模型已加载: {coreml_model_path}")
+            logger.debug(f"Core ML模型已加载: {coreml_model_path}")
     except ImportError:
-        print("coremltools未安装，Core ML功能不可用")
+        logger.debug("coremltools未安装，Core ML功能不可用")
     except Exception as e:
-        print(f"Core ML模型加载失败: {e}")
+        logger.debug(f"Core ML模型加载失败: {e}")
 
 # 初始化Flask应用
 app = Flask(__name__)
@@ -43,17 +45,131 @@ app.config['SECRET_KEY'] = 'your-secret-key-here'
 app.config['UPLOAD_FOLDER'] = os.path.join('src', 'web', 'static', 'uploads')  # 修正上传路径
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB
 
+# 启用CORS，允许跨域请求
+CORS(app)
+logger.debug("🌐 CORS已启用，允许跨域请求")
+
 # 确保上传目录存在
 if not os.path.exists(app.config['UPLOAD_FOLDER']):
     os.makedirs(app.config['UPLOAD_FOLDER'])
 
 # 允许的文件扩展名
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'bmp'}
+# 允许的视频扩展名
+ALLOWED_VIDEO_EXTENSIONS = {'mp4', 'avi', 'mov', 'wmv', 'flv', 'mkv'}
 
 
 def allowed_file(filename):
-    """检查文件扩展名是否允许"""
+    """检查文件扩展名是否允许（图片文件）"""
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+
+def allowed_video_file(filename):
+    """检查文件扩展名是否允许（视频文件）"""
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_VIDEO_EXTENSIONS
+
+
+def allowed_media_file(filename):
+    """检查文件扩展名是否允许（媒体文件，包括图片和视频）"""
+    return allowed_file(filename) or allowed_video_file(filename)
+
+
+def process_video(video_path, frame_skip=5):
+    """处理视频文件，提取帧并进行分类
+    
+    Args:
+        video_path: 视频路径
+        frame_skip: 帧跳过间隔，用于减少处理帧数
+    
+    Returns:
+        (video_results, overall_role, overall_similarity): 视频帧检测结果、整体角色、整体相似度
+    """
+    import cv2
+    import tempfile
+    import os
+    
+    # 打开视频文件
+    cap = cv2.VideoCapture(video_path)
+    if not cap.isOpened():
+        raise ValueError("无法打开视频文件")
+    
+    # 获取视频信息
+    fps = cap.get(cv2.CAP_PROP_FPS)
+    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    
+    video_results = []
+    frame_count = 0
+    processed_frames = 0
+    role_counts = {}
+    
+    try:
+        while cap.isOpened():
+            ret, frame = cap.read()
+            if not ret:
+                break
+            
+            # 跳过一些帧以提高处理速度
+            if frame_count % frame_skip != 0:
+                frame_count += 1
+                continue
+            
+            # 将帧保存为临时图像文件
+            with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as temp_frame:
+                temp_frame_path = temp_frame.name
+            
+            # 保存帧
+            cv2.imwrite(temp_frame_path, frame)
+            
+            try:
+                # 对帧进行分类
+                classifier = get_classifier()
+                role, similarity, boxes = classifier.classify_image(temp_frame_path)
+                
+                # 计算时间戳
+                timestamp = frame_count / fps
+                
+                # 添加结果
+                video_results.append({
+                    'frame': frame_count,
+                    'role': role,
+                    'similarity': similarity,
+                    'timestamp': timestamp,
+                    'boxes': boxes
+                })
+                
+                # 统计角色出现次数
+                if role not in role_counts:
+                    role_counts[role] = 0
+                role_counts[role] += similarity
+                
+                processed_frames += 1
+                
+                # 限制处理的帧数，避免处理时间过长
+                if processed_frames >= 50:
+                    break
+                    
+            except Exception as e:
+                logger.debug(f"处理帧 {frame_count} 时出错: {e}")
+            finally:
+                # 清理临时文件
+                if os.path.exists(temp_frame_path):
+                    os.remove(temp_frame_path)
+            
+            frame_count += 1
+    
+    finally:
+        cap.release()
+    
+    # 确定整体角色
+    overall_role = "未知"
+    overall_similarity = 0.0
+    
+    if role_counts:
+        # 选择出现次数最多的角色
+        overall_role = max(role_counts, key=role_counts.get)
+        overall_similarity = role_counts[overall_role] / processed_frames if processed_frames > 0 else 0
+    
+    return video_results, overall_role, overall_similarity
 
 
 def classify_with_coreml(image_path):
@@ -65,6 +181,7 @@ def classify_with_coreml(image_path):
     Returns:
         (role, similarity, boxes): 角色名称、相似度、边界框
     """
+
     import json
     import numpy as np
 
@@ -129,7 +246,7 @@ def classify_with_coreml(image_path):
 
 def initialize_system():
     """初始化分类系统"""
-    print("初始化分类系统...")
+    logger.debug("初始化分类系统...")
     # 这里只负责初始化，具体的索引加载由 GeneralClassification 内部处理
     # 默认加载 'role_index'
     classifier = get_classifier(index_path="role_index")
@@ -256,7 +373,7 @@ def monitoring():
 
 @app.route('/api/classify', methods=['GET', 'POST'])
 def api_classify():
-    """API分类端点"""
+    """API分类端点（支持图片和视频）"""
     import json
 
     if request.method == 'GET':
@@ -264,45 +381,88 @@ def api_classify():
         api_doc = {
             'endpoint': '/api/classify',
             'method': 'POST',
-            'description': '角色分类API',
+            'description': '角色分类API（支持图片和视频）',
             'parameters': {
-                'file': '图像文件（必填）',
-                'use_model': '是否使用专用模型 (true/false, 默认false)'
+                'file': '媒体文件（必填，支持图片和视频）',
+                'use_model': '是否使用专用模型 (true/false, 默认false)',
+                'frame_skip': '视频帧跳过间隔 (默认5)'
             },
             'response': {
                 'filename': '文件名',
                 'role': '识别的角色',
                 'similarity': '相似度',
-                'boxes': '边界框信息'
+                'boxes': '边界框信息',
+                'fileType': '文件类型 (image/video)',
+                'videoResults': '视频帧检测结果（仅视频文件）'
             },
-            'example': 'curl -X POST -F "file=@image.jpg" -F "use_model=true" http://localhost:5001/api/classify'
+            'example_image': 'curl -X POST -F "file=@image.jpg" -F "use_model=true" http://localhost:5001/api/classify',
+            'example_video': 'curl -X POST -F "file=@video.mp4" -F "frame_skip=10" http://localhost:5001/api/classify'
         }
         return json.dumps(api_doc, ensure_ascii=False), 200, {'Content-Type': 'application/json'}
 
-    # POST 请求处理图像分类
+    logger.debug("\n" + "="*80)
+    logger.debug("🚀 收到API分类请求")
+    logger.debug("="*80)
+    
+    # POST 请求处理媒体文件分类
+    logger.debug("📋 请求方法:", request.method)
+    logger.debug("📋 请求头:", dict(request.headers))
+    logger.debug("📋 表单数据:", dict(request.form))
+    
     if 'file' not in request.files:
+        logger.debug("❌ 请求中没有文件")
         return json.dumps({'error': '没有文件部分'}), 400
 
     file = request.files['file']
+    logger.debug("📋 收到文件:", file.filename)
+    logger.debug("📋 文件类型:", file.content_type)
+    logger.debug("📋 文件大小:", file.content_length)
+    
     use_model = request.form.get('use_model') == 'true'
     use_coreml = request.form.get('use_coreml') == 'true'
+    frame_skip = int(request.form.get('frame_skip', '5'))
+    
+    logger.debug("📋 参数:", {
+        'use_model': use_model,
+        'use_coreml': use_coreml,
+        'frame_skip': frame_skip
+    })
 
     # 检查Core ML模型是否可用
     if use_coreml and coreml_model is None:
+        logger.debug("❌ Core ML模型不可用")
         return json.dumps({'error': 'Core ML模型不可用'}), 400
 
     if file.filename == '':
+        logger.debug("❌ 没有选择文件")
         return json.dumps({'error': '没有选择文件'}), 400
 
-    if file and allowed_file(file.filename):
-        # 保存文件到临时位置
-        temp_path = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
-        file.save(temp_path)
+    # 检查文件类型
+    is_video = allowed_video_file(file.filename)
+    is_image = allowed_file(file.filename)
+    
+    logger.debug("📋 文件类型检查:", {
+        'is_video': is_video,
+        'is_image': is_image
+    })
 
-        try:
-            # 分类图像
+    if not (is_image or is_video):
+        logger.debug("❌ 不支持的文件类型")
+        return json.dumps({'error': '不支持的文件类型'}), 400
+
+    # 保存文件到临时位置
+    temp_path = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
+    logger.debug("📁 保存文件到:", temp_path)
+    file.save(temp_path)
+    logger.debug("✅ 文件保存成功")
+
+    try:
+        if is_image:
+            # 处理图像文件
+            logger.debug("🖼️ 开始处理图像文件")
             if use_coreml:
                 # 使用Core ML模型
+                logger.debug("🤖 使用Core ML模型")
                 role, similarity, boxes = classify_with_coreml(temp_path)
                 mode = 'Core ML'
                 # 记录分类日志
@@ -312,10 +472,11 @@ def api_classify():
                     similarity=similarity,
                     feature=[],
                     boxes=boxes,
-                    metadata={'mode': mode, 'use_coreml': True, 'api': True}
+                    metadata={'mode': mode, 'use_coreml': True, 'api': True, 'fileType': 'image'}
                 )
             else:
                 # 使用默认模型
+                logger.debug("🤖 使用默认模型")
                 classifier = get_classifier()
                 role, similarity, boxes = classifier.classify_image(temp_path, use_model=use_model)
                 mode = 'EfficientNet' if use_model else 'CLIP'
@@ -326,7 +487,7 @@ def api_classify():
                     similarity=similarity,
                     feature=[],
                     boxes=boxes,
-                    metadata={'mode': mode, 'use_model': use_model, 'api': True}
+                    metadata={'mode': mode, 'use_model': use_model, 'api': True, 'fileType': 'image'}
                 )
 
             # 准备结果
@@ -335,19 +496,59 @@ def api_classify():
                 'role': role if role else '未知',
                 'similarity': float(similarity),
                 'boxes': boxes,
+                'fileType': 'image',
                 'mode': mode
             }
+            logger.debug("✅ 图像处理完成，结果:", result)
+        else:
+            # 处理视频文件
+            logger.debug("🎬 开始处理视频文件")
+            logger.debug("🎬 调用process_video函数，frame_skip:", frame_skip)
+            video_results, overall_role, overall_similarity = process_video(temp_path, frame_skip)
+            mode = 'Video Processing'
+            
+            logger.debug("🎬 视频处理完成，处理了", len(video_results), "帧")
+            logger.debug("🎬 整体角色:", overall_role, "相似度:", overall_similarity)
+            
+            # 记录分类日志
+            record_classification_log(
+                image_path=temp_path,
+                role=overall_role,
+                similarity=overall_similarity,
+                feature=[],
+                boxes=[],
+                metadata={'mode': mode, 'api': True, 'fileType': 'video', 'processed_frames': len(video_results)}
+            )
 
-            return json.dumps(result), 200, {'Content-Type': 'application/json'}
-        except Exception as e:
-            return json.dumps({'error': str(e)}), 500
+            # 准备结果
+            result = {
+                'filename': file.filename,
+                'role': overall_role if overall_role else '未知',
+                'similarity': float(overall_similarity),
+                'boxes': [],
+                'fileType': 'video',
+                'videoResults': video_results,
+                'mode': mode
+            }
+            logger.debug("✅ 视频处理完成，结果:", result)
 
-        finally:
-            # 清理临时文件
-            if os.path.exists(temp_path):
-                os.remove(temp_path)
+        logger.debug("📡 返回结果:", result)
+        return json.dumps(result), 200, {'Content-Type': 'application/json'}
+    except Exception as e:
+        logger.debug("❌ 处理文件时出错:", str(e))
+        import traceback
+        logger.debug("📋 错误堆栈:", traceback.format_exc())
+        return json.dumps({'error': str(e)}), 500
 
-    return json.dumps({'error': '不支持的文件类型'}), 400
+    finally:
+        # 清理临时文件
+        if os.path.exists(temp_path):
+            logger.debug("🗑️ 清理临时文件:", temp_path)
+            os.remove(temp_path)
+            logger.debug("✅ 临时文件清理成功")
+        logger.debug("="*80)
+        logger.debug("🔚 API分类请求处理完成")
+        logger.debug("="*80)
 
 
 @app.route('/api/track_inference', methods=['POST'])
@@ -401,7 +602,7 @@ def workflow():
                 import json
                 # 清理JSON字符串（去除多余空格和换行符）
                 characters = characters.strip()
-                print(f"原始角色信息: '{characters}'")
+                logger.debug(f"原始角色信息: '{characters}'")
                 
                 # 尝试自动修复常见的JSON格式问题
                 # 1. 替换单引号为双引号
@@ -412,7 +613,7 @@ def workflow():
                 # 3. 再次清理
                 characters = characters.strip()
                 
-                print(f"修复后角色信息: '{characters}'")
+                logger.debug(f"修复后角色信息: '{characters}'")
                 
                 # 解析验证JSON格式
                 parsed_characters = json.loads(characters)
@@ -430,14 +631,14 @@ def workflow():
                 
                 # 重新序列化确保格式正确
                 characters_json = json.dumps(parsed_characters)
-                print(f"最终JSON: '{characters_json}'")
+                logger.debug(f"最终JSON: '{characters_json}'")
             except json.JSONDecodeError as e:
                 flash(f'角色信息JSON格式错误: {str(e)}')
-                print(f'JSON解析错误: {e}，输入: {characters}')
+                logger.debug(f'JSON解析错误: {e}，输入: {characters}')
                 return redirect(request.url)
             except Exception as e:
                 flash(f'处理角色信息时出错: {str(e)}')
-                print(f'处理角色信息错误: {e}')
+                logger.debug(f'处理角色信息错误: {e}')
                 return redirect(request.url)
 
             # 检查测试图像是否存在
@@ -489,7 +690,7 @@ def workflow():
             if multiple:
                 cmd_list.append('--multiple')
             
-            print(f"执行命令: {cmd_list}")
+            logger.debug(f"执行命令: {cmd_list}")
             subprocess.Popen(cmd_list, cwd=project_root)
 
             flash('工作流已启动！请查看终端输出了解进度。')
@@ -514,7 +715,7 @@ if __name__ == '__main__':
     initialize_system()
 
     # 运行应用
-    port = 5003
-    print("启动Flask应用...")
-    print(f"访问地址: http://127.0.0.1:{port}")
+    port = 5001
+    logger.debug("启动Flask应用...")
+    logger.debug(f"访问地址: http://127.0.0.1:{port}")
     app.run(debug=True, host='0.0.0.0', port=port)

@@ -5,6 +5,7 @@ import { motion } from 'framer-motion';
 import {
   Upload,
   Image as ImageIcon,
+  Video,
   Loader2,
   CheckCircle,
   XCircle,
@@ -22,6 +23,7 @@ import {
   Trash2,
   X,
   Clock,
+  Film,
 } from 'lucide-react';
 
 interface ClassificationResult {
@@ -29,6 +31,13 @@ interface ClassificationResult {
   role: string;
   similarity: number;
   boxes: any[];
+  fileType?: 'image' | 'video';
+  videoResults?: {
+    frame: number;
+    role: string;
+    similarity: number;
+    timestamp: number;
+  }[];
 }
 
 interface HistoryItem extends ClassificationResult {
@@ -38,13 +47,17 @@ interface HistoryItem extends ClassificationResult {
 
 export default function Home() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [fileType, setFileType] = useState<'image' | 'video' | null>(null);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [previewVideo, setPreviewVideo] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState<ClassificationResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [history, setHistory] = useState<HistoryItem[]>([]);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [processingStatus, setProcessingStatus] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // 保存结果到本地存储
@@ -125,21 +138,49 @@ export default function Home() {
   };
 
   const handleFile = (file: File) => {
-    if (!file.type.startsWith('image/')) {
-      setError('请选择图片文件');
+    // 文件大小检查
+    const maxSize = 16 * 1024 * 1024; // 16MB
+    if (file.size > maxSize) {
+      setError('文件大小超过限制，请选择小于16MB的文件');
       return;
     }
-
-    setSelectedFile(file);
-    setError(null);
-    setResult(null);
-
-    // 创建预览
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setPreviewImage(reader.result as string);
-    };
-    reader.readAsDataURL(file);
+    
+    if (file.type.startsWith('image/')) {
+      setFileType('image');
+      setError(null);
+      setResult(null);
+      setSelectedFile(file);
+      
+      // 创建图片预览
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setPreviewImage(reader.result as string);
+        setPreviewVideo(null);
+      };
+      reader.onerror = () => {
+        setError('文件读取失败，请重试');
+      };
+      reader.readAsDataURL(file);
+    } else if (file.type.startsWith('video/')) {
+      setFileType('video');
+      setError(null);
+      setResult(null);
+      setSelectedFile(file);
+      
+      // 创建视频预览
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setPreviewVideo(reader.result as string);
+        setPreviewImage(null);
+      };
+      reader.onerror = () => {
+        setError('视频文件读取失败，请重试');
+      };
+      reader.readAsDataURL(file);
+    } else {
+      setError('请选择图片或视频文件');
+      return;
+    }
   };
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -161,74 +202,66 @@ export default function Home() {
     }
   };
 
-  const handleUpload = async () => {
-    console.log('handleUpload函数被调用');
-    if (!selectedFile) {
-      setError('请先选择图片');
-      console.log('没有选择文件');
-      return;
-    }
+  // 添加全局错误监听器
+  window.addEventListener('error', (event) => {
+    console.error('🌐 全局错误:', event.error);
+    console.error('🌐 错误堆栈:', event.error.stack);
+    console.error('🌐 错误发生在:', event.filename, '行号:', event.lineno, '列号:', event.colno);
+  });
 
-    console.log('开始分类流程，文件:', selectedFile.name);
-    setIsLoading(true);
-    setError(null);
+  // 添加全局未捕获Promise错误监听器
+  window.addEventListener('unhandledrejection', (event) => {
+    console.error('🌐 未捕获的Promise错误:', event.reason);
+    console.error('🌐 Promise:', event.promise);
+  });
 
-    try {
-      const formData = new FormData();
-      formData.append('file', selectedFile);
+  // 全局变量，用于测试函数是否被调用
+  window.testHandleUpload = function() {
+    console.log('🌐 全局测试函数被调用！');
+    alert('全局测试函数被调用！');
+  };
 
-      console.log('开始分类请求...');
-      // 使用fetch API发送请求
-      const response = await fetch('http://127.0.0.1:5001/api/classify', {
-        method: 'POST',
-        body: formData,
-        // 注意：不要设置Content-Type，让浏览器自动处理
-      });
-
-      console.log('响应状态:', response.status);
-      
-      // 检查响应是否成功
-      if (!response.ok) {
-        throw new Error(`服务器响应错误: ${response.status}`);
-      }
-
-      // 解析响应数据
-      const data = await response.json();
-      console.log('分类结果数据:', data);
-      
-      // 确保数据结构正确
-      const classificationResult: ClassificationResult = {
-        filename: data.filename || selectedFile.name,
-        role: data.role || '未知',
-        similarity: data.similarity || 0,
-        boxes: data.boxes || []
-      };
-      
-      console.log('处理后的分类结果:', classificationResult);
-      
-      // 更新result状态
-      console.log('更新result状态前:', result);
-      setResult(classificationResult);
-      console.log('更新result状态后:', classificationResult);
-      
-      // 保存到历史记录
-      saveToHistory(classificationResult);
-      console.log('分类结果已保存');
-      
-    } catch (err) {
-      console.error('分类错误:', err);
-      setError(`分类失败: ${err.message}`);
-    } finally {
-      setIsLoading(false);
-      console.log('分类请求完成');
-    }
+  const handleUpload = () => {
+    // 最简单的测试，只输出一条日志
+    console.log('🔄 handleUpload函数被调用！');
+    console.log('🔍 当前状态:', {
+      selectedFile: selectedFile ? selectedFile.name : null,
+      fileType: fileType,
+      isLoading: isLoading,
+      error: error
+    });
+    
+    // 尝试显示一个alert，看看函数是否真的被调用
+    alert('handleUpload函数被调用！');
+    
+    // 尝试调用后端API
+    console.log('🌐 尝试调用后端API...');
+    fetch('http://127.0.0.1:5001/api/classify', {
+      method: 'GET'
+    })
+    .then(response => {
+      console.log('📡 API响应状态:', response.status);
+      return response.json();
+    })
+    .then(data => {
+      console.log('📡 API响应数据:', data);
+      alert('API调用成功！');
+    })
+    .catch(error => {
+      console.error('❌ API调用失败:', error);
+      alert('API调用失败: ' + error.message);
+    });
   };
 
   const resetForm = () => {
     setSelectedFile(null);
+    setFileType(null);
     setPreviewImage(null);
+    setPreviewVideo(null);
     setResult(null);
     setError(null);
+    setUploadProgress(0);
+    setProcessingStatus(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -416,7 +449,7 @@ export default function Home() {
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept="image/*"
+                  accept="image/*, video/*"
                   onChange={handleFileSelect}
                   className="hidden"
                 />
@@ -433,10 +466,10 @@ export default function Home() {
                     <Upload className="h-10 w-10" />
                   </div>
                   <h3 className="text-xl font-medium text-gray-900 mb-2">
-                    {isDragging ? '释放图片开始上传' : '点击或拖拽图片到此处'}
+                    {isDragging ? '释放文件开始上传' : '点击或拖拽文件到此处'}
                   </h3>
                   <p className="text-sm text-gray-500 mb-4">
-                    支持 PNG, JPG, JPEG, GIF, BMP 格式
+                    支持 PNG, JPG, JPEG, GIF, BMP 图片格式和 MP4, AVI, MOV 视频格式
                   </p>
                   <div className="inline-block px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium">
                     最大文件大小: 16MB
@@ -444,8 +477,8 @@ export default function Home() {
                 </motion.div>
               </motion.div>
 
-              {/* 预览图片 */}
-              {previewImage && (
+              {/* 预览区域 */}
+              {(previewImage || previewVideo) && (
                 <motion.div
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -459,19 +492,65 @@ export default function Home() {
                     className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl p-6 shadow-md"
                   >
                     <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                      <ImageIcon className="h-5 w-5 mr-2 text-primary" />
-                      图片预览
+                      {previewImage ? (
+                        <>
+                          <ImageIcon className="h-5 w-5 mr-2 text-primary" />
+                          图片预览
+                        </>
+                      ) : (
+                        <>
+                          <Video className="h-5 w-5 mr-2 text-primary" />
+                          视频预览
+                        </>
+                      )}
                     </h3>
                     <div className="flex justify-center mb-6">
-                      <motion.img
-                        src={previewImage}
-                        alt="预览"
-                        className="max-h-80 rounded-lg shadow-lg border border-gray-200"
-                        initial={{ scale: 0.9, opacity: 0 }}
-                        animate={{ scale: 1, opacity: 1 }}
-                        transition={{ duration: 0.5, delay: 0.2 }}
-                      />
+                      {previewImage && (
+                        <motion.img
+                          src={previewImage}
+                          alt="预览"
+                          className="max-h-80 rounded-lg shadow-lg border border-gray-200"
+                          initial={{ scale: 0.9, opacity: 0 }}
+                          animate={{ scale: 1, opacity: 1 }}
+                          transition={{ duration: 0.5, delay: 0.2 }}
+                        />
+                      )}
+                      {previewVideo && (
+                        <motion.div
+                          className="max-h-80 rounded-lg shadow-lg border border-gray-200 overflow-hidden"
+                          initial={{ scale: 0.9, opacity: 0 }}
+                          animate={{ scale: 1, opacity: 1 }}
+                          transition={{ duration: 0.5, delay: 0.2 }}
+                        >
+                          <video
+                            src={previewVideo}
+                            controls
+                            className="w-full h-full"
+                          >
+                            您的浏览器不支持视频播放。
+                          </video>
+                        </motion.div>
+                      )}
                     </div>
+                    {/* 上传进度和处理状态 */}
+                    {isLoading && (
+                      <div className="mt-4 space-y-2">
+                        {processingStatus && (
+                          <p className="text-sm text-gray-600 animate-pulse">{processingStatus}</p>
+                        )}
+                        {uploadProgress > 0 && uploadProgress < 100 && (
+                          <div className="w-full bg-gray-200 rounded-full h-2.5">
+                            <motion.div 
+                              className="bg-gradient-to-r from-blue-500 to-purple-600 h-2.5 rounded-full"
+                              initial={{ width: '0%' }}
+                              animate={{ width: `${uploadProgress}%` }}
+                              transition={{ duration: 0.3 }}
+                            />
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    
                     <div className="flex justify-center space-x-6">
                       <motion.button
                         whileHover={{ scale: 1.05, backgroundColor: "#e5e7eb" }}
@@ -482,9 +561,8 @@ export default function Home() {
                         <RefreshCw className="h-5 w-5 mr-2" />
                         <span className="font-medium">重新选择</span>
                       </motion.button>
-                      <motion.button
-                        whileHover={{ scale: 1.05, backgroundColor: "#45a049" }}
-                        whileTap={{ scale: 0.95 }}
+                      {/* 简化的测试按钮，使用普通的HTML按钮 */}
+                      <button
                         onClick={handleUpload}
                         disabled={isLoading}
                         className="px-8 py-3 bg-primary text-white rounded-lg flex items-center shadow-md hover:shadow-lg transition-all"
@@ -492,15 +570,15 @@ export default function Home() {
                         {isLoading ? (
                           <>
                             <Loader2 className="h-5 w-5 mr-2 animate-spin" />
-                            <span className="font-medium">识别中...</span>
+                            <span className="font-medium">{previewVideo ? '处理中...' : '识别中...'}</span>
                           </>
                         ) : (
                           <>
                             <Search className="h-5 w-5 mr-2" />
-                            <span className="font-medium">开始识别</span>
+                            <span className="font-medium">{previewVideo ? '开始处理' : '开始识别'}</span>
                           </>
                         )}
-                      </motion.button>
+                      </button>
                     </div>
                   </motion.div>
                 </motion.div>
@@ -553,7 +631,7 @@ export default function Home() {
                 </motion.h2>
               </motion.div>
 
-              {/* 图片预览 */}
+              {/* 文件预览 */}
               <motion.div 
                 className="mb-10"
                 initial={{ opacity: 0, y: 20 }}
@@ -561,8 +639,17 @@ export default function Home() {
                 transition={{ duration: 0.5, delay: 0.4 }}
               >
                 <h3 className="text-lg font-medium text-gray-900 mb-4 flex items-center">
-                  <ImageIcon className="h-5 w-5 mr-2 text-primary" />
-                  上传的图片
+                  {result.fileType === 'image' ? (
+                    <>
+                      <ImageIcon className="h-5 w-5 mr-2 text-primary" />
+                      上传的图片
+                    </>
+                  ) : (
+                    <>
+                      <Video className="h-5 w-5 mr-2 text-primary" />
+                      上传的视频
+                    </>
+                  )}
                 </h3>
                 <div className="flex justify-center">
                   <motion.div
@@ -571,11 +658,21 @@ export default function Home() {
                     transition={{ duration: 0.6, delay: 0.5 }}
                     className="relative"
                   >
-                    <img
-                      src={previewImage || ''}
-                      alt="上传的图片"
-                      className="max-h-80 rounded-xl shadow-lg border border-gray-200"
-                    />
+                    {result.fileType === 'image' ? (
+                      <img
+                        src={previewImage || ''}
+                        alt="上传的图片"
+                        className="max-h-80 rounded-xl shadow-lg border border-gray-200"
+                      />
+                    ) : (
+                      <video
+                        src={previewVideo || ''}
+                        controls
+                        className="max-h-80 rounded-xl shadow-lg border border-gray-200"
+                      >
+                        您的浏览器不支持视频播放。
+                      </video>
+                    )}
                     <div className="absolute top-3 right-3 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full shadow-sm text-sm font-medium text-gray-700">
                       {result.filename}
                     </div>
@@ -609,7 +706,7 @@ export default function Home() {
                     className="bg-white rounded-xl p-5 shadow-sm hover:shadow-md transition-all"
                   >
                     <h4 className="text-sm font-medium text-gray-500 mb-3">
-                      识别角色
+                      {result.fileType === 'image' ? '识别角色' : '主要角色'}
                     </h4>
                     <p className="text-lg font-bold text-gray-900">
                       {result.role || '未知'}
@@ -657,16 +754,62 @@ export default function Home() {
                     className="bg-white rounded-xl p-5 shadow-sm hover:shadow-md transition-all"
                   >
                     <h4 className="text-sm font-medium text-gray-500 mb-3">
-                      识别速度
+                      处理速度
                     </h4>
                     <div className="flex items-center">
                       <Zap className="h-5 w-5 text-yellow-500 mr-2" />
                       <span className="text-lg font-semibold text-gray-900">
-                        约 2 秒
+                        {result.fileType === 'image' ? '约 2 秒' : '约 10 秒'}
                       </span>
                     </div>
                   </motion.div>
                 </div>
+
+                {/* 视频帧检测结果 */}
+                {result.fileType === 'video' && result.videoResults && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.5, delay: 1.1 }}
+                    className="mt-8"
+                  >
+                    <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                      <Film className="h-5 w-5 mr-2 text-primary" />
+                      视频帧检测结果
+                    </h4>
+                    <div className="bg-white rounded-xl p-4 shadow-sm max-h-80 overflow-y-auto">
+                      <div className="space-y-3">
+                        {result.videoResults.map((frameResult, index) => (
+                          <motion.div
+                            key={index}
+                            initial={{ opacity: 0, x: -20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ duration: 0.3, delay: 1.2 + index * 0.1 }}
+                            className="flex items-center justify-between p-3 border border-gray-100 rounded-lg hover:bg-gray-50"
+                          >
+                            <div className="flex items-center">
+                              <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center mr-3">
+                                <span className="text-sm font-medium text-primary">{frameResult.frame}</span>
+                              </div>
+                              <div>
+                                <p className="font-medium text-gray-900">{frameResult.role}</p>
+                                <p className="text-xs text-gray-500">时间: {frameResult.timestamp.toFixed(1)}秒</p>
+                              </div>
+                            </div>
+                            <div className="flex items-center">
+                              <span className={`
+                                px-2 py-1 rounded text-xs font-medium
+                                ${getAccuracyBadgeClass(frameResult.similarity)}
+                              `}>
+                                {(frameResult.similarity * 100).toFixed(1)}%
+                              </span>
+                            </div>
+                          </motion.div>
+                        ))}
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
               </motion.div>
 
               {/* 操作按钮 */}
@@ -683,7 +826,7 @@ export default function Home() {
                   className="px-8 py-4 bg-gray-200 text-gray-800 rounded-xl font-medium shadow-sm hover:shadow-md transition-all"
                 >
                   <RefreshCw className="inline-block h-5 w-5 mr-2" />
-                  上传另一张
+                  {result.fileType === 'image' ? '上传另一张' : '上传另一个视频'}
                 </motion.button>
                 <motion.button
                   whileHover={{ scale: 1.05, backgroundColor: "#1976d2" }}
@@ -739,7 +882,7 @@ export default function Home() {
                 <li>• 支持角色: 60+</li>
                 <li>• 平均准确率: 54%</li>
                 <li>• 处理速度: ~2秒/张</li>
-                <li>• 支持格式: PNG, JPG, JPEG, GIF, BMP</li>
+                <li>• 支持格式: PNG, JPG, JPEG, GIF, BMP, MP4, AVI, MOV</li>
                 <li>• 最大文件大小: 16MB</li>
               </ul>
               <h4 className="text-sm font-medium text-gray-500 mt-4 mb-2">
