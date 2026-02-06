@@ -16,7 +16,7 @@ os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 
 # 计算项目根目录的绝对路径
-PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
 
 # 导入日志记录模块
 try:

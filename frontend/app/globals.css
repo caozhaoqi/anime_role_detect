@@ -3,11 +3,40 @@
 @tailwind utilities;
 
 :root {
-  --background: #f5f5f5;
-  --foreground: #333333;
-  --primary: #4CAF50;
-  --secondary: #2196F3;
-  --accent: #FF9800;
+  /* DeepSeek and Element UI inspired color scheme */
+  --background: #f0f2f5;
+  --foreground: #303133;
+  --primary: #409EFF;
+  --primary-light: #ECF5FF;
+  --primary-dark: #337ECC;
+  --secondary: #67C23A;
+  --secondary-light: #F0F9EB;
+  --secondary-dark: #529B2E;
+  --accent: #E6A23C;
+  --accent-light: #FEF6EC;
+  --accent-dark: #CA8A04;
+  --danger: #F56C6C;
+  --danger-light: #FEF0F0;
+  --danger-dark: #DC2626;
+  --warning: #E6A23C;
+  --warning-light: #FEF6EC;
+  --warning-dark: #CA8A04;
+  --info: #909399;
+  --info-light: #F4F4F5;
+  --info-dark: #606266;
+  --success: #67C23A;
+  --success-light: #F0F9EB;
+  --success-dark: #529B2E;
+  --border: #DCDFE6;
+  --border-light: #E4E7ED;
+  --border-dark: #C0C4CC;
+  --text-primary: #303133;
+  --text-secondary: #606266;
+  --text-light: #909399;
+  --text-placeholder: #C0C4CC;
+  --card-bg: #FFFFFF;
+  --card-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
+  --card-shadow-hover: 0 4px 16px 0 rgba(0, 0, 0, 0.12);
 }
 
 body {

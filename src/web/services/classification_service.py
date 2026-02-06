@@ -42,7 +42,7 @@ def classify_image(image_path, use_coreml=False, use_model=False):
         )
     else:
         # 使用默认模型
-        classifier = get_classifier()
+        classifier = get_classifier(index_path=DEFAULT_INDEX_PATH)
         role, similarity, boxes = classifier.classify_image(image_path, use_model=use_model)
         mode = '专用模型 (EfficientNet)' if use_model else '通用索引 (CLIP)'
         # 记录分类日志
