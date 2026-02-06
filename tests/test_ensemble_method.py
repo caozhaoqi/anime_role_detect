@@ -491,8 +491,31 @@ def main():
     
     # 初始化分类器
     logger.info("初始化分类器...")
-    classifier = get_classifier()
-    classifier.initialize()
+    # 直接使用相对路径，确保索引文件能被正确找到
+    classifier = get_classifier(index_path="role_index")
+    # 手动加载索引
+    index_path = os.path.join(project_root, "role_index")
+    logger.info(f"尝试加载索引: {index_path}")
+    try:
+        # 检查索引文件是否存在
+        faiss_file = f"{index_path}.faiss"
+        mapping_file = f"{index_path}_mapping.json"
+        logger.info(f"检查文件: {faiss_file}")
+        logger.info(f"文件存在: {os.path.exists(faiss_file)}")
+        logger.info(f"检查文件: {mapping_file}")
+        logger.info(f"文件存在: {os.path.exists(mapping_file)}")
+        
+        # 初始化分类器
+        classifier.initialize()
+        
+        # 手动加载索引
+        if hasattr(classifier, 'classifier') and classifier.classifier:
+            logger.info("手动加载索引...")
+            classifier.classifier.load_index(index_path)
+            logger.info(f"索引加载成功，包含角色: {classifier.classifier.role_mapping}")
+    except Exception as e:
+        logger.error(f"加载索引失败: {e}")
+        sys.exit(1)
     
     # 测试结果列表
     test_results = []
