@@ -63,7 +63,15 @@ class Classification:
         self.__class__._index_cache[index_path] = (self.index, self.role_mapping)
     
     def classify(self, feature, top_k=5):
-        """分类单个特征向量"""
+        """分类单个特征向量
+        
+        Args:
+            feature: 特征向量
+            top_k: 返回前k个最相似的结果
+            
+        Returns:
+            (角色名称, 相似度)
+        """
         if self.index is None:
             raise ValueError("索引尚未构建")
         
@@ -88,14 +96,66 @@ class Classification:
                     "similarity": float(distance)
                 })
         
-        # 根据相似度阈值判断是否为已知角色
-        if results and results[0]["similarity"] >= self.threshold:
+        # 如果没有结果，返回unknown
+        if not results:
+            return "unknown", 0.0
+        
+        # 1. 动态阈值调整
+        # 计算相似度的平均值和标准差
+        similarities = [r["similarity"] for r in results]
+        avg_similarity = sum(similarities) / len(similarities)
+        std_similarity = (sum((s - avg_similarity) ** 2 for s in similarities) / len(similarities)) ** 0.5
+        
+        # 根据相似度分布动态调整阈值
+        dynamic_threshold = max(self.threshold - 0.1, min(self.threshold + 0.1, avg_similarity - std_similarity * 0.5))
+        
+        # 2. Top-k投票机制
+        role_counts = {}
+        role_scores = {}
+        
+        for i, result in enumerate(results):
+            role = result["role"]
+            similarity = result["similarity"]
+            
+            # 权重随排名递减
+            weight = (top_k - i) / top_k
+            
+            if role not in role_counts:
+                role_counts[role] = 0
+                role_scores[role] = 0
+            
+            # 只有相似度高于动态阈值的结果才参与投票
+            if similarity >= dynamic_threshold:
+                role_counts[role] += 1
+                role_scores[role] += similarity * weight
+        
+        # 找出得票最多的角色
+        if role_counts:
+            # 首先按票数排序，票数相同则按得分排序
+            sorted_roles = sorted(role_counts.items(), key=lambda x: (x[1], role_scores[x[0]]), reverse=True)
+            best_role = sorted_roles[0][0]
+            best_similarity = role_scores[best_role] / role_counts[best_role]  # 平均加权相似度
+            
+            # 检查最佳角色的相似度是否足够高
+            if best_similarity >= max(self.threshold - 0.1, 0.5):
+                return best_role, best_similarity
+        
+        # 3. 如果投票机制失败，回退到原始的top-1结果
+        if results[0]["similarity"] >= self.threshold - 0.1:
             return results[0]["role"], results[0]["similarity"]
         else:
-            return "unknown", results[0]["similarity"] if results else 0.0
+            return "unknown", results[0]["similarity"]
     
     def batch_classify(self, features, top_k=5):
-        """批量分类特征向量"""
+        """批量分类特征向量
+        
+        Args:
+            features: 特征向量批次
+            top_k: 返回前k个最相似的结果
+            
+        Returns:
+            分类结果列表 [(角色名称, 相似度)]
+        """
         if self.index is None:
             raise ValueError("索引尚未构建")
         
@@ -118,8 +178,54 @@ class Classification:
                         "similarity": float(distance)
                     })
             
-            # 根据相似度阈值判断是否为已知角色
-            if results and results[0]["similarity"] >= self.threshold:
+            # 如果没有结果，返回unknown
+            if not results:
+                batch_results.append(("unknown", 0.0))
+                continue
+            
+            # 1. 动态阈值调整
+            # 计算相似度的平均值和标准差
+            similarities = [r["similarity"] for r in results]
+            avg_similarity = sum(similarities) / len(similarities)
+            std_similarity = (sum((s - avg_similarity) ** 2 for s in similarities) / len(similarities)) ** 0.5
+            
+            # 根据相似度分布动态调整阈值
+            dynamic_threshold = max(self.threshold - 0.1, min(self.threshold + 0.1, avg_similarity - std_similarity * 0.5))
+            
+            # 2. Top-k投票机制
+            role_counts = {}
+            role_scores = {}
+            
+            for j, result in enumerate(results):
+                role = result["role"]
+                similarity = result["similarity"]
+                
+                # 权重随排名递减
+                weight = (top_k - j) / top_k
+                
+                if role not in role_counts:
+                    role_counts[role] = 0
+                    role_scores[role] = 0
+                
+                # 只有相似度高于动态阈值的结果才参与投票
+                if similarity >= dynamic_threshold:
+                    role_counts[role] += 1
+                    role_scores[role] += similarity * weight
+            
+            # 找出得票最多的角色
+            if role_counts:
+                # 首先按票数排序，票数相同则按得分排序
+                sorted_roles = sorted(role_counts.items(), key=lambda x: (x[1], role_scores[x[0]]), reverse=True)
+                best_role = sorted_roles[0][0]
+                best_similarity = role_scores[best_role] / role_counts[best_role]  # 平均加权相似度
+                
+                # 检查最佳角色的相似度是否足够高
+                if best_similarity >= max(self.threshold - 0.1, 0.5):
+                    batch_results.append((best_role, best_similarity))
+                    continue
+            
+            # 3. 如果投票机制失败，回退到原始的top-1结果
+            if results[0]["similarity"] >= self.threshold - 0.1:
                 batch_results.append((results[0]["role"], results[0]["similarity"]))
             else:
                 batch_results.append(("unknown", results[0]["similarity"] if results else 0.0))

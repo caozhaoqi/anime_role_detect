@@ -93,8 +93,14 @@ class Preprocessing:
         # 调整图像大小
         resized_img = cv2.resize(img, self.img_size)
         
+        # 图像增强：增加对比度和亮度
+        # 对比度增强
+        alpha = 1.1  # 对比度因子
+        beta = 10    # 亮度偏移
+        enhanced_img = cv2.convertScaleAbs(resized_img, alpha=alpha, beta=beta)
+        
         # 转换为PIL Image格式
-        pil_img = Image.fromarray(resized_img)
+        pil_img = Image.fromarray(enhanced_img)
         
         return pil_img
     

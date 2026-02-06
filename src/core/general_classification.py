@@ -57,40 +57,114 @@ class GeneralClassification:
             return True
         
         try:
+            # 1. 配置管理
+            import threading
+            import time
+            
             # 延迟导入，避免启动时加载所有模块
             from src.core.preprocessing.preprocessing import Preprocessing
             from src.core.feature_extraction.feature_extraction import FeatureExtraction
             from src.core.classification.classification import Classification
-            from src.core.classification.efficientnet_inference import EfficientNetInference
             
-            # 初始化各模块
-            print("初始化预处理模块...")
-            self.preprocessor = Preprocessing()
+            # 初始化状态跟踪
+            init_results = {}
+            lock = threading.Lock()
             
-            print("初始化特征提取模块...")
-            self.extractor = FeatureExtraction()
+            # 2. 并行初始化函数
+            def init_module(name, init_func):
+                try:
+                    print(f"初始化{name}模块...")
+                    start_time = time.time()
+                    result = init_func()
+                    elapsed = time.time() - start_time
+                    print(f"{name}模块初始化完成，耗时: {elapsed:.2f}秒")
+                    with lock:
+                        init_results[name] = (True, result)
+                except Exception as e:
+                    error_msg = f"{name}模块初始化失败: {e}"
+                    print(error_msg)
+                    with lock:
+                        init_results[name] = (False, error_msg)
             
-            print("初始化分类模块...")
-            self.classifier = Classification(threshold=self.threshold)
+            # 3. 创建初始化线程
+            threads = []
             
-            # 尝试初始化EfficientNet推理器
+            # 预处理模块初始化
+            t1 = threading.Thread(target=init_module, args=("预处理", lambda: Preprocessing()))
+            threads.append(t1)
+            
+            # 特征提取模块初始化
+            t2 = threading.Thread(target=init_module, args=("特征提取", lambda: FeatureExtraction()))
+            threads.append(t2)
+            
+            # 分类模块初始化
+            t3 = threading.Thread(target=init_module, args=("分类", lambda: Classification(threshold=self.threshold)))
+            threads.append(t3)
+            
+            # 启动所有线程
+            for t in threads:
+                t.start()
+            
+            # 等待所有线程完成
+            for t in threads:
+                t.join()
+            
+            # 4. 处理初始化结果
+            if init_results.get("预处理", (False,))[0]:
+                self.preprocessor = init_results["预处理"][1]
+            else:
+                print("警告: 预处理模块初始化失败，使用默认实现")
+                self.preprocessor = Preprocessing()
+            
+            if init_results.get("特征提取", (False,))[0]:
+                self.extractor = init_results["特征提取"][1]
+            else:
+                print("警告: 特征提取模块初始化失败，使用默认实现")
+                self.extractor = FeatureExtraction()
+            
+            if init_results.get("分类", (False,))[0]:
+                self.classifier = init_results["分类"][1]
+            else:
+                print("警告: 分类模块初始化失败，使用默认实现")
+                self.classifier = Classification(threshold=self.threshold)
+            
+            # 5. 尝试初始化EfficientNet推理器（单独处理，非致命）
             try:
                 print("初始化EfficientNet推理模型...")
+                from src.core.classification.efficientnet_inference import EfficientNetInference
                 self.model_inference = EfficientNetInference()
+                print("EfficientNet推理模型初始化成功")
             except Exception as e:
                 print(f"EfficientNet模型初始化失败 (非致命): {e}")
+                self.model_inference = None
             
-            # 如果指定了索引路径，尝试加载
+            # 6. 如果指定了索引路径，尝试加载
             if self.index_path:
-                if os.path.exists(f"{self.index_path}.faiss") and os.path.exists(f"{self.index_path}_mapping.json"):
+                index_files = [
+                    f"{self.index_path}.faiss",
+                    f"{self.index_path}_mapping.json"
+                ]
+                if all(os.path.exists(f) for f in index_files):
                     print(f"加载索引文件: {self.index_path}")
-                    self.classifier.load_index(self.index_path)
+                    try:
+                        self.classifier.load_index(self.index_path)
+                        print(f"索引加载成功，包含 {len(self.classifier.role_mapping)} 个角色")
+                    except Exception as e:
+                        print(f"索引加载失败: {e}")
                 else:
                     print(f"警告: 索引文件不存在: {self.index_path}")
             
-            self.is_initialized = True
-            print("所有模块初始化成功!")
-            return True
+            # 7. 验证初始化状态
+            required_modules = [self.preprocessor, self.extractor, self.classifier]
+            if all(module is not None for module in required_modules):
+                self.is_initialized = True
+                print("所有核心模块初始化成功!")
+                return True
+            else:
+                print("错误: 核心模块初始化不完整")
+                self.is_initialized = False
+                return False
+                
         except Exception as e:
             print(f"模块初始化失败: {e}")
             self.is_initialized = False
