@@ -29,21 +29,29 @@ class EfficientNetInference:
         
         # 默认路径配置
         if model_path is None:
-            # 尝试查找最新的模型
+            # 尝试查找包含测试数据角色的模型
             base_model_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..', 'models'))
-            candidates = [
-                'character_classifier_best_improved.pth',
-                'character_classifier_best_v2.pth',
-                'character_classifier_best.pth'
-            ]
-            for cand in candidates:
-                p = os.path.join(base_model_dir, cand)
-                if os.path.exists(p):
-                    model_path = p
-                    break
             
-            if model_path is None:
-                raise FileNotFoundError("未找到预训练模型文件")
+            # 优先查找包含测试数据角色的模型
+            augmented_model_path = os.path.join(base_model_dir, 'augmented_training', 'mobilenet_v2', 'model_best.pth')
+            if os.path.exists(augmented_model_path):
+                model_path = augmented_model_path
+                print(f"使用包含测试数据角色的模型: {model_path}")
+            else:
+                # 尝试查找其他模型
+                candidates = [
+                    'character_classifier_best_improved.pth',
+                    'character_classifier_best_v2.pth',
+                    'character_classifier_best.pth'
+                ]
+                for cand in candidates:
+                    p = os.path.join(base_model_dir, cand)
+                    if os.path.exists(p):
+                        model_path = p
+                        break
+                
+                if model_path is None:
+                    raise FileNotFoundError("未找到预训练模型文件")
 
         if data_dir is None:
             data_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..', 'data', 'all_characters'))
@@ -60,7 +68,7 @@ class EfficientNetInference:
 
     def _load_classes(self):
         """加载类别映射"""
-        # 尝试从模型文件中加载class_to_idx
+        # 1. 首先尝试从模型文件中加载class_to_idx
         try:
             checkpoint = torch.load(self.model_path, map_location=self.device)
             if 'class_to_idx' in checkpoint:
@@ -73,9 +81,51 @@ class EfficientNetInference:
         except Exception as e:
             print(f"从模型文件加载类别失败: {e}")
         
-        # 如果从模型文件加载失败，回退到从目录加载
+        # 2. 尝试从class_to_idx.json文件加载（针对augmented_training模型）
+        class_to_idx_path = os.path.join(os.path.dirname(self.model_path), "class_to_idx.json")
+        if os.path.exists(class_to_idx_path):
+            try:
+                import json
+                with open(class_to_idx_path, 'r', encoding='utf-8') as f:
+                    class_to_idx = json.load(f)
+                # 转换为按索引排序的类别列表
+                idx_to_class = {int(v): k for k, v in class_to_idx.items()}
+                classes = [idx_to_class[i] for i in sorted(idx_to_class.keys())]
+                print(f"从class_to_idx.json文件加载了 {len(classes)} 个类别")
+                return classes
+            except Exception as e:
+                print(f"从class_to_idx.json文件加载类别失败: {e}")
+        
+        # 3. 尝试从class_mapping.json文件加载
+        class_mapping_path = os.path.join(os.path.dirname(self.model_path), f"{os.path.basename(self.model_path).split('.')[0]}_class_mapping.json")
+        if not os.path.exists(class_mapping_path):
+            # 尝试默认的class_mapping文件
+            class_mapping_path = os.path.join(os.path.dirname(self.model_path), "character_classifier_best_improved_class_mapping.json")
+        
+        if os.path.exists(class_mapping_path):
+            try:
+                import json
+                with open(class_mapping_path, 'r', encoding='utf-8') as f:
+                    mapping = json.load(f)
+                if 'class_to_idx' in mapping:
+                    class_to_idx = mapping['class_to_idx']
+                    # 转换为按索引排序的类别列表
+                    idx_to_class = {int(v): k for k, v in class_to_idx.items()}
+                    classes = [idx_to_class[i] for i in sorted(idx_to_class.keys())]
+                    print(f"从class_mapping.json文件加载了 {len(classes)} 个类别")
+                    return classes
+            except Exception as e:
+                print(f"从class_mapping.json文件加载类别失败: {e}")
+        
+        # 4. 如果从模型文件加载失败，回退到从目录加载
         if not os.path.exists(self.data_dir):
-            raise FileNotFoundError(f"数据目录不存在: {self.data_dir}")
+            # 尝试从train目录加载
+            train_data_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..', 'data', 'train'))
+            if os.path.exists(train_data_dir):
+                self.data_dir = train_data_dir
+                print(f"使用train目录作为数据目录: {self.data_dir}")
+            else:
+                raise FileNotFoundError(f"数据目录不存在: {self.data_dir}")
             
         # 必须与训练时一致的排序逻辑
         # 过滤掉非目录文件，如 .DS_Store
@@ -90,10 +140,18 @@ class EfficientNetInference:
         print(f"加载模型: {self.model_path}")
         num_classes = len(self.classes)
         
-        # 定义与训练时一致的模型结构
-        # 注意：这里假设训练时使用的是 torchvision 的 efficientnet_b0
-        model = models.efficientnet_b0(pretrained=False)
-        model.classifier[1] = nn.Linear(model.classifier[1].in_features, num_classes)
+        # 根据模型文件路径选择合适的模型结构
+        model = None
+        if 'mobilenet_v2' in self.model_path:
+            # 使用MobileNetV2模型结构
+            print("使用MobileNetV2模型结构")
+            model = models.mobilenet_v2(pretrained=False)
+            model.classifier[1] = nn.Linear(model.classifier[1].in_features, num_classes)
+        else:
+            # 默认使用EfficientNetB0模型结构
+            print("使用EfficientNetB0模型结构")
+            model = models.efficientnet_b0(pretrained=False)
+            model.classifier[1] = nn.Linear(model.classifier[1].in_features, num_classes)
         
         # 加载权重
         try:
@@ -102,21 +160,24 @@ class EfficientNetInference:
             # 处理可能的不同保存格式
             if 'model_state_dict' in checkpoint:
                 state_dict = checkpoint['model_state_dict']
+            elif 'state_dict' in checkpoint:
+                state_dict = checkpoint['state_dict']
             else:
                 state_dict = checkpoint
             
             # 修复键名不匹配问题
-            # 如果权重文件中的键以 'backbone.' 开头，而模型不需要，则移除该前缀
             new_state_dict = OrderedDict()
             for k, v in state_dict.items():
+                # 处理不同模型的键名前缀
                 if k.startswith('backbone.'):
                     name = k[9:] # 移除 'backbone.'
+                elif k.startswith('module.'):
+                    name = k[7:] # 移除 'module.'
                 else:
                     name = k
                 new_state_dict[name] = v
                 
             # 尝试加载权重，允许非严格匹配（如果还有其他微小差异）
-            # 但对于分类头（classifier.1.weight/bias），必须匹配
             model.load_state_dict(new_state_dict, strict=False)
             print("模型权重加载成功 (已处理键名不匹配)")
             
