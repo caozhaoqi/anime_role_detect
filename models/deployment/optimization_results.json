@@ -1,0 +1,9 @@
+{
+  "original_model": "models/deployment/mobilenet_v2_original.pth",
+  "onnx_model": "models/deployment/mobilenet_v2.onnx",
+  "onnx_performance": {
+    "inference_time_ms": 9.921073913574219,
+    "fps": 100.79553974814957
+  },
+  "tflite_model": "models/deployment/mobilenet_v2.tflite"
+}

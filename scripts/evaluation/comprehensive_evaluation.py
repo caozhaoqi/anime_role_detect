@@ -3,21 +3,21 @@
 """
 综合评估脚本
 
-评估所有改进的综合性能，包括模型性能、数据集扩充效果、在线学习能力等。
+评估训练好的模型在测试集上的性能，包括准确率、推理速度、模型大小等指标。
 """
 
 import os
-import json
-import time
-import logging
 import argparse
-import numpy as np
 import torch
 import torch.nn as nn
-from torch.utils.data import DataLoader
+import torchvision.models as models
+from torch.utils.data import DataLoader, Dataset
 from torchvision import transforms
 from PIL import Image
+import logging
 from tqdm import tqdm
+import json
+import time
 
 # 配置日志
 logging.basicConfig(
@@ -26,336 +26,305 @@ logging.basicConfig(
 )
 logger = logging.getLogger('comprehensive_evaluation')
 
-class CharacterDataset:
-    """角色数据集"""
-    def __init__(self, data_dir, transform=None, max_images=1000):
-        self.data_dir = data_dir
+class CharacterDataset(Dataset):
+    """角色数据集类"""
+    
+    def __init__(self, root_dir, transform=None):
+        """初始化数据集
+        
+        Args:
+            root_dir: 数据目录
+            transform: 数据变换
+        """
+        self.root_dir = root_dir
         self.transform = transform
-        self.image_paths = []
+        self.images = []
         self.labels = []
         self.class_to_idx = {}
         
-        # 遍历目录结构
-        for idx, class_name in enumerate(sorted(os.listdir(data_dir))):
-            class_dir = os.path.join(data_dir, class_name)
-            if os.path.isdir(class_dir):
-                self.class_to_idx[class_name] = idx
-                class_images = []
-                for img_name in os.listdir(class_dir):
-                    if img_name.endswith(('.jpg', '.jpeg', '.png', '.bmp')):
-                        img_path = os.path.join(class_dir, img_name)
-                        class_images.append(img_path)
-                
-                # 限制每个类别的图像数量
-                class_images = class_images[:10]  # 每个类别最多10张图像
-                for img_path in class_images:
-                    self.image_paths.append(img_path)
-                    self.labels.append(idx)
-                    
-                    # 达到最大图像数量时停止
-                    if len(self.image_paths) >= max_images:
-                        break
+        # 构建类别映射
+        classes = sorted([d for d in os.listdir(root_dir) if os.path.isdir(os.path.join(root_dir, d))])
+        for idx, cls in enumerate(classes):
+            self.class_to_idx[cls] = idx
             
-            # 达到最大图像数量时停止
-            if len(self.image_paths) >= max_images:
-                break
+            # 遍历图像
+            cls_dir = os.path.join(root_dir, cls)
+            for img_name in os.listdir(cls_dir):
+                if img_name.lower().endswith(('.jpg', '.jpeg', '.png', '.bmp')):
+                    self.images.append(os.path.join(cls_dir, img_name))
+                    self.labels.append(idx)
         
-        logger.info(f"数据集初始化完成，包含 {len(self.class_to_idx)} 个类别，{len(self.image_paths)} 张图像")
+        logger.info(f"测试数据集初始化完成，包含 {len(classes)} 个类别，{len(self.images)} 张图像")
     
     def __len__(self):
-        return len(self.image_paths)
+        """返回数据集大小"""
+        return len(self.images)
     
     def __getitem__(self, idx):
-        img_path = self.image_paths[idx]
+        """获取单个样本"""
+        img_path = self.images[idx]
+        image = Image.open(img_path).convert('RGB')
         label = self.labels[idx]
         
-        try:
-            image = Image.open(img_path).convert('RGB')
-            if self.transform:
-                image = self.transform(image)
-            return image, label
-        except Exception as e:
-            logger.error(f"加载图像 {img_path} 失败: {e}")
-            return torch.zeros(3, 224, 224), label
+        if self.transform:
+            image = self.transform(image)
+            
+        return image, label
 
-class CharacterClassifier(nn.Module):
-    """角色分类器"""
-    def __init__(self, num_classes=1000):
-        super(CharacterClassifier, self).__init__()
-        from torchvision import models
-        self.backbone = models.efficientnet_b0(pretrained=False)
-        self.backbone.classifier[1] = nn.Linear(
-            self.backbone.classifier[1].in_features,
-            num_classes
-        )
+def get_model(model_type, num_classes):
+    """获取模型
     
-    def forward(self, x):
-        return self.backbone(x)
+    Args:
+        model_type: 模型类型
+        num_classes: 类别数量
+    
+    Returns:
+        模型
+    """
+    if model_type == 'efficientnet_b0':
+        logger.info("加载模型: EfficientNet-B0")
+        model = models.efficientnet_b0(pretrained=False)
+        model.classifier[1] = nn.Linear(model.classifier[1].in_features, num_classes)
+    elif model_type == 'mobilenet_v2':
+        logger.info("加载模型: MobileNetV2")
+        model = models.mobilenet_v2(pretrained=False)
+        model.classifier[1] = nn.Linear(model.classifier[1].in_features, num_classes)
+    elif model_type == 'shufflenet_v2':
+        logger.info("加载模型: ShuffleNetV2")
+        model = models.shufflenet_v2_x1_0(pretrained=False)
+        model.fc = nn.Linear(model.fc.in_features, num_classes)
+    elif model_type == 'squeezenet':
+        logger.info("加载模型: SqueezeNet")
+        model = models.squeezenet1_0(pretrained=False)
+        model.classifier[1] = nn.Conv2d(512, num_classes, kernel_size=(1, 1), stride=(1, 1))
+        model.num_classes = num_classes
+    elif model_type == 'resnet18':
+        logger.info("加载模型: ResNet18")
+        model = models.resnet18(pretrained=False)
+        model.fc = nn.Linear(model.fc.in_features, num_classes)
+    else:
+        raise ValueError(f"不支持的模型类型: {model_type}")
+    
+    return model
 
-class ModelEvaluator:
-    """模型评估器"""
-    def __init__(self, device='mps'):
-        self.device = device
+def calculate_model_size(model):
+    """计算模型大小
     
-    def load_model(self, model_path, num_classes=1000):
-        """加载模型"""
-        model = CharacterClassifier(num_classes=num_classes)
-        if os.path.exists(model_path):
-            try:
-                model.load_state_dict(torch.load(model_path, map_location=self.device))
-                logger.info(f"成功加载模型: {model_path}")
-            except Exception as e:
-                logger.error(f"加载模型失败: {e}")
-                return None
-        model = model.to(self.device)
-        model.eval()
-        return model
+    Args:
+        model: 模型
     
-    def evaluate_model(self, model, dataloader):
-        """评估模型"""
-        if not model:
-            return {}
-        
-        correct = 0
-        total = 0
-        total_time = 0
-        
-        with torch.no_grad():
-            for images, labels in tqdm(dataloader, desc="评估模型"):
-                images = images.to(self.device)
-                labels = labels.to(self.device)
-                
-                # 记录推理时间
-                start_time = time.time()
-                outputs = model(images)
-                end_time = time.time()
-                total_time += end_time - start_time
-                
-                # 计算准确率
-                _, predicted = torch.max(outputs, 1)
-                total += labels.size(0)
-                correct += (predicted == labels).sum().item()
-        
-        accuracy = (correct / total) * 100
-        avg_inference_time = (total_time / total) * 1000  # 毫秒
-        fps = 1000 / avg_inference_time if avg_inference_time > 0 else 0
-        
-        return {
-            'accuracy': accuracy,
-            'avg_inference_time_ms': avg_inference_time,
-            'fps': fps,
-            'total_images': total
-        }
+    Returns:
+        模型大小（MB）, 参数数量
+    """
+    total_params = sum(p.numel() for p in model.parameters())
+    model_size = total_params * 4 / (1024 * 1024)  # 每个参数4字节
+    return model_size, total_params
 
-class DatasetEvaluator:
-    """数据集评估器"""
-    def evaluate_dataset(self, data_dir):
-        """评估数据集"""
-        # 统计数据集信息
-        class_counts = {}
-        total_images = 0
-        
-        for class_name in sorted(os.listdir(data_dir)):
-            class_dir = os.path.join(data_dir, class_name)
-            if os.path.isdir(class_dir):
-                image_count = len([f for f in os.listdir(class_dir) if f.endswith(('.jpg', '.jpeg', '.png', '.bmp'))])
-                class_counts[class_name] = image_count
-                total_images += image_count
-        
-        num_classes = len(class_counts)
-        avg_images_per_class = total_images / num_classes if num_classes > 0 else 0
-        
-        return {
-            'num_classes': num_classes,
-            'total_images': total_images,
-            'avg_images_per_class': avg_images_per_class,
-            'class_counts': class_counts
-        }
+def evaluate_model_performance(model, data_loader, device):
+    """评估模型性能
+    
+    Args:
+        model: 模型
+        data_loader: 数据加载器
+        device: 设备
+    
+    Returns:
+        准确率, 平均推理时间（毫秒）, FPS
+    """
+    model.eval()
+    correct = 0
+    total = 0
+    total_inference_time = 0
+    
+    with torch.no_grad():
+        for images, labels in tqdm(data_loader, desc="评估模型性能"):
+            images = images.to(device)
+            labels = labels.to(device)
+            
+            # 前向传播，记录时间
+            start_time = time.time()
+            outputs = model(images)
+            end_time = time.time()
+            
+            inference_time = end_time - start_time
+            total_inference_time += inference_time
+            
+            # 计算准确率
+            _, predicted = torch.max(outputs, 1)
+            total += labels.size(0)
+            correct += (predicted == labels).sum().item()
+    
+    accuracy = (correct / total) * 100
+    avg_inference_time = (total_inference_time / total) * 1000  # 转换为毫秒
+    fps = 1000 / avg_inference_time if avg_inference_time > 0 else 0
+    
+    return accuracy, avg_inference_time, fps
 
-class ComprehensiveEvaluator:
-    """综合评估器"""
-    def __init__(self, device='cpu'):
-        self.device = device
-        self.model_evaluator = ModelEvaluator(device=device)
-        self.dataset_evaluator = DatasetEvaluator()
+def evaluate_class_performance(model, data_loader, device, class_names):
+    """评估每个类别的性能
     
-    def evaluate_models(self, model_paths, test_data_dir):
-        """评估多个模型"""
-        # 数据预处理
-        transform = transforms.Compose([
-            transforms.Resize((224, 224)),
-            transforms.ToTensor(),
-            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-        ])
-        
-        # 加载测试数据集
-        dataset = CharacterDataset(test_data_dir, transform=transform)
-        dataloader = DataLoader(dataset, batch_size=32, shuffle=False, num_workers=4)
-        
-        # 评估每个模型
-        model_results = {}
-        for model_name, model_path in model_paths.items():
-            logger.info(f"评估模型: {model_name}")
-            model = self.model_evaluator.load_model(model_path, num_classes=len(dataset.class_to_idx))
-            if model:
-                results = self.model_evaluator.evaluate_model(model, dataloader)
-                model_results[model_name] = results
-                logger.info(f"模型 {model_name} 评估结果: {results}")
-            else:
-                model_results[model_name] = {}
-                logger.warning(f"跳过模型评估: {model_name}")
-        
-        return model_results
+    Args:
+        model: 模型
+        data_loader: 数据加载器
+        device: 设备
+        class_names: 类别名称列表
     
-    def evaluate_dataset_expansion(self, original_data_dir, expanded_data_dir):
-        """评估数据集扩充效果"""
-        logger.info("评估数据集扩充效果...")
-        
-        # 评估原始数据集
-        original_stats = self.dataset_evaluator.evaluate_dataset(original_data_dir)
-        
-        # 评估扩充后数据集
-        expanded_stats = self.dataset_evaluator.evaluate_dataset(expanded_data_dir)
-        
-        # 计算扩充效果
-        expansion_ratio = expanded_stats['total_images'] / original_stats['total_images'] if original_stats['total_images'] > 0 else 0
-        class_increase = expanded_stats['num_classes'] - original_stats['num_classes']
-        
-        return {
-            'original_dataset': original_stats,
-            'expanded_dataset': expanded_stats,
-            'expansion_ratio': expansion_ratio,
-            'class_increase': class_increase
-        }
+    Returns:
+        每个类别的准确率字典
+    """
+    model.eval()
     
-    def evaluate_online_learning(self, base_model_path, new_data_dir, test_data_dir):
-        """评估在线学习能力"""
-        logger.info("评估在线学习能力...")
-        
-        # 这里简化处理，实际应该使用OnlineLearningSystem
-        # 加载基础模型
-        transform = transforms.Compose([
-            transforms.Resize((224, 224)),
-            transforms.ToTensor(),
-            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-        ])
-        
-        # 加载测试数据集
-        dataset = CharacterDataset(test_data_dir, transform=transform)
-        dataloader = DataLoader(dataset, batch_size=32, shuffle=False, num_workers=4)
-        
-        # 评估基础模型
-        base_model = self.model_evaluator.load_model(base_model_path, num_classes=len(dataset.class_to_idx))
-        base_results = self.model_evaluator.evaluate_model(base_model, dataloader)
-        
-        # 评估更新后模型（假设已存在）
-        updated_model_path = base_model_path.replace('.pth', '_updated.pth')
-        if os.path.exists(updated_model_path):
-            updated_model = self.model_evaluator.load_model(updated_model_path, num_classes=len(dataset.class_to_idx))
-            updated_results = self.model_evaluator.evaluate_model(updated_model, dataloader)
+    # 初始化混淆矩阵
+    num_classes = len(class_names)
+    class_correct = [0] * num_classes
+    class_total = [0] * num_classes
+    
+    with torch.no_grad():
+        for images, labels in data_loader:
+            images = images.to(device)
+            labels = labels.to(device)
+            
+            outputs = model(images)
+            _, predicted = torch.max(outputs, 1)
+            
+            # 计算每个类别的准确率
+            for i in range(labels.size(0)):
+                label = labels[i].item()
+                class_total[label] += 1
+                if predicted[i] == label:
+                    class_correct[label] += 1
+    
+    # 计算每个类别的准确率
+    class_accuracies = {}
+    for i, class_name in enumerate(class_names):
+        if class_total[i] > 0:
+            accuracy = (class_correct[i] / class_total[i]) * 100
+            class_accuracies[class_name] = accuracy
         else:
-            updated_results = {}
-            logger.warning(f"更新后模型不存在: {updated_model_path}")
-        
-        return {
-            'base_model': base_results,
-            'updated_model': updated_results
-        }
+            class_accuracies[class_name] = 0.0
     
-    def generate_report(self, results, output_path):
-        """生成综合评估报告"""
-        logger.info("生成综合评估报告...")
-        
-        # 生成报告内容
-        report = {
-            'timestamp': time.strftime('%Y-%m-%d %H:%M:%S'),
-            'results': results
-        }
-        
-        # 保存报告
-        os.makedirs(os.path.dirname(output_path), exist_ok=True)
-        with open(output_path, 'w', encoding='utf-8') as f:
-            json.dump(report, f, ensure_ascii=False, indent=2)
-        
-        logger.info(f"综合评估报告已保存到: {output_path}")
-        
-        # 打印报告摘要
-        self._print_report_summary(report)
-    
-    def _print_report_summary(self, report):
-        """打印报告摘要"""
-        logger.info("\n=== 综合评估报告摘要 ===")
-        
-        # 模型评估结果
-        if 'model_evaluation' in report['results']:
-            model_results = report['results']['model_evaluation']
-            logger.info("\n1. 模型评估结果:")
-            for model_name, results in model_results.items():
-                if results:
-                    logger.info(f"   {model_name}: Accuracy={results['accuracy']:.2f}%, FPS={results['fps']:.2f}")
-        
-        # 数据集扩充效果
-        if 'dataset_expansion' in report['results']:
-            expansion_results = report['results']['dataset_expansion']
-            logger.info("\n2. 数据集扩充效果:")
-            logger.info(f"   原始数据集: {expansion_results['original_dataset']['num_classes']} 类, {expansion_results['original_dataset']['total_images']} 张图像")
-            logger.info(f"   扩充后数据集: {expansion_results['expanded_dataset']['num_classes']} 类, {expansion_results['expanded_dataset']['total_images']} 张图像")
-            logger.info(f"   扩充比例: {expansion_results['expansion_ratio']:.2f}x")
-            logger.info(f"   类别增加: {expansion_results['class_increase']} 个")
-        
-        # 在线学习能力
-        if 'online_learning' in report['results']:
-            online_results = report['results']['online_learning']
-            logger.info("\n3. 在线学习能力:")
-            if online_results['base_model']:
-                logger.info(f"   基础模型: Accuracy={online_results['base_model']['accuracy']:.2f}%")
-            if online_results['updated_model']:
-                logger.info(f"   更新后模型: Accuracy={online_results['updated_model']['accuracy']:.2f}%")
-        
-        logger.info("\n=== 评估完成 ===")
+    return class_accuracies
 
 def main():
-    """主函数"""
     parser = argparse.ArgumentParser(description='综合评估脚本')
-    parser.add_argument('--original-data-dir', type=str, default='data/original', help='原始数据集目录')
-    parser.add_argument('--expanded-data-dir', type=str, default='data/train', help='扩充后数据集目录')
-    parser.add_argument('--test-data-dir', type=str, default='data/split_dataset/val', help='测试数据集目录')
-    parser.add_argument('--base-model', type=str, default='models/character_classifier.pth', help='基础模型路径')
-    parser.add_argument('--distilled-model', type=str, default='models/distillation/student_model_best.pth', help='蒸馏模型路径')
-    parser.add_argument('--multimodal-model', type=str, default='models/multimodal_model_trained.pth', help='多模态模型路径')
-    parser.add_argument('--output-report', type=str, default='reports/comprehensive_evaluation_report.json', help='输出评估报告路径')
-    parser.add_argument('--device', type=str, default='cuda' if torch.cuda.is_available() else 'cpu', help='设备')
+    
+    parser.add_argument('--test-data-dir', type=str, default='data/train',
+                       help='测试数据目录')
+    parser.add_argument('--model-dir', type=str, default='models/augmented_training/mobilenet_v2',
+                       help='模型目录')
+    parser.add_argument('--batch-size', type=int, default=32,
+                       help='批量大小')
+    parser.add_argument('--num-workers', type=int, default=4,
+                       help='数据加载器工作线程数')
     
     args = parser.parse_args()
     
-    # 初始化综合评估器
-    evaluator = ComprehensiveEvaluator(device=args.device)
+    # 设置设备
+    device = torch.device('mps' if torch.backends.mps.is_available() else 'cuda' if torch.cuda.is_available() else 'cpu')
+    logger.info(f"使用设备: {device}")
     
-    # 评估模型
-    model_paths = {
-        'base_model': args.base_model,
-        'distilled_model': args.distilled_model,
-        'multimodal_model': args.multimodal_model
+    # 数据变换
+    transform = transforms.Compose([
+        transforms.Resize(256),
+        transforms.CenterCrop(224),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+    ])
+    
+    # 加载测试数据集
+    test_dataset = CharacterDataset(root_dir=args.test_data_dir, transform=transform)
+    test_loader = DataLoader(
+        test_dataset, batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers
+    )
+    
+    num_classes = len(test_dataset.class_to_idx)
+    class_names = list(test_dataset.class_to_idx.keys())
+    
+    # 加载模型配置
+    model_config_path = os.path.join(args.model_dir, 'class_to_idx.json')
+    if not os.path.exists(model_config_path):
+        logger.error(f"模型配置文件不存在: {model_config_path}")
+        return
+    
+    with open(model_config_path, 'r', encoding='utf-8') as f:
+        model_class_to_idx = json.load(f)
+    
+    # 加载最佳模型
+    best_model_path = os.path.join(args.model_dir, 'model_best.pth')
+    if not os.path.exists(best_model_path):
+        logger.error(f"最佳模型文件不存在: {best_model_path}")
+        return
+    
+    # 确定模型类型
+    model_type = os.path.basename(args.model_dir)
+    logger.info(f"评估模型: {model_type}")
+    
+    # 加载模型
+    model = get_model(model_type, num_classes)
+    model.to(device)
+    
+    # 加载模型权重
+    checkpoint = torch.load(best_model_path, map_location=device)
+    model.load_state_dict(checkpoint['model_state_dict'])
+    logger.info(f"加载模型权重成功，最佳验证准确率: {checkpoint['val_accuracy']:.2f}%")
+    
+    # 计算模型大小
+    model_size, num_params = calculate_model_size(model)
+    logger.info(f"模型大小: {model_size:.2f} MB, 参数数量: {num_params:,}")
+    
+    # 评估模型性能
+    logger.info("\n开始评估模型性能...")
+    accuracy, avg_inference_time, fps = evaluate_model_performance(model, test_loader, device)
+    logger.info(f"测试准确率: {accuracy:.2f}%")
+    logger.info(f"平均推理时间: {avg_inference_time:.2f} 毫秒")
+    logger.info(f"推理速度: {fps:.2f} FPS")
+    
+    # 评估每个类别的性能
+    logger.info("\n开始评估每个类别的性能...")
+    class_accuracies = evaluate_class_performance(model, test_loader, device, class_names)
+    
+    # 打印每个类别的准确率
+    logger.info("\n每个类别的准确率:")
+    for class_name, acc in sorted(class_accuracies.items(), key=lambda x: x[1], reverse=True):
+        logger.info(f"{class_name}: {acc:.2f}%")
+    
+    # 计算平均类别准确率
+    avg_class_accuracy = sum(class_accuracies.values()) / len(class_accuracies)
+    logger.info(f"\n平均类别准确率: {avg_class_accuracy:.2f}%")
+    
+    # 保存评估结果
+    evaluation_results = {
+        'model_type': model_type,
+        'model_size_mb': model_size,
+        'num_params': num_params,
+        'test_accuracy': accuracy,
+        'avg_inference_time_ms': avg_inference_time,
+        'fps': fps,
+        'avg_class_accuracy': avg_class_accuracy,
+        'class_accuracies': class_accuracies,
+        'test_data_size': len(test_dataset),
+        'num_classes': num_classes,
+        'evaluation_time': time.strftime('%Y-%m-%d %H:%M:%S')
     }
-    model_results = evaluator.evaluate_models(model_paths, args.test_data_dir)
     
-    # 评估数据集扩充效果
-    dataset_results = evaluator.evaluate_dataset_expansion(args.original_data_dir, args.expanded_data_dir)
+    results_path = os.path.join(args.model_dir, 'evaluation_results.json')
+    with open(results_path, 'w', encoding='utf-8') as f:
+        json.dump(evaluation_results, f, ensure_ascii=False, indent=2)
     
-    # 评估在线学习能力
-    online_results = evaluator.evaluate_online_learning(args.base_model, args.expanded_data_dir, args.test_data_dir)
+    logger.info(f"\n评估结果已保存到: {results_path}")
     
-    # 整合所有结果
-    results = {
-        'model_evaluation': model_results,
-        'dataset_expansion': dataset_results,
-        'online_learning': online_results
-    }
-    
-    # 生成综合评估报告
-    evaluator.generate_report(results, args.output_report)
-    
-    logger.info("综合评估完成")
+    # 打印综合评估报告
+    logger.info("\n=== 综合评估报告 ===")
+    logger.info(f"模型类型: {model_type}")
+    logger.info(f"模型大小: {model_size:.2f} MB")
+    logger.info(f"参数数量: {num_params:,}")
+    logger.info(f"测试准确率: {accuracy:.2f}%")
+    logger.info(f"平均推理时间: {avg_inference_time:.2f} 毫秒")
+    logger.info(f"推理速度: {fps:.2f} FPS")
+    logger.info(f"平均类别准确率: {avg_class_accuracy:.2f}%")
+    logger.info(f"测试数据大小: {len(test_dataset)} 张图像")
+    logger.info(f"类别数量: {num_classes}")
+    logger.info("===================")
 
 if __name__ == '__main__':
     main()
