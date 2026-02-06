@@ -284,6 +284,97 @@ class GeneralClassification:
             print(f"分类图像失败: {e}")
             raise e # 抛出异常以便上层捕获
     
+    def classify_image_ensemble(self, image_path, clip_weight=0.7, model_weight=0.3, confidence_threshold=0.6):
+        """使用集成方法分类单个图像（整合两个模型的结果）
+        :param image_path: 图片路径
+        :param clip_weight: CLIP模型的权重
+        :param model_weight: MobileNetV2模型的权重
+        :param confidence_threshold: 置信度阈值
+        """
+        if not self.initialize():
+            return None, 0.0, None
+            
+        try:
+            # 1. 使用CLIP模型分类
+            clip_role, clip_similarity, boxes = self.classify_image(image_path, use_model=False)
+            
+            # 2. 使用MobileNetV2模型分类
+            model_role, model_similarity, _ = self.classify_image(image_path, use_model=True)
+            
+            # 3. 整合两个模型的结果
+            # 初始化结果字典
+            results = {}
+            
+            # 添加CLIP模型的结果
+            if clip_role and clip_similarity >= confidence_threshold:
+                weighted_score = clip_similarity * clip_weight
+                results[clip_role] = results.get(clip_role, 0) + weighted_score
+            
+            # 添加MobileNetV2模型的结果
+            if model_role and model_similarity >= confidence_threshold:
+                weighted_score = model_similarity * model_weight
+                results[model_role] = results.get(model_role, 0) + weighted_score
+            
+            # 4. 选择最终结果
+            if results:
+                # 按加权分数排序
+                sorted_results = sorted(results.items(), key=lambda x: x[1], reverse=True)
+                final_role, final_score = sorted_results[0]
+                
+                # 计算标准化的最终相似度
+                total_weight = clip_weight + model_weight
+                normalized_score = final_score / total_weight
+                
+                # 5. 记录集成分类日志
+                if record_classification_log is not None:
+                    # 提取CLIP特征用于日志
+                    normalized_img, _ = self.preprocessor.process(image_path)
+                    feature = self.extractor.extract_features(normalized_img)
+                    
+                    record_classification_log(
+                        image_path=image_path,
+                        role=final_role,
+                        similarity=normalized_score,
+                        feature=feature if feature is not None else [],
+                        boxes=boxes,
+                        metadata={
+                            "ensemble": True,
+                            "clip_role": clip_role,
+                            "clip_similarity": clip_similarity,
+                            "model_role": model_role,
+                            "model_similarity": model_similarity,
+                            "weights": {"clip": clip_weight, "model": model_weight}
+                        }
+                    )
+                
+                return final_role, normalized_score, boxes
+            else:
+                # 如果两个模型的置信度都低于阈值，使用CLIP模型的结果
+                if record_classification_log is not None:
+                    normalized_img, _ = self.preprocessor.process(image_path)
+                    feature = self.extractor.extract_features(normalized_img)
+                    
+                    record_classification_log(
+                        image_path=image_path,
+                        role=clip_role,
+                        similarity=clip_similarity,
+                        feature=feature if feature is not None else [],
+                        boxes=boxes,
+                        metadata={
+                            "ensemble": True,
+                            "fallback_to_clip": True,
+                            "clip_similarity": clip_similarity,
+                            "model_similarity": model_similarity
+                        }
+                    )
+                
+                return clip_role, clip_similarity, boxes
+                
+        except Exception as e:
+            print(f"集成分类失败: {e}")
+            # 失败时回退到CLIP模型
+            return self.classify_image(image_path, use_model=False)
+    
     def classify_pil_image(self, pil_image, use_model=False):
         """分类PIL图像对象"""
         if not self.initialize():
@@ -389,6 +480,11 @@ def classify_pil_image(pil_image, use_model=False):
     """快速分类PIL图像的便捷函数"""
     classifier = get_classifier()
     return classifier.classify_pil_image(pil_image, use_model=use_model)
+
+def classify_image_ensemble(image_path, clip_weight=0.7, model_weight=0.3, confidence_threshold=0.6):
+    """快速使用集成方法分类图像的便捷函数"""
+    classifier = get_classifier()
+    return classifier.classify_image_ensemble(image_path, clip_weight, model_weight, confidence_threshold)
 
 def build_index_from_directory(data_dir):
     """快速从目录构建索引的便捷函数"""
