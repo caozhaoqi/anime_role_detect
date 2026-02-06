@@ -16,13 +16,9 @@ async function testClassification() {
     }
 
     console.log('发送分类请求...');
-    const response = await fetch('http://127.0.0.1:5001/api/classify', {
+    const response = await fetch('/api/classify', {
       method: 'POST',
       body: formData,
-      headers: {
-        ...formData.getHeaders(),
-        'Accept': 'application/json',
-      },
     });
 
     console.log('响应状态:', response.status);

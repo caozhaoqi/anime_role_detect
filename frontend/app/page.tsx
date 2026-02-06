@@ -203,26 +203,46 @@ export default function Home() {
   };
 
   // 添加全局错误监听器
-  window.addEventListener('error', (event) => {
-    console.error('🌐 全局错误:', event.error);
-    console.error('🌐 错误堆栈:', event.error.stack);
-    console.error('🌐 错误发生在:', event.filename, '行号:', event.lineno, '列号:', event.colno);
-  });
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      // 添加全局错误监听器
+      const handleGlobalError = (event: ErrorEvent) => {
+        console.error('🌐 全局错误:', event.error);
+        console.error('🌐 错误堆栈:', event.error?.stack);
+        console.error('🌐 错误发生在:', event.filename, '行号:', event.lineno, '列号:', event.colno);
+      };
 
-  // 添加全局未捕获Promise错误监听器
-  window.addEventListener('unhandledrejection', (event) => {
-    console.error('🌐 未捕获的Promise错误:', event.reason);
-    console.error('🌐 Promise:', event.promise);
-  });
+      // 添加全局未捕获Promise错误监听器
+      const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
+        console.error('🌐 未捕获的Promise错误:', event.reason);
+        console.error('🌐 Promise:', event.promise);
+      };
 
-  // 全局变量，用于测试函数是否被调用
-  window.testHandleUpload = function() {
-    console.log('🌐 全局测试函数被调用！');
-    alert('全局测试函数被调用！');
-  };
+      // 添加事件监听器
+      window.addEventListener('error', handleGlobalError);
+      window.addEventListener('unhandledrejection', handleUnhandledRejection);
+
+      // 全局变量，用于测试函数是否被调用
+      (window as any).testHandleUpload = function() {
+        console.log('🌐 全局测试函数被调用！');
+        alert('全局测试函数被调用！');
+      };
+
+      // 清理函数
+      return () => {
+        window.removeEventListener('error', handleGlobalError);
+        window.removeEventListener('unhandledrejection', handleUnhandledRejection);
+      };
+    }
+  }, []);
 
   const handleUpload = () => {
-    // 最简单的测试，只输出一条日志
+    // 检查是否选择了文件
+    if (!selectedFile) {
+      alert('请先选择一个文件！');
+      return;
+    }
+    
     console.log('🔄 handleUpload函数被调用！');
     console.log('🔍 当前状态:', {
       selectedFile: selectedFile ? selectedFile.name : null,
@@ -231,25 +251,45 @@ export default function Home() {
       error: error
     });
     
-    // 尝试显示一个alert，看看函数是否真的被调用
-    alert('handleUpload函数被调用！');
+    // 设置加载状态
+    setIsLoading(true);
+    setError(null);
+    setProcessingStatus(previewVideo ? '正在处理视频...' : '正在识别图像...');
     
-    // 尝试调用后端API
-    console.log('🌐 尝试调用后端API...');
-    fetch('http://127.0.0.1:5001/api/classify', {
-      method: 'GET'
+    // 创建FormData对象，用于上传文件
+    const formData = new FormData();
+    formData.append('file', selectedFile);
+    formData.append('use_model', 'true');
+    if (previewVideo) {
+      formData.append('frame_skip', '5'); // 视频帧跳过间隔
+    }
+    
+    // 发送POST请求到Next.js API路由
+    console.log('🌐 尝试调用API...');
+    fetch('/api/classify', {
+      method: 'POST',
+      body: formData
     })
     .then(response => {
       console.log('📡 API响应状态:', response.status);
+      if (!response.ok) {
+        throw new Error('API响应失败: ' + response.statusText);
+      }
       return response.json();
     })
     .then(data => {
       console.log('📡 API响应数据:', data);
-      alert('API调用成功！');
+      setResult(data);
+      setIsLoading(false);
+      setProcessingStatus(null);
+      alert('处理成功！');
     })
     .catch(error => {
       console.error('❌ API调用失败:', error);
-      alert('API调用失败: ' + error.message);
+      setError('处理失败: ' + error.message);
+      setIsLoading(false);
+      setProcessingStatus(null);
+      alert('处理失败: ' + error.message);
     });
   };
 
@@ -280,9 +320,9 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100">
+    <div className="min-h-screen bg-gradient-to-b from-primary-100 to-secondary-100">
       {/* 导航栏 */}
-      <nav className="bg-white shadow-lg bg-opacity-95 backdrop-blur-sm sticky top-0 z-50">
+      <nav className="bg-gradient-to-r from-primary-500/95 to-secondary-500/95 backdrop-blur-lg sticky top-0 z-50 shadow-md">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16">
             <motion.div 
@@ -294,30 +334,38 @@ export default function Home() {
               <motion.div
                 whileHover={{ rotate: 10, scale: 1.1 }}
                 transition={{ type: "spring", stiffness: 300 }}
-                className="bg-gradient-to-r from-primary to-secondary p-2 rounded-full"
+                className="bg-white/20 backdrop-blur-sm p-2 rounded-full shadow-lg"
               >
-                <ImageIcon className="h-6 w-6 text-white" />
+                <Sparkles className="h-6 w-6 text-white" />
               </motion.div>
-              <span className="ml-3 text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-gray-900 to-gray-600">角色分类系统</span>
+              <span className="ml-3 text-xl font-bold font-display text-white hidden sm:block">角色智能识别系统</span>
+              <span className="ml-3 text-lg font-bold font-display text-white sm:hidden">角色识别</span>
             </motion.div>
             <motion.div 
-              className="flex items-center space-x-4"
+              className="flex items-center space-x-3"
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.5, delay: 0.2 }}
             >
               <motion.button
-                whileHover={{ scale: 1.05, backgroundColor: "#45a049" }}
+                whileHover={{ scale: 1.05, backgroundColor: "rgba(255, 255, 255, 0.2)" }}
                 whileTap={{ scale: 0.95 }}
-                className="px-4 py-2 bg-primary text-white rounded-lg flex items-center shadow-md hover:shadow-lg transition-all"
+                className="px-4 py-2 bg-white/10 backdrop-blur-sm text-white rounded-lg flex items-center shadow-lg hover:shadow-xl transition-all hidden sm:flex"
               >
                 <Sparkles className="h-4 w-4 mr-2" />
                 <span className="font-medium">AI 分类</span>
               </motion.button>
               <motion.button
-                whileHover={{ scale: 1.05, backgroundColor: "#f3f4f6" }}
+                whileHover={{ scale: 1.05, backgroundColor: "rgba(255, 255, 255, 0.2)" }}
                 whileTap={{ scale: 0.95 }}
-                className="px-4 py-2 bg-gray-100 text-gray-800 rounded-lg flex items-center shadow-sm hover:shadow-md transition-all"
+                className="p-2 bg-white/10 backdrop-blur-sm text-white rounded-lg flex items-center shadow-lg hover:shadow-xl transition-all sm:hidden"
+              >
+                <Sparkles className="h-5 w-5" />
+              </motion.button>
+              <motion.button
+                whileHover={{ scale: 1.05, backgroundColor: "rgba(255, 255, 255, 0.2)" }}
+                whileTap={{ scale: 0.95 }}
+                className="px-4 py-2 bg-white/10 backdrop-blur-sm text-white rounded-lg flex items-center shadow-md hover:shadow-lg transition-all hidden sm:flex"
                 onClick={() => {
                   setShowHistory(true);
                   loadHistory();
@@ -327,12 +375,30 @@ export default function Home() {
                 <span className="font-medium">历史记录</span>
               </motion.button>
               <motion.button
-                whileHover={{ scale: 1.05, backgroundColor: "#f3f4f6" }}
+                whileHover={{ scale: 1.05, backgroundColor: "rgba(255, 255, 255, 0.2)" }}
                 whileTap={{ scale: 0.95 }}
-                className="px-4 py-2 bg-gray-100 text-gray-800 rounded-lg flex items-center shadow-sm hover:shadow-md transition-all"
+                className="p-2 bg-white/10 backdrop-blur-sm text-white rounded-lg flex items-center shadow-md hover:shadow-lg transition-all sm:hidden"
+                onClick={() => {
+                  setShowHistory(true);
+                  loadHistory();
+                }}
+              >
+                <BarChart2 className="h-5 w-5" />
+              </motion.button>
+              <motion.button
+                whileHover={{ scale: 1.05, backgroundColor: "rgba(255, 255, 255, 0.2)" }}
+                whileTap={{ scale: 0.95 }}
+                className="px-4 py-2 bg-white/10 backdrop-blur-sm text-white rounded-lg flex items-center shadow-md hover:shadow-lg transition-all hidden sm:flex"
               >
                 <Info className="h-4 w-4 mr-2" />
                 <span className="font-medium">关于</span>
+              </motion.button>
+              <motion.button
+                whileHover={{ scale: 1.05, backgroundColor: "rgba(255, 255, 255, 0.2)" }}
+                whileTap={{ scale: 0.95 }}
+                className="p-2 bg-white/10 backdrop-blur-sm text-white rounded-lg flex items-center shadow-md hover:shadow-lg transition-all sm:hidden"
+              >
+                <Info className="h-5 w-5" />
               </motion.button>
             </motion.div>
           </div>
@@ -340,56 +406,72 @@ export default function Home() {
       </nav>
 
       {/* 主内容 */}
-      <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
         {/* 标题 */}
         <motion.div
           initial={{ opacity: 0, y: -30 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.7, ease: "easeOut" }}
-          className="text-center mb-16"
+          className="text-center mb-16 sm:mb-20"
         >
           <motion.div
             initial={{ scale: 0.8, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             transition={{ duration: 0.5, delay: 0.2 }}
-            className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-primary to-secondary rounded-full mb-6 shadow-lg"
+            className="inline-flex items-center justify-center w-20 sm:w-24 h-20 sm:h-24 bg-gradient-to-br from-primary-500 to-secondary-600 rounded-full mb-6 sm:mb-8 shadow-xl animate-float"
           >
-            <Sparkles className="h-8 w-8 text-white" />
+            <Sparkles className="h-10 sm:h-12 w-10 sm:w-12 text-white" />
           </motion.div>
           <motion.h1 
-            className="text-5xl font-extrabold mb-4 bg-clip-text text-transparent bg-gradient-to-r from-gray-900 to-gray-700"
+            className="text-[clamp(2rem,5vw,4rem)] font-extrabold font-display mb-4 sm:mb-6 bg-clip-text text-transparent bg-gradient-to-r from-primary-600 to-secondary-600"
             initial={{ y: 20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             transition={{ duration: 0.5, delay: 0.4 }}
           >
-            角色分类系统
+            角色智能识别系统
           </motion.h1>
           <motion.p 
-            className="text-xl text-gray-600 max-w-2xl mx-auto"
+            className="text-base sm:text-xl text-dark-600 max-w-2xl mx-auto leading-relaxed"
             initial={{ y: 20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             transition={{ duration: 0.5, delay: 0.6 }}
           >
-            使用先进的 AI 技术，一键识别图片中的游戏角色
+            利用先进的人工智能技术，一键识别图片和视频中的游戏角色，精准定位并分析角色特征
           </motion.p>
           <motion.div
             initial={{ y: 20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             transition={{ duration: 0.5, delay: 0.8 }}
-            className="mt-8 flex flex-wrap justify-center gap-4"
+            className="mt-8 sm:mt-10 flex flex-wrap justify-center gap-3 sm:gap-4"
           >
-            <div className="flex items-center bg-white px-4 py-2 rounded-full shadow-sm">
-              <Star className="h-4 w-4 text-yellow-400 mr-2" />
-              <span className="text-sm font-medium text-gray-700">60+ 角色支持</span>
-            </div>
-            <div className="flex items-center bg-white px-4 py-2 rounded-full shadow-sm">
-              <Zap className="h-4 w-4 text-blue-400 mr-2" />
-              <span className="text-sm font-medium text-gray-700">实时识别</span>
-            </div>
-            <div className="flex items-center bg-white px-4 py-2 rounded-full shadow-sm">
-              <Award className="h-4 w-4 text-purple-400 mr-2" />
-              <span className="text-sm font-medium text-gray-700">高准确率</span>
-            </div>
+            <motion.div 
+              whileHover={{ y: -8, boxShadow: "0 15px 30px -10px rgba(0, 0, 0, 0.15)" }}
+              className="flex items-center bg-white px-4 sm:px-6 py-3 sm:py-4 rounded-xl shadow-lg border border-light-200"
+            >
+              <Star className="h-5 sm:h-6 w-5 sm:w-6 text-accent-500 mr-2 sm:mr-3" />
+              <span className="text-sm sm:text-base font-semibold text-dark-700">60+ 角色支持</span>
+            </motion.div>
+            <motion.div 
+              whileHover={{ y: -8, boxShadow: "0 15px 30px -10px rgba(0, 0, 0, 0.15)" }}
+              className="flex items-center bg-white px-4 sm:px-6 py-3 sm:py-4 rounded-xl shadow-lg border border-light-200"
+            >
+              <Zap className="h-5 sm:h-6 w-5 sm:w-6 text-primary-500 mr-2 sm:mr-3" />
+              <span className="text-sm sm:text-base font-semibold text-dark-700">实时识别</span>
+            </motion.div>
+            <motion.div 
+              whileHover={{ y: -8, boxShadow: "0 15px 30px -10px rgba(0, 0, 0, 0.15)" }}
+              className="flex items-center bg-white px-4 sm:px-6 py-3 sm:py-4 rounded-xl shadow-lg border border-light-200"
+            >
+              <Award className="h-5 sm:h-6 w-5 sm:w-6 text-secondary-500 mr-2 sm:mr-3" />
+              <span className="text-sm sm:text-base font-semibold text-dark-700">高准确率</span>
+            </motion.div>
+            <motion.div 
+              whileHover={{ y: -8, boxShadow: "0 15px 30px -10px rgba(0, 0, 0, 0.15)" }}
+              className="flex items-center bg-white px-4 sm:px-6 py-3 sm:py-4 rounded-xl shadow-lg border border-light-200"
+            >
+              <Film className="h-5 sm:h-6 w-5 sm:w-6 text-green-500 mr-2 sm:mr-3" />
+              <span className="text-sm sm:text-base font-semibold text-dark-700">视频支持</span>
+            </motion.div>
           </motion.div>
         </motion.div>
 
@@ -410,39 +492,39 @@ export default function Home() {
         {/* 上传区域 */}
         {!result && (
           <motion.div
-            className="bg-white rounded-2xl shadow-xl p-8 mb-12 overflow-hidden relative"
+            className="bg-white rounded-2xl shadow-xl p-8 mb-16 overflow-hidden relative"
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.7, ease: "easeOut" }}
           >
             {/* 背景装饰 */}
-            <div className="absolute top-0 right-0 w-40 h-40 bg-gradient-to-br from-primary/10 to-secondary/10 rounded-full -mr-20 -mt-20" />
-            <div className="absolute bottom-0 left-0 w-32 h-32 bg-gradient-to-tr from-blue-100 to-purple-100 rounded-full -ml-16 -mb-16" />
+            <div className="absolute top-0 right-0 w-40 h-40 bg-gradient-to-br from-primary-100 to-secondary-100 rounded-full -mr-20 -mt-20" />
+            <div className="absolute bottom-0 left-0 w-32 h-32 bg-gradient-to-tr from-blue-50 to-purple-50 rounded-full -ml-16 -mb-16" />
             
             <div className="relative z-10">
               <motion.h2 
-                className="text-2xl font-semibold text-gray-900 mb-8 text-center"
+                className="text-2xl font-semibold text-dark-900 mb-8 text-center font-display"
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5, delay: 0.2 }}
               >
-                <Search className="inline-block h-6 w-6 mr-2 text-primary" />
-                上传图片识别
+                <Search className="inline-block h-6 w-6 mr-2 text-primary-500" />
+                上传文件识别
               </motion.h2>
 
               {/* 拖放区域 */}
               <motion.div
                 className={`
-                  border-2 border-dashed rounded-2xl p-10 text-center cursor-pointer relative overflow-hidden
+                  border-2 border-dashed rounded-2xl sm:rounded-3xl p-8 sm:p-12 text-center cursor-pointer relative overflow-hidden
                   ${isDragging 
-                    ? 'border-primary bg-blue-50 ring-2 ring-primary/30' 
-                    : 'border-gray-300 hover:border-primary hover:bg-gradient-to-b from-white to-blue-50'}
+                    ? 'border-primary-500 bg-primary-50 ring-2 ring-primary-300 shadow-xl' 
+                    : 'border-light-300 hover:border-primary-500 hover:bg-gradient-to-b from-white to-primary-50'}
                 `}
                 onDragOver={handleDragOver}
                 onDragLeave={handleDragLeave}
                 onDrop={handleDrop}
                 onClick={() => fileInputRef.current?.click()}
-                whileHover={{ y: -5, boxShadow: "0 12px 24px -8px rgba(0, 0, 0, 0.1)" }}
+                whileHover={{ y: -8, boxShadow: "0 20px 40px -15px rgba(0, 0, 0, 0.15)" }}
                 whileTap={{ y: 0 }}
                 transition={{ duration: 0.3 }}
               >
@@ -460,18 +542,18 @@ export default function Home() {
                   className="relative z-10"
                 >
                   <div className={`
-                    w-20 h-20 mx-auto mb-6 rounded-full flex items-center justify-center
-                    ${isDragging ? 'bg-primary text-white' : 'bg-gray-100 text-gray-400'}
+                    w-20 sm:w-28 h-20 sm:h-28 mx-auto mb-6 sm:mb-8 rounded-full flex items-center justify-center
+                    ${isDragging ? 'bg-gradient-to-br from-primary-500 to-secondary-500 text-white shadow-2xl' : 'bg-gradient-to-br from-light-200 to-light-100 text-primary-600'}
                   `}>
-                    <Upload className="h-10 w-10" />
+                    <Upload className="h-10 sm:h-14 w-10 sm:w-14" />
                   </div>
-                  <h3 className="text-xl font-medium text-gray-900 mb-2">
+                  <h3 className="text-xl sm:text-2xl font-semibold text-dark-900 mb-3 sm:mb-4">
                     {isDragging ? '释放文件开始上传' : '点击或拖拽文件到此处'}
                   </h3>
-                  <p className="text-sm text-gray-500 mb-4">
+                  <p className="text-xs sm:text-sm text-dark-500 mb-6 sm:mb-8 max-w-md mx-auto leading-relaxed">
                     支持 PNG, JPG, JPEG, GIF, BMP 图片格式和 MP4, AVI, MOV 视频格式
                   </p>
-                  <div className="inline-block px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium">
+                  <div className="inline-block px-4 sm:px-6 py-2 sm:py-3 bg-gradient-to-r from-light-200 to-light-100 text-dark-700 rounded-lg sm:rounded-xl text-xs sm:text-sm font-semibold shadow-md">
                     最大文件大小: 16MB
                   </div>
                 </motion.div>
@@ -483,41 +565,48 @@ export default function Home() {
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.5 }}
-                  className="mt-10"
+                  className="mt-12"
                 >
                   <motion.div
                     initial={{ scale: 0.95, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
                     transition={{ duration: 0.4 }}
-                    className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl p-6 shadow-md"
+                    className="bg-gradient-to-br from-light-100 to-light-200 rounded-xl p-8 shadow-md border border-light-300"
                   >
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                    <h3 className="text-lg font-semibold text-dark-900 mb-6 flex items-center font-display">
                       {previewImage ? (
                         <>
-                          <ImageIcon className="h-5 w-5 mr-2 text-primary" />
+                          <ImageIcon className="h-5 w-5 mr-2 text-primary-500" />
                           图片预览
                         </>
                       ) : (
                         <>
-                          <Video className="h-5 w-5 mr-2 text-primary" />
+                          <Video className="h-5 w-5 mr-2 text-primary-500" />
                           视频预览
                         </>
                       )}
                     </h3>
-                    <div className="flex justify-center mb-6">
+                    <div className="flex justify-center mb-8">
                       {previewImage && (
-                        <motion.img
-                          src={previewImage}
-                          alt="预览"
-                          className="max-h-80 rounded-lg shadow-lg border border-gray-200"
+                        <motion.div
+                          className="relative"
                           initial={{ scale: 0.9, opacity: 0 }}
                           animate={{ scale: 1, opacity: 1 }}
                           transition={{ duration: 0.5, delay: 0.2 }}
-                        />
+                        >
+                          <img
+                            src={previewImage}
+                            alt="预览"
+                            className="max-h-96 rounded-xl shadow-lg border border-light-300"
+                          />
+                          <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full text-sm font-medium text-dark-700 shadow-sm">
+                            图片
+                          </div>
+                        </motion.div>
                       )}
                       {previewVideo && (
                         <motion.div
-                          className="max-h-80 rounded-lg shadow-lg border border-gray-200 overflow-hidden"
+                          className="relative max-h-96 rounded-xl shadow-lg border border-light-300 overflow-hidden"
                           initial={{ scale: 0.9, opacity: 0 }}
                           animate={{ scale: 1, opacity: 1 }}
                           transition={{ duration: 0.5, delay: 0.2 }}
@@ -529,19 +618,25 @@ export default function Home() {
                           >
                             您的浏览器不支持视频播放。
                           </video>
+                          <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full text-sm font-medium text-dark-700 shadow-sm">
+                            视频
+                          </div>
                         </motion.div>
                       )}
                     </div>
                     {/* 上传进度和处理状态 */}
                     {isLoading && (
-                      <div className="mt-4 space-y-2">
+                      <div className="mt-6 space-y-4">
                         {processingStatus && (
-                          <p className="text-sm text-gray-600 animate-pulse">{processingStatus}</p>
+                          <p className="text-sm text-dark-600 animate-pulse flex items-center justify-center">
+                            <Clock className="h-4 w-4 mr-2" />
+                            {processingStatus}
+                          </p>
                         )}
                         {uploadProgress > 0 && uploadProgress < 100 && (
-                          <div className="w-full bg-gray-200 rounded-full h-2.5">
+                          <div className="w-full bg-light-300 rounded-full h-3">
                             <motion.div 
-                              className="bg-gradient-to-r from-blue-500 to-purple-600 h-2.5 rounded-full"
+                              className="bg-gradient-to-r from-primary-500 to-secondary-500 h-3 rounded-full"
                               initial={{ width: '0%' }}
                               animate={{ width: `${uploadProgress}%` }}
                               transition={{ duration: 0.3 }}
@@ -551,21 +646,23 @@ export default function Home() {
                       </div>
                     )}
                     
-                    <div className="flex justify-center space-x-6">
+                    <div className="flex justify-center space-x-6 mt-8">
                       <motion.button
-                        whileHover={{ scale: 1.05, backgroundColor: "#e5e7eb" }}
+                        whileHover={{ scale: 1.05, backgroundColor: "#f1f5f9" }}
                         whileTap={{ scale: 0.95 }}
                         onClick={resetForm}
-                        className="px-8 py-3 bg-gray-200 text-gray-800 rounded-lg flex items-center shadow-sm hover:shadow-md transition-all"
+                        className="px-8 py-3 bg-light-200 text-dark-800 rounded-lg flex items-center shadow-md hover:shadow-lg transition-all"
                       >
                         <RefreshCw className="h-5 w-5 mr-2" />
                         <span className="font-medium">重新选择</span>
                       </motion.button>
                       {/* 简化的测试按钮，使用普通的HTML按钮 */}
-                      <button
+                      <motion.button
+                        whileHover={{ scale: 1.05, backgroundColor: "rgba(34, 197, 94, 0.9)" }}
+                        whileTap={{ scale: 0.95 }}
                         onClick={handleUpload}
                         disabled={isLoading}
-                        className="px-8 py-3 bg-primary text-white rounded-lg flex items-center shadow-md hover:shadow-lg transition-all"
+                        className="px-8 py-3 bg-primary-500 text-white rounded-lg flex items-center shadow-lg hover:shadow-xl transition-all disabled:opacity-60 disabled:cursor-not-allowed"
                       >
                         {isLoading ? (
                           <>
@@ -578,7 +675,7 @@ export default function Home() {
                             <span className="font-medium">{previewVideo ? '开始处理' : '开始识别'}</span>
                           </>
                         )}
-                      </button>
+                      </motion.button>
                     </div>
                   </motion.div>
                 </motion.div>
@@ -587,13 +684,7 @@ export default function Home() {
           </motion.div>
         )}
 
-        {/* 分类结果 */}
-        <div className="mb-4">
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">Result State Debug:</h3>
-          <pre className="bg-gray-100 p-4 rounded-lg text-sm">
-            Result: {JSON.stringify(result, null, 2)}
-          </pre>
-        </div>
+          {/* 分类结果 */}
         {result && (
           <motion.div
             initial={{ opacity: 0, y: 30 }}
@@ -659,11 +750,53 @@ export default function Home() {
                     className="relative"
                   >
                     {result.fileType === 'image' ? (
-                      <img
-                        src={previewImage || ''}
-                        alt="上传的图片"
-                        className="max-h-80 rounded-xl shadow-lg border border-gray-200"
-                      />
+                      <div className="relative">
+                        <img
+                          src={previewImage || ''}
+                          alt="上传的图片"
+                          className="max-h-80 rounded-xl shadow-lg border border-gray-200"
+                          ref={(img) => {
+                            if (img && result.boxes) {
+                              // 计算图片的实际尺寸和缩放比例
+                              const imgWidth = img.offsetWidth;
+                              const imgHeight = img.offsetHeight;
+                              
+                              // 清除之前的边界框
+                              const existingBoxes = img.parentElement?.querySelectorAll('.bounding-box');
+                              existingBoxes?.forEach(box => box.remove());
+                              
+                              // 绘制边界框
+                              result.boxes.forEach((box, index) => {
+                                const [x1, y1, x2, y2] = box.bbox;
+                                const confidence = box.confidence;
+                                
+                                // 创建边界框元素
+                                const boxElement = document.createElement('div');
+                                boxElement.className = 'bounding-box absolute border-2 border-red-500 rounded-md';
+                                boxElement.style.left = `${x1}px`;
+                                boxElement.style.top = `${y1}px`;
+                                boxElement.style.width = `${x2 - x1}px`;
+                                boxElement.style.height = `${y2 - y1}px`;
+                                boxElement.style.zIndex = '10';
+                                
+                                // 创建标签元素
+                                const labelElement = document.createElement('div');
+                                labelElement.className = 'absolute -top-6 left-0 bg-red-500 text-white text-xs px-2 py-1 rounded';
+                                labelElement.textContent = `${result.role || '未知'} (${(confidence * 100).toFixed(1)}%)`;
+                                
+                                // 添加到DOM
+                                boxElement.appendChild(labelElement);
+                                img.parentElement?.appendChild(boxElement);
+                              });
+                            }
+                          }}
+                        />
+                        {result.boxes && result.boxes.length > 0 && (
+                          <div className="absolute inset-0 pointer-events-none">
+                            {/* 边界框会通过ref动态添加 */}
+                          </div>
+                        )}
+                      </div>
                     ) : (
                       <video
                         src={previewVideo || ''}
@@ -685,30 +818,31 @@ export default function Home() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5, delay: 0.6 }}
-                className="bg-gradient-to-r from-green-50 to-blue-50 rounded-2xl p-8 border border-green-100 shadow-sm"
+                className="bg-gradient-to-r from-primary-50 to-secondary-50 rounded-2xl sm:rounded-3xl p-6 sm:p-8 border border-primary-100 shadow-lg"
               >
                 <motion.h3 
-                  className="text-xl font-semibold text-gray-900 mb-6 flex items-center"
+                  className="text-lg sm:text-xl font-semibold text-dark-900 mb-4 sm:mb-6 flex items-center"
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ duration: 0.5, delay: 0.7 }}
                 >
-                  <Sparkles className="h-6 w-6 mr-2 text-primary" />
+                  <Sparkles className="h-5 sm:h-6 w-5 sm:w-6 mr-2 text-primary-500" />
                   AI 识别结果
                 </motion.h3>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
                   {/* 角色信息 */}
                   <motion.div
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.5, delay: 0.8 }}
-                    className="bg-white rounded-xl p-5 shadow-sm hover:shadow-md transition-all"
+                    whileHover={{ y: -8, boxShadow: "0 15px 30px -10px rgba(0, 0, 0, 0.15)" }}
+                    className="bg-white rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-lg border border-light-200 hover:border-primary-200 transition-all"
                   >
-                    <h4 className="text-sm font-medium text-gray-500 mb-3">
+                    <h4 className="text-xs sm:text-sm font-medium text-dark-500 mb-2 sm:mb-3">
                       {result.fileType === 'image' ? '识别角色' : '主要角色'}
                     </h4>
-                    <p className="text-lg font-bold text-gray-900">
+                    <p className="text-xl sm:text-2xl font-bold text-dark-900">
                       {result.role || '未知'}
                     </p>
                   </motion.div>
@@ -718,30 +852,31 @@ export default function Home() {
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.5, delay: 0.9 }}
-                    className="bg-white rounded-xl p-5 shadow-sm hover:shadow-md transition-all"
+                    whileHover={{ y: -8, boxShadow: "0 15px 30px -10px rgba(0, 0, 0, 0.15)" }}
+                    className="bg-white rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-lg border border-light-200 hover:border-primary-200 transition-all"
                   >
-                    <h4 className="text-sm font-medium text-gray-500 mb-3">
+                    <h4 className="text-xs sm:text-sm font-medium text-dark-500 mb-2 sm:mb-3">
                       置信度
                     </h4>
-                    <div className="flex items-center mb-3">
-                      <span className="text-lg font-bold text-gray-900 mr-3">
+                    <div className="flex items-center mb-3 sm:mb-4">
+                      <span className="text-xl sm:text-2xl font-bold text-dark-900 mr-2 sm:mr-3">
                         {(result.similarity * 100).toFixed(2)}%
                       </span>
                       <span
                         className={`
-                          px-3 py-1 rounded-full text-xs font-medium
+                          px-3 sm:px-4 py-1 rounded-full text-xs font-medium
                           ${getAccuracyBadgeClass(result.similarity)}
                         `}
                       >
                         {getAccuracyText(result.similarity)}
                       </span>
                     </div>
-                    <div className="w-full bg-gray-200 rounded-full h-3">
+                    <div className="w-full bg-light-200 rounded-full h-3 sm:h-4">
                       <motion.div
                         initial={{ width: 0 }}
                         animate={{ width: `${result.similarity * 100}%` }}
                         transition={{ duration: 1.2, ease: "easeOut", delay: 1 }}
-                        className={`h-3 rounded-full ${result.similarity >= 0.8 ? 'bg-green-500' : result.similarity >= 0.5 ? 'bg-yellow-500' : 'bg-red-500'}`}
+                        className={`h-3 sm:h-4 rounded-full ${result.similarity >= 0.8 ? 'bg-gradient-to-r from-primary-500 to-primary-600' : result.similarity >= 0.5 ? 'bg-gradient-to-r from-accent-500 to-accent-600' : 'bg-gradient-to-r from-red-500 to-red-600'}`}
                       />
                     </div>
                   </motion.div>
@@ -751,14 +886,15 @@ export default function Home() {
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.5, delay: 1 }}
-                    className="bg-white rounded-xl p-5 shadow-sm hover:shadow-md transition-all"
+                    whileHover={{ y: -8, boxShadow: "0 15px 30px -10px rgba(0, 0, 0, 0.15)" }}
+                    className="bg-white rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-lg border border-light-200 hover:border-primary-200 transition-all"
                   >
-                    <h4 className="text-sm font-medium text-gray-500 mb-3">
+                    <h4 className="text-xs sm:text-sm font-medium text-dark-500 mb-2 sm:mb-3">
                       处理速度
                     </h4>
                     <div className="flex items-center">
-                      <Zap className="h-5 w-5 text-yellow-500 mr-2" />
-                      <span className="text-lg font-semibold text-gray-900">
+                      <Zap className="h-5 sm:h-6 w-5 sm:w-6 text-accent-500 mr-2 sm:mr-3" />
+                      <span className="text-lg sm:text-xl font-semibold text-dark-900">
                         {result.fileType === 'image' ? '约 2 秒' : '约 10 秒'}
                       </span>
                     </div>
@@ -771,36 +907,40 @@ export default function Home() {
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.5, delay: 1.1 }}
-                    className="mt-8"
+                    className="mt-10"
                   >
-                    <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                      <Film className="h-5 w-5 mr-2 text-primary" />
+                    <h4 className="text-lg font-semibold text-dark-900 mb-4 flex items-center">
+                      <Film className="h-6 w-6 mr-3 text-primary-500" />
                       视频帧检测结果
                     </h4>
-                    <div className="bg-white rounded-xl p-4 shadow-sm max-h-80 overflow-y-auto">
-                      <div className="space-y-3">
+                    <div className="bg-white rounded-2xl p-6 shadow-lg border border-light-200 max-h-96 overflow-y-auto">
+                      <div className="space-y-4">
                         {result.videoResults.map((frameResult, index) => (
                           <motion.div
                             key={index}
                             initial={{ opacity: 0, x: -20 }}
                             animate={{ opacity: 1, x: 0 }}
                             transition={{ duration: 0.3, delay: 1.2 + index * 0.1 }}
-                            className="flex items-center justify-between p-3 border border-gray-100 rounded-lg hover:bg-gray-50"
+                            whileHover={{ y: -4, boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.1)" }}
+                            className="flex items-center justify-between p-4 border border-light-200 rounded-xl hover:bg-light-50 transition-all"
                           >
                             <div className="flex items-center">
-                              <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center mr-3">
-                                <span className="text-sm font-medium text-primary">{frameResult.frame}</span>
+                              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary-100 to-secondary-100 flex items-center justify-center mr-4">
+                                <span className="text-sm font-semibold text-primary-600">{frameResult.frame}</span>
                               </div>
                               <div>
-                                <p className="font-medium text-gray-900">{frameResult.role}</p>
-                                <p className="text-xs text-gray-500">时间: {frameResult.timestamp.toFixed(1)}秒</p>
+                                <p className="font-semibold text-dark-900">{frameResult.role}</p>
+                                <p className="text-xs text-dark-500">时间: {frameResult.timestamp.toFixed(1)}秒</p>
                               </div>
                             </div>
                             <div className="flex items-center">
-                              <span className={`
-                                px-2 py-1 rounded text-xs font-medium
-                                ${getAccuracyBadgeClass(frameResult.similarity)}
-                              `}>
+                              <div className="w-32 bg-light-200 rounded-full h-3 mr-4">
+                                <div 
+                                  className={`h-3 rounded-full ${frameResult.similarity >= 0.8 ? 'bg-gradient-to-r from-primary-500 to-primary-600' : frameResult.similarity >= 0.5 ? 'bg-gradient-to-r from-accent-500 to-accent-600' : 'bg-gradient-to-r from-red-500 to-red-600'}`} 
+                                  style={{ width: `${(frameResult.similarity * 100).toFixed(0)}%` }}
+                                />
+                              </div>
+                              <span className="text-sm font-semibold text-dark-900">
                                 {(frameResult.similarity * 100).toFixed(1)}%
                               </span>
                             </div>

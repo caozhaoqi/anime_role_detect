@@ -118,12 +118,9 @@
       formData.append('file', file);
       
       log('开始分类请求...');
-      fetch('http://127.0.0.1:5001/api/classify', {
+      fetch('/api/classify', {
         method: 'POST',
         body: formData,
-        headers: {
-          'Accept': 'application/json',
-        },
       })
       .then(response => {
         log('响应状态: ' + response.status);
