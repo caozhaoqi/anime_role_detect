@@ -20,7 +20,7 @@ os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 
 # 导入通用分类模块
-from src.core.general_classification import GeneralClassification, get_classifier
+from src.core.classification.general_classification import GeneralClassification, get_classifier
 # 导入日志记录模块
 from src.core.log_fusion.log_recorder import record_classification_log
 
