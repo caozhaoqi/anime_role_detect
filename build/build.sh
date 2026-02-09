@@ -1,3 +1,0 @@
-./configure
-make
-sudo checkinstall
