@@ -81,6 +81,8 @@ class SeriesBasedDataCollector:
             'genshin_impact': os.path.join(self.characters_dir, '原神.txt'),
             'honkai_star_rail': os.path.join(self.characters_dir, '崩坏 星穹铁道.txt'),
             'honkai_impact_3': os.path.join(self.characters_dir, '崩坏三.txt'),
+            'blue_archive': os.path.join(self.characters_dir, '蔚蓝档案.txt'),
+            'dust_white_zone': os.path.join(self.characters_dir, '尘白禁区.txt'),
             'wuthering_waves': os.path.join(self.characters_dir, '鸣潮.txt'),
             'arknights_endedge': os.path.join(self.characters_dir, '明日方舟 终末地.txt'),
             'tower_of_fantasy': os.path.join(self.characters_dir, '幻塔.txt'),
@@ -88,7 +90,15 @@ class SeriesBasedDataCollector:
             'honkai_academy': os.path.join(self.characters_dir, '崩坏学园.txt'),
             'oshi_no_ko': os.path.join(self.characters_dir, '我推的孩子.txt'),
             'spy_x_family': os.path.join(self.characters_dir, '间谍过家家.txt'),
-            'k_on': os.path.join(self.characters_dir, '轻音少女.txt')
+            'k_on': os.path.join(self.characters_dir, '轻音少女.txt'),
+            'frieren': os.path.join(self.characters_dir, '葬送的芙莉莲.txt'),
+            'bang_dream': os.path.join(self.characters_dir, 'bang dream.txt'),
+            'its_my_go': os.path.join(self.characters_dir, 'it\'s my go!!!!!.txt'),
+            'ave_mujica': os.path.join(self.characters_dir, 'ave mujica.txt'),
+            'kaguya_sama': os.path.join(self.characters_dir, '辉夜大小姐想让我告白.txt'),
+            'madoka_magica': os.path.join(self.characters_dir, '魔法少女小圆.txt'),
+            'song_doll': os.path.join(self.characters_dir, '颂乐人偶.txt'),
+            'lost_children': os.path.join(self.characters_dir, '迷途之子.txt')
         }
         
         # 系列优先级映射（基于anime_set.txt顺序）
@@ -96,14 +106,24 @@ class SeriesBasedDataCollector:
             'genshin_impact': 1,
             'honkai_star_rail': 2,
             'honkai_impact_3': 3,
-            'wuthering_waves': 4,
-            'arknights_endedge': 5,
-            'tower_of_fantasy': 6,
-            'zenless_zone_zero': 7,
-            'honkai_academy': 8,
-            'oshi_no_ko': 9,
-            'spy_x_family': 10,
-            'k_on': 11
+            'blue_archive': 4,
+            'dust_white_zone': 5,
+            'wuthering_waves': 6,
+            'arknights_endedge': 7,
+            'tower_of_fantasy': 8,
+            'zenless_zone_zero': 9,
+            'honkai_academy': 10,
+            'oshi_no_ko': 11,
+            'spy_x_family': 12,
+            'k_on': 13,
+            'frieren': 14,
+            'bang_dream': 15,
+            'its_my_go': 16,
+            'ave_mujica': 17,
+            'kaguya_sama': 18,
+            'madoka_magica': 19,
+            'song_doll': 20,
+            'lost_children': 21
         }
     
     def load_characters(self, character_file):
