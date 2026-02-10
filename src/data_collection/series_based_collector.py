@@ -36,6 +36,9 @@ from src.utils.config_utils import (
     get_max_aspect_ratio
 )
 
+# 导入文本描述采集器
+from src.data_collection.text_description_collector import TextDescriptionCollector
+
 # 配置日志
 logging.basicConfig(
     level=logging.INFO,
@@ -125,6 +128,9 @@ class SeriesBasedDataCollector:
             'song_doll': 20,
             'lost_children': 21
         }
+        
+        # 初始化文本描述采集器
+        self.text_collector = TextDescriptionCollector(output_dir=self.output_dir)
     
     def load_characters(self, character_file):
         """
@@ -394,6 +400,13 @@ class SeriesBasedDataCollector:
                 time.sleep(random.uniform(2, 3))
         
         logger.info(f"{series}_{character} 采集完成，成功 {collected_count} 张，尝试 {attempts} 次")
+        
+        # 采集文本描述
+        if collected_count > 0:
+            desc_count = self.text_collector.collect_character_descriptions(series, character)
+            if desc_count > 0:
+                logger.info(f"{series}_{character} 文本描述采集完成，成功 {desc_count} 条")
+        
         return collected_count
     
     def collect_all_data(self):
