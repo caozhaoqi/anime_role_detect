@@ -13,6 +13,7 @@ import torch.optim as optim
 from torch.utils.data import DataLoader, Dataset
 from torchvision import transforms, models
 from PIL import Image
+import numpy as np
 from tqdm import tqdm
 
 # 配置日志
@@ -81,11 +82,30 @@ class CharacterClassifier(nn.Module):
         super().__init__()
         # 使用EfficientNet-B0作为基础模型，适合M4芯片
         self.backbone = models.efficientnet_b0(pretrained=True)
-        # 替换分类头
-        self.backbone.classifier[1] = nn.Linear(
-            self.backbone.classifier[1].in_features, 
-            num_classes
+        
+        # 初始阶段：冻结所有骨干网络参数，只训练分类头
+        for param in self.backbone.features.parameters():
+            param.requires_grad = False
+        
+        # 替换分类头，添加dropout和批量归一化层增强正则化
+        self.backbone.classifier = nn.Sequential(
+            nn.Dropout(p=0.3, inplace=False),
+            nn.Linear(
+                self.backbone.classifier[1].in_features, 
+                512
+            ),
+            nn.BatchNorm1d(512),
+            nn.ReLU(),
+            nn.Dropout(p=0.3, inplace=False),
+            nn.Linear(512, num_classes)
         )
+    
+    def unfreeze_backbone(self):
+        """
+        解冻骨干网络，准备进行全网微调
+        """
+        for param in self.backbone.features.parameters():
+            param.requires_grad = True
     
     def forward(self, x):
         """前向传播"""
@@ -98,6 +118,49 @@ def train_model(args):
     Args:
         args: 命令行参数
     """
+    # Mixup数据增强函数
+    def mixup_data(x, y, alpha=0.2):
+        """
+        Mixup数据增强
+        
+        Args:
+            x: 输入数据
+            y: 标签
+            alpha: Beta分布的alpha参数
+            
+        Returns:
+            mixed_x: 混合后的数据
+            y_a, y_b: 混合的标签
+            lam: 混合比例
+        """
+        if alpha > 0:
+            lam = np.random.beta(alpha, alpha)
+        else:
+            lam = 1
+        
+        batch_size = x.size()[0]
+        index = torch.randperm(batch_size).to(x.device)
+        
+        mixed_x = lam * x + (1 - lam) * x[index, :]
+        y_a, y_b = y, y[index]
+        
+        return mixed_x, y_a, y_b, lam
+    
+    def mixup_criterion(criterion, pred, y_a, y_b, lam):
+        """
+        Mixup损失函数
+        
+        Args:
+            criterion: 原始损失函数
+            pred: 模型预测
+            y_a, y_b: 混合的标签
+            lam: 混合比例
+            
+        Returns:
+            混合后的损失
+        """
+        return lam * criterion(pred, y_a) + (1 - lam) * criterion(pred, y_b)
+    
     # 检测设备
     device = torch.device('mps' if torch.backends.mps.is_available() else 'cpu')
     logger.info(f"使用设备: {device}")
@@ -108,10 +171,12 @@ def train_model(args):
         transforms.RandomCrop((224, 224)),
         transforms.RandomHorizontalFlip(p=0.5),
         transforms.RandomVerticalFlip(p=0.2),
-        transforms.RandomRotation(15),
-        transforms.RandomAffine(degrees=0, translate=(0.1, 0.1), scale=(0.9, 1.1)),
-        transforms.ColorJitter(brightness=0.3, contrast=0.3, saturation=0.3, hue=0.1),
-        transforms.RandomGrayscale(p=0.2),
+        transforms.RandomRotation(20),
+        transforms.RandomAffine(degrees=0, translate=(0.1, 0.1), scale=(0.85, 1.15)),
+        transforms.RandomPerspective(distortion_scale=0.2, p=0.3),
+        transforms.GaussianBlur(kernel_size=(5, 9), sigma=(0.1, 5)),
+        transforms.ColorJitter(brightness=0.4, contrast=0.4, saturation=0.4, hue=0.15),
+        transforms.RandomGrayscale(p=0.3),
         transforms.ToTensor(),
         transforms.Normalize(
             mean=[0.485, 0.456, 0.406], 
@@ -161,16 +226,29 @@ def train_model(args):
     )
     
     # 学习率调度器
-    scheduler = optim.lr_scheduler.CosineAnnealingLR(
-        optimizer, 
-        T_max=args.num_epochs
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(
+        optimizer,
+        mode='max',
+        factor=0.5,
+        patience=3
     )
     
     # 训练循环
     best_val_acc = 0.0
+    patience = 5  # 早停耐心值
+    no_improve_epochs = 0
+    unfreeze_epoch = 10  # 第10轮开始解冻骨干网络
     
     for epoch in range(args.num_epochs):
         logger.info(f"开始第 {epoch+1}/{args.num_epochs} 轮训练")
+        
+        # 两阶段训练策略
+        if epoch == unfreeze_epoch:
+            logger.info(f"第 {epoch+1} 轮：解冻骨干网络，开始全网微调")
+            model.unfreeze_backbone()
+            # 解冻后降低学习率
+            for param_group in optimizer.param_groups:
+                param_group['lr'] = args.learning_rate * 0.1
         
         # 训练阶段
         model.train()
@@ -180,9 +258,12 @@ def train_model(args):
             for inputs, labels in pbar:
                 inputs, labels = inputs.to(device), labels.to(device)
                 
+                # 应用Mixup数据增强
+                inputs, labels_a, labels_b, lam = mixup_data(inputs, labels, alpha=0.2)
+                
                 optimizer.zero_grad()
                 outputs = model(inputs)
-                loss = criterion(outputs, labels)
+                loss = mixup_criterion(criterion, outputs, labels_a, labels_b, lam)
                 loss.backward()
                 optimizer.step()
                 
@@ -190,7 +271,6 @@ def train_model(args):
                 pbar.set_postfix(loss=loss.item())
         
         epoch_loss = running_loss / len(train_loader.dataset)
-        scheduler.step()
         
         # 验证阶段
         model.eval()
@@ -217,11 +297,12 @@ def train_model(args):
         logger.info(f'Val Loss: {val_epoch_loss:.4f}, Val Acc: {val_acc:.4f}')
         
         # 更新学习率
-        scheduler.step()
+        scheduler.step(val_acc)
         
         # 保存最佳模型
         if val_acc > best_val_acc:
             best_val_acc = val_acc
+            no_improve_epochs = 0  # 重置早停计数器
             model_path = os.path.join(args.output_dir, f'character_classifier_best.pth')
             torch.save({
                 'model_state_dict': model.state_dict(),
@@ -232,6 +313,14 @@ def train_model(args):
                 'class_to_idx': train_dataset.class_to_idx
             }, model_path)
             logger.info(f'最佳模型已保存: {model_path}, 验证准确率: {best_val_acc:.4f}')
+        else:
+            no_improve_epochs += 1
+            logger.info(f'早停计数器: {no_improve_epochs}/{patience}')
+            
+        # 早停检查
+        if no_improve_epochs >= patience:
+            logger.info(f'早停: 连续 {patience} 轮验证准确率无提升')
+            break
     
     # 保存最终模型
     final_model_path = os.path.join(args.output_dir, 'character_classifier_final.pth')
@@ -254,9 +343,9 @@ def main():
     parser.add_argument('--output_dir', type=str, default='models', help='模型输出目录')
     
     # 训练参数
-    parser.add_argument('--batch_size', type=int, default=8, help='批量大小')
-    parser.add_argument('--num_epochs', type=int, default=10, help='训练轮数')
-    parser.add_argument('--learning_rate', type=float, default=1e-5, help='学习率')
+    parser.add_argument('--batch_size', type=int, default=16, help='批量大小')
+    parser.add_argument('--num_epochs', type=int, default=20, help='训练轮数')
+    parser.add_argument('--learning_rate', type=float, default=1e-4, help='学习率')
     parser.add_argument('--weight_decay', type=float, default=1e-4, help='权重衰减')
     parser.add_argument('--num_workers', type=int, default=2, help='数据加载线程数')
     
