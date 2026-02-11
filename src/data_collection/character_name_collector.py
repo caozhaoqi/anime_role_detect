@@ -729,7 +729,7 @@ class CharacterNameCollector:
             return False
         
         # 过滤包含Markdown斜体的文本
-        markdown_italic_pattern = r'\*.*?\*|_.*?_'
+        markdown_italic_pattern = r'\*.*?\*|_.*?_' 
         if re.search(markdown_italic_pattern, text_stripped):
             return False
         
@@ -1133,3 +1133,318 @@ class CharacterNameCollector:
             return False
         
         # 过滤包含Markdown粗体的文本
+        markdown_bold_pattern = r'\*\*.*?\*\*|__.*?__'
+        if re.search(markdown_bold_pattern, text_stripped):
+            return False
+        
+        # 过滤包含Markdown斜体的文本
+        markdown_italic_pattern = r'\*.*?\*|_.*?_' 
+        if re.search(markdown_italic_pattern, text_stripped):
+            return False
+        
+        # 过滤包含Markdown删除线的文本
+        markdown_strikethrough_pattern = r'~~.*?~~'
+        if re.search(markdown_strikethrough_pattern, text_stripped):
+            return False
+        
+        # 过滤包含Markdown行内代码的文本
+        markdown_inline_code_pattern = r'`.*?`'
+        if re.search(markdown_inline_code_pattern, text_stripped):
+            return False
+        
+        # 过滤包含Markdown表格的文本
+        markdown_table_pattern = r'^\|.*?\|'
+        if re.search(markdown_table_pattern, text_stripped):
+            return False
+        
+        # 过滤包含Markdown分隔线的文本
+        markdown_hr_pattern = r'^-{3,}|^\*{3,}|^_{3,}'
+        if re.search(markdown_hr_pattern, text_stripped):
+            return False
+        
+        # 过滤包含Markdown脚注的文本
+        markdown_footnote_pattern = r'\[\^.*?\]'
+        if re.search(markdown_footnote_pattern, text_stripped):
+            return False
+        
+        # 过滤包含Markdown定义列表的文本
+        markdown_definition_pattern = r'^\w+\s*:'
+        if re.search(markdown_definition_pattern, text_stripped):
+            return False
+        
+        # 过滤包含Markdown任务列表的文本
+        markdown_task_pattern = r'^-\s*\[ \]|^-\s*\[x\]'
+        if re.search(markdown_task_pattern, text_stripped, re.IGNORECASE):
+            return False
+        
+        # 过滤包含Markdown自动链接的文本
+        markdown_autolink_pattern = r'<https?://\S+>|<\S+@\S+\.\S+>'
+        if re.search(markdown_autolink_pattern, text_stripped):
+            return False
+        
+        # 过滤包含Markdown引用链接的文本
+        markdown_reference_pattern = r'\[.*?\]:\s'
+        if re.search(markdown_reference_pattern, text_stripped):
+            return False
+        
+        # 过滤包含Markdown注释的文本
+        markdown_comment_pattern = r'<!--.*?-->'
+        if re.search(markdown_comment_pattern, text_stripped):
+            return False
+        
+        # 过滤包含Markdown元数据的文本
+        markdown_metadata_pattern = r'^---\s*$'
+        if re.search(markdown_metadata_pattern, text_stripped):
+            return False
+        
+        # 过滤包含Markdown扩展语法的文本
+        markdown_extension_pattern = r'^:::|^\|\|\|'
+        if re.search(markdown_extension_pattern, text_stripped):
+            return False
+        
+        # 过滤包含Emoji的文本
+        emoji_pattern = r'[:][a-zA-Z0-9_+-]+[:]'
+        if re.search(emoji_pattern, text_stripped):
+            return False
+        
+        # 过滤包含特殊符号的文本
+        special_symbol_pattern = r'[!@#$%^&*()_+\-=\[\]{};\':"\\|,.<>\/?]'
+        if re.search(special_symbol_pattern, text_stripped):
+            return False
+        
+        # 过滤包含标点符号的文本
+        punctuation_pattern = r'[!"#$%&\'()*+,-./:;<=>?@[\\\]^_`{|}~]'
+        if re.search(punctuation_pattern, text_stripped):
+            return False
+        
+        # 过滤包含空格的文本
+        if ' ' in text_stripped:
+            return False
+        
+        # 过滤包含制表符的文本
+        if '\t' in text_stripped:
+            return False
+        
+        # 过滤包含换行符的文本
+        if '\n' in text_stripped or '\r' in text_stripped:
+            return False
+        
+        # 过滤包含回车符的文本
+        if '\r' in text_stripped:
+            return False
+        
+        # 过滤包含换页符的文本
+        if '\f' in text_stripped:
+            return False
+        
+        # 过滤包含垂直制表符的文本
+        if '\v' in text_stripped:
+            return False
+        
+        # 过滤包含其他空白字符的文本
+        whitespace_pattern = r'\s'
+        if re.search(whitespace_pattern, text_stripped):
+            return False
+        
+        # 过滤包含不可见字符的文本
+        invisible_pattern = r'[\x00-\x1F\x7F]'
+        if re.search(invisible_pattern, text_stripped):
+            return False
+        
+        # 过滤包含控制字符的文本
+        control_pattern = r'[\x00-\x1F\x7F]'
+        if re.search(control_pattern, text_stripped):
+            return False
+        
+        # 过滤包含特殊字符的文本
+        special_char_pattern = r'[\x00-\x1F\x7F!"#$%&\'()*+,-./:;<=>?@[\\\]^_`{|}~]'
+        if re.search(special_char_pattern, text_stripped):
+            return False
+        
+        # 过滤包含非ASCII字符的文本（保留中文）
+        non_ascii_pattern = r'[\x80-\xFF]'
+        if re.search(non_ascii_pattern, text_stripped):
+            # 检查是否包含中文
+            chinese_pattern = r'[\u4e00-\u9fff]'
+            if not re.search(chinese_pattern, text_stripped):
+                return False
+        
+        # 过滤包含ASCII字符的文本（保留中文）
+        ascii_pattern = r'[\x00-\x7F]'
+        if re.search(ascii_pattern, text_stripped):
+            # 检查是否包含中文
+            chinese_pattern = r'[\u4e00-\u9fff]'
+            if not re.search(chinese_pattern, text_stripped):
+                return False
+        
+        # 过滤包含数字的文本
+        digit_pattern = r'\d'
+        if re.search(digit_pattern, text_stripped):
+            return False
+        
+        # 过滤包含字母的文本
+        alpha_pattern = r'[a-zA-Z]'
+        if re.search(alpha_pattern, text_stripped):
+            return False
+        
+        # 过滤包含混合字符的文本
+        mixed_pattern = r'[\d][a-zA-Z]|[a-zA-Z][\d]'
+        if re.search(mixed_pattern, text_stripped):
+            return False
+        
+        # 过滤包含重复字符的文本
+        repeat_pattern = r'(.)\1{2,}'
+        if re.search(repeat_pattern, text_stripped):
+            return False
+        
+        # 过滤包含连续空格的文本
+        spaces_pattern = r'\s{2,}'
+        if re.search(spaces_pattern, text_stripped):
+            return False
+        
+        # 过滤包含首尾空格的文本
+        if text_stripped != text_stripped.strip():
+            return False
+        
+        # 过滤包含特殊格式的文本
+        format_pattern = r'[*_~`#]'
+        if re.search(format_pattern, text_stripped):
+            return False
+        
+        # 过滤包含Markdown格式的文本
+        markdown_pattern = r'^#{1,6}\s|^-\s|^\d+\.\s|^>\s|^```'
+        if re.search(markdown_pattern, text_stripped):
+            return False
+        
+        # 过滤包含HTML格式的文本
+        html_pattern = r'<[^>]+>'
+        if re.search(html_pattern, text_stripped):
+            return False
+        
+        # 过滤包含XML格式的文本
+        xml_pattern = r'<[^>]+>'
+        if re.search(xml_pattern, text_stripped):
+            return False
+        
+        # 过滤包含JSON格式的文本
+        json_pattern = r'\{\s*"|\[\s*"'
+        if re.search(json_pattern, text_stripped):
+            return False
+        
+        # 过滤包含YAML格式的文本
+        yaml_pattern = r'^\w+:\s|^-\s'
+        if re.search(yaml_pattern, text_stripped):
+            return False
+        
+        # 如果通过所有过滤，则认为是角色名称
+        return True
+    
+    def load_characters_from_file(self, file_path):
+        """
+        从文件加载角色名称
+        
+        Args:
+            file_path: 文件路径
+            
+        Returns:
+            角色名称列表
+        """
+        characters = []
+        
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                for line in f:
+                    line = line.strip()
+                    if self.is_character_name(line):
+                        characters.append(line)
+            
+            logger.info(f"从 {file_path} 加载了 {len(characters)} 个角色名称")
+        except Exception as e:
+            logger.error(f"加载文件失败 {file_path}: {e}")
+        
+        return characters
+    
+    def load_characters_from_directory(self, directory_path):
+        """
+        从目录加载所有角色文件
+        
+        Args:
+            directory_path: 目录路径
+            
+        Returns:
+            角色名称字典 {文件名: [角色名称]}
+        """
+        characters_dict = {}
+        
+        try:
+            for file_name in os.listdir(directory_path):
+                if file_name.endswith('.txt'):
+                    file_path = os.path.join(directory_path, file_name)
+                    characters = self.load_characters_from_file(file_path)
+                    if characters:
+                        characters_dict[file_name] = characters
+            
+            total_characters = sum(len(chars) for chars in characters_dict.values())
+            logger.info(f"从 {directory_path} 加载了 {total_characters} 个角色名称")
+        except Exception as e:
+            logger.error(f"加载目录失败 {directory_path}: {e}")
+        
+        return characters_dict
+    
+    def validate_character_names(self, characters):
+        """
+        验证角色名称列表
+        
+        Args:
+            characters: 角色名称列表
+            
+        Returns:
+            验证后的角色名称列表
+        """
+        validated_characters = []
+        
+        for character in characters:
+            if self.is_character_name(character):
+                validated_characters.append(character)
+        
+        logger.info(f"验证了 {len(characters)} 个角色名称，通过 {len(validated_characters)} 个")
+        return validated_characters
+    
+    def save_characters(self, characters, output_file):
+        """
+        保存角色名称到文件
+        
+        Args:
+            characters: 角色名称列表
+            output_file: 输出文件路径
+        """
+        try:
+            with open(output_file, 'w', encoding='utf-8') as f:
+                for character in characters:
+                    f.write(character + '\n')
+            
+            logger.info(f"保存了 {len(characters)} 个角色名称到 {output_file}")
+        except Exception as e:
+            logger.error(f"保存文件失败 {output_file}: {e}")
+
+
+def main():
+    """
+    主函数
+    """
+    collector = CharacterNameCollector()
+    
+    # 示例：从目录加载角色文件
+    characters_dir = '/Users/caozhaoqi/PycharmProjects/anime_role_detect/auto_spider_img/characters'
+    characters_dict = collector.load_characters_from_directory(characters_dir)
+    
+    # 打印结果
+    for file_name, characters in characters_dict.items():
+        print(f"文件: {file_name}")
+        print(f"角色数量: {len(characters)}")
+        print(f"前5个角色: {characters[:5]}")
+        print()
+
+
+if __name__ == '__main__':
+    main()
