@@ -3,6 +3,10 @@ import numpy as np
 import json
 import os
 
+# 使用全局日志系统
+from src.core.logging.global_logger import get_logger, log_system, log_error
+logger = get_logger("classification")
+
 class Classification:
     # 全局索引缓存
     _index_cache = {}
@@ -13,14 +17,19 @@ class Classification:
         self.index = None
         self.role_mapping = []  # 存储向量索引到角色名称的映射
         
+        logger.info(f"初始化分类模块，阈值: {threshold}")
+        
         # 如果提供了索引路径，加载索引
         if index_path and os.path.exists(index_path):
+            logger.info(f"加载索引: {index_path}")
             self.load_index(index_path)
     
     def build_index(self, features, role_names):
         """构建向量索引"""
         # 获取特征维度
         dim = features.shape[1]
+        
+        logger.info(f"开始构建索引，特征维度: {dim}, 特征数量: {features.shape[0]}, 角色数量: {len(role_names)}")
         
         # 创建Faiss索引（使用余弦相似度）
         self.index = faiss.IndexFlatIP(dim)
@@ -30,11 +39,15 @@ class Classification:
         
         # 存储角色名称映射
         self.role_mapping = role_names
+        
+        logger.info(f"索引构建完成，包含 {len(role_names)} 个角色")
     
     def save_index(self, index_path):
         """保存索引到文件"""
         if self.index is None:
             raise ValueError("索引尚未构建")
+        
+        logger.info(f"开始保存索引到: {index_path}")
         
         # 保存Faiss索引
         faiss.write_index(self.index, f"{index_path}.faiss")
@@ -42,15 +55,21 @@ class Classification:
         # 保存角色映射
         with open(f"{index_path}_mapping.json", "w", encoding="utf-8") as f:
             json.dump(self.role_mapping, f, ensure_ascii=False, indent=2)
+        
+        logger.info(f"索引保存完成")
     
     def load_index(self, index_path):
         """从文件加载索引"""
         # 检查缓存中是否已有该索引
         if index_path in self.__class__._index_cache:
+            logger.info(f"从缓存加载索引: {index_path}")
             cached_index, cached_mapping = self.__class__._index_cache[index_path]
             self.index = cached_index
             self.role_mapping = cached_mapping
+            logger.info(f"缓存加载完成，角色数量: {len(cached_mapping)}")
             return
+        
+        logger.info(f"开始加载索引: {index_path}")
         
         # 加载Faiss索引
         self.index = faiss.read_index(f"{index_path}.faiss")
@@ -61,6 +80,8 @@ class Classification:
         
         # 缓存索引和映射
         self.__class__._index_cache[index_path] = (self.index, self.role_mapping)
+        
+        logger.info(f"索引加载完成，角色数量: {len(self.role_mapping)}")
     
     def classify(self, feature, top_k=5):
         """分类单个特征向量
@@ -98,6 +119,7 @@ class Classification:
         
         # 如果没有结果，返回unknown
         if not results:
+            logger.debug("分类结果为空，返回unknown")
             return "unknown", 0.0
         
         # 1. 动态阈值调整
@@ -138,12 +160,15 @@ class Classification:
             
             # 检查最佳角色的相似度是否足够高
             if best_similarity >= max(self.threshold - 0.1, 0.5):
+                logger.debug(f"分类结果: {best_role}, 相似度: {best_similarity:.4f}")
                 return best_role, best_similarity
         
         # 3. 如果投票机制失败，回退到原始的top-1结果
         if results[0]["similarity"] >= self.threshold - 0.1:
+            logger.debug(f"回退到top-1结果: {results[0]['role']}, 相似度: {results[0]['similarity']:.4f}")
             return results[0]["role"], results[0]["similarity"]
         else:
+            logger.debug(f"相似度低于阈值，返回unknown: {results[0]['similarity']:.4f}")
             return "unknown", results[0]["similarity"]
     
     def batch_classify(self, features, top_k=5):
@@ -158,6 +183,8 @@ class Classification:
         """
         if self.index is None:
             raise ValueError("索引尚未构建")
+        
+        logger.info(f"开始批量分类，特征数量: {features.shape[0]}, top_k: {top_k}")
         
         # 搜索最相似的向量
         distances, indices = self.index.search(features, top_k)
@@ -230,12 +257,15 @@ class Classification:
             else:
                 batch_results.append(("unknown", results[0]["similarity"] if results else 0.0))
         
+        logger.info(f"批量分类完成，处理了 {len(batch_results)} 个特征向量")
         return batch_results
     
     def classify_multiple_characters(self, characters):
         """分类多个角色"""
         if self.index is None:
             raise ValueError("索引尚未构建")
+        
+        logger.info(f"开始多角色分类，角色数量: {len(characters)}")
         
         try:
             # 提取所有角色的特征
@@ -248,27 +278,34 @@ class Classification:
             for i, char in enumerate(characters):
                 char['role'], char['similarity'] = results[i]
             
+            logger.info(f"多角色分类完成")
             return characters
         except Exception as e:
-            print(f"多角色分类失败: {e}")
+            logger.error(f"多角色分类失败: {e}")
             return []
     
     def update_index(self, new_features, new_role_names):
         """更新索引，添加新的特征向量和角色"""
         if self.index is None:
             # 如果索引不存在，构建新索引
+            logger.info(f"索引不存在，构建新索引，特征数量: {new_features.shape[0]}")
             self.build_index(new_features, new_role_names)
         else:
+            logger.info(f"开始更新索引，添加特征数量: {new_features.shape[0]}, 角色数量: {len(new_role_names)}")
             # 添加新的特征向量
             self.index.add(new_features)
             
             # 添加新的角色名称映射
             self.role_mapping.extend(new_role_names)
+            
+            logger.info(f"索引更新完成，当前角色数量: {len(self.role_mapping)}")
     
     def incremental_learning(self, image_path, correct_role):
         """增量学习：根据用户提供的正确角色更新索引"""
         from src.core.preprocessing.preprocessing import Preprocessing
         from src.core.feature_extraction.feature_extraction import FeatureExtraction
+        
+        logger.info(f"开始增量学习，图像路径: {image_path}, 正确角色: {correct_role}")
         
         # 初始化预处理和特征提取模块
         preprocessor = Preprocessing()
@@ -285,10 +322,10 @@ class Classification:
             # 更新索引
             self.update_index(feature, [correct_role])
             
-            print(f"增量学习成功: 图像 {image_path} 已添加到角色 {correct_role} 的索引中")
+            logger.info(f"增量学习成功: 图像 {image_path} 已添加到角色 {correct_role} 的索引中")
             return True
         except Exception as e:
-            print(f"增量学习失败: {e}")
+            logger.error(f"增量学习失败: {e}")
             return False
 
 if __name__ == "__main__":

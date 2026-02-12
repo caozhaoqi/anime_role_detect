@@ -80,6 +80,7 @@ anime_role_detect/
 │   │   ├── classification/         # Classification module
 │   │   ├── feature_extraction/     # Feature extraction module
 │   │   ├── preprocessing/          # Preprocessing module
+│   │   ├── logging/                # Logging module
 │   │   ├── general_classification.py  # General classification module
 │   │   └── log_fusion/              # Log fusion module
 │   └── web/                # Web application
@@ -296,6 +297,66 @@ python3 src/core/log_fusion/log_fusion.py --log_dir ./logs --output_model ./mode
 
 The system automatically uses the latest built model for classification without additional configuration.
 
+## 📊 Global Logging System
+
+### System Overview
+
+The global logging system is a unified log management module that records system status, model inference results, model training results, and error logs. It is based on the loguru library and provides a directory structure organized by log type and log rotation functionality.
+
+### Log Directory Structure
+
+The global logging system stores log files in directories organized by type:
+
+```
+logs/
+├── system/         # System status logs
+├── inference/      # Model inference result logs
+├── training/       # Model training result logs
+└── error/          # Error logs
+```
+
+### Log Rotation Configuration
+
+The global logging system is configured with the following log rotation policies:
+
+| Log Type | Rotation Policy | Retention Period | Compression |
+|---------|----------------|------------------|-------------|
+| System Logs | 100 MB | 7 days | zip |
+| Inference Logs | 100 MB | 14 days | zip |
+| Training Logs | 200 MB | 30 days | zip |
+| Error Logs | 50 MB | 30 days | zip |
+
+### Usage Method
+
+In modules that need to use logging, import the global logging system and use it:
+
+```python
+from src.core.logging.global_logger import (
+    get_logger, log_system, log_inference, log_training, log_error
+)
+
+# Use convenience functions to record logs
+log_system("System started successfully")
+log_inference("Model inference completed, recognition result: Character A, similarity: 0.95")
+log_training("Model training completed, accuracy: 98.5%")
+log_error("File upload failed: File too large")
+
+# Use custom logger object
+logger = get_logger("module_name")
+logger.info("Module initialized successfully")
+logger.error("Module error: Invalid parameter")
+```
+
+### Log Levels
+
+The global logging system supports the following log levels:
+
+- DEBUG: Detailed debug information
+- INFO: General information
+- WARNING: Warning information
+- ERROR: Error information
+- CRITICAL: Critical error information
+
 ## 🤝 Contribution Guide
 
 Welcome to submit Issues and Pull Requests to jointly improve system performance and functionality.
@@ -329,5 +390,13 @@ If you have any questions or suggestions, please contact us through:
 - **Implemented video frame analysis** with frame-by-frame character detection
 - **Updated frontend interface** to support video upload and playback
 - **Enhanced API** to handle both image and video files for detection
+
+### March 2026
+
+- **Implemented global logging system** with log rotation and categorized storage
+- **Integrated logging into all core modules** (API services, model inference, data processing)
+- **Added detailed logging** for all key operations and error scenarios
+- **Updated documentation** to include logging system usage guide
+- **Fixed error logging issues** and unified log handling across the system
 
 

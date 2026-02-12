@@ -1,19 +1,23 @@
 import numpy as np
 from PIL import Image
-from loguru import logger
 from src.core.classification.general_classification import get_classifier
 from src.web.config.config import DEFAULT_INDEX_PATH
 from src.web.models.coreml_model import coreml_model, classify_with_coreml
 from src.core.log_fusion.log_recorder import record_classification_log
 
+# 使用全局日志系统
+from src.core.logging.global_logger import get_logger, log_system, log_inference, log_error
+logger = get_logger("classification_service")
+
 
 def initialize_system():
     """初始化分类系统"""
-    logger.debug("初始化分类系统...")
+    logger.info("初始化分类系统...")
     # 这里只负责初始化，具体的索引加载由 GeneralClassification 内部处理
     # 默认加载 'role_index'
     classifier = get_classifier(index_path=DEFAULT_INDEX_PATH)
     classifier.initialize()
+    logger.info("分类系统初始化完成")
 
 
 def classify_image(image_path, use_coreml=False, use_model=False):
@@ -27,8 +31,11 @@ def classify_image(image_path, use_coreml=False, use_model=False):
     Returns:
         (role, similarity, boxes): 角色名称、相似度、边界框
     """
+    logger.info(f"开始分类图像: {image_path}, use_coreml={use_coreml}, use_model={use_model}")
+    
     if use_coreml and coreml_model is not None:
         # 使用 Core ML 模型
+        logger.info("使用 Core ML 模型进行分类")
         role, similarity, boxes = classify_with_coreml(image_path)
         mode = 'Core ML模型 (Apple设备)'
         # 记录分类日志
@@ -42,6 +49,7 @@ def classify_image(image_path, use_coreml=False, use_model=False):
         )
     else:
         # 使用默认模型
+        logger.info(f"使用默认模型进行分类，use_model={use_model}")
         classifier = get_classifier(index_path=DEFAULT_INDEX_PATH)
         role, similarity, boxes = classifier.classify_image(image_path, use_model=use_model)
         mode = '专用模型 (EfficientNet)' if use_model else '通用索引 (CLIP)'
@@ -57,10 +65,13 @@ def classify_image(image_path, use_coreml=False, use_model=False):
 
     # 安全检查：处理无穷大或无效值
     if similarity is None or not isinstance(similarity, (int, float)):
+        logger.warning(f"相似度值无效: {similarity}，设置为 0.0")
         similarity = 0.0
     elif np.isinf(similarity) or np.isnan(similarity):
+        logger.warning(f"相似度值为无穷大或NaN: {similarity}，设置为 0.0")
         similarity = 0.0
 
+    logger.info(f"分类完成，角色: {role}, 相似度: {similarity:.4f}, 模式: {mode}")
     return role, similarity, boxes, mode
 
 
@@ -73,6 +84,8 @@ def get_image_info(image_path):
     Returns:
         (img_width, img_height): 图像宽度和高度
     """
+    logger.debug(f"获取图像信息: {image_path}")
     img = Image.open(image_path)
     img_width, img_height = img.size
+    logger.debug(f"图像信息: 宽度={img_width}, 高度={img_height}")
     return img_width, img_height

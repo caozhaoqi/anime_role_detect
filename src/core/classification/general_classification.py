@@ -18,11 +18,15 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..',
 # 计算项目根目录的绝对路径
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
 
+# 使用全局日志系统
+from src.core.logging.global_logger import get_logger, log_system, log_inference, log_error
+logger = get_logger("general_classification")
+
 # 导入日志记录模块
 try:
     from src.core.log_fusion.log_recorder import record_classification_log
 except Exception as e:
-    # print(f"导入日志记录模块失败: {e}") # 暂时屏蔽，避免干扰
+    logger.warning(f"导入日志记录模块失败: {e}")
     record_classification_log = None
 
 
@@ -74,16 +78,16 @@ class GeneralClassification:
             # 2. 并行初始化函数
             def init_module(name, init_func):
                 try:
-                    print(f"初始化{name}模块...")
+                    logger.info(f"初始化{name}模块...")
                     start_time = time.time()
                     result = init_func()
                     elapsed = time.time() - start_time
-                    print(f"{name}模块初始化完成，耗时: {elapsed:.2f}秒")
+                    logger.info(f"{name}模块初始化完成，耗时: {elapsed:.2f}秒")
                     with lock:
                         init_results[name] = (True, result)
                 except Exception as e:
                     error_msg = f"{name}模块初始化失败: {e}"
-                    print(error_msg)
+                    logger.error(error_msg)
                     with lock:
                         init_results[name] = (False, error_msg)
             
@@ -114,24 +118,24 @@ class GeneralClassification:
             if init_results.get("预处理", (False,))[0]:
                 self.preprocessor = init_results["预处理"][1]
             else:
-                print("警告: 预处理模块初始化失败，使用默认实现")
+                logger.warning("预处理模块初始化失败，使用默认实现")
                 self.preprocessor = Preprocessing()
             
             if init_results.get("特征提取", (False,))[0]:
                 self.extractor = init_results["特征提取"][1]
             else:
-                print("警告: 特征提取模块初始化失败，使用默认实现")
+                logger.warning("特征提取模块初始化失败，使用默认实现")
                 self.extractor = FeatureExtraction()
             
             if init_results.get("分类", (False,))[0]:
                 self.classifier = init_results["分类"][1]
             else:
-                print("警告: 分类模块初始化失败，使用默认实现")
+                logger.warning("分类模块初始化失败，使用默认实现")
                 self.classifier = Classification(threshold=self.threshold)
             
             # 5. 尝试初始化EfficientNet推理器（单独处理，非致命）
             try:
-                print("初始化EfficientNet推理模型...")
+                logger.info("初始化EfficientNet推理模型...")
                 from src.core.classification.efficientnet_inference import EfficientNetInference
                 # 如果指定了模型，则构建模型路径
                 model_path = None
@@ -139,11 +143,11 @@ class GeneralClassification:
                     # 构建模型路径
                     base_model_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..', 'models'))
                     model_path = os.path.join(base_model_dir, self.model, 'model_best.pth')
-                    print(f"使用指定模型: {model_path}")
+                    logger.info(f"使用指定模型: {model_path}")
                 self.model_inference = EfficientNetInference(model_path=model_path)
-                print("EfficientNet推理模型初始化成功")
+                logger.info("EfficientNet推理模型初始化成功")
             except Exception as e:
-                print(f"EfficientNet模型初始化失败 (非致命): {e}")
+                logger.warning(f"EfficientNet模型初始化失败 (非致命): {e}")
                 self.model_inference = None
             
             # 6. 如果指定了索引路径，尝试加载
@@ -153,28 +157,28 @@ class GeneralClassification:
                     f"{self.index_path}_mapping.json"
                 ]
                 if all(os.path.exists(f) for f in index_files):
-                    print(f"加载索引文件: {self.index_path}")
+                    logger.info(f"加载索引文件: {self.index_path}")
                     try:
                         self.classifier.load_index(self.index_path)
-                        print(f"索引加载成功，包含 {len(self.classifier.role_mapping)} 个角色")
+                        logger.info(f"索引加载成功，包含 {len(self.classifier.role_mapping)} 个角色")
                     except Exception as e:
-                        print(f"索引加载失败: {e}")
+                        logger.error(f"索引加载失败: {e}")
                 else:
-                    print(f"警告: 索引文件不存在: {self.index_path}")
+                    logger.warning(f"索引文件不存在: {self.index_path}")
             
             # 7. 验证初始化状态
             required_modules = [self.preprocessor, self.extractor, self.classifier]
             if all(module is not None for module in required_modules):
                 self.is_initialized = True
-                print("所有核心模块初始化成功!")
+                logger.info("所有核心模块初始化成功!")
                 return True
             else:
-                print("错误: 核心模块初始化不完整")
+                logger.error("核心模块初始化不完整")
                 self.is_initialized = False
                 return False
                 
         except Exception as e:
-            print(f"模块初始化失败: {e}")
+            logger.error(f"模块初始化失败: {e}")
             self.is_initialized = False
             return False
     
@@ -184,7 +188,7 @@ class GeneralClassification:
             return False
         
         try:
-            print(f"从目录构建索引: {data_dir}")
+            logger.info(f"从目录构建索引: {data_dir}")
             
             # 收集所有角色目录，过滤掉非角色目录
             exclude_dirs = ['shuffled', 'classification_results', 'downloaded', '.DS_Store']
@@ -192,10 +196,10 @@ class GeneralClassification:
                         if os.path.isdir(os.path.join(data_dir, d)) and d not in exclude_dirs]
             
             if not role_dirs:
-                print("错误: 目录中没有角色子目录")
+                logger.error("目录中没有角色子目录")
                 return False
             
-            print(f"找到 {len(role_dirs)} 个角色目录")
+            logger.info(f"找到 {len(role_dirs)} 个角色目录")
             
             # 为每个角色提取特征
             features = []
@@ -209,10 +213,10 @@ class GeneralClassification:
                              if f.lower().endswith(('.jpg', '.jpeg', '.png', '.bmp'))]
                 
                 if not image_files:
-                    print(f"警告: 角色 {role} 目录中没有图片")
+                    logger.warning(f"角色 {role} 目录中没有图片")
                     continue
                 
-                print(f"处理角色: {role}, 共 {len(image_files)} 张图片")
+                logger.info(f"处理角色: {role}, 共 {len(image_files)} 张图片")
                 
                 # 遍历该角色下的所有图片，提取特征
                 for img_file in image_files:
@@ -227,23 +231,23 @@ class GeneralClassification:
                         role_names.append(role)
                         
                     except Exception as e:
-                        print(f"  ✗ 处理图片 {img_file} 失败: {e}")
+                        logger.error(f"处理图片 {img_file} 失败: {e}")
                         continue
                 
-                print(f"  ✓ 完成角色 {role} 的特征提取")
+                logger.info(f"完成角色 {role} 的特征提取")
             
             if not features:
-                print("错误: 无法提取任何特征")
+                logger.error("无法提取任何特征")
                 return False
             
             # 构建索引
             features_np = np.array(features).astype(np.float32)
             self.classifier.build_index(features_np, role_names)
             
-            print(f"✓ 索引构建成功，包含 {len(features)} 个向量，覆盖 {len(set(role_names))} 个角色")
+            logger.info(f"索引构建成功，包含 {len(features)} 个向量，覆盖 {len(set(role_names))} 个角色")
             return True
         except Exception as e:
-            print(f"构建索引失败: {e}")
+            logger.error(f"构建索引失败: {e}")
             return False
     
     def classify_image(self, image_path, use_model=False):
@@ -252,9 +256,11 @@ class GeneralClassification:
         :param use_model: 是否使用EfficientNet模型进行推理
         """
         if not self.initialize():
+            logger.error("分类器未初始化，无法进行分类")
             return None, 0.0, None
             
         try:
+            logger.info(f"开始分类图像: {image_path}, use_model={use_model}")
             # 预处理 (YOLO检测)
             # 无论使用哪种方法，先用YOLO裁剪出人物主体总是好的
             normalized_img, boxes = self.preprocessor.process(image_path)
@@ -264,6 +270,7 @@ class GeneralClassification:
                 # 注意：EfficientNetInference 内部会再次读取图片并进行自己的预处理
                 # 这里我们传入原始路径，或者我们可以优化让它接受 PIL Image
                 # 目前为了简单，直接传路径
+                logger.info("使用 EfficientNet 模型进行推理")
                 role, similarity, _ = self.model_inference.predict(image_path)
                 feature = None # 模型推理不产生CLIP特征向量
             else:
@@ -272,9 +279,11 @@ class GeneralClassification:
                     raise ValueError("索引尚未构建或加载。请先运行 scripts/build_faiss_index.py 构建索引。")
                 
                 # 提取特征
+                logger.info("使用 CLIP 模型提取特征")
                 feature = self.extractor.extract_features(normalized_img)
                 
                 # 分类
+                logger.info("使用 FAISS 索引进行分类")
                 role, similarity = self.classifier.classify(feature)
             
             # 记录分类日志
@@ -287,9 +296,10 @@ class GeneralClassification:
                     boxes=boxes
                 )
             
+            logger.info(f"分类完成，角色: {role}, 相似度: {similarity:.4f}")
             return role, similarity, boxes
         except Exception as e:
-            print(f"分类图像失败: {e}")
+            logger.error(f"分类图像失败: {e}")
             raise e # 抛出异常以便上层捕获
     
     def classify_image_ensemble(self, image_path, clip_weight=0.7, model_weight=0.3, confidence_threshold=0.6):
@@ -379,8 +389,9 @@ class GeneralClassification:
                 return clip_role, clip_similarity, boxes
                 
         except Exception as e:
-            print(f"集成分类失败: {e}")
+            logger.error(f"集成分类失败: {e}")
             # 失败时回退到CLIP模型
+            logger.warning("回退到CLIP模型进行分类")
             return self.classify_image(image_path, use_model=False)
     
     def classify_pil_image(self, pil_image, use_model=False):
@@ -405,7 +416,7 @@ class GeneralClassification:
             
             return role, similarity
         except Exception as e:
-            print(f"分类PIL图像失败: {e}")
+            logger.error(f"分类PIL图像失败: {e}")
             return None, 0.0
     
     def batch_classify(self, image_paths, use_model=False):
@@ -424,7 +435,7 @@ class GeneralClassification:
                     'boxes': boxes
                 })
             except Exception as e:
-                print(f"处理图片 {image_path} 失败: {e}")
+                logger.error(f"处理图片 {image_path} 失败: {e}")
                 results.append({
                     'image_path': image_path,
                     'error': str(e)
@@ -447,10 +458,10 @@ class GeneralClassification:
         
         try:
             self.classifier.save_index(index_path)
-            print(f"索引已保存到: {index_path}")
+            logger.info(f"索引已保存到: {index_path}")
             return True
         except Exception as e:
-            print(f"保存索引失败: {e}")
+            logger.error(f"保存索引失败: {e}")
             return False
     
     def load_index(self, index_path):
@@ -460,11 +471,11 @@ class GeneralClassification:
         
         try:
             self.classifier.load_index(index_path)
-            print(f"索引已从: {index_path} 加载")
-            print(f"包含角色: {self.classifier.role_mapping}")
+            logger.info(f"索引已从: {index_path} 加载")
+            logger.info(f"包含角色: {self.classifier.role_mapping}")
             return True
         except Exception as e:
-            print(f"加载索引失败: {e}")
+            logger.error(f"加载索引失败: {e}")
             return False
 
 # 全局分类器实例
