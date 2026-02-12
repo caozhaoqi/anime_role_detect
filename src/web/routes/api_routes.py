@@ -1,11 +1,14 @@
 import json
+import os
 from flask import request
-from loguru import logger
 from src.web.utils.file_utils import allowed_file, allowed_video_file
 from src.web.services.classification_service import classify_image
-from src.web.utils.video_processor import process_video
 from src.web.config.config import DEFAULT_FRAME_SKIP
 from src.web.models.coreml_model import coreml_model
+
+# 使用全局日志系统
+from src.core.logging.global_logger import get_logger, log_system, log_inference, log_error
+logger = get_logger("api_routes")
 
 
 def setup_api_routes(app):
@@ -118,7 +121,9 @@ def setup_api_routes(app):
                     'fileType': 'image'
                 }
                 
-                logger.debug("✅ 图像分类成功:", response)
+                # 记录推理结果
+                log_inference(f"✅ 图像分类成功: {file.filename}, 角色: {role}, 相似度: {similarity:.4f}, 模式: {mode}")
+                logger.debug(f"✅ 图像分类成功: {response}")
                 return json.dumps(response, ensure_ascii=False), 200, {'Content-Type': 'application/json'}
                 
             elif is_video:
@@ -136,11 +141,16 @@ def setup_api_routes(app):
                     'videoResults': video_results
                 }
                 
-                logger.debug("✅ 视频分类成功:", response)
+                # 记录推理结果
+                log_inference(f"✅ 视频分类成功: {file.filename}, 角色: {overall_role}, 相似度: {overall_similarity:.4f}, 帧处理数: {len(video_results)}")
+                logger.debug(f"✅ 视频分类成功: {response}")
                 return json.dumps(response, ensure_ascii=False), 200, {'Content-Type': 'application/json'}
                 
         except Exception as e:
-            logger.error(f"❌ 分类失败: {e}")
+            # 记录错误
+            error_msg = f"❌ 分类失败: {str(e)}"
+            log_error(error_msg)
+            logger.error(error_msg)
             return json.dumps({'error': f'分类失败: {str(e)}'}), 500
 
 import os

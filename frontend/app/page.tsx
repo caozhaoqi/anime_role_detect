@@ -136,26 +136,34 @@ export default function AnimeRoleDetect() {
   }, []);
 
   const classifyImage = async (imageData: string): Promise<any> => {
-    // 将base64编码的图像数据转换为Blob对象
-    const response = await fetch(imageData);
-    const blob = await response.blob();
-    const file = new File([blob], "uploaded_image.jpg", { type: "image/jpeg" });
+    try {
+      // 将base64编码的图像数据转换为Blob对象
+      const response = await fetch(imageData);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch image data: ${response.statusText}`);
+      }
+      const blob = await response.blob();
+      const file = new File([blob], "uploaded_image.jpg", { type: "image/jpeg" });
 
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("use_model", "true");
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("use_model", "true");
 
-    const apiResponse = await fetch("http://localhost:5002/api/classify", {
-      method: "POST",
-      body: formData,
-    });
+      const apiResponse = await fetch("http://localhost:5002/api/classify", {
+        method: "POST",
+        body: formData,
+      });
 
-    if (!apiResponse.ok) {
-      const errorData = await apiResponse.json().catch(() => ({}));
-      throw new Error(errorData.error || "Classification failed");
+      if (!apiResponse.ok) {
+        const errorData = await apiResponse.json().catch(() => ({}));
+        throw new Error(errorData.error || `API request failed: ${apiResponse.statusText}`);
+      }
+
+      return await apiResponse.json();
+    } catch (error) {
+      console.error("Classification error details:", error);
+      throw new Error(error instanceof Error ? error.message : "Unknown error during classification");
     }
-
-    return await apiResponse.json();
   };
 
   const handleSend = useCallback(async () => {
@@ -283,19 +291,19 @@ export default function AnimeRoleDetect() {
       {/* 拖拽上传覆盖层 */}
       {isDragging && (
         <div className="fixed inset-0 bg-[#0a0a0a]/80 backdrop-blur-sm flex items-center justify-center z-50 border-2 border-dashed border-[#6366f1] rounded-lg animate-pulse-glow">
-          <div className="text-center p-8 glass rounded-xl">
+          <div className="text-center p-8 glass rounded-xl shadow-2xl transform transition-transform hover:scale-105">
             <Upload className="h-16 w-16 mx-auto mb-4 text-[#6366f1] animate-bounce" />
-            <h3 className="text-xl font-semibold mb-2 text-[#fafafa]">拖拽图片到这里</h3>
-            <p className="text-[#a1a1aa]">松开鼠标即可上传图片进行识别</p>
+            <h3 className="text-xl font-semibold mb-2 text-[#fafafa] animate-fade-in">拖拽图片到这里</h3>
+            <p className="text-[#a1a1aa] animate-fade-in">松开鼠标即可上传图片进行识别</p>
           </div>
         </div>
       )}
 
       {/* 移动端顶部导航栏 */}
-      <div className="md:hidden h-14 border-b border-[#27272a] flex items-center justify-between px-4 flex-shrink-0 glass">
+      <div className="md:hidden h-14 border-b border-[#27272a] flex items-center justify-between px-4 flex-shrink-0 glass shadow-md">
         <div className="flex items-center gap-2.5">
           <button 
-            className="p-1.5 rounded-lg hover:bg-[#27272a] transition-colors"
+            className="p-1.5 rounded-lg hover:bg-[#27272a] transition-all duration-300 transform hover:scale-105"
             onClick={() => setShowSidebar(!showSidebar)}
           >
             <Menu size={18} className="text-[#a1a1aa]" />
@@ -303,7 +311,7 @@ export default function AnimeRoleDetect() {
           <h2 className="text-base font-semibold gradient-text">动漫角色识别</h2>
         </div>
         <div className="flex items-center gap-2">
-          <button className="p-1.5 rounded-lg hover:bg-[#27272a] transition-colors">
+          <button className="p-1.5 rounded-lg hover:bg-[#27272a] transition-all duration-300 transform hover:scale-105">
             <Moon className="h-4 w-4 text-[#a1a1aa]" />
           </button>
         </div>
@@ -312,20 +320,20 @@ export default function AnimeRoleDetect() {
       {/* 主内容区域 */}
       <div className="flex-1 flex overflow-hidden">
         {/* 左侧边栏（仅在中等及以上屏幕显示） */}
-        <div className={`fixed md:relative top-14 left-0 z-50 flex flex-col items-center lg:items-start w-16 lg:w-60 h-[calc(100%-3.5rem)] glass border-r border-[#27272a] p-3 transition-all duration-300 transform ${showSidebar ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0`}>
+        <div className={`fixed md:relative top-14 left-0 z-50 flex flex-col items-center lg:items-start w-16 lg:w-60 h-[calc(100%-3.5rem)] glass border-r border-[#27272a] p-3 transition-all duration-300 transform ${showSidebar ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0 shadow-lg`}>
           {/* Logo */}
           <div className="flex items-center gap-2.5 mb-6">
-            <div className="p-2.5 gradient-bg rounded-lg shadow-lg animate-pulse-glow">
+            <div className="p-2.5 gradient-bg rounded-lg shadow-lg animate-pulse-glow transform hover:scale-110 transition-transform duration-300">
               <Sparkles className="h-5 w-5 text-white" />
             </div>
-            <h1 className="text-lg font-bold gradient-text hidden lg:block">动漫角色识别</h1>
+            <h1 className="text-lg font-bold gradient-text hidden lg:block animate-fade-in">动漫角色识别</h1>
           </div>
 
           {/* 导航菜单 */}
           <nav className="flex-1 w-full">
             <ul className="space-y-1.5">
               <li>
-                <button className="flex items-center gap-2.5 w-full px-3 py-2.5 rounded-lg bg-[#6366f1]/10 text-[#6366f1] font-medium hover:bg-[#6366f1]/20 transition-all duration-300">
+                <button className="flex items-center gap-2.5 w-full px-3 py-2.5 rounded-lg bg-[#6366f1]/10 text-[#6366f1] font-medium hover:bg-[#6366f1]/20 transition-all duration-300 transform hover:translate-x-1">
                   <Search className="h-4 w-4" />
                   <span className="hidden lg:block">识别</span>
                 </button>
@@ -333,25 +341,25 @@ export default function AnimeRoleDetect() {
               <li>
                 <button 
                   onClick={() => setShowHistory(!showHistory)}
-                  className="flex items-center gap-2.5 w-full px-3 py-2.5 rounded-lg hover:bg-[#27272a] text-[#a1a1aa] transition-all duration-300"
+                  className="flex items-center gap-2.5 w-full px-3 py-2.5 rounded-lg hover:bg-[#27272a] text-[#a1a1aa] transition-all duration-300 transform hover:translate-x-1"
                 >
                   <Layers className="h-4 w-4" />
                   <span className="hidden lg:block">历史记录</span>
                   {history.length > 0 && (
-                    <span className="ml-auto bg-[#6366f1] text-white text-xs px-2 py-0.5 rounded-full">
+                    <span className="ml-auto bg-[#6366f1] text-white text-xs px-2 py-0.5 rounded-full animate-pulse">
                       {history.length}
                     </span>
                   )}
                 </button>
               </li>
               <li>
-                <button className="flex items-center gap-2.5 w-full px-3 py-2.5 rounded-lg hover:bg-[#27272a] text-[#a1a1aa] transition-all duration-300">
+                <button className="flex items-center gap-2.5 w-full px-3 py-2.5 rounded-lg hover:bg-[#27272a] text-[#a1a1aa] transition-all duration-300 transform hover:translate-x-1">
                   <Settings className="h-4 w-4" />
                   <span className="hidden lg:block">设置</span>
                 </button>
               </li>
               <li>
-                <button className="flex items-center gap-2.5 w-full px-3 py-2.5 rounded-lg hover:bg-[#27272a] text-[#a1a1aa] transition-all duration-300">
+                <button className="flex items-center gap-2.5 w-full px-3 py-2.5 rounded-lg hover:bg-[#27272a] text-[#a1a1aa] transition-all duration-300 transform hover:translate-x-1">
                   <HelpCircle className="h-4 w-4" />
                   <span className="hidden lg:block">帮助</span>
                 </button>
@@ -361,7 +369,7 @@ export default function AnimeRoleDetect() {
 
           {/* 底部设置 */}
           <div className="w-full mt-auto">
-            <button className="flex items-center gap-2.5 w-full px-3 py-2.5 rounded-lg hover:bg-[#27272a] text-[#a1a1aa] transition-all duration-300">
+            <button className="flex items-center gap-2.5 w-full px-3 py-2.5 rounded-lg hover:bg-[#27272a] text-[#a1a1aa] transition-all duration-300 transform hover:translate-x-1">
               <Moon className="h-4 w-4" />
               <span className="hidden lg:block">深色模式</span>
             </button>
@@ -371,7 +379,7 @@ export default function AnimeRoleDetect() {
         {/* 主内容区域 */}
         <div className="flex-1 flex flex-col h-full overflow-hidden">
           {/* 顶部导航栏（仅在中等及以上屏幕显示） */}
-          <div className="hidden md:flex h-14 border-b border-[#27272a] items-center justify-between px-6 flex-shrink-0 glass">
+          <div className="hidden md:flex h-14 border-b border-[#27272a] items-center justify-between px-6 flex-shrink-0 glass shadow-md">
             <h2 className="text-base font-semibold gradient-text">{showHistory ? "历史记录" : "动漫角色识别"}</h2>
             <div className="flex items-center gap-3">
               {!showHistory && (
@@ -379,7 +387,7 @@ export default function AnimeRoleDetect() {
                   <select
                     value={selectedModel}
                     onChange={(e) => setSelectedModel(e.target.value)}
-                    className="appearance-none pl-3 pr-8 py-1.5 border border-[#3f3f46] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6366f1] focus:border-transparent bg-[#18181b] text-[#fafafa] text-sm transition-all duration-300"
+                    className="appearance-none pl-3 pr-8 py-1.5 border border-[#3f3f46] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6366f1] focus:border-transparent bg-[#18181b] text-[#fafafa] text-sm transition-all duration-300 hover:border-[#6366f1]/50"
                   >
                     {models.map((model) => (
                       <option key={model.name} value={model.name}>
@@ -388,7 +396,7 @@ export default function AnimeRoleDetect() {
                     ))}
                   </select>
                   <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2.5 text-[#71717a]">
-                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="h-4 w-4 transition-transform duration-300 hover:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                     </svg>
                   </div>
@@ -397,7 +405,7 @@ export default function AnimeRoleDetect() {
               {showHistory && (
                 <button 
                   onClick={clearHistory}
-                  className="px-3 py-1.5 bg-[#ef4444]/10 text-[#ef4444] rounded-lg text-sm hover:bg-[#ef4444]/20 transition-all duration-300"
+                  className="px-3 py-1.5 bg-[#ef4444]/10 text-[#ef4444] rounded-lg text-sm hover:bg-[#ef4444]/20 transition-all duration-300 transform hover:scale-105"
                 >
                   清空历史
                 </button>
@@ -406,13 +414,13 @@ export default function AnimeRoleDetect() {
           </div>
 
           {/* 移动端模型选择 */}
-          <div className="md:hidden px-4 py-2.5 border-b border-[#27272a] glass">
+          <div className="md:hidden px-4 py-2.5 border-b border-[#27272a] glass shadow-md">
             {!showHistory && (
               <div className="relative">
                 <select
                   value={selectedModel}
                   onChange={(e) => setSelectedModel(e.target.value)}
-                  className="w-full appearance-none pl-3 pr-8 py-1.5 border border-[#3f3f46] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6366f1] focus:border-transparent bg-[#18181b] text-[#fafafa] text-sm transition-all duration-300"
+                  className="w-full appearance-none pl-3 pr-8 py-1.5 border border-[#3f3f46] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6366f1] focus:border-transparent bg-[#18181b] text-[#fafafa] text-sm transition-all duration-300 hover:border-[#6366f1]/50"
                 >
                   {models.map((model) => (
                     <option key={model.name} value={model.name}>
@@ -421,7 +429,7 @@ export default function AnimeRoleDetect() {
                   ))}
                 </select>
                 <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2.5 text-[#71717a]">
-                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="h-4 w-4 transition-transform duration-300 hover:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                   </svg>
                 </div>
@@ -432,7 +440,7 @@ export default function AnimeRoleDetect() {
                 <h3 className="text-sm font-medium text-[#fafafa]">历史记录</h3>
                 <button 
                   onClick={clearHistory}
-                  className="px-3 py-1 bg-[#ef4444]/10 text-[#ef4444] rounded-lg text-xs hover:bg-[#ef4444]/20 transition-all duration-300"
+                  className="px-3 py-1 bg-[#ef4444]/10 text-[#ef4444] rounded-lg text-xs hover:bg-[#ef4444]/20 transition-all duration-300 transform hover:scale-105"
                 >
                   清空
                 </button>
@@ -443,7 +451,7 @@ export default function AnimeRoleDetect() {
           {/* 消息列表或历史记录 */}
           <div className="flex-1 overflow-y-auto p-4 md:p-6 scroll-smooth">
             {copySuccess && (
-              <div className="fixed top-20 right-4 left-4 md:left-auto md:right-4 bg-[#10b981] text-white px-6 py-3 rounded-xl shadow-lg animate-slide-up z-50">
+              <div className="fixed top-20 right-4 left-4 md:left-auto md:right-4 bg-[#10b981] text-white px-6 py-3 rounded-xl shadow-lg animate-slide-up z-50 transform transition-all duration-300 hover:scale-105">
                 {copySuccess}
               </div>
             )}
@@ -452,14 +460,14 @@ export default function AnimeRoleDetect() {
             {showHistory ? (
               <div className="max-w-3xl mx-auto space-y-6 pb-12">
                 {history.length === 0 ? (
-                  <div className="glass p-8 rounded-xl text-center">
-                    <Layers className="h-12 w-12 mx-auto mb-4 text-[#71717a]" />
-                    <h3 className="text-lg font-semibold text-[#fafafa] mb-2">暂无历史记录</h3>
-                    <p className="text-[#a1a1aa]">上传图片进行识别后，结果将显示在这里</p>
+                  <div className="glass p-8 rounded-xl text-center shadow-lg transform transition-all duration-300 hover:scale-[1.02]">
+                    <Layers className="h-12 w-12 mx-auto mb-4 text-[#71717a] animate-float" />
+                    <h3 className="text-lg font-semibold text-[#fafafa] mb-2 animate-fade-in">暂无历史记录</h3>
+                    <p className="text-[#a1a1aa] animate-fade-in">上传图片进行识别后，结果将显示在这里</p>
                   </div>
                 ) : (
                   history.map((record, idx) => (
-                    <div key={idx} className="glass border border-[#27272a] rounded-xl p-4 shadow-lg animate-slide-up">
+                    <div key={idx} className="glass border border-[#27272a] rounded-xl p-4 shadow-lg animate-slide-up transition-all duration-300 hover:shadow-xl hover:border-[#6366f1]/30">
                       <div className="flex items-center justify-between mb-3">
                         <span className="text-xs text-[#71717a]">
                           {new Date(record.timestamp).toLocaleString()}
@@ -470,11 +478,11 @@ export default function AnimeRoleDetect() {
                       </div>
                       {record.classification && (
                         <div className="mb-3">
-                          <div className="text-lg font-bold text-[#fafafa] mb-1">{record.classification.role}</div>
+                          <div className="text-lg font-bold text-[#fafafa] mb-1 animate-fade-in">{record.classification.role}</div>
                           <div className="text-sm text-[#a1a1aa] mb-2">相似度: {(record.classification.similarity * 100).toFixed(1)}%</div>
-                          <div className="progress-bar h-2 mb-3">
+                          <div className="progress-bar h-2 mb-3 bg-[#3f3f46] rounded-full overflow-hidden">
                             <div
-                              className="progress-bar-fill h-2"
+                              className={`progress-bar-fill h-2 rounded-full transition-all duration-1000 ease-out ${record.classification.confidence === "high" ? "bg-[#10b981]" : record.classification.confidence === "medium" ? "bg-[#f59e0b]" : "bg-[#ef4444]"}`}
                               style={{ width: `${record.classification.similarity * 100}%` }}
                             ></div>
                           </div>
@@ -486,7 +494,7 @@ export default function AnimeRoleDetect() {
                             setShowHistory(false);
                             // 可以选择将历史记录重新添加到消息列表中
                           }}
-                          className="px-3 py-1.5 bg-[#6366f1]/10 text-[#6366f1] rounded-lg text-xs hover:bg-[#6366f1]/20 transition-all duration-300"
+                          className="px-3 py-1.5 bg-[#6366f1]/10 text-[#6366f1] rounded-lg text-xs hover:bg-[#6366f1]/20 transition-all duration-300 transform hover:scale-105"
                         >
                           查看详情
                         </button>
@@ -506,13 +514,13 @@ export default function AnimeRoleDetect() {
                       </div>
                     )}
 
-                    <div className={`max-w-[80%] sm:max-w-[75%] md:max-w-[70%] rounded-xl px-4 py-3 text-sm leading-6 shadow message-bubble transition-all duration-300 ${msg.role === "user" ? "gradient-bg text-white" : "glass border border-[#27272a] text-[#fafafa]"}`}>
+                    <div className={`max-w-[80%] sm:max-w-[75%] md:max-w-[70%] rounded-xl px-4 py-3 text-sm leading-6 shadow message-bubble transition-all duration-300 ${msg.role === "user" ? "gradient-bg text-white" : "glass border border-[#27272a] text-[#fafafa]"} hover:shadow-lg transform hover:scale-[1.01]`}>
                       {msg.role === "assistant" ? (
                         <div className="flex flex-col gap-3">
                           {/* 思考过程展示 */}
                           {msg.thoughts && msg.thoughts.length > 0 && (
                     <div className="mb-4">
-                      <div className="flex items-center gap-2 text-xs px-4 py-2 rounded-full transition-all cursor-pointer w-fit select-none border border-[#6366f1]/30 bg-[#6366f1]/10 text-[#6366f1] shadow-sm">
+                      <div className="flex items-center gap-2 text-xs px-4 py-2 rounded-full transition-all cursor-pointer w-fit select-none border border-[#6366f1]/30 bg-[#6366f1]/10 text-[#6366f1] shadow-sm hover:bg-[#6366f1]/20 transform hover:scale-105">
                         <div className="relative">
                           <Sparkles size={14} className="text-[#6366f1]" />
                           {!msg.isThinkingFinished && (
@@ -557,21 +565,21 @@ export default function AnimeRoleDetect() {
                                   {getConfidenceText(msg.classification.confidence)}
                                 </span>
                               </div>
-                              <div className="glass p-4 rounded-xl shadow-inner">
+                              <div className="glass p-4 rounded-xl shadow-inner transition-all duration-300 hover:shadow-lg">
                                 <div className="flex flex-col sm:flex-row items-center space-x-3">
                                   <div className="flex-1 w-full sm:w-auto">
-                                    <div className="text-sm font-bold text-[#fafafa]">{msg.classification.role}</div>
-                                    <div className="text-xs text-[#a1a1aa] mt-1">相似度: {(msg.classification.similarity * 100).toFixed(1)}%</div>
+                                    <div className="text-sm font-bold text-[#fafafa] animate-fade-in">{msg.classification.role}</div>
+                                    <div className="text-xs text-[#a1a1aa] mt-1 animate-fade-in">相似度: {(msg.classification.similarity * 100).toFixed(1)}%</div>
                                     <div className="mt-2">
-                                      <div className="progress-bar h-2">
+                                      <div className="progress-bar h-2 bg-[#3f3f46] rounded-full overflow-hidden">
                                         <div
-                                          className="progress-bar-fill h-2"
+                                          className={`progress-bar-fill h-2 rounded-full transition-all duration-1000 ease-out ${msg.classification.confidence === "high" ? "bg-[#10b981]" : msg.classification.confidence === "medium" ? "bg-[#f59e0b]" : "bg-[#ef4444]"}`}
                                           style={{ width: `${msg.classification.similarity * 100}%` }}
                                         ></div>
                                       </div>
                                     </div>
                                   </div>
-                                  <div className="w-12 h-12 rounded-full bg-[#6366f1]/10 flex items-center justify-center shadow-md mt-3 sm:mt-0">
+                                  <div className="w-12 h-12 rounded-full bg-[#6366f1]/10 flex items-center justify-center shadow-md mt-3 sm:mt-0 animate-float">
                                     <CheckCircle
                                       className={`w-6 h-6 ${msg.classification.confidence === "high" ? "text-[#10b981]" : msg.classification.confidence === "medium" ? "text-[#f59e0b]" : "text-[#ef4444]"}`}
                                     />
@@ -585,9 +593,9 @@ export default function AnimeRoleDetect() {
                         <div className="flex flex-col gap-3">
                           {msg.image && (
                             <div className="mb-3">
-                              <div className="relative">
+                              <div className="relative transform transition-all duration-300 hover:scale-[1.02]">
                                 <img src={msg.image} alt="Uploaded" className="max-w-full h-auto rounded-xl shadow-lg animate-fade-in" />
-                                <div className="absolute top-2 right-2 bg-black/50 text-white text-xs px-2 py-1 rounded-lg">{selectedImage?.name}</div>
+                                <div className="absolute top-2 right-2 bg-black/50 text-white text-xs px-2 py-1 rounded-lg backdrop-blur-sm">{selectedImage?.name}</div>
                               </div>
                             </div>
                           )}
@@ -600,7 +608,7 @@ export default function AnimeRoleDetect() {
                         <div className="flex justify-end gap-2 mt-2">
                           <button
                             onClick={() => handleCopyMessage(msg.content)}
-                            className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs transition-all duration-300 ${msg.role === "user" ? "bg-white/10 hover:bg-white/20 text-white" : "bg-[#27272a] hover:bg-[#3f3f46] text-[#a1a1aa]"}`}
+                            className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs transition-all duration-300 ${msg.role === "user" ? "bg-white/10 hover:bg-white/20 text-white" : "bg-[#27272a] hover:bg-[#3f3f46] text-[#a1a1aa]"} transform hover:scale-105`}
                             title="复制消息内容"
                           >
                             <Copy size={12} />
@@ -608,7 +616,7 @@ export default function AnimeRoleDetect() {
                           </button>
                           <button
                             onClick={() => handleDownloadMessage(msg.content, msg.role)}
-                            className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs transition-all duration-300 ${msg.role === "user" ? "bg-white/10 hover:bg-white/20 text-white" : "bg-[#27272a] hover:bg-[#3f3f46] text-[#a1a1aa]"}`}
+                            className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs transition-all duration-300 ${msg.role === "user" ? "bg-white/10 hover:bg-white/20 text-white" : "bg-[#27272a] hover:bg-[#3f3f46] text-[#a1a1aa]"} transform hover:scale-105`}
                             title="下载消息内容"
                           >
                             <Download size={12} />
@@ -619,7 +627,7 @@ export default function AnimeRoleDetect() {
                     </div>
 
                     {msg.role === "user" && (
-                      <div className="w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center shadow bg-[#27272a] text-[#fafafa]">
+                      <div className="w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center shadow bg-[#27272a] text-[#fafafa] animate-float">
                         <User size={16} />
                       </div>
                     )}
@@ -634,11 +642,11 @@ export default function AnimeRoleDetect() {
           <div className="border-t border-[#27272a] glass shadow-2xl">
             <div className="px-4 sm:px-6 lg:px-8 py-4">
               {imagePreview && (
-                <div className="mb-3 inline-flex items-center space-x-3 px-4 py-3 glass rounded-xl shadow-sm w-full max-w-xs">
-                  <img src={imagePreview} alt="Preview" className="w-12 h-12 object-cover rounded-lg shadow" />
+                <div className="mb-3 inline-flex items-center space-x-3 px-4 py-3 glass rounded-xl shadow-sm w-full max-w-xs transform transition-all duration-300 hover:shadow-md hover:border-[#6366f1]/30 border border-transparent hover:border-[#6366f1]/30">
+                  <img src={imagePreview} alt="Preview" className="w-12 h-12 object-cover rounded-lg shadow transform transition-all duration-300 hover:scale-110" />
                   <span className="text-sm font-medium text-[#a1a1aa] truncate flex-1">{selectedImage?.name}</span>
-                  <button onClick={removeImage} className="p-1.5 hover:bg-[#3f3f46] rounded-full transition-colors">
-                    <X className="w-4 h-4 text-[#a1a1aa]" />
+                  <button onClick={removeImage} className="p-1.5 hover:bg-[#3f3f46] rounded-full transition-colors transform hover:scale-110 hover:text-[#ef4444]">
+                    <X className="w-4 h-4 text-[#a1a1aa] transition-colors duration-300 hover:text-[#ef4444]" />
                   </button>
                 </div>
               )}
@@ -647,18 +655,18 @@ export default function AnimeRoleDetect() {
                 <div className="flex-shrink-0 relative">
                   <button
                     onClick={() => setShowUploadOptions(!showUploadOptions)}
-                    className="p-2.5 rounded-lg hover:bg-[#27272a] transition-all duration-300"
+                    className="p-2.5 rounded-lg hover:bg-[#27272a] transition-all duration-300 transform hover:scale-110 hover:text-[#818cf8]"
                   >
-                    <Upload className="h-5 w-5 text-[#6366f1]" />
+                    <Upload className="h-5 w-5 text-[#6366f1] transition-colors duration-300 hover:text-[#818cf8]" />
                   </button>
                   {showUploadOptions && (
-                    <div className="absolute bottom-full left-0 right-0 mb-4 glass rounded-xl shadow-2xl border border-[#27272a] p-2 z-50">
+                    <div className="absolute bottom-full left-0 right-0 mb-4 glass rounded-xl shadow-2xl border border-[#27272a] p-2 z-50 transform transition-all duration-300 animate-slide-up">
                       <button
-                        className="flex items-center px-4 py-3 hover:bg-[#27272a] rounded-lg w-full transition-all duration-300"
+                        className="flex items-center px-4 py-3 hover:bg-[#27272a] rounded-lg w-full transition-all duration-300 transform hover:translate-x-1"
                         onClick={() => fileInputRef.current?.click()}
                       >
-                        <ImageIcon className="h-4 w-4 mr-2 text-[#a1a1aa]" />
-                        <span className="text-sm text-[#fafafa]">上传图片</span>
+                        <ImageIcon className="h-4 w-4 mr-2 text-[#a1a1aa] transition-colors duration-300 hover:text-[#6366f1]" />
+                        <span className="text-sm text-[#fafafa] transition-colors duration-300 hover:text-[#6366f1]">上传图片</span>
                       </button>
                       <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageSelect} className="hidden" />
                     </div>
@@ -671,22 +679,22 @@ export default function AnimeRoleDetect() {
                     onChange={(e) => setInputText(e.target.value)}
                     onKeyPress={handleKeyPress}
                     placeholder="输入消息或上传图片..."
-                    className="w-full px-4 py-2.5 pr-10 glass border border-[#3f3f46] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6366f1] focus:border-transparent text-[#fafafa] placeholder-[#52525b] input-glow transition-all duration-300"
+                    className="w-full px-4 py-2.5 pr-10 glass border border-[#3f3f46] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6366f1] focus:border-transparent text-[#fafafa] placeholder-[#52525b] input-glow transition-all duration-300 hover:border-[#6366f1]/50"
                     disabled={isProcessing}
                   />
                   <button
                     onClick={() => fileInputRef.current?.click()}
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2 p-1.5 hover:bg-[#27272a] rounded transition-colors"
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 p-1.5 hover:bg-[#27272a] rounded transition-colors duration-300 hover:scale-110"
                     disabled={isProcessing}
                   >
-                    <ImageIcon className="h-4 w-4 text-[#71717a]" />
+                    <ImageIcon className="h-4 w-4 text-[#71717a] transition-colors duration-300 hover:text-[#6366f1]" />
                   </button>
                 </div>
                 <div className="flex-shrink-0">
                   <button
                     onClick={handleSend}
                     disabled={(!inputText.trim() && !selectedImage) || isProcessing}
-                    className={`btn-primary px-4 py-2.5 rounded-lg font-medium transition-all duration-300 flex items-center space-x-2 shadow-lg ${(!inputText.trim() && !selectedImage) || isProcessing ? "opacity-50 cursor-not-allowed" : ""}`}
+                    className={`btn-primary px-4 py-2.5 rounded-lg font-medium transition-all duration-300 flex items-center space-x-2 shadow-lg ${(!inputText.trim() && !selectedImage) || isProcessing ? "opacity-50 cursor-not-allowed" : "hover:shadow-xl hover:scale-105"}`}
                   >
                     {isProcessing ? (
                       <>
@@ -698,7 +706,7 @@ export default function AnimeRoleDetect() {
                       </>
                     ) : (
                       <>
-                        <Sparkles className="w-4 h-4" />
+                        <Sparkles className="w-4 h-4 transition-transform duration-300 hover:rotate-12" />
                         <span className="hidden sm:inline">发送</span>
                       </>
                     )}
@@ -706,7 +714,7 @@ export default function AnimeRoleDetect() {
                 </div>
               </div>
 
-              <div className="mt-2 text-xs text-[#71717a] text-center">按 Enter 发送，Shift + Enter 换行</div>
+              <div className="mt-2 text-xs text-[#71717a] text-center transition-all duration-300 hover:text-[#a1a1aa]">按 Enter 发送，Shift + Enter 换行</div>
             </div>
           </div>
         </div>

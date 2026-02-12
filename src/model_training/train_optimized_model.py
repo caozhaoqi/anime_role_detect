@@ -9,7 +9,6 @@
 import os
 import sys
 import argparse
-import logging
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -19,12 +18,9 @@ from torchvision import transforms, models
 from PIL import Image
 from tqdm import tqdm
 
-# 配置日志
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger('train_optimized')
+# 使用全局日志系统
+from src.core.logging.global_logger import get_logger, log_system, log_training, log_error
+logger = get_logger("train_optimized")
 
 
 class CharacterDataset(Dataset):
@@ -55,7 +51,7 @@ class CharacterDataset(Dataset):
                     self.images.append(os.path.join(cls_dir, img_name))
                     self.labels.append(idx)
         
-        logger.info(f"数据集初始化完成，包含 {len(classes)} 个类别，{len(self.images)} 张图像")
+        log_training(f"数据集初始化完成，包含 {len(classes)} 个类别，{len(self.images)} 张图像")
     
     def __len__(self):
         """返回数据集大小"""
@@ -177,7 +173,7 @@ def train_model(args):
     """
     # 检测设备
     device = torch.device('mps' if torch.backends.mps.is_available() else 'cpu')
-    logger.info(f"使用设备: {device}")
+    log_training(f"使用设备: {device}")
     
     # 增强的数据增强
     train_transform = transforms.Compose([
@@ -264,8 +260,8 @@ def train_model(args):
     val_accs = []
     
     for epoch in range(args.num_epochs):
-        logger.info(f"开始第 {epoch+1}/{args.num_epochs} 轮训练")
-        logger.info(f"当前学习率: {optimizer.param_groups[0]['lr']:.6f}")
+        log_training(f"开始第 {epoch+1}/{args.num_epochs} 轮训练")
+        log_training(f"当前学习率: {optimizer.param_groups[0]['lr']:.6f}")
         
         # 训练阶段
         train_loss, train_acc = train_epoch(model, train_loader, criterion, optimizer, device, epoch+1)
@@ -282,9 +278,9 @@ def train_model(args):
         val_losses.append(val_loss)
         val_accs.append(val_acc)
         
-        logger.info(f'Epoch {epoch+1}/{args.num_epochs}')
-        logger.info(f'Train Loss: {train_loss:.4f}, Train Acc: {train_acc:.2f}%')
-        logger.info(f'Val Loss: {val_loss:.4f}, Val Acc: {val_acc:.2f}%')
+        log_training(f'Epoch {epoch+1}/{args.num_epochs}')
+        log_training(f'Train Loss: {train_loss:.4f}, Train Acc: {train_acc:.2f}%')
+        log_training(f'Val Loss: {val_loss:.4f}, Val Acc: {val_acc:.2f}%')
         
         # 保存最佳模型
         if val_acc > best_val_acc:
@@ -301,15 +297,15 @@ def train_model(args):
                 'train_loss': train_loss,
                 'class_to_idx': train_dataset.class_to_idx
             }, model_path)
-            logger.info(f'最佳模型已保存: {model_path}, 验证准确率: {best_val_acc:.2f}%')
+            log_training(f'最佳模型已保存: {model_path}, 验证准确率: {best_val_acc:.2f}%')
             patience_counter = 0
         else:
             patience_counter += 1
-            logger.info(f'验证准确率未提升，耐心计数: {patience_counter}/{patience}')
+            log_training(f'验证准确率未提升，耐心计数: {patience_counter}/{patience}')
         
         # 早停
         if patience_counter >= patience:
-            logger.info(f'验证准确率连续 {patience} 轮未提升，提前停止训练')
+            log_training(f'验证准确率连续 {patience} 轮未提升，提前停止训练')
             break
     
     # 保存最终模型
@@ -318,7 +314,7 @@ def train_model(args):
         'model_state_dict': model.state_dict(),
         'class_to_idx': train_dataset.class_to_idx
     }, final_model_path)
-    logger.info(f'最终模型已保存: {final_model_path}')
+    log_training(f'最终模型已保存: {final_model_path}')
     
     # 保存训练历史
     history_path = os.path.join(args.output_dir, 'training_history.txt')
@@ -326,7 +322,7 @@ def train_model(args):
         f.write('Epoch,Train Loss,Train Acc,Val Loss,Val Acc\n')
         for epoch in range(len(train_losses)):
             f.write(f'{epoch+1},{train_losses[epoch]:.4f},{train_accs[epoch]:.4f},{val_losses[epoch]:.4f},{val_accs[epoch]:.4f}\n')
-    logger.info(f'训练历史已保存: {history_path}')
+    log_training(f'训练历史已保存: {history_path}')
     
     return best_val_acc
 
@@ -355,20 +351,20 @@ def main():
     # 创建输出目录
     os.makedirs(args.output_dir, exist_ok=True)
     
-    logger.info('开始训练优化模型...')
-    logger.info(f'训练集目录: {args.train_dir}')
-    logger.info(f'验证集目录: {args.val_dir}')
-    logger.info(f'批量大小: {args.batch_size}')
-    logger.info(f'训练轮数: {args.num_epochs}')
-    logger.info(f'学习率: {args.learning_rate}')
-    logger.info(f'权重衰减: {args.weight_decay}')
-    logger.info(f'Dropout比率: {args.dropout_rate}')
-    logger.info(f'标签平滑: {args.label_smoothing}')
+    log_training('开始训练优化模型...')
+    log_training(f'训练集目录: {args.train_dir}')
+    log_training(f'验证集目录: {args.val_dir}')
+    log_training(f'批量大小: {args.batch_size}')
+    log_training(f'训练轮数: {args.num_epochs}')
+    log_training(f'学习率: {args.learning_rate}')
+    log_training(f'权重衰减: {args.weight_decay}')
+    log_training(f'Dropout比率: {args.dropout_rate}')
+    log_training(f'标签平滑: {args.label_smoothing}')
     
     # 开始训练
     best_acc = train_model(args)
     
-    logger.info(f'训练完成！最佳验证准确率: {best_acc:.2f}%')
+    log_training(f'训练完成！最佳验证准确率: {best_acc:.2f}%')
 
 
 if __name__ == "__main__":
