@@ -150,7 +150,17 @@ class GeneralClassification:
                 logger.warning(f"EfficientNet模型初始化失败 (非致命): {e}")
                 self.model_inference = None
             
-            # 6. 如果指定了索引路径，尝试加载
+            # 6. 尝试初始化DeepDanbooru推理器（单独处理，非致命）
+            try:
+                logger.info("初始化DeepDanbooru推理模型...")
+                from src.core.classification.deepdanbooru_inference import DeepDanbooruInference
+                self.deepdanbooru_inference = DeepDanbooruInference()
+                logger.info("DeepDanbooru推理模型初始化成功")
+            except Exception as e:
+                logger.warning(f"DeepDanbooru模型初始化失败 (非致命): {e}")
+                self.deepdanbooru_inference = None
+            
+            # 7. 如果指定了索引路径，尝试加载
             if self.index_path:
                 index_files = [
                     f"{self.index_path}.faiss",
@@ -271,7 +281,8 @@ class GeneralClassification:
                 # 这里我们传入原始路径，或者我们可以优化让它接受 PIL Image
                 # 目前为了简单，直接传路径
                 logger.info("使用 EfficientNet 模型进行推理")
-                role, similarity, _ = self.model_inference.predict(image_path)
+                # 使用标签辅助推理
+                role, similarity, _ = self.model_inference.predict_with_tags(image_path)
                 feature = None # 模型推理不产生CLIP特征向量
             else:
                 # 使用默认的 CLIP + FAISS 索引
@@ -390,6 +401,175 @@ class GeneralClassification:
                 
         except Exception as e:
             logger.error(f"集成分类失败: {e}")
+            # 失败时回退到CLIP模型
+            logger.warning("回退到CLIP模型进行分类")
+            return self.classify_image(image_path, use_model=False)
+    
+    def classify_image_with_deepdanbooru(self, image_path, clip_weight=0.4, model_weight=0.4, deepdanbooru_weight=0.2, confidence_threshold=0.6):
+        """使用集成方法分类单个图像（整合CLIP、专用模型和DeepDanbooru的结果）
+        :param image_path: 图片路径
+        :param clip_weight: CLIP模型的权重
+        :param model_weight: 专用模型的权重
+        :param deepdanbooru_weight: DeepDanbooru模型的权重
+        :param confidence_threshold: 置信度阈值
+        """
+        if not self.initialize():
+            return None, 0.0, None
+            
+        try:
+            logger.info(f"开始集成DeepDanbooru的分类: {image_path}")
+            
+            # 1. 使用CLIP模型分类
+            clip_role, clip_similarity, boxes = self.classify_image(image_path, use_model=False)
+            logger.info(f"CLIP模型结果: {clip_role}, 相似度: {clip_similarity:.4f}")
+            
+            # 2. 使用专用模型分类
+            model_role, model_similarity, _ = self.classify_image(image_path, use_model=True)
+            logger.info(f"专用模型结果: {model_role}, 相似度: {model_similarity:.4f}")
+            
+            # 3. 使用DeepDanbooru模型分类
+            deepdanbooru_tags = []
+            if self.deepdanbooru_inference:
+                try:
+                    deepdanbooru_tags = self.deepdanbooru_inference.predict(image_path)
+                    logger.info(f"DeepDanbooru模型识别到 {len(deepdanbooru_tags)} 个标签")
+                except Exception as e:
+                    logger.error(f"DeepDanbooru推理失败: {e}")
+            else:
+                logger.warning("DeepDanbooru推理器未初始化")
+            
+            # 4. 整合三个模型的结果
+            # 初始化结果字典
+            results = {}
+            
+            # 添加CLIP模型的结果
+            if clip_role and clip_similarity >= confidence_threshold:
+                weighted_score = clip_similarity * clip_weight
+                results[clip_role] = results.get(clip_role, 0) + weighted_score
+            
+            # 添加专用模型的结果
+            if model_role and model_similarity >= confidence_threshold:
+                weighted_score = model_similarity * model_weight
+                results[model_role] = results.get(model_role, 0) + weighted_score
+            
+            # 添加DeepDanbooru模型的结果（如果有相关标签）
+            # 这里需要将DeepDanbooru的标签映射到角色名称
+            # 由于DeepDanbooru主要识别标签而非角色，我们需要一个映射表
+            # 这里使用简单的关键词匹配作为示例
+            if deepdanbooru_tags:
+                # 简单的角色-标签映射表
+                role_tag_mapping = {
+                    'Blue Archive_Hoshino': ['hoshino', 'blue archive', 'hoshino (blue archive)'],
+                    'Blue Archive_Shiroko': ['shiroko', 'blue archive', 'shiroko (blue archive)'],
+                    'Blue Archive_Arona': ['arona', 'blue archive', 'arona (blue archive)'],
+                    'Blue Archive_Miyako': ['miyako', 'blue archive', 'miyako (blue archive)'],
+                    'Blue Archive_Hina': ['hina', 'blue archive', 'hina (blue archive)'],
+                    'Blue Archive_Yuuka': ['yuuka', 'blue archive', 'yuuka (blue archive)'],
+                    'BangDream_MyGo_Aimi Kanazawa': ['aimi kanazawa', 'kanazawa aimi', 'mygo', 'bang dream'],
+                    'BangDream_MyGo_Ritsuki': ['ritsuki', 'mygo', 'bang dream'],
+                    'BangDream_MyGo_Touko Takamatsu': ['touko takamatsu', 'takamatsu touko', 'mygo', 'bang dream'],
+                    'BangDream_MyGo_Soyo Nagasaki': ['soyo nagasaki', 'nagasaki soyo', 'mygo', 'bang dream'],
+                    'BangDream_MyGo_Sakiko Tamagawa': ['sakiko tamagawa', 'tamagawa sakiko', 'mygo', 'bang dream'],
+                    'BangDream_MyGo_Mutsumi Wakaba': ['mutsumi wakaba', 'wakaba mutsumi', 'mygo', 'bang dream'],
+                }
+                
+                # 提取DeepDanbooru标签
+                deepdanbooru_tag_names = [tag['tag'] for tag in deepdanbooru_tags]
+                
+                # 匹配角色
+                for role, tags in role_tag_mapping.items():
+                    # 计算匹配分数
+                    match_score = 0
+                    for tag in tags:
+                        if any(tag in deepdanbooru_tag for deepdanbooru_tag in deepdanbooru_tag_names):
+                            match_score += 1
+                    
+                    # 如果有匹配，计算权重分数
+                    if match_score > 0:
+                        # 归一化匹配分数
+                        normalized_score = match_score / len(tags)
+                        # 找到最高置信度的匹配标签
+                        max_score = 0
+                        for tag in tags:
+                            for deepdanbooru_tag in deepdanbooru_tags:
+                                if tag in deepdanbooru_tag['tag']:
+                                    max_score = max(max_score, deepdanbooru_tag['score'])
+                        
+                        # 综合分数
+                        if max_score > 0:
+                            combined_score = (normalized_score + max_score) / 2
+                            weighted_score = combined_score * deepdanbooru_weight
+                            results[role] = results.get(role, 0) + weighted_score
+                            logger.info(f"DeepDanbooru匹配 {role}, 分数: {combined_score:.4f}")
+            
+            # 5. 选择最终结果
+            if results:
+                # 按加权分数排序
+                sorted_results = sorted(results.items(), key=lambda x: x[1], reverse=True)
+                final_role, final_score = sorted_results[0]
+                
+                # 计算标准化的最终相似度
+                total_weight = clip_weight + model_weight + deepdanbooru_weight
+                normalized_score = final_score / total_weight
+                
+                logger.info(f"最终集成结果: {final_role}, 相似度: {normalized_score:.4f}")
+                
+                # 6. 记录集成分类日志
+                if record_classification_log is not None:
+                    # 提取CLIP特征用于日志
+                    normalized_img, _ = self.preprocessor.process(image_path)
+                    feature = self.extractor.extract_features(normalized_img)
+                    
+                    record_classification_log(
+                        image_path=image_path,
+                        role=final_role,
+                        similarity=normalized_score,
+                        feature=feature if feature is not None else [],
+                        boxes=boxes,
+                        metadata={
+                            "ensemble": True,
+                            "with_deepdanbooru": True,
+                            "clip_role": clip_role,
+                            "clip_similarity": clip_similarity,
+                            "model_role": model_role,
+                            "model_similarity": model_similarity,
+                            "deepdanbooru_tags": [tag['tag'] for tag in deepdanbooru_tags[:5]],
+                            "weights": {
+                                "clip": clip_weight,
+                                "model": model_weight,
+                                "deepdanbooru": deepdanbooru_weight
+                            }
+                        }
+                    )
+                
+                return final_role, normalized_score, boxes
+            else:
+                # 如果所有模型的置信度都低于阈值，使用CLIP模型的结果
+                logger.warning("所有模型置信度都低于阈值，使用CLIP模型结果")
+                if record_classification_log is not None:
+                    normalized_img, _ = self.preprocessor.process(image_path)
+                    feature = self.extractor.extract_features(normalized_img)
+                    
+                    record_classification_log(
+                        image_path=image_path,
+                        role=clip_role,
+                        similarity=clip_similarity,
+                        feature=feature if feature is not None else [],
+                        boxes=boxes,
+                        metadata={
+                            "ensemble": True,
+                            "with_deepdanbooru": True,
+                            "fallback_to_clip": True,
+                            "clip_similarity": clip_similarity,
+                            "model_similarity": model_similarity,
+                            "deepdanbooru_tags": [tag['tag'] for tag in deepdanbooru_tags[:5]]
+                        }
+                    )
+                
+                return clip_role, clip_similarity, boxes
+                
+        except Exception as e:
+            logger.error(f"集成DeepDanbooru分类失败: {e}")
             # 失败时回退到CLIP模型
             logger.warning("回退到CLIP模型进行分类")
             return self.classify_image(image_path, use_model=False)

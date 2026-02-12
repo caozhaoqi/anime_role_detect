@@ -28,6 +28,7 @@ def setup_api_routes(app):
                 'parameters': {
                     'file': '媒体文件（必填，支持图片和视频）',
                     'use_model': '是否使用专用模型 (true/false, 默认false)',
+                    'use_deepdanbooru': '是否使用集成DeepDanbooru的分类方法 (true/false, 默认false)',
                     'frame_skip': '视频帧跳过间隔 (默认5)'
                 },
                 'response': {
@@ -63,11 +64,13 @@ def setup_api_routes(app):
         
         use_model = request.form.get('use_model') == 'true'
         use_coreml = request.form.get('use_coreml') == 'true'
+        use_deepdanbooru = request.form.get('use_deepdanbooru') == 'true'
         frame_skip = int(request.form.get('frame_skip', str(DEFAULT_FRAME_SKIP)))
         
         logger.debug("📋 参数:", {
             'use_model': use_model,
             'use_coreml': use_coreml,
+            'use_deepdanbooru': use_deepdanbooru,
             'frame_skip': frame_skip
         })
 
@@ -106,11 +109,15 @@ def setup_api_routes(app):
                 if use_coreml:
                     # 使用Core ML模型
                     logger.debug("🤖 使用Core ML模型")
-                    role, similarity, boxes, mode = classify_image(temp_path, use_coreml=True, use_model=False)
+                    role, similarity, boxes, mode = classify_image(temp_path, use_coreml=True, use_model=False, use_deepdanbooru=False)
+                elif use_deepdanbooru:
+                    # 使用集成DeepDanbooru的分类方法
+                    logger.debug("🤖 使用集成DeepDanbooru的分类方法")
+                    role, similarity, boxes, mode = classify_image(temp_path, use_coreml=False, use_model=False, use_deepdanbooru=True)
                 else:
                     # 使用默认模型
                     logger.debug("🤖 使用默认模型")
-                    role, similarity, boxes, mode = classify_image(temp_path, use_coreml=False, use_model=use_model)
+                    role, similarity, boxes, mode = classify_image(temp_path, use_coreml=False, use_model=use_model, use_deepdanbooru=False)
                 
                 # 构建响应
                 response = {

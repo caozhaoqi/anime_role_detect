@@ -8,6 +8,8 @@ The Character Classification System is an AI-based image recognition tool specif
 
 - **Image/Video Upload Recognition**: Supports multiple image and video formats for upload, automatically identifies game characters in images and videos
 - **High Accuracy**: Uses CLIP model and Faiss indexing for high recognition accuracy
+- **DeepDanbooru Integration**: Integrates DeepDanbooru for anime tag recognition to improve classification accuracy
+- **Tag-assisted Inference**: Uses DeepDanbooru tags to adjust classification results, solving "Sameface Syndrome"
 - **Real-time Feedback**: Provides recognition confidence and detailed results
 - **User-friendly Interface**: Intuitive web interface with simple operation
 - **API Support**: Provides RESTful API interface for batch processing
@@ -28,6 +30,7 @@ The Character Classification System is an AI-based image recognition tool specif
 - Ultralytics (YOLOv8)
 - Faiss
 - EfficientNet-B0
+- Requests (for DeepDanbooru API integration)
 
 ### Install Dependencies
 
@@ -36,7 +39,7 @@ The Character Classification System is an AI-based image recognition tool specif
 pip3 install flask
 
 # Install other dependencies (if not already installed)
-pip3 install torch torchvision transformers ultralytics faiss-cpu Pillow efficientnet_pytorch
+pip3 install torch torchvision transformers ultralytics faiss-cpu Pillow efficientnet_pytorch requests
 ```
 
 ### Start System
@@ -78,6 +81,8 @@ anime_role_detect/
 ├── src/                    # Source code
 │   ├── core/               # Core modules
 │   │   ├── classification/         # Classification module
+│   │   │   ├── deepdanbooru_inference.py  # DeepDanbooru inference module
+│   │   │   └── efficientnet_inference.py  # EfficientNet inference module
 │   │   ├── feature_extraction/     # Feature extraction module
 │   │   ├── preprocessing/          # Preprocessing module
 │   │   ├── logging/                # Logging module
@@ -147,8 +152,14 @@ anime_role_detect/
 ### API Call
 
 ```bash
-# Use curl to upload image and identify
+# Use curl to upload image and identify (default method)
 curl -X POST -F "file=@path/to/image.jpg" http://127.0.0.1:5001/api/classify
+
+# Use curl with dedicated model
+curl -X POST -F "file=@path/to/image.jpg" -F "use_model=true" http://127.0.0.1:5001/api/classify
+
+# Use curl with DeepDanbooru integration
+curl -X POST -F "file=@path/to/image.jpg" -F "use_deepdanbooru=true" http://127.0.0.1:5001/api/classify
 ```
 
 API response example:
@@ -205,6 +216,7 @@ API response example:
 | YOLOv8     | Character detection |
 | Faiss      | Similarity search |
 | EfficientNet-B0 | Character classification |
+| DeepDanbooru | Anime tag recognition |
 | HTML/CSS   | Frontend interface |
 
 ### End-to-End Workflow
@@ -246,6 +258,34 @@ python scripts/model_training/train_model_distributed.py --batch_size 8 --num_ep
 - 8 GPUs: ~8x faster training
 
 **Note:** Distributed training requires at least 2 GPUs to be effective.
+
+### DeepDanbooru Integration
+
+#### Implementation Principle
+
+The system integrates DeepDanbooru for anime tag recognition to improve classification accuracy. The implementation follows the **Tag-assisted Inference** approach:
+
+1. **Tag Extraction**: Uses DeepDanbooru to extract tags from input images
+2. **Tag Mapping**: Maps extracted tags to character attributes
+3. **Score Adjustment**: Adjusts classification scores based on tag matching
+4. **Result Reordering**: Reorders classification results based on adjusted scores
+
+#### Key Advantages
+
+- **Solves "Sameface Syndrome"**: DeepDanbooru can identify distinguishing features like hair color, eye color, and clothing
+- **Improves Robustness**: Even with different art styles, the system can recognize characters based on key features
+- **Faster Convergence**: The model learns faster when guided by tag information
+- **Higher Accuracy**: Tag-assisted inference significantly improves recognition accuracy
+
+#### Usage Method
+
+The system provides three inference modes:
+
+1. **Default Mode**: Uses CLIP + Faiss for classification
+2. **Dedicated Model Mode**: Uses EfficientNet-B0 for classification
+3. **DeepDanbooru Mode**: Uses integrated CLIP + EfficientNet-B0 + DeepDanbooru for classification
+
+To use DeepDanbooru integration, simply add the `use_deepdanbooru=true` parameter to your API request.
 
 ## 📈 System Optimization
 
@@ -390,13 +430,18 @@ If you have any questions or suggestions, please contact us through:
 - **Implemented video frame analysis** with frame-by-frame character detection
 - **Updated frontend interface** to support video upload and playback
 - **Enhanced API** to handle both image and video files for detection
-
-### March 2026
-
 - **Implemented global logging system** with log rotation and categorized storage
 - **Integrated logging into all core modules** (API services, model inference, data processing)
 - **Added detailed logging** for all key operations and error scenarios
 - **Updated documentation** to include logging system usage guide
 - **Fixed error logging issues** and unified log handling across the system
+- **Integrated DeepDanbooru** for anime tag recognition to improve classification accuracy
+- **Implemented tag-assisted inference** to adjust classification scores based on tag matching
+- **Added DeepDanbooruInference class** for interacting with Hugging Face API
+- **Modified EfficientNetInference** to support tag-assisted prediction
+- **Updated API** to include use_deepdanbooru parameter
+- **Added multi-model integration** with CLIP + EfficientNet-B0 + DeepDanbooru
+- **Improved recognition accuracy** for characters with similar appearances
+- **Updated documentation** to include DeepDanbooru integration details
 
 

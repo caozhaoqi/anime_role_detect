@@ -233,11 +233,32 @@ class EfficientNetInference:
             )
         ])
 
-    def predict(self, image_path, top_k=5):
-        """预测图片角色"""
+    def predict_with_tags(self, image_path, top_k=5, tags=None):
+        """使用标签辅助预测图片角色
+        
+        Args:
+            image_path: 图片路径
+            top_k: 返回前k个结果
+            tags: DeepDanbooru标签列表，如果为None则自动提取
+            
+        Returns:
+            (best_role, best_score, results): 最佳角色、最佳相似度、所有结果
+        """
         start_time = time.time()
         
         try:
+            # 如果没有提供标签，使用DeepDanbooru提取
+            if tags is None:
+                try:
+                    from src.core.classification.deepdanbooru_inference import DeepDanbooruInference
+                    deepdanbooru = DeepDanbooruInference()
+                    tags = deepdanbooru.predict(image_path)
+                    print(f"DeepDanbooru提取到 {len(tags)} 个标签")
+                except Exception as e:
+                    print(f"DeepDanbooru提取标签失败: {e}")
+                    tags = []
+            
+            # 预测图片角色
             image = Image.open(image_path).convert('RGB')
             image_tensor = self.transform(image).unsqueeze(0).to(self.device)
             
@@ -266,6 +287,48 @@ class EfficientNetInference:
                         "similarity": prob
                     })
             
+            # 如果有标签，使用标签辅助调整结果
+            if tags:
+                # 简单的角色-标签映射表
+                role_tag_mapping = {
+                    'Blue Archive_Hoshino': ['hoshino', 'blue archive', 'hoshino (blue archive)'],
+                    'Blue Archive_Shiroko': ['shiroko', 'blue archive', 'shiroko (blue archive)'],
+                    'Blue Archive_Arona': ['arona', 'blue archive', 'arona (blue archive)'],
+                    'Blue Archive_Miyako': ['miyako', 'blue archive', 'miyako (blue archive)'],
+                    'Blue Archive_Hina': ['hina', 'blue archive', 'hina (blue archive)'],
+                    'Blue Archive_Yuuka': ['yuuka', 'blue archive', 'yuuka (blue archive)'],
+                    'BangDream_MyGo_Aimi Kanazawa': ['aimi kanazawa', 'kanazawa aimi', 'mygo', 'bang dream'],
+                    'BangDream_MyGo_Ritsuki': ['ritsuki', 'mygo', 'bang dream'],
+                    'BangDream_MyGo_Touko Takamatsu': ['touko takamatsu', 'takamatsu touko', 'mygo', 'bang dream'],
+                    'BangDream_MyGo_Soyo Nagasaki': ['soyo nagasaki', 'nagasaki soyo', 'mygo', 'bang dream'],
+                    'BangDream_MyGo_Sakiko Tamagawa': ['sakiko tamagawa', 'tamagawa sakiko', 'mygo', 'bang dream'],
+                    'BangDream_MyGo_Mutsumi Wakaba': ['mutsumi wakaba', 'wakaba mutsumi', 'mygo', 'bang dream'],
+                }
+                
+                # 提取标签名称
+                tag_names = [tag['tag'] for tag in tags]
+                
+                # 调整结果分数
+                for result in results:
+                    role = result['role']
+                    if role in role_tag_mapping:
+                        # 计算标签匹配分数
+                        match_score = 0
+                        for tag in role_tag_mapping[role]:
+                            if any(tag in tag_name for tag_name in tag_names):
+                                match_score += 1
+                        
+                        # 如果有匹配，提高分数
+                        if match_score > 0:
+                            # 归一化匹配分数
+                            normalized_match = match_score / len(role_tag_mapping[role])
+                            # 调整相似度分数
+                            result['similarity'] = result['similarity'] * 0.7 + normalized_match * 0.3
+                            print(f"调整 {role} 分数: {result['similarity']:.4f} (匹配 {match_score} 个标签)")
+            
+            # 重新排序结果
+            results.sort(key=lambda x: x['similarity'], reverse=True)
+            
             if not results:
                 return "Unknown", 0.0, []
                 
@@ -285,6 +348,10 @@ class EfficientNetInference:
         except Exception as e:
             print(f"推理失败: {e}")
             return None, 0.0, []
+    
+    def predict(self, image_path, top_k=5):
+        """预测图片角色"""
+        return self.predict_with_tags(image_path, top_k, tags=None)
 
     def predict_batch(self, image_paths, batch_size=32, top_k=5):
         """批量预测多张图片"""

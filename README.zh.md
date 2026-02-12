@@ -8,12 +8,14 @@
 
 - **图片/视频上传识别**：支持多种图片和视频格式上传，自动识别图片和视频中的游戏角色
 - **高准确率**：使用CLIP模型和Faiss索引，识别准确率高
+- **DeepDanbooru集成**：集成DeepDanbooru进行动漫标签识别，提高分类准确率
+- **标签辅助推理**：使用DeepDanbooru标签调整分类结果，解决"大众脸"问题
 - **实时反馈**：提供识别置信度和详细结果
 - **用户友好界面**：直观的Web界面，操作简单
 - **API支持**：提供RESTful API接口，支持批量处理
 - **日志融合**：支持从分类日志中融合特征，构建新模型
 - **端到端工作流**：完整的角色检测工作流，从数据收集到模型训练
-- **EfficientNet-B0模型**：使用先进的EfficientNet-B0进行角色分类
+- **EfficientNet-B3模型**：使用先进的EfficientNet-B0进行角色分类
 - **数据收集**：支持通过Bing Image Search API自动收集角色图片
 - **数据集分割**：自动将收集的数据分割为训练集和验证集
 
@@ -27,7 +29,8 @@
 - Transformers
 - Ultralytics (YOLOv8)
 - Faiss
-- EfficientNet-B0
+- EfficientNet-B3
+- Requests (用于DeepDanbooru API集成)
 
 ### 安装依赖
 
@@ -36,7 +39,7 @@
 pip3 install flask
 
 # 安装其他依赖（如果尚未安装）
-pip3 install torch torchvision transformers ultralytics faiss-cpu Pillow efficientnet_pytorch
+pip3 install torch torchvision transformers ultralytics faiss-cpu Pillow efficientnet_pytorch requests
 ```
 
 ### 启动系统
@@ -78,6 +81,8 @@ anime_role_detect/
 ├── src/                    # 源代码
 │   ├── core/               # 核心模块
 │   │   ├── classification/         # 分类模块
+│   │   │   ├── deepdanbooru_inference.py  # DeepDanbooru推理模块
+│   │   │   └── efficientnet_inference.py  # EfficientNet推理模块
 │   │   ├── feature_extraction/     # 特征提取模块
 │   │   ├── preprocessing/          # 预处理模块
 │   │   ├── general_classification.py  # 通用分类模块
@@ -147,8 +152,14 @@ anime_role_detect/
 ### API调用
 
 ```bash
-# 使用curl上传图片并识别
+# 使用curl上传图片并识别（默认方法）
 curl -X POST -F "file=@path/to/image.jpg" http://127.0.0.1:5001/api/classify
+
+# 使用curl带专用模型
+curl -X POST -F "file=@path/to/image.jpg" -F "use_model=true" http://127.0.0.1:5001/api/classify
+
+# 使用curl带DeepDanbooru集成
+curl -X POST -F "file=@path/to/image.jpg" -F "use_deepdanbooru=true" http://127.0.0.1:5001/api/classify
 ```
 
 API返回结果示例：
@@ -205,6 +216,7 @@ API返回结果示例：
 | YOLOv8 | 角色检测 |
 | Faiss | 相似性搜索 |
 | EfficientNet-B0 | 角色分类 |
+| DeepDanbooru | 动漫标签识别 |
 | HTML/CSS | 前端界面 |
 
 ### 端到端工作流
@@ -246,6 +258,34 @@ python scripts/model_training/train_model_distributed.py --batch_size 8 --num_ep
 - 8个GPU：约8倍训练速度
 
 **注意：** 分布式训练需要至少2个GPU才能有效。
+
+### DeepDanbooru集成
+
+#### 实现原理
+
+系统集成DeepDanbooru进行动漫标签识别，以提高分类准确率。实现采用**标签辅助推理**方法：
+
+1. **标签提取**：使用DeepDanbooru从输入图像中提取标签
+2. **标签映射**：将提取的标签映射到角色属性
+3. **分数调整**：根据标签匹配调整分类分数
+4. **结果重排序**：根据调整后的分数重排分类结果
+
+#### 主要优势
+
+- **解决"大众脸"问题**：DeepDanbooru能够识别发色、瞳色、服装等区分性特征
+- **提高鲁棒性**：即使不同画风，系统也能根据关键特征识别角色
+- **更快收敛**：模型在标签信息指导下学习更快
+- **更高准确率**：标签辅助推理显著提高识别准确率
+
+#### 使用方法
+
+系统提供三种推理模式：
+
+1. **默认模式**：使用CLIP + Faiss进行分类
+2. **专用模型模式**：使用EfficientNet-B0进行分类
+3. **DeepDanbooru模式**：使用集成的CLIP + EfficientNet-B0 + DeepDanbooru进行分类
+
+要使用DeepDanbooru集成，只需在API请求中添加`use_deepdanbooru=true`参数。
 
 ## 📈 系统优化
 
@@ -335,4 +375,12 @@ python3 src/core/log_fusion/log_fusion.py --log_dir ./logs --output_model ./mode
 - **实现视频帧分析**：逐帧检测视频中的角色
 - **更新前端界面**：支持视频上传和播放
 - **增强API**：同时处理图片和视频文件的检测
+- **集成DeepDanbooru**：集成DeepDanbooru进行动漫标签识别，提高分类准确率
+- **实现标签辅助推理**：使用DeepDanbooru标签调整分类分数，解决"大众脸"问题
+- **添加DeepDanbooruInference类**：实现与Hugging Face API的交互
+- **修改EfficientNetInference**：支持标签辅助预测
+- **更新API**：添加use_deepdanbooru参数
+- **添加多模型集成**：CLIP + EfficientNet-B0 + DeepDanbooru
+- **提高识别准确率**：针对相似外观的角色
+- **更新文档**：添加DeepDanbooru集成详情
 
