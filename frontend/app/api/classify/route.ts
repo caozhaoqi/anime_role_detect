@@ -40,6 +40,7 @@ export async function POST(request: NextRequest) {
     flaskFormData.append('file', file);
     flaskFormData.append('use_model', formData.get('use_model') as string || 'false');
     flaskFormData.append('frame_skip', formData.get('frame_skip') as string || '5');
+    flaskFormData.append('model', formData.get('model') as string || ''); // 添加模型参数
     
     // 转发请求到Flask后端
     const flaskResponse = await fetch('http://127.0.0.1:5001/api/classify', {

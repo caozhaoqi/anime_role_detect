@@ -63,6 +63,9 @@ export default function Home() {
   const [processingStatus, setProcessingStatus] = useState<string | null>(null);
   const [workflowStep, setWorkflowStep] = useState<WorkflowStep>('upload');
   const [videoFrameProgress, setVideoFrameProgress] = useState<{current: number, total: number}>({current: 0, total: 0});
+  const [models, setModels] = useState<any[]>([]);
+  const [selectedModel, setSelectedModel] = useState<string>('');
+  const [loadingModels, setLoadingModels] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -196,7 +199,28 @@ export default function Home() {
   // 加载历史记录
   useEffect(() => {
     loadHistory();
+    fetchModels();
   }, []);
+
+  // 获取模型列表
+  const fetchModels = async () => {
+    setLoadingModels(true);
+    try {
+      const response = await fetch('/api/models');
+      if (response.ok) {
+        const data = await response.json();
+        setModels(data.models || []);
+        // 默认选择第一个模型
+        if (data.models && data.models.length > 0) {
+          setSelectedModel(data.models[0].name);
+        }
+      }
+    } catch (error) {
+      console.error('获取模型列表失败:', error);
+    } finally {
+      setLoadingModels(false);
+    }
+  };
 
   // 清空历史记录
   const clearHistory = () => {
@@ -376,6 +400,7 @@ export default function Home() {
     const formData = new FormData();
     formData.append('file', selectedFile);
     formData.append('use_model', 'true');
+    formData.append('model', selectedModel); // 添加模型参数
     if (previewVideo) {
       formData.append('frame_skip', '5'); // 视频帧跳过间隔
     }
@@ -857,43 +882,74 @@ export default function Home() {
                         </>
                       )}
                     </h3>
-                    <div className="flex justify-center mb-6">
-                      {previewImage && (
-                        <motion.div
-                          className="relative"
-                          initial={{ scale: 0.9, opacity: 0 }}
-                          animate={{ scale: 1, opacity: 1 }}
-                          transition={{ duration: 0.5, delay: 0.2 }}
-                        >
-                          <img
-                            src={previewImage}
-                            alt="预览"
-                            className="max-h-80 rounded-lg border border-border"
-                          />
-                          <div className="absolute top-3 right-3 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full text-sm font-medium text-text-secondary shadow-sm">
-                            图片
-                          </div>
-                        </motion.div>
-                      )}
-                      {previewVideo && (
-                        <motion.div
-                          className="relative max-h-80 rounded-lg border border-border overflow-hidden"
-                          initial={{ scale: 0.9, opacity: 0 }}
-                          animate={{ scale: 1, opacity: 1 }}
-                          transition={{ duration: 0.5, delay: 0.2 }}
-                        >
-                          <video
-                            src={previewVideo}
-                            controls
-                            className="w-full h-full"
+                    <div className="flex flex-col items-center space-y-6">
+                      {/* 模型选择 */}
+                      <div className="w-full max-w-md">
+                        <label className="block text-sm font-medium text-text-primary mb-2">
+                          选择模型
+                        </label>
+                        <div className="relative">
+                          {loadingModels ? (
+                            <div className="flex items-center justify-center p-3 border border-border rounded-lg bg-gray-50">
+                              <Loader2 className="h-4 w-4 animate-spin text-primary mr-2" />
+                              <span className="text-sm text-text-secondary">加载模型列表...</span>
+                            </div>
+                          ) : (
+                            <select
+                              value={selectedModel}
+                              onChange={(e) => setSelectedModel(e.target.value)}
+                              className="w-full px-4 py-2 border border-border rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-all"
+                            >
+                              <option value="">-- 选择模型 --</option>
+                              {models.map((model) => (
+                                <option key={model.name} value={model.name}>
+                                  {model.name}
+                                </option>
+                              ))}
+                            </select>
+                          )}
+                        </div>
+                      </div>
+                      
+                      {/* 文件预览 */}
+                      <div>
+                        {previewImage && (
+                          <motion.div
+                            className="relative"
+                            initial={{ scale: 0.9, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            transition={{ duration: 0.5, delay: 0.2 }}
                           >
-                            您的浏览器不支持视频播放。
-                          </video>
-                          <div className="absolute top-3 right-3 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full text-sm font-medium text-text-secondary shadow-sm">
-                            视频
-                          </div>
-                        </motion.div>
-                      )}
+                            <img
+                              src={previewImage}
+                              alt="预览"
+                              className="max-h-80 rounded-lg border border-border"
+                            />
+                            <div className="absolute top-3 right-3 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full text-sm font-medium text-text-secondary shadow-sm">
+                              图片
+                            </div>
+                          </motion.div>
+                        )}
+                        {previewVideo && (
+                          <motion.div
+                            className="relative max-h-80 rounded-lg border border-border overflow-hidden"
+                            initial={{ scale: 0.9, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            transition={{ duration: 0.5, delay: 0.2 }}
+                          >
+                            <video
+                              src={previewVideo}
+                              controls
+                              className="w-full h-full"
+                            >
+                              您的浏览器不支持视频播放。
+                            </video>
+                            <div className="absolute top-3 right-3 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full text-sm font-medium text-text-secondary shadow-sm">
+                              视频
+                            </div>
+                          </motion.div>
+                        )}
+                      </div>
                     </div>
                     {/* 上传进度和处理状态 */}
                     {isLoading && (

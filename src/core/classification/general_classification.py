@@ -32,19 +32,20 @@ class GeneralClassification:
     # 全局缓存
     _instance_cache = None
     
-    def __new__(cls, threshold=0.7, index_path=None):
+    def __new__(cls, threshold=0.7, index_path=None, model=None):
         """单例模式，避免重复初始化"""
         if cls._instance_cache is None:
             cls._instance_cache = super(GeneralClassification, cls).__new__(cls)
         return cls._instance_cache
     
-    def __init__(self, threshold=0.7, index_path=None):
+    def __init__(self, threshold=0.7, index_path=None, model=None):
         """初始化通用分类器"""
         if hasattr(self, 'is_initialized') and self.is_initialized:
             return
         
         self.threshold = threshold
         self.index_path = index_path
+        self.model = model  # 新增：模型参数
         self.extractor = None
         self.classifier = None
         self.preprocessor = None
@@ -132,7 +133,14 @@ class GeneralClassification:
             try:
                 print("初始化EfficientNet推理模型...")
                 from src.core.classification.efficientnet_inference import EfficientNetInference
-                self.model_inference = EfficientNetInference()
+                # 如果指定了模型，则构建模型路径
+                model_path = None
+                if self.model:
+                    # 构建模型路径
+                    base_model_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..', 'models'))
+                    model_path = os.path.join(base_model_dir, self.model, 'model_best.pth')
+                    print(f"使用指定模型: {model_path}")
+                self.model_inference = EfficientNetInference(model_path=model_path)
                 print("EfficientNet推理模型初始化成功")
             except Exception as e:
                 print(f"EfficientNet模型初始化失败 (非致命): {e}")
@@ -462,13 +470,17 @@ class GeneralClassification:
 # 全局分类器实例
 _global_classifier = None
 
-def get_classifier(index_path="role_index"):
+def get_classifier(index_path="role_index", model=None):
     """获取全局分类器实例"""
     global _global_classifier
+    # 构造索引文件的绝对路径
+    abs_index_path = os.path.join(PROJECT_ROOT, index_path)
     if _global_classifier is None:
-        # 构造索引文件的绝对路径
-        abs_index_path = os.path.join(PROJECT_ROOT, index_path)
-        _global_classifier = GeneralClassification(index_path=abs_index_path)
+        _global_classifier = GeneralClassification(index_path=abs_index_path, model=model)
+    else:
+        # 如果已存在实例但指定了不同的模型，则重新初始化
+        if model and getattr(_global_classifier, 'model', None) != model:
+            _global_classifier = GeneralClassification(index_path=abs_index_path, model=model)
     return _global_classifier
 
 def classify_image(image_path, use_model=False):

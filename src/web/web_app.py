@@ -74,7 +74,7 @@ def allowed_media_file(filename):
     return allowed_file(filename) or allowed_video_file(filename)
 
 
-def process_video(video_path, frame_skip=5):
+def process_video(video_path, frame_skip=5, model=''):
     """处理视频文件，提取帧并进行分类
     
     Args:
@@ -122,7 +122,7 @@ def process_video(video_path, frame_skip=5):
             
             try:
                 # 对帧进行分类
-                classifier = get_classifier()
+                classifier = get_classifier(model=model)
                 role, similarity, boxes = classifier.classify_image(temp_frame_path)
                 
                 # 计算时间戳
@@ -421,11 +421,13 @@ def api_classify():
     use_model = request.form.get('use_model') == 'true'
     use_coreml = request.form.get('use_coreml') == 'true'
     frame_skip = int(request.form.get('frame_skip', '5'))
+    model = request.form.get('model', '')
     
     logger.debug("📋 参数:", {
         'use_model': use_model,
         'use_coreml': use_coreml,
-        'frame_skip': frame_skip
+        'frame_skip': frame_skip,
+        'model': model
     })
 
     # 检查Core ML模型是否可用
@@ -477,7 +479,7 @@ def api_classify():
             else:
                 # 使用默认模型
                 logger.debug("🤖 使用默认模型")
-                classifier = get_classifier()
+                classifier = get_classifier(model=model)
                 role, similarity, boxes = classifier.classify_image(temp_path, use_model=use_model)
                 mode = 'EfficientNet' if use_model else 'CLIP'
                 # 记录分类日志
@@ -504,7 +506,7 @@ def api_classify():
             # 处理视频文件
             logger.debug("🎬 开始处理视频文件")
             logger.debug("🎬 调用process_video函数，frame_skip:", frame_skip)
-            video_results, overall_role, overall_similarity = process_video(temp_path, frame_skip)
+            video_results, overall_role, overall_similarity = process_video(temp_path, frame_skip, model)
             mode = 'Video Processing'
             
             logger.debug("🎬 视频处理完成，处理了", len(video_results), "帧")
@@ -535,10 +537,11 @@ def api_classify():
         logger.debug("📡 返回结果:", result)
         return json.dumps(result), 200, {'Content-Type': 'application/json'}
     except Exception as e:
-        logger.debug("❌ 处理文件时出错:", str(e))
+        logger.debug(f"❌ 处理文件时出错: {str(e)}")
         import traceback
-        logger.debug("📋 错误堆栈:", traceback.format_exc())
-        return json.dumps({'error': str(e)}), 500
+        error_stack = traceback.format_exc()
+        logger.debug(f"📋 错误堆栈: {error_stack}")
+        return json.dumps({'error': str(e), 'stack': error_stack}), 500
 
     finally:
         # 清理临时文件
