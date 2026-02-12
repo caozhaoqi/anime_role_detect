@@ -203,7 +203,7 @@ def train_model(args):
         batch_size=args.batch_size, 
         shuffle=True, 
         num_workers=args.num_workers,
-        pin_memory=True
+        pin_memory=False
     )
     
     val_loader = DataLoader(
@@ -211,7 +211,7 @@ def train_model(args):
         batch_size=args.batch_size, 
         shuffle=False, 
         num_workers=args.num_workers,
-        pin_memory=True
+        pin_memory=False
     )
     
     # 初始化模型
@@ -226,18 +226,17 @@ def train_model(args):
     )
     
     # 学习率调度器
-    scheduler = optim.lr_scheduler.ReduceLROnPlateau(
+    scheduler = optim.lr_scheduler.CosineAnnealingLR(
         optimizer,
-        mode='max',
-        factor=0.5,
-        patience=3
+        T_max=args.num_epochs,
+        eta_min=1e-6
     )
     
     # 训练循环
     best_val_acc = 0.0
-    patience = 5  # 早停耐心值
+    patience = 10  # 早停耐心值
     no_improve_epochs = 0
-    unfreeze_epoch = 10  # 第10轮开始解冻骨干网络
+    unfreeze_epoch = 20  # 第20轮开始解冻骨干网络
     
     for epoch in range(args.num_epochs):
         logger.info(f"开始第 {epoch+1}/{args.num_epochs} 轮训练")
@@ -259,7 +258,7 @@ def train_model(args):
                 inputs, labels = inputs.to(device), labels.to(device)
                 
                 # 应用Mixup数据增强
-                inputs, labels_a, labels_b, lam = mixup_data(inputs, labels, alpha=0.2)
+                inputs, labels_a, labels_b, lam = mixup_data(inputs, labels, alpha=0.1)
                 
                 optimizer.zero_grad()
                 outputs = model(inputs)
@@ -297,7 +296,7 @@ def train_model(args):
         logger.info(f'Val Loss: {val_epoch_loss:.4f}, Val Acc: {val_acc:.4f}')
         
         # 更新学习率
-        scheduler.step(val_acc)
+        scheduler.step()
         
         # 保存最佳模型
         if val_acc > best_val_acc:
@@ -344,9 +343,9 @@ def main():
     
     # 训练参数
     parser.add_argument('--batch_size', type=int, default=16, help='批量大小')
-    parser.add_argument('--num_epochs', type=int, default=20, help='训练轮数')
+    parser.add_argument('--num_epochs', type=int, default=50, help='训练轮数')
     parser.add_argument('--learning_rate', type=float, default=1e-4, help='学习率')
-    parser.add_argument('--weight_decay', type=float, default=1e-4, help='权重衰减')
+    parser.add_argument('--weight_decay', type=float, default=5e-5, help='权重衰减')
     parser.add_argument('--num_workers', type=int, default=2, help='数据加载线程数')
     
     args = parser.parse_args()
