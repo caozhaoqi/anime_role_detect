@@ -80,23 +80,28 @@ class CharacterClassifier(nn.Module):
             num_classes: 类别数量
         """
         super().__init__()
-        # 使用EfficientNet-B0作为基础模型，适合M4芯片
-        self.backbone = models.efficientnet_b0(pretrained=True)
+        # 使用EfficientNet-B3作为基础模型，适合动漫角色识别任务
+        # 输入分辨率300x300，能够更好地保留动漫角色的细节特征
+        self.backbone = models.efficientnet_b3(pretrained=True)
         
         # 初始阶段：冻结所有骨干网络参数，只训练分类头
         for param in self.backbone.features.parameters():
             param.requires_grad = False
         
-        # 替换分类头，添加dropout和批量归一化层增强正则化
+        # 替换分类头，添加更多层以增强表达能力
         self.backbone.classifier = nn.Sequential(
-            nn.Dropout(p=0.3, inplace=False),
+            nn.Dropout(p=0.4, inplace=False),
             nn.Linear(
                 self.backbone.classifier[1].in_features, 
-                512
+                1024
             ),
+            nn.BatchNorm1d(1024),
+            nn.ReLU(),
+            nn.Dropout(p=0.4, inplace=False),
+            nn.Linear(1024, 512),
             nn.BatchNorm1d(512),
             nn.ReLU(),
-            nn.Dropout(p=0.3, inplace=False),
+            nn.Dropout(p=0.4, inplace=False),
             nn.Linear(512, num_classes)
         )
     
@@ -165,18 +170,31 @@ def train_model(args):
     device = torch.device('mps' if torch.backends.mps.is_available() else 'cpu')
     logger.info(f"使用设备: {device}")
     
-    # 数据增强与预处理
+    # 数据增强与预处理 - 增强版
     train_transform = transforms.Compose([
-        transforms.Resize((256, 256)),
-        transforms.RandomCrop((224, 224)),
-        transforms.RandomHorizontalFlip(p=0.5),
+        transforms.Resize((330, 330)),
+        transforms.RandomCrop((300, 300)),
+        transforms.RandomHorizontalFlip(p=0.6),
         transforms.RandomVerticalFlip(p=0.2),
-        transforms.RandomRotation(20),
-        transforms.RandomAffine(degrees=0, translate=(0.1, 0.1), scale=(0.85, 1.15)),
-        transforms.RandomPerspective(distortion_scale=0.2, p=0.3),
-        transforms.GaussianBlur(kernel_size=(5, 9), sigma=(0.1, 5)),
-        transforms.ColorJitter(brightness=0.4, contrast=0.4, saturation=0.4, hue=0.15),
-        transforms.RandomGrayscale(p=0.3),
+        transforms.RandomRotation(30),
+        transforms.RandomAffine(
+            degrees=15, 
+            translate=(0.15, 0.15), 
+            scale=(0.8, 1.2),
+            shear=10
+        ),
+        transforms.RandomPerspective(distortion_scale=0.25, p=0.4),
+        transforms.GaussianBlur(kernel_size=(7, 11), sigma=(0.1, 6)),
+        transforms.ColorJitter(
+            brightness=0.5, 
+            contrast=0.5, 
+            saturation=0.5, 
+            hue=0.2
+        ),
+        transforms.RandomGrayscale(p=0.4),
+        transforms.RandomSolarize(threshold=192.0, p=0.2),
+        transforms.RandomAdjustSharpness(sharpness_factor=2, p=0.3),
+        transforms.RandomAutocontrast(p=0.3),
         transforms.ToTensor(),
         transforms.Normalize(
             mean=[0.485, 0.456, 0.406], 
@@ -185,8 +203,8 @@ def train_model(args):
     ])
     
     val_transform = transforms.Compose([
-        transforms.Resize((256, 256)),
-        transforms.CenterCrop((224, 224)),
+        transforms.Resize((330, 330)),
+        transforms.CenterCrop((300, 300)),
         transforms.ToTensor(),
         transforms.Normalize(
             mean=[0.485, 0.456, 0.406], 
@@ -225,18 +243,18 @@ def train_model(args):
         weight_decay=args.weight_decay
     )
     
-    # 学习率调度器
-    scheduler = optim.lr_scheduler.CosineAnnealingLR(
+    # 学习率调度器 - 使用StepLR，在特定轮次降低学习率
+    scheduler = optim.lr_scheduler.StepLR(
         optimizer,
-        T_max=args.num_epochs,
-        eta_min=1e-6
+        step_size=15,
+        gamma=0.1
     )
     
     # 训练循环
     best_val_acc = 0.0
-    patience = 10  # 早停耐心值
+    patience = 15  # 增加早停耐心值
     no_improve_epochs = 0
-    unfreeze_epoch = 20  # 第20轮开始解冻骨干网络
+    unfreeze_epoch = 15  # 提前到第15轮开始解冻骨干网络
     
     for epoch in range(args.num_epochs):
         logger.info(f"开始第 {epoch+1}/{args.num_epochs} 轮训练")
@@ -342,11 +360,11 @@ def main():
     parser.add_argument('--output_dir', type=str, default='models', help='模型输出目录')
     
     # 训练参数
-    parser.add_argument('--batch_size', type=int, default=16, help='批量大小')
-    parser.add_argument('--num_epochs', type=int, default=50, help='训练轮数')
-    parser.add_argument('--learning_rate', type=float, default=1e-4, help='学习率')
-    parser.add_argument('--weight_decay', type=float, default=5e-5, help='权重衰减')
-    parser.add_argument('--num_workers', type=int, default=2, help='数据加载线程数')
+    parser.add_argument('--batch_size', type=int, default=8, help='批量大小 - 减小以适应更大的模型')
+    parser.add_argument('--num_epochs', type=int, default=80, help='训练轮数 - 增加以充分训练更复杂的模型')
+    parser.add_argument('--learning_rate', type=float, default=5e-4, help='学习率 - 适当增加初始学习率')
+    parser.add_argument('--weight_decay', type=float, default=1e-4, help='权重衰减 - 增加以减少过拟合')
+    parser.add_argument('--num_workers', type=int, default=4, help='数据加载线程数 - 增加以提高数据加载速度')
     
     args = parser.parse_args()
     

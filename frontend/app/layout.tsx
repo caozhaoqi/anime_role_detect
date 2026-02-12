@@ -5,18 +5,20 @@ import './globals.css';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: '角色分类系统',
-  description: '使用AI技术识别游戏角色',
+  title: '动漫角色识别',
+  description: '基于深度学习的动漫角色识别系统',
 };
 
 export default function RootLayout({
   children,
-}: Readonly<{
+}: {
   children: React.ReactNode;
-}>) {
+}) {
   return (
-    <html lang="zh-CN">
-      <body className={inter.className} suppressHydrationWarning>{children}</body>
+    <html lang="zh-CN" suppressHydrationWarning>
+      <body className={inter.className} suppressHydrationWarning>
+        {children}
+      </body>
     </html>
   );
 }
