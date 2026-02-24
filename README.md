@@ -196,12 +196,12 @@ API response example:
 
 ### Model Training Performance
 
-- **Training Speed**: ~2.05 batch/s on MPS
-- **Per Epoch Time**: ~1 hour 8 minutes
-- **Total Training Time**: ~54 hours for 50 epochs
+- **Training Speed**: ~9.0 batch/s on MPS (Apple Silicon)
+- **Per Epoch Time**: ~35-40 minutes
+- **Total Training Time**: ~30 hours for 50 epochs
 - **Initial Loss**: 4.79
-- **Current Loss**: 1.06 (after 1st epoch)
-- **Best Validation Accuracy**: 0.9386 (after 18th epoch)
+- **Current Loss**: ~3.25 (after 2nd epoch)
+- **Best Validation Accuracy**: 0.0562 (after 2nd epoch, training in progress)
 
 ## 🔧 Technical Implementation
 
@@ -443,5 +443,15 @@ If you have any questions or suggestions, please contact us through:
 - **Added multi-model integration** with CLIP + EfficientNet-B0 + DeepDanbooru
 - **Improved recognition accuracy** for characters with similar appearances
 - **Updated documentation** to include DeepDanbooru integration details
+- **Enhanced data collection scripts** with keyword-based collector for targeted data gathering
+- **Implemented comprehensive data augmentation** with style transfer and random augmentations
+- **Added automatic dataset splitting** with 80/10/10 train/val/test split
+- **Started model training** with current progress: 2/50 epochs, accuracy improving from 4.31% to 5.62%
+- **Optimized training pipeline** with MPS acceleration reaching ~9.0 batch/s
+- **Updated frontend API integration** to use actual backend API instead of mock data
+- **Fixed inference logging issues** by integrating global logging into classification services
+- **Improved FAISS index management** with automatic rebuilding and loading
+- **Enhanced backend API** to handle both image and video files for detection
+- **Updated data statistics** with 380 total characters, 352 valid characters, and 8644 total images
 
 

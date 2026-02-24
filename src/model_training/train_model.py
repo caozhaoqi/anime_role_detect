@@ -61,7 +61,13 @@ class CharacterDataset(Dataset):
     def __getitem__(self, idx):
         """获取单个样本"""
         img_path = self.images[idx]
-        image = Image.open(img_path).convert('RGB')
+        try:
+            image = Image.open(img_path).convert('RGB')
+        except Exception as e:
+            logger.warning(f"无法加载图片 {img_path}: {e}")
+            # 返回一个默认的空白图片
+            image = Image.new('RGB', (224, 224), color='white')
+        
         label = self.labels[idx]
         
         if self.transform:
