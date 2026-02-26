@@ -8,15 +8,21 @@
 
 import os
 import argparse
-import requests
 import logging
 import time
 import random
 from tqdm import tqdm
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import as_completed
+from src.utils.concurrency_manager import ConcurrencyManager
 from PIL import Image
 from io import BytesIO
 from pathlib import Path
+
+# 导入工具类
+from src.utils.http_utils import HTTPUtils
+from src.utils.image_utils import ImageUtils
+from src.utils.config_manager import config_manager
+from src.utils.data_source_manager import DataSourceManager
 
 # 配置日志
 logging.basicConfig(
@@ -44,14 +50,25 @@ class KeywordBasedDataCollector:
         # 创建输出目录
         os.makedirs(self.output_dir, exist_ok=True)
         
-        # 请求头
-        self.headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-            'Accept-Language': 'en-US,en;q=0.5',
-            'Accept-Encoding': 'gzip, deflate',
-            'Connection': 'keep-alive'
-        }
+        # 创建HTTP工具实例
+        self.http_utils = HTTPUtils(
+            max_retries=config_manager.get('network.max_retries'),
+            backoff_factor=config_manager.get('network.backoff_factor'),
+            timeout=config_manager.get('network.timeout')
+        )
+        
+        # 创建图片工具实例
+        self.image_utils = ImageUtils()
+        
+        # 创建并发管理器实例
+        self.concurrency_manager = ConcurrencyManager(
+            min_workers=config_manager.get('concurrency.min_workers'),
+            max_workers=config_manager.get('concurrency.max_workers_limit'),
+            check_interval=5
+        )
+        
+        # 创建数据源管理器实例
+        self.data_source_manager = DataSourceManager()
         
         # 关键词文件映射
         self.keyword_files = {
@@ -106,133 +123,74 @@ class KeywordBasedDataCollector:
         
         return all_keywords
     
-    def _fetch_from_safebooru(self, query, limit=50):
-        """
-        从Safebooru获取图像
-        
-        Args:
-            query: 搜索查询
-            limit: 获取数量
-            
-        Returns:
-            图像URL列表
-        """
-        base_url = 'https://safebooru.org/index.php'
-        images = []
-        
-        try:
-            params = {
-                'page': 'dapi',
-                's': 'post',
-                'q': 'index',
-                'tags': query,
-                'limit': limit,
-                'json': '1'
-            }
-            
-            time.sleep(random.uniform(1.0, 2.0))
-            
-            response = requests.get(base_url, params=params, headers=self.headers, timeout=20)
-            response.raise_for_status()
-            
-            if not response.text:
-                return images
-            
-            data = response.json()
-            
-            if isinstance(data, dict) and 'posts' in data:
-                data = data['posts']
-            
-            for post in data:
-                if post.get('file_url'):
-                    images.append({
-                        'url': post['file_url'],
-                        'width': post.get('width', 0),
-                        'height': post.get('height', 0)
-                    })
-            
-            logger.info(f"从Safebooru获取了 {len(images)} 张图像，查询: {query}")
-        except Exception as e:
-            logger.error(f"从Safebooru获取图像失败，查询: {query}, 错误: {e}")
-        
-        return images
+
     
-    def _fetch_from_waifu_pics(self, limit=50):
-        """
-        从Waifu.pics获取随机图像
-        
-        Args:
-            limit: 获取数量
-            
-        Returns:
-            图像URL列表
-        """
-        base_url = 'https://api.waifu.pics/sfw/waifu'
-        images = []
-        
-        try:
-            for _ in range(limit):
-                time.sleep(random.uniform(0.5, 1.0))
-                response = requests.get(base_url, headers=self.headers, timeout=10)
-                response.raise_for_status()
-                
-                data = response.json()
-                if data.get('url'):
-                    images.append({
-                        'url': data['url'],
-                        'width': 0,
-                        'height': 0
-                    })
-            
-            logger.info(f"从Waifu.pics获取了 {len(images)} 张图像")
-        except Exception as e:
-            logger.error(f"从Waifu.pics获取图像失败: {e}")
-        
-        return images
-    
-    def _download_image(self, url, save_path):
+    def _download_image(self, url, save_path, character_name=None):
         """
         下载图像
         
         Args:
             url: 图像URL
             save_path: 保存路径
+            character_name: 角色名称（用于内容相关性分析）
             
         Returns:
             是否下载成功
         """
         try:
             time.sleep(random.uniform(0.3, 0.8))
-            response = requests.get(url, headers=self.headers, timeout=15, stream=True)
-            response.raise_for_status()
             
-            content_type = response.headers.get('Content-Type', '')
-            if 'image' not in content_type:
+            # 下载图片内容
+            content = self.http_utils.download_file(url)
+            
+            # 验证图片
+            if not self.image_utils.validate_image(content):
                 return False
             
-            image = Image.open(BytesIO(response.content))
+            # 检查图片大小
+            min_size = config_manager.get('collection.min_image_size')
+            if not self.image_utils.check_image_size(content, min_size):
+                return False
             
-            if image.mode == 'RGBA':
-                background = Image.new('RGB', image.size, (255, 255, 255))
-                background.paste(image, mask=image.split()[3])
-                image = background
-            elif image.mode == 'P':
-                image = image.convert('RGB')
+            # 计算图片质量分数
+            quality_score = self.image_utils.calculate_image_quality(content)
+            min_quality = config_manager.get('collection.min_quality_score', 60)
+            if quality_score < min_quality:
+                logger.warning(f"图片质量过低: {quality_score:.2f}, 跳过保存")
+                return False
             
-            max_size = 1024
-            if max(image.width, image.height) > max_size:
-                ratio = max_size / max(image.width, image.height)
-                new_width = int(image.width * ratio)
-                new_height = int(image.height * ratio)
-                image = image.resize((new_width, new_height), Image.LANCZOS)
+            # 分析图片内容
+            content_analysis = self.image_utils.analyze_image_content(content)
+            logger.debug(f"图片分析结果: {content_analysis}")
             
-            image.save(save_path, 'JPEG', quality=95)
+            # 检查内容类型
+            if content_analysis['content_type'] in ['small_image', 'extreme_aspect_ratio']:
+                logger.warning(f"图片内容类型不符合要求: {content_analysis['content_type']}, 跳过保存")
+                return False
             
-            with Image.open(save_path) as img:
-                img.verify()
+            # 计算内容相关性（如果提供了角色名称）
+            if character_name:
+                relevance_score = self.image_utils.calculate_content_relevance(content, character_name)
+                min_relevance = config_manager.get('collection.min_relevance_score', 50)
+                if relevance_score < min_relevance:
+                    logger.warning(f"图片内容相关性过低: {relevance_score:.2f}, 跳过保存")
+                    return False
             
-            return True
+            # 创建保存目录
+            os.makedirs(os.path.dirname(save_path), exist_ok=True)
+            
+            # 保存图片
+            filename = os.path.basename(save_path)
+            output_dir = os.path.dirname(save_path)
+            
+            if self.image_utils.save_image(content, output_dir, filename, min_size):
+                # 记录图片质量信息
+                logger.info(f"图片保存成功: {save_path}, 质量分数: {quality_score:.2f}")
+                return True
+            else:
+                return False
         except Exception as e:
+            logger.error(f"下载图片失败: {url}, 错误: {e}")
             if os.path.exists(save_path):
                 os.remove(save_path)
             return False
@@ -272,19 +230,23 @@ class KeywordBasedDataCollector:
             f"{character_name} official"
         ]
         
-        # 从Safebooru获取图像
+        # 从多个数据源获取图像
         all_images = []
         for query in search_queries:
             if len(all_images) >= needed_count:
                 break
             
-            source_images = self._fetch_from_safebooru(query, limit=needed_count - len(all_images))
+            # 使用数据源管理器获取图像
+            source_images = self.data_source_manager.fetch_images(
+                query=query,
+                limit=needed_count - len(all_images),
+                max_sources=3  # 最多尝试3个数据源
+            )
             all_images.extend(source_images)
         
-        # 如果还不够，尝试其他数据源
-        if len(all_images) < needed_count:
-            additional_images = self._fetch_from_waifu_pics(limit=needed_count - len(all_images))
-            all_images.extend(additional_images)
+        # 记录数据源性能
+        source_stats = self.data_source_manager.get_data_source_stats()
+        logger.info(f"数据源性能统计: {source_stats}")
         
         # 去重
         seen_urls = set()
@@ -297,18 +259,17 @@ class KeywordBasedDataCollector:
         
         # 下载图像
         downloaded_count = 0
-        with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
-            future_to_url = {}
-            
-            for i, img in enumerate(all_images[:needed_count]):
-                save_path = os.path.join(character_dir, f"{series}_{character_name}_{existing_count + i:04d}.jpg")
-                future = executor.submit(self._download_image, img['url'], save_path)
-                future_to_url[future] = img['url']
-            
-            for future in tqdm(as_completed(future_to_url), total=len(future_to_url), 
-                              desc=f"下载 {series}_{character_name} 图像"):
-                if future.result():
-                    downloaded_count += 1
+        future_to_url = {}
+        
+        for i, img in enumerate(all_images[:needed_count]):
+            save_path = os.path.join(character_dir, f"{series}_{character_name}_{existing_count + i:04d}.jpg")
+            future = self.concurrency_manager.submit(self._download_image, img['url'], save_path, character_name)
+            future_to_url[future] = img['url']
+        
+        for future in tqdm(as_completed(future_to_url), total=len(future_to_url), 
+                          desc=f"下载 {series}_{character_name} 图像"):
+            if future.result():
+                downloaded_count += 1
         
         final_count = existing_count + downloaded_count
         logger.info(f"{series}_{character_name} 数据收集完成，当前共有 {final_count} 张图像")

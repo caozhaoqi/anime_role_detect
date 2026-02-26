@@ -10,6 +10,7 @@ from src.core.preprocessing.preprocessing import Preprocessing
 from src.core.feature_extraction.feature_extraction import FeatureExtraction
 from src.core.classification.classification import Classification
 
+
 class ClassificationScript:
     def __init__(self, input_dir, output_dir, index_path, threshold=0.7):
         """初始化分类脚本"""
@@ -39,7 +40,7 @@ class ClassificationScript:
         image_extensions = ['.jpg', '.jpeg', '.png', '.bmp', '.gif']
         image_files = []
         
-        for root, dirs, files in os.walk(self.input_dir):
+        for root, _, files in os.walk(self.input_dir):
             for file in files:
                 if any(file.lower().endswith(ext) for ext in image_extensions):
                     image_files.append(os.path.join(root, file))
@@ -50,7 +51,7 @@ class ClassificationScript:
         """处理单个图片"""
         try:
             # 预处理图像
-            normalized_img, boxes = self.preprocessor.process(image_path)
+            normalized_img, _ = self.preprocessor.process(image_path)
             
             # 提取特征
             feature = self.extractor.extract_features(normalized_img)
@@ -159,6 +160,7 @@ class ClassificationScript:
         
         return success
 
+
 if __name__ == "__main__":
     # 解析命令行参数
     parser = argparse.ArgumentParser(description="二次元角色识别与分类脚本")
@@ -173,13 +175,13 @@ if __name__ == "__main__":
     if not os.path.exists(args.input):
         print(f"输入目录不存在: {args.input}")
         print("请创建输入目录并放入需要分类的图片")
-        exit(1)
+        sys.exit(1)
     
     # 验证索引文件
     if not os.path.exists(f"{args.index}.faiss") or not os.path.exists(f"{args.index}_mapping.json"):
         print(f"索引文件不存在: {args.index}.faiss 或 {args.index}_mapping.json")
         print("请先运行 data_preparation.py 构建索引")
-        exit(1)
+        sys.exit(1)
     
     # 创建分类脚本实例并运行
     script = ClassificationScript(args.input, args.output, args.index, args.threshold)
