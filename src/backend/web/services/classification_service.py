@@ -1,13 +1,18 @@
 import numpy as np
 from PIL import Image
-from src.core.classification.general_classification import get_classifier
-from src.web.config.config import DEFAULT_INDEX_PATH
-from src.web.models.coreml_model import coreml_model, classify_with_coreml
-from src.core.log_fusion.log_recorder import record_classification_log
 import os
+import sys
+
+# 添加项目根目录到Python路径
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..')))
+
+from core.classification.general_classification import get_classifier
+from backend.web.config.config import DEFAULT_INDEX_PATH
+from backend.web.models.coreml_model import coreml_model, classify_with_coreml
+from core.log_fusion.log_recorder import record_classification_log
 
 # 使用全局日志系统
-from src.core.logging.global_logger import get_logger, log_system, log_inference, log_error
+from core.logging.global_logger import get_logger, log_system, log_inference, log_error
 logger = get_logger("classification_service")
 
 

@@ -29,7 +29,7 @@ class TestDataIntegration(unittest.TestCase):
         os.makedirs(self.collection_dir)
         
         # 初始化收集器
-        self.collector = ImageCollector()
+        self.collector = ImageCollector(output_dir=self.collection_dir)
     
     def tearDown(self):
         """清理测试环境"""
@@ -48,18 +48,20 @@ class TestDataIntegration(unittest.TestCase):
                 f.write('test')
         
         # 测试数据预处理
-        split_dataset(self.collection_dir, self.preprocessing_dir, val_size=0.2)
+        train_dir = os.path.join(self.preprocessing_dir, 'train')
+        val_dir = os.path.join(self.preprocessing_dir, 'val')
+        split_dataset(self.collection_dir, train_dir, val_dir, val_ratio=0.2)
         
         # 检查输出目录结构
-        train_dir = os.path.join(self.preprocessing_dir, 'train', 'test_class')
-        val_dir = os.path.join(self.preprocessing_dir, 'val', 'test_class')
+        train_class_dir = os.path.join(train_dir, 'test_class')
+        val_class_dir = os.path.join(val_dir, 'test_class')
         
-        self.assertTrue(os.path.exists(train_dir))
-        self.assertTrue(os.path.exists(val_dir))
+        self.assertTrue(os.path.exists(train_class_dir))
+        self.assertTrue(os.path.exists(val_class_dir))
         
         # 检查文件数量
-        train_files = os.listdir(train_dir)
-        val_files = os.listdir(val_dir)
+        train_files = os.listdir(train_class_dir)
+        val_files = os.listdir(val_class_dir)
         
         self.assertEqual(len(train_files), 4)  # 80% of 5
         self.assertEqual(len(val_files), 1)    # 20% of 5

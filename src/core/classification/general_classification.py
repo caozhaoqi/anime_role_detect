@@ -67,9 +67,9 @@ class GeneralClassification:
             import time
             
             # 延迟导入，避免启动时加载所有模块
-            from src.core.preprocessing.preprocessing import Preprocessing
-            from src.core.feature_extraction.feature_extraction import FeatureExtraction
-            from src.core.classification.classification import Classification
+            from core.preprocessing.preprocessing import Preprocessing
+            from core.feature_extraction.feature_extraction import FeatureExtraction
+            from core.classification.classification import Classification
             
             # 初始化状态跟踪
             init_results = {}
@@ -136,7 +136,7 @@ class GeneralClassification:
             # 5. 尝试初始化EfficientNet推理器（单独处理，非致命）
             try:
                 logger.info("初始化EfficientNet推理模型...")
-                from src.core.classification.efficientnet_inference import EfficientNetInference
+                from core.classification.efficientnet_inference import EfficientNetInference
                 # 如果指定了模型，则构建模型路径
                 model_path = None
                 if self.model:
@@ -153,7 +153,7 @@ class GeneralClassification:
             # 6. 尝试初始化DeepDanbooru推理器（单独处理，非致命）
             try:
                 logger.info("初始化DeepDanbooru推理模型...")
-                from src.core.classification.deepdanbooru_inference import DeepDanbooruInference
+                from core.classification.deepdanbooru_inference import DeepDanbooruInference
                 self.deepdanbooru_inference = DeepDanbooruInference()
                 logger.info("DeepDanbooru推理模型初始化成功")
             except Exception as e:

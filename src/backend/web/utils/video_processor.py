@@ -1,8 +1,13 @@
 import cv2
 import tempfile
 import os
+import sys
 from loguru import logger
-from src.web.config.config import MAX_PROCESSED_FRAMES
+
+# 添加项目根目录到Python路径
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..')))
+
+from backend.web.config.config import MAX_PROCESSED_FRAMES
 
 
 def process_video(video_path, frame_skip=5):
@@ -49,7 +54,7 @@ def process_video(video_path, frame_skip=5):
             
             try:
                 # 对帧进行分类
-                from src.core.classification.general_classification import get_classifier
+                from core.classification.general_classification import get_classifier
                 
                 classifier = get_classifier()
                 role, similarity, boxes = classifier.classify_image(temp_frame_path)

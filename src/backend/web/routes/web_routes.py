@@ -1,12 +1,17 @@
 from flask import render_template, redirect, url_for, flash, request
 import os
-from src.web.config.config import IS_DARWIN
-from src.web.utils.file_utils import allowed_file
-from src.web.services.classification_service import classify_image, get_image_info
-from src.web.models.coreml_model import coreml_model
+import sys
+
+# 添加项目根目录到Python路径
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..')))
+
+from backend.web.config.config import IS_DARWIN
+from backend.web.utils.file_utils import allowed_file
+from backend.web.services.classification_service import classify_image, get_image_info
+from backend.web.models.coreml_model import coreml_model
 
 # 使用全局日志系统
-from src.core.logging.global_logger import get_logger, log_system, log_inference, log_error
+from core.logging.global_logger import get_logger, log_system, log_inference, log_error
 logger = get_logger("web_routes")
 
 

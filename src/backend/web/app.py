@@ -13,14 +13,14 @@ from loguru import logger
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 
 # 导入配置
-from src.web.config.config import SECRET_KEY, UPLOAD_FOLDER, MAX_CONTENT_LENGTH
+from backend.web.config.config import SECRET_KEY, UPLOAD_FOLDER, MAX_CONTENT_LENGTH
 
 # 导入模块
-from src.web.models.coreml_model import load_coreml_model
-from src.web.routes.web_routes import setup_web_routes
-from src.web.routes.api_routes import setup_api_routes
-from src.web.routes.docs_routes import setup_docs_routes
-from src.web.services.classification_service import initialize_system
+from backend.web.models.coreml_model import load_coreml_model
+from backend.web.routes.web_routes import setup_web_routes
+from backend.web.routes.api_routes import setup_api_routes
+from backend.web.routes.docs_routes import setup_docs_routes
+from backend.web.services.classification_service import initialize_system
 
 # 初始化Flask应用
 app = Flask(__name__)

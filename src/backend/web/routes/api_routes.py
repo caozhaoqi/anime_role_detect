@@ -1,13 +1,18 @@
 import json
 import os
+import sys
 from flask import request
-from src.web.utils.file_utils import allowed_file, allowed_video_file
-from src.web.services.classification_service import classify_image
-from src.web.config.config import DEFAULT_FRAME_SKIP
-from src.web.models.coreml_model import coreml_model
+
+# 添加项目根目录到Python路径
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..')))
+
+from backend.web.utils.file_utils import allowed_file, allowed_video_file
+from backend.web.services.classification_service import classify_image
+from backend.web.config.config import DEFAULT_FRAME_SKIP
+from backend.web.models.coreml_model import coreml_model
 
 # 使用全局日志系统
-from src.core.logging.global_logger import get_logger, log_system, log_inference, log_error
+from core.logging.global_logger import get_logger, log_system, log_inference, log_error
 logger = get_logger("api_routes")
 
 

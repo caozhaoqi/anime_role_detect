@@ -1,9 +1,14 @@
 import json
 import numpy as np
 import os
+import sys
 from PIL import Image
 from loguru import logger
-from src.web.config.config import COREML_MODEL_PATH, IS_DARWIN
+
+# 添加项目根目录到Python路径
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..')))
+
+from backend.web.config.config import COREML_MODEL_PATH, IS_DARWIN
 
 # Core ML 模型实例
 coreml_model = None
