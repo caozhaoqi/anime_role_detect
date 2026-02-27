@@ -48,7 +48,7 @@ pip3 install torch torchvision transformers ultralytics faiss-cpu Pillow efficie
 
 ```bash
 # 启动Flask后端应用
-python3 src/web/web_app.py
+python3 src/backend/web/web_app.py
 ```
 
 后端服务将在 `http://127.0.0.1:5001` 上运行。
@@ -72,32 +72,35 @@ npm run dev
 
 ```
 anime_role_detect/
-├── data/                   # 数据目录
-│   ├── all_characters/            # 所有角色图片（包括BangDream MyGo!）
-│   ├── blue_archive_optimized/    # 优化后的蔚蓝档案数据
-│   ├── blue_archive_optimized_v2/ # 增强版蔚蓝档案数据
-│   ├── augmented_characters/      # 增强后的角色数据
-│   └── split_dataset/             # 分割后的训练/验证数据
-├── src/                    # 源代码
-│   ├── core/               # 核心模块
-│   │   ├── classification/         # 分类模块
-│   │   │   ├── deepdanbooru_inference.py  # DeepDanbooru推理模块
-│   │   │   └── efficientnet_inference.py  # EfficientNet推理模块
-│   │   ├── feature_extraction/     # 特征提取模块
-│   │   ├── preprocessing/          # 预处理模块
-│   │   ├── general_classification.py  # 通用分类模块
-│   │   └── log_fusion/              # 日志融合模块
-│   └── web/                # 网页应用
-│       ├── templates/      # HTML模板
-│       ├── static/         # 静态文件
-│       └── web_app.py      # Flask应用
-├── scripts/                # 辅助脚本
-│   ├── data_collection/    # 数据收集脚本
-│   ├── data_processing/    # 数据处理脚本
-│   ├── model_training/     # 模型训练脚本
-│   └── workflow/           # 端到端工作流脚本
-├── tests/                  # 测试代码
-├── README.md               # 英文文档
+├── data/                  # 数据集目录
+│   ├── augmented_dataset/ # 增强后的数据集
+│   ├── split_dataset/     # 分割后的训练/验证数据
+│   └── all_characters/    # 所有角色图片
+├── models/                # 模型存储目录
+├── src/                   # 源代码
+│   ├── backend/           # 后端代码
+│   │   ├── api/           # API实现
+│   │   └── web/           # Web界面
+│   ├── core/              # 核心功能
+│   │   ├── classification/ # 分类模块
+│   │   ├── feature_extraction/ # 特征提取模块
+│   │   ├── preprocessing/ # 预处理模块
+│   │   └── logging/       # 日志模块
+│   ├── data/              # 数据相关代码
+│   │   ├── collection/    # 数据收集脚本
+│   │   ├── preprocessing/ # 数据预处理脚本
+│   │   └── augmentation/  # 数据增强脚本
+│   ├── frontend/          # 前端代码
+│   ├── models/            # 模型相关代码
+│   │   ├── training/      # 模型训练脚本
+│   │   ├── evaluation/    # 模型评估脚本
+│   │   └── deployment/    # 模型部署脚本
+│   ├── config/            # 配置文件
+│   ├── scripts/           # 实用脚本
+│   └── utils/             # 工具函数
+├── cache/                 # 缓存目录
+├── auto_spider_img/       # 自动爬虫图片
+├── README.md              # 英文文档
 └── README.zh.md            # 中文文档
 ```
 

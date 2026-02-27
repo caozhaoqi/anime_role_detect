@@ -48,7 +48,7 @@ pip3 install torch torchvision transformers ultralytics faiss-cpu Pillow efficie
 
 ```bash
 # Start Flask backend application
-python3 src/web/web_app.py
+python3 src/backend/web/web_app.py
 ```
 
 The backend service will run at `http://127.0.0.1:5001`.
@@ -72,34 +72,36 @@ The frontend service will run at `http://localhost:3000`.
 
 ```
 anime_role_detect/
-├── data/                   # Data directory
-│   ├── all_characters/            # All character images (including BangDream MyGo!)
-│   ├── blue_archive_optimized/    # Optimized Blue Archive data
-│   ├── blue_archive_optimized_v2/ # Enhanced Blue Archive data
-│   ├── augmented_characters/      # Augmented character data
-│   └── split_dataset/             # Split training/validation data
-├── src/                    # Source code
-│   ├── core/               # Core modules
-│   │   ├── classification/         # Classification module
-│   │   │   ├── deepdanbooru_inference.py  # DeepDanbooru inference module
-│   │   │   └── efficientnet_inference.py  # EfficientNet inference module
-│   │   ├── feature_extraction/     # Feature extraction module
-│   │   ├── preprocessing/          # Preprocessing module
-│   │   ├── logging/                # Logging module
-│   │   ├── general_classification.py  # General classification module
-│   │   └── log_fusion/              # Log fusion module
-│   └── web/                # Web application
-│       ├── templates/      # HTML templates
-│       ├── static/         # Static files
-│       └── web_app.py      # Flask application
-├── scripts/                # Helper scripts
-│   ├── data_collection/    # Data collection scripts
-│   ├── data_processing/    # Data processing scripts
-│   ├── model_training/     # Model training scripts
-│   └── workflow/           # End-to-end workflow scripts
-├── tests/                  # Test code
-├── README.md               # English documentation
-└── README.zh.md            # Chinese documentation
+├── data/                  # Dataset directory
+│   ├── augmented_dataset/ # Augmented dataset
+│   ├── split_dataset/     # Split training/validation data
+│   └── all_characters/    # All character images
+├── models/                # Model storage directory
+├── src/                   # Source code
+│   ├── backend/           # Backend code
+│   │   ├── api/           # API implementation
+│   │   └── web/           # Web interface
+│   ├── core/              # Core functionality
+│   │   ├── classification/ # Classification modules
+│   │   ├── feature_extraction/ # Feature extraction modules
+│   │   ├── preprocessing/ # Preprocessing modules
+│   │   └── logging/       # Logging modules
+│   ├── data/              # Data-related code
+│   │   ├── collection/    # Data collection scripts
+│   │   ├── preprocessing/ # Data preprocessing scripts
+│   │   └── augmentation/  # Data augmentation scripts
+│   ├── frontend/          # Frontend code
+│   ├── models/            # Model-related code
+│   │   ├── training/      # Model training scripts
+│   │   ├── evaluation/    # Model evaluation scripts
+│   │   └── deployment/    # Model deployment scripts
+│   ├── config/            # Configuration files
+│   ├── scripts/           # Utility scripts
+│   └── utils/             # Utility functions
+├── cache/                 # Cache directory
+├── auto_spider_img/       # Auto spider for images
+├── README.md              # English documentation
+└── README.zh.md           # Chinese documentation
 ```
 
 ## 🎮 Supported Characters

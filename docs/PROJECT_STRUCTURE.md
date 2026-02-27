@@ -8,45 +8,53 @@
 
 ```
 anime_role_detect/
-├── config/                # 配置文件目录
-│   └── config.py          # 主配置文件
-├── data/                  # 数据存储目录
-│   ├── train/             # 训练数据
-│   ├── val/               # 验证数据
-│   └── test/              # 测试数据
+├── data/                  # 数据集目录
+│   ├── augmented_dataset/ # 增强后的数据集
+│   ├── split_dataset/     # 分割后的训练/验证数据
+│   └── all_characters/    # 所有角色图片
+├── models/                # 模型存储目录
+├── src/                   # 源代码
+│   ├── backend/           # 后端代码
+│   │   ├── api/           # API实现
+│   │   └── web/           # Web界面
+│   ├── core/              # 核心功能
+│   │   ├── classification/ # 分类模块
+│   │   ├── feature_extraction/ # 特征提取模块
+│   │   ├── preprocessing/ # 预处理模块
+│   │   └── logging/       # 日志模块
+│   ├── data/              # 数据相关代码
+│   │   ├── collection/    # 数据收集脚本
+│   │   ├── preprocessing/ # 数据预处理脚本
+│   │   └── augmentation/  # 数据增强脚本
+│   ├── frontend/          # 前端代码
+│   ├── models/            # 模型相关代码
+│   │   ├── training/      # 模型训练脚本
+│   │   ├── evaluation/    # 模型评估脚本
+│   │   └── deployment/    # 模型部署脚本
+│   ├── config/            # 配置文件
+│   ├── scripts/           # 实用脚本
+│   └── utils/             # 工具函数
+├── cache/                 # 缓存目录
+├── auto_spider_img/       # 自动爬虫图片
 ├── docs/                  # 文档目录
 │   ├── PROJECT_STRUCTURE.md  # 项目结构说明
 │   └── ...                # 其他文档
-├── logs/                  # 日志目录
-├── models/                # 模型存储目录
-│   ├── checkpoints/       # 模型检查点
-│   └── onnx/              # ONNX格式模型
-├── scripts/               # 脚本目录
-│   └── ...                # 各种脚本文件
-├── src/                   # 源代码目录
-│   ├── data_collection/   # 数据采集模块
-│   ├── data_processing/   # 数据处理模块
-│   ├── model_training/    # 模型训练模块
-│   └── utils/             # 工具模块
 ├── tests/                 # 测试目录
-├── auto_spider_img/       # 自动爬虫相关目录
-│   ├── characters/        # 角色列表
-│   └── ...                # 其他爬虫相关文件
-├── README.md              # 项目说明
-└── README.zh.md           # 中文项目说明
+├── README.md              # 英文文档
+└── README.zh.md            # 中文文档
 ```
 
 ## 3. 模块说明
 
-### 3.1 配置模块 (config/)
+### 3.1 配置模块 (src/config/)
 
 - **config.py**: 主配置文件，集中管理项目的所有配置参数，包括路径、阈值、训练参数等。
 
 ### 3.2 数据模块 (data/)
 
-- **train/**: 训练数据集，按角色分类存储图像。
-- **val/**: 验证数据集，用于模型评估。
-- **test/**: 测试数据集，用于最终模型测试。
+- **augmented_dataset/**: 增强后的数据集，用于模型训练。
+- **split_dataset/**: 分割后的训练/验证/测试数据。
+- **all_characters/**: 所有角色图片，按角色分类存储。
 
 ### 3.3 文档模块 (docs/)
 
@@ -55,43 +63,50 @@ anime_role_detect/
 
 ### 3.4 模型模块 (models/)
 
-- **checkpoints/**: 模型训练过程中的检查点文件。
-- **onnx/**: 转换为ONNX格式的模型，用于部署。
+- 存储训练好的模型文件。
 
-### 3.5 脚本模块 (scripts/)
+### 3.5 源代码模块 (src/)
 
-各种辅助脚本，用于数据处理、模型评估等任务。
+#### 3.5.1 后端模块 (backend/)
 
-### 3.6 源代码模块 (src/)
+- **api/**: API实现，提供RESTful接口。
+- **web/**: Web界面，包括Flask应用和HTML模板。
 
-#### 3.6.1 数据采集模块 (data_collection/)
+#### 3.5.2 核心功能模块 (core/)
 
-- **series_based_collector.py**: 基于系列的角色图像采集器。
-- **keyword_based_collector.py**: 基于关键词的图像采集器。
-- **fetch_real_characters.py**: 从可靠来源获取真实角色名称。
-- **fetch_wiki_characters.py**: 从维基百科获取角色信息。
-- 其他数据采集相关脚本。
+- **classification/**: 分类模块，包括DeepDanbooru和EfficientNet推理。
+- **feature_extraction/**: 特征提取模块，用于提取图像特征。
+- **preprocessing/**: 预处理模块，用于图像预处理。
+- **logging/**: 日志模块，提供全局日志功能。
 
-#### 3.6.2 数据处理模块 (data_processing/)
+#### 3.5.3 数据相关模块 (data/)
 
-- **data_quality_controller.py**: 数据质量控制器，确保采集的图像符合质量标准。
-- **data_augmentation.py**: 数据增强工具，扩充训练数据集。
-- **dataset_splitter.py**: 数据集分割工具，将数据分为训练、验证和测试集。
-- 其他数据处理相关脚本。
+- **collection/**: 数据收集脚本，包括基于系列和关键词的采集器。
+- **preprocessing/**: 数据预处理脚本，包括数据质量控制和数据集分割。
+- **augmentation/**: 数据增强脚本，用于扩充训练数据集。
 
-#### 3.6.3 模型训练模块 (model_training/)
+#### 3.5.4 前端模块 (frontend/)
 
-- **train_model.py**: 基础模型训练脚本。
-- **train_improved_model.py**: 改进的模型训练脚本。
-- **hyperparameter_tuning.py**: 超参数调优脚本。
-- **model_ensemble.py**: 模型集成脚本。
-- **convert_to_onnx.py**: 模型格式转换脚本。
-- 其他模型训练相关脚本。
+- 前端代码，包括HTML、CSS和JavaScript文件。
 
-#### 3.6.4 工具模块 (utils/)
+#### 3.5.5 模型相关模块 (models/)
+
+- **training/**: 模型训练脚本，包括基础训练、改进训练和超参数调优。
+- **evaluation/**: 模型评估脚本，用于评估模型性能。
+- **deployment/**: 模型部署脚本，用于模型部署和推理。
+
+#### 3.5.6 脚本模块 (scripts/)
+
+各种实用脚本，用于辅助任务。
+
+#### 3.5.7 工具模块 (utils/)
 
 - **config_utils.py**: 配置工具，方便其他模块使用配置。
 - 其他工具函数和类。
+
+### 3.6 缓存模块 (cache/)
+
+- 缓存目录，用于存储临时数据和缓存结果。
 
 ### 3.7 测试模块 (tests/)
 
