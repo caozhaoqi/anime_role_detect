@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>角色分类系统</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.14.0/dist/ort.min.js"></script>
+    <script src="{{ url_for('static', filename='js/wasm_inference.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/user_experience_tracker.js') }}"></script>
+</head>
+<body>
+    <div class="container">
+        <h1>🎮 角色分类系统</h1>
+        <p style="text-align: center; color: #6c757d;">上传图片，自动识别游戏角色</p>
+        
+        <!-- 错误消息 -->
+        {% with messages = get_flashed_messages() %}
+            {% if messages %}
+                {% for message in messages %}
+                    <div class="flash-message">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+        
+        <!-- 设备检测结果 -->
+        <div id="device-info" class="info-box" style="display: none; margin-bottom: 20px;">
+            <h3 style="margin-top: 0; color: #0056b3;">📱 设备信息</h3>
+            <p id="device-details"></p>
+            <p id="recommended-mode"></p>
+        </div>
+        
+        <!-- 上传表单 -->
+        <div class="upload-form">
+            <h2>📁 上传图片</h2>
+            <form method="post" enctype="multipart/form-data" onsubmit="showLoading()">
+                <div class="form-group">
+                    <label for="file" style="display: block; margin-bottom: 10px; font-weight: 500;">选择图片文件:</label>
+                    <input type="file" name="file" id="file" accept="image/*" required>
+                </div>
+
+                <div class="form-group" style="text-align: left; max-width: 300px; margin: 20px auto; padding: 10px; background-color: #f8f9fa; border-radius: 5px;">
+                    <label style="cursor: pointer; display: flex; align-items: center;">
+                        <input type="checkbox" name="use_model" value="true" style="margin-right: 10px; width: auto;">
+                        <span>使用专用模型 (EfficientNet)</span>
+                    </label>
+                    <p style="font-size: 0.8em; color: #6c757d; margin: 5px 0 0 25px;">
+                        默认使用通用索引 (CLIP)。勾选后将使用针对特定数据集训练的高精度模型。
+                    </p>
+                </div>
+
+                <div class="form-group" style="text-align: left; max-width: 300px; margin: 20px auto; padding: 10px; background-color: #f8f9fa; border-radius: 5px;">
+                    <label style="cursor: pointer; display: flex; align-items: center;">
+                        <input type="checkbox" name="use_coreml" value="true" style="margin-right: 10px; width: auto;" id="coreml-checkbox">
+                        <span>使用 Core ML 模型 (Apple 设备)</span>
+                    </label>
+                    <p style="font-size: 0.8em; color: #6c757d; margin: 5px 0 0 25px;">
+                        在 Apple 设备上使用 Core ML 模型，获得更快的推理速度。
+                    </p>
+                </div>
+
+                <div class="form-group" style="text-align: left; max-width: 300px; margin: 20px auto; padding: 10px; background-color: #f8f9fa; border-radius: 5px;">
+                    <label style="cursor: pointer; display: flex; align-items: center;">
+                        <input type="checkbox" name="use_wasm" value="true" style="margin-right: 10px; width: auto;" id="wasm-checkbox">
+                        <span>使用 WebAssembly 模型 (浏览器端)</span>
+                    </label>
+                    <p style="font-size: 0.8em; color: #6c757d; margin: 5px 0 0 25px;">
+                        在浏览器中使用 WebAssembly 进行推理，无需服务器支持。
+                    </p>
+                </div>
+
+                <!-- Core ML 模型加载状态 -->
+                <div id="coreml-status" style="display: none; margin: 10px auto; padding: 10px; background-color: #e3f2fd; border-radius: 5px; max-width: 300px;">
+                    <p style="margin: 0; color: #1976d2;">正在加载 Core ML 模型...</p>
+                </div>
+
+                <div class="form-group">
+                    <button type="submit">🔍 识别角色</button>
+                </div>
+            </form>
+        </div>
+        
+        <!-- 加载动画 -->
+        <div id="loading">
+            <div class="spinner"></div>
+            <p style="margin-top: 15px; color: #555;">正在分析图片，请稍候...</p>
+        </div>
+        
+        <script>
+            // 设备检测
+            function detectDevice() {
+                const deviceInfo = {
+                    isMobile: /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent),
+                    isApple: /Macintosh|iPhone|iPad|iPod/i.test(navigator.userAgent),
+                    isWindows: /Windows/i.test(navigator.userAgent),
+                    isLinux: /Linux/i.test(navigator.userAgent),
+                    hasGPU: navigator.gpu !== undefined,
+                    hasWebAssembly: typeof WebAssembly !== 'undefined'
+                };
+                
+                return deviceInfo;
+            }
+            
+            // 显示设备信息
+            function displayDeviceInfo() {
+                const deviceInfo = detectDevice();
+                const deviceInfoDiv = document.getElementById('device-info');
+                const deviceDetails = document.getElementById('device-details');
+                const recommendedMode = document.getElementById('recommended-mode');
+                const coremlCheckbox = document.getElementById('coreml-checkbox');
+                const wasmCheckbox = document.getElementById('wasm-checkbox');
+                
+                let deviceText = '• 设备类型: ';
+                if (deviceInfo.isMobile) {
+                    deviceText += '移动设备';
+                } else if (deviceInfo.isApple) {
+                    deviceText += 'Apple 设备';
+                } else if (deviceInfo.isWindows) {
+                    deviceText += 'Windows 设备';
+                } else if (deviceInfo.isLinux) {
+                    deviceText += 'Linux 设备';
+                } else {
+                    deviceText += '其他设备';
+                }
+                
+                deviceText += '<br>• GPU 支持: ' + (deviceInfo.hasGPU ? '是' : '否');
+                deviceText += '<br>• WebAssembly 支持: ' + (deviceInfo.hasWebAssembly ? '是' : '否');
+                
+                deviceDetails.innerHTML = deviceText;
+                
+                // 推荐模式
+                let recommended = '• 推荐模式: ';
+                if (deviceInfo.isApple) {
+                    recommended += 'Core ML 模型 (性能最佳)';
+                    coremlCheckbox.checked = true;
+                    coremlCheckbox.disabled = false;
+                    wasmCheckbox.checked = false;
+                    wasmCheckbox.disabled = false;
+                } else if (deviceInfo.hasWebAssembly) {
+                    recommended += 'WebAssembly 模型 (速度较快)';
+                    coremlCheckbox.checked = false;
+                    coremlCheckbox.disabled = true;
+                    wasmCheckbox.checked = true;
+                    wasmCheckbox.disabled = false;
+                } else {
+                    recommended += '服务器端模型 (兼容性最佳)';
+                    coremlCheckbox.checked = false;
+                    coremlCheckbox.disabled = true;
+                    wasmCheckbox.checked = false;
+                    wasmCheckbox.disabled = true;
+                }
+                
+                recommendedMode.innerHTML = recommended;
+                deviceInfoDiv.style.display = 'block';
+            }
+            
+            // WebAssembly推理
+            let wasmInference = null;
+            let classMapping = null;
+            
+            // 初始化用户体验追踪器
+            let userExperienceTracker = new UserExperienceTracker();
+            
+            async function initializeWasm() {
+                try {
+                    wasmInference = new WasmInference();
+                    
+                    const modelPath = '/static/models/character_classifier_best_improved.onnx';
+                    await wasmInference.initialize(modelPath);
+                    
+                    const mappingPath = '/static/models/character_classifier_best_improved_class_mapping.json';
+                    classMapping = await wasmInference.loadClassMapping(mappingPath);
+                    
+                    console.log('WebAssembly模型初始化成功');
+                    return true;
+                } catch (error) {
+                    console.error('WebAssembly模型初始化失败:', error);
+                    return false;
+                }
+            }
+            
+            async function classifyWithWasm(file) {
+                if (!wasmInference || !wasmInference.isInitialized) {
+                    throw new Error('WebAssembly模型未初始化');
+                }
+                
+                return new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = async (e) => {
+                        const img = new Image();
+                        img.onload = async () => {
+                            try {
+                                const predictions = await wasmInference.classifyImage(img);
+                                resolve(predictions);
+                            } catch (error) {
+                                reject(error);
+                            }
+                        };
+                        img.onerror = () => reject(new Error('图像加载失败'));
+                        img.src = e.target.result;
+                    };
+                    reader.onerror = () => reject(new Error('文件读取失败'));
+                    reader.readAsDataURL(file);
+                });
+            }
+            
+            // 页面加载时检测设备
+            window.onload = function() {
+                displayDeviceInfo();
+                
+                // 检测WebAssembly支持
+                const wasmCheckbox = document.getElementById('wasm-checkbox');
+                if (typeof WebAssembly === 'undefined') {
+                    wasmCheckbox.disabled = true;
+                    wasmCheckbox.parentElement.style.opacity = '0.5';
+                }
+            };
+            
+            function showLoading() {
+                document.getElementById('loading').style.display = 'block';
+                // 禁用提交按钮
+                document.querySelector('button[type="submit"]').disabled = true;
+            }
+        </script>
+
+        <!-- 系统信息 -->
+        <div class="info-box">
+            <h3 style="margin-top: 0; color: #0056b3;">ℹ️ 系统信息</h3>
+            <p>• 支持的文件格式: PNG, JPG, JPEG, GIF, BMP</p>
+            <p>• 最大文件大小: 16MB</p>
+            <p>• 识别模式: 通用索引 (CLIP) / 专用模型 (EfficientNet) / Core ML 模型 (Apple 设备)</p>
+        </div>
+        
+        <!-- 快速链接 -->
+        <div class="footer">
+            <p><a href="/about">关于系统</a> | <a href="/workflow">角色检测工作流</a> | <a href="/api/classify">API文档</a></p>
+            <p>© 2026 角色分类系统</p>
+        </div>
+    </div>
+</body>
+</html>

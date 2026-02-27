@@ -1,0 +1,22 @@
+{
+  "timestamp": "2026-02-12T17:18:54.585904",
+  "image_path": "src/web/static/uploads/10.jpg",
+  "role": "genshin_impact_甘雨",
+  "similarity": 0.9202374815940857,
+  "feature": [],
+  "boxes": [
+    {
+      "bbox": [
+        335.00421142578125,
+        5.951704978942871,
+        929.3718872070312,
+        487.18017578125
+      ],
+      "confidence": 0.5566126108169556
+    }
+  ],
+  "metadata": {
+    "mode": "专用模型 (EfficientNet)",
+    "use_model": true
+  }
+}

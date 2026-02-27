@@ -19,12 +19,12 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..',
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
 
 # 使用全局日志系统
-from src.core.logging.global_logger import get_logger, log_system, log_inference, log_error
+from core.logging.global_logger import get_logger, log_system, log_inference, log_error
 logger = get_logger("general_classification")
 
 # 导入日志记录模块
 try:
-    from src.core.log_fusion.log_recorder import record_classification_log
+    from core.log_fusion.log_recorder import record_classification_log
 except Exception as e:
     logger.warning(f"导入日志记录模块失败: {e}")
     record_classification_log = None

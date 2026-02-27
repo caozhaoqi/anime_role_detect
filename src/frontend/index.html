@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>角色识别系统</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f5f5f5;
+            color: #333;
+            line-height: 1.6;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        h1 {
+            text-align: center;
+            color: #2c3e50;
+            margin-bottom: 30px;
+        }
+        
+        .upload-section {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: bold;
+            color: #555;
+        }
+        
+        input[type="file"] {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        
+        select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+        
+        button {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        
+        button:hover {
+            background-color: #2980b9;
+        }
+        
+        button:disabled {
+            background-color: #bdc3c7;
+            cursor: not-allowed;
+        }
+        
+        .result-section {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+            display: none;
+        }
+        
+        .result-section h2 {
+            margin-bottom: 20px;
+            color: #2c3e50;
+        }
+        
+        .result-content {
+            display: flex;
+            gap: 30px;
+        }
+        
+        .image-preview {
+            flex: 1;
+            max-width: 300px;
+        }
+        
+        .image-preview img {
+            width: 100%;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        
+        .prediction-result {
+            flex: 2;
+        }
+        
+        .predicted-class {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #27ae60;
+        }
+        
+        .confidence {
+            font-size: 18px;
+            color: #7f8c8d;
+            margin-bottom: 20px;
+        }
+        
+        .top5 {
+            margin-top: 20px;
+        }
+        
+        .top5 h3 {
+            margin-bottom: 10px;
+            color: #2c3e50;
+        }
+        
+        .top5-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .top5-class {
+            font-weight: bold;
+        }
+        
+        .top5-confidence {
+            color: #7f8c8d;
+        }
+        
+        .chart-container {
+            margin-top: 30px;
+        }
+        
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #3498db;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-left: 10px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .error-message {
+            background-color: #fee;
+            color: #c00;
+            padding: 10px;
+            border-radius: 5px;
+            margin-top: 10px;
+            display: none;
+        }
+        
+        .batch-section {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .batch-section h2 {
+            margin-bottom: 20px;
+            color: #2c3e50;
+        }
+        
+        .batch-results {
+            margin-top: 20px;
+        }
+        
+        .batch-item {
+            background: #f9f9f9;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 15px;
+        }
+        
+        .batch-item h3 {
+            margin-bottom: 10px;
+            color: #2c3e50;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>角色识别系统</h1>
+        
+        <!-- 单张图片上传 -->
+        <div class="upload-section">
+            <h2>单张图片识别</h2>
+            <div class="form-group">
+                <label for="image">选择图片</label>
+                <input type="file" id="image" accept="image/*" required>
+            </div>
+            <div class="form-group">
+                <label for="model">选择模型</label>
+                <select id="model">
+                    <option value="default">默认模型</option>
+                    <option value="resnet">ResNet模型</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <button id="predict-btn">预测 <span class="loading" id="loading"></span></button>
+            </div>
+            <div class="error-message" id="error-message"></div>
+        </div>
+        
+        <!-- 预测结果 -->
+        <div class="result-section" id="result-section">
+            <h2>预测结果</h2>
+            <div class="result-content">
+                <div class="image-preview">
+                    <img id="preview-image" src="" alt="预览图片">
+                </div>
+                <div class="prediction-result">
+                    <div class="predicted-class" id="predicted-class"></div>
+                    <div class="confidence" id="confidence"></div>
+                    <div class="top5">
+                        <h3>Top 5 预测结果</h3>
+                        <div id="top5-results"></div>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="confidence-chart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 批量上传 -->
+        <div class="batch-section">
+            <h2>批量图片识别</h2>
+            <div class="form-group">
+                <label for="batch-images">选择多张图片</label>
+                <input type="file" id="batch-images" accept="image/*" multiple required>
+            </div>
+            <div class="form-group">
+                <label for="batch-model">选择模型</label>
+                <select id="batch-model">
+                    <option value="default">默认模型</option>
+                    <option value="resnet">ResNet模型</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <button id="batch-predict-btn">批量预测 <span class="loading" id="batch-loading"></span></button>
+            </div>
+            <div class="batch-results" id="batch-results"></div>
+        </div>
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        // 全局变量
+        const API_BASE_URL = 'http://localhost:8000';
+        
+        // DOM元素
+        const imageInput = document.getElementById('image');
+        const modelSelect = document.getElementById('model');
+        const predictBtn = document.getElementById('predict-btn');
+        const loading = document.getElementById('loading');
+        const errorMessage = document.getElementById('error-message');
+        const resultSection = document.getElementById('result-section');
+        const previewImage = document.getElementById('preview-image');
+        const predictedClass = document.getElementById('predicted-class');
+        const confidence = document.getElementById('confidence');
+        const top5Results = document.getElementById('top5-results');
+        const confidenceChart = document.getElementById('confidence-chart');
+        
+        const batchImagesInput = document.getElementById('batch-images');
+        const batchModelSelect = document.getElementById('batch-model');
+        const batchPredictBtn = document.getElementById('batch-predict-btn');
+        const batchLoading = document.getElementById('batch-loading');
+        const batchResults = document.getElementById('batch-results');
+        
+        // 初始化
+        function init() {
+            // 隐藏加载动画
+            loading.style.display = 'none';
+            batchLoading.style.display = 'none';
+            
+            // 绑定事件
+            predictBtn.addEventListener('click', handlePredict);
+            batchPredictBtn.addEventListener('click', handleBatchPredict);
+            
+            // 加载模型列表
+            loadModels();
+        }
+        
+        // 加载模型列表
+        async function loadModels() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/models`);
+                if (!response.ok) {
+                    throw new Error('加载模型列表失败');
+                }
+                const data = await response.json();
+                
+                // 更新模型选择下拉框
+                modelSelect.innerHTML = '';
+                batchModelSelect.innerHTML = '';
+                
+                data.models.forEach(model => {
+                    const option1 = document.createElement('option');
+                    option1.value = model.name;
+                    option1.textContent = `${model.name} (${model.type})`;
+                    modelSelect.appendChild(option1);
+                    
+                    const option2 = document.createElement('option');
+                    option2.value = model.name;
+                    option2.textContent = `${model.name} (${model.type})`;
+                    batchModelSelect.appendChild(option2);
+                });
+            } catch (error) {
+                console.error('加载模型列表失败:', error);
+            }
+        }
+        
+        // 处理单张图片预测
+        async function handlePredict() {
+            const file = imageInput.files[0];
+            if (!file) {
+                showError('请选择一张图片');
+                return;
+            }
+            
+            const model = modelSelect.value;
+            
+            // 显示加载动画
+            predictBtn.disabled = true;
+            loading.style.display = 'inline-block';
+            hideError();
+            
+            try {
+                // 预览图片
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    previewImage.src = e.target.result;
+                };
+                reader.readAsDataURL(file);
+                
+                // 构建FormData
+                const formData = new FormData();
+                formData.append('file', file);
+                formData.append('model', model);
+                
+                // 发送请求
+                const response = await fetch(`${API_BASE_URL}/predict`, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (!response.ok) {
+                    throw new Error('预测失败');
+                }
+                
+                const result = await response.json();
+                
+                // 显示结果
+                displayResult(result);
+            } catch (error) {
+                showError(`预测失败: ${error.message}`);
+            } finally {
+                // 隐藏加载动画
+                predictBtn.disabled = false;
+                loading.style.display = 'none';
+            }
+        }
+        
+        // 处理批量预测
+        async function handleBatchPredict() {
+            const files = batchImagesInput.files;
+            if (!files || files.length === 0) {
+                showError('请选择至少一张图片');
+                return;
+            }
+            
+            if (files.length > 10) {
+                showError('最多支持10张图片');
+                return;
+            }
+            
+            const model = batchModelSelect.value;
+            
+            // 显示加载动画
+            batchPredictBtn.disabled = true;
+            batchLoading.style.display = 'inline-block';
+            hideError();
+            batchResults.innerHTML = '';
+            
+            try {
+                // 构建FormData
+                const formData = new FormData();
+                for (let i = 0; i < files.length; i++) {
+                    formData.append('files', files[i]);
+                }
+                formData.append('model', model);
+                
+                // 发送请求
+                const response = await fetch(`${API_BASE_URL}/predict_batch`, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (!response.ok) {
+                    throw new Error('批量预测失败');
+                }
+                
+                const result = await response.json();
+                
+                // 显示结果
+                displayBatchResult(result);
+            } catch (error) {
+                showError(`批量预测失败: ${error.message}`);
+            } finally {
+                // 隐藏加载动画
+                batchPredictBtn.disabled = false;
+                batchLoading.style.display = 'none';
+            }
+        }
+        
+        // 显示结果
+        function displayResult(result) {
+            resultSection.style.display = 'block';
+            
+            predictedClass.textContent = `预测结果: ${result.predicted_class}`;
+            confidence.textContent = `置信度: ${(result.confidence * 100).toFixed(2)}%`;
+            
+            // 显示Top 5结果
+            top5Results.innerHTML = '';
+            result.top5.forEach(item => {
+                const div = document.createElement('div');
+                div.className = 'top5-item';
+                div.innerHTML = `
+                    <span class="top5-class">${item.class}</span>
+                    <span class="top5-confidence">${(item.confidence * 100).toFixed(2)}%</span>
+                `;
+                top5Results.appendChild(div);
+            });
+            
+            // 绘制置信度图表
+            drawConfidenceChart(result.top5);
+        }
+        
+        // 显示批量结果
+        function displayBatchResult(result) {
+            batchResults.innerHTML = '';
+            
+            result.results.forEach(item => {
+                const div = document.createElement('div');
+                div.className = 'batch-item';
+                
+                if (item.error) {
+                    div.innerHTML = `
+                        <h3>${item.file_name}</h3>
+                        <p style="color: red;">错误: ${item.error}</p>
+                    `;
+                } else {
+                    div.innerHTML = `
+                        <h3>${item.file_name}</h3>
+                        <p><strong>预测结果:</strong> ${item.result.predicted_class}</p>
+                        <p><strong>置信度:</strong> ${(item.result.confidence * 100).toFixed(2)}%</p>
+                    `;
+                }
+                
+                batchResults.appendChild(div);
+            });
+        }
+        
+        // 绘制置信度图表
+        function drawConfidenceChart(top5) {
+            const ctx = confidenceChart.getContext('2d');
+            
+            // 销毁旧图表
+            if (window.confidenceChartInstance) {
+                window.confidenceChartInstance.destroy();
+            }
+            
+            // 准备数据
+            const labels = top5.map(item => item.class);
+            const data = top5.map(item => (item.confidence * 100).toFixed(2));
+            
+            // 创建新图表
+            window.confidenceChartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: '置信度 (%)',
+                        data: data,
+                        backgroundColor: 'rgba(52, 152, 219, 0.6)',
+                        borderColor: 'rgba(52, 152, 219, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 100
+                        }
+                    }
+                }
+            });
+        }
+        
+        // 显示错误信息
+        function showError(message) {
+            errorMessage.textContent = message;
+            errorMessage.style.display = 'block';
+        }
+        
+        // 隐藏错误信息
+        function hideError() {
+            errorMessage.style.display = 'none';
+        }
+        
+        // 初始化
+        init();
+    </script>
+</body>
+</html>

@@ -152,16 +152,20 @@ class Classification:
                 role_scores[role] += similarity * weight
         
         # 找出得票最多的角色
-        if role_counts:
-            # 首先按票数排序，票数相同则按得分排序
-            sorted_roles = sorted(role_counts.items(), key=lambda x: (x[1], role_scores[x[0]]), reverse=True)
-            best_role = sorted_roles[0][0]
-            best_similarity = role_scores[best_role] / role_counts[best_role]  # 平均加权相似度
-            
-            # 检查最佳角色的相似度是否足够高
-            if best_similarity >= max(self.threshold - 0.1, 0.5):
-                logger.debug(f"分类结果: {best_role}, 相似度: {best_similarity:.4f}")
-                return best_role, best_similarity
+            if role_counts:
+                # 首先按票数排序，票数相同则按得分排序
+                sorted_roles = sorted(role_counts.items(), key=lambda x: (x[1], role_scores[x[0]]), reverse=True)
+                best_role = sorted_roles[0][0]
+                # 避免除以零
+                if role_counts[best_role] > 0:
+                    best_similarity = role_scores[best_role] / role_counts[best_role]  # 平均加权相似度
+                else:
+                    best_similarity = 0.0
+                
+                # 检查最佳角色的相似度是否足够高
+                if best_similarity >= max(self.threshold - 0.1, 0.5):
+                    logger.debug(f"分类结果: {best_role}, 相似度: {best_similarity:.4f}")
+                    return best_role, best_similarity
         
         # 3. 如果投票机制失败，回退到原始的top-1结果
         if results[0]["similarity"] >= self.threshold - 0.1:
@@ -244,7 +248,11 @@ class Classification:
                 # 首先按票数排序，票数相同则按得分排序
                 sorted_roles = sorted(role_counts.items(), key=lambda x: (x[1], role_scores[x[0]]), reverse=True)
                 best_role = sorted_roles[0][0]
-                best_similarity = role_scores[best_role] / role_counts[best_role]  # 平均加权相似度
+                # 避免除以零
+                if role_counts[best_role] > 0:
+                    best_similarity = role_scores[best_role] / role_counts[best_role]  # 平均加权相似度
+                else:
+                    best_similarity = 0.0
                 
                 # 检查最佳角色的相似度是否足够高
                 if best_similarity >= max(self.threshold - 0.1, 0.5):

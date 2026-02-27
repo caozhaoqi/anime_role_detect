@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>分类结果</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <h1>📊 分类结果</h1>
+        
+        <div class="result-section">
+            <!-- 图片预览 -->
+            <div class="image-container">
+                <img src="{{ url_for('static', filename='uploads/' + result.image_path) }}" alt="上传的图片">
+            </div>
+            
+            <!-- 分类结果 -->
+            <div class="result-card">
+                <h2>🎭 识别结果</h2>
+                <div class="result-info">
+                    <div class="info-item">
+                        <h3>识别角色</h3>
+                        <p style="font-size: 1.2em; font-weight: bold; color: #333;">{{ result.role }}</p>
+                    </div>
+                    <div class="info-item">
+                        <h3>置信度</h3>
+                        <p>
+                            {{ result.similarity|format_similarity }}
+                            {% if result.similarity >= 80 %}
+                                <span class="accuracy-badge high-accuracy">高</span>
+                            {% elif result.similarity >= 50 %}
+                                <span class="accuracy-badge medium-accuracy">中</span>
+                            {% else %}
+                                <span class="accuracy-badge low-accuracy">低</span>
+                            {% endif %}
+                        </p>
+                        <div class="similarity-bar">
+                            <div class="similarity-fill" style="width: {{ result.similarity }}%">
+                                {{ result.similarity|int }}%
+                            </div>
+                        </div>
+                    </div>
+                    <div class="info-item">
+                        <h3>图片信息</h3>
+                        <p>文件名: {{ result.filename }}</p>
+                        <p>尺寸: {{ result.image_width }} × {{ result.image_height }}</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 检测框信息 -->
+            {% if result.boxes %}
+            <div class="result-card" style="border-left-color: #17a2b8;">
+                <h2>🔍 检测信息</h2>
+                <p>检测到 <strong>{{ result.boxes|length }}</strong> 个角色</p>
+            </div>
+            {% endif %}
+        </div>
+        
+        <!-- 返回按钮 -->
+        <div class="back-button">
+            <a href="/">🔄 上传另一张图片</a>
+        </div>
+        
+        <!-- 页脚 -->
+        <div class="footer">
+            <p>© 2026 角色分类系统</p>
+        </div>
+    </div>
+</body>
+</html>
