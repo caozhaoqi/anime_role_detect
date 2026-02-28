@@ -210,10 +210,53 @@ export default function AnimeRoleDetect() {
     if (files && files.length > 0) {
       const file = files[0];
       if (file.type.startsWith('image/')) {
-        setSelectedImage(file);
+        // 压缩图片
         const reader = new FileReader();
-        reader.onloadend = () => {
-          setImagePreview(reader.result as string);
+        reader.onloadend = (e) => {
+          const img = new Image();
+          img.onload = () => {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            if (ctx) {
+              // 计算压缩后的尺寸
+              const maxWidth = 800;
+              const maxHeight = 800;
+              let width = img.width;
+              let height = img.height;
+              
+              if (width > maxWidth) {
+                height = (height * maxWidth) / width;
+                width = maxWidth;
+              }
+              
+              if (height > maxHeight) {
+                width = (width * maxHeight) / height;
+                height = maxHeight;
+              }
+              
+              canvas.width = width;
+              canvas.height = height;
+              
+              // 绘制压缩后的图片
+              ctx.drawImage(img, 0, 0, width, height);
+              
+              // 获取压缩后的图片数据
+              const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.8);
+              
+              // 创建压缩后的文件
+              const byteString = atob(compressedDataUrl.split(',')[1]);
+              const ab = new ArrayBuffer(byteString.length);
+              const ia = new Uint8Array(ab);
+              for (let i = 0; i < byteString.length; i++) {
+                ia[i] = byteString.charCodeAt(i);
+              }
+              const compressedFile = new File([ab], file.name, { type: 'image/jpeg' });
+              
+              setSelectedImage(compressedFile);
+              setImagePreview(compressedDataUrl);
+            }
+          };
+          img.src = e.target?.result as string;
         };
         reader.readAsDataURL(file);
       }
@@ -661,7 +704,7 @@ export default function AnimeRoleDetect() {
                           {msg.image && (
                             <div className="mb-3">
                               <div className="relative transform transition-all duration-300 hover:scale-[1.02]">
-                                <img src={msg.image} alt="Uploaded" className="max-w-full h-auto rounded-xl shadow-lg animate-fade-in" />
+                                <img src={msg.image} alt="Uploaded" className="max-w-xs max-h-64 h-auto rounded-xl shadow-lg animate-fade-in object-contain" />
                                 <div className="absolute top-2 right-2 bg-black/50 text-white text-xs px-2 py-1 rounded-lg backdrop-blur-sm">{selectedImage?.name}</div>
                               </div>
                             </div>
@@ -728,15 +771,7 @@ export default function AnimeRoleDetect() {
                   </div>
                 </div>
               </div>
-              {imagePreview && (
-                <div className="mb-3 inline-flex items-center space-x-3 px-4 py-3 glass rounded-xl shadow-sm w-full max-w-xs transform transition-all duration-300 hover:shadow-md hover:border-[#6366f1]/30 border border-transparent hover:border-[#6366f1]/30">
-                  <img src={imagePreview} alt="Preview" className="w-12 h-12 object-cover rounded-lg shadow transform transition-all duration-300 hover:scale-110" />
-                  <span className="text-sm font-medium text-[#a1a1aa] truncate flex-1">{selectedImage?.name}</span>
-                  <button onClick={removeImage} className="p-1.5 hover:bg-[#3f3f46] rounded-full transition-colors transform hover:scale-110 hover:text-[#ef4444]">
-                    <X className="w-4 h-4 text-[#a1a1aa] transition-colors duration-300 hover:text-[#ef4444]" />
-                  </button>
-                </div>
-              )}
+              {/* 移除预览图片显示 */}
 
               <div className="flex items-center space-x-3">
                 <div className="flex-shrink-0 relative">
