@@ -17,4 +17,6 @@ export interface Model {
   name: string;
   path: string;
   files: string[];
+  description?: string;
+  available?: boolean;
 }

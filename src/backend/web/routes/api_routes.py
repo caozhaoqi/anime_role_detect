@@ -19,6 +19,40 @@ logger = get_logger("api_routes")
 def setup_api_routes(app):
     """设置 API 路由"""
     
+    @app.route('/api/models', methods=['GET'])
+    def api_get_models():
+        """获取可用模型列表"""
+        try:
+            # 定义模型目录
+            models_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'models')
+            
+            # 可用模型列表
+            available_models = [
+                {"name": "default", "path": "", "description": "默认分类模型"},
+                {"name": "augmented_training", "path": "models/augmented_training", "description": "增强训练模型"},
+                {"name": "arona_plana", "path": "models/arona_plana", "description": "阿罗娜普拉娜模型"},
+                {"name": "arona_plana_efficientnet", "path": "models/arona_plana_efficientnet", "description": "EfficientNet模型"},
+                {"name": "arona_plana_resnet18", "path": "models/arona_plana_resnet18", "description": "ResNet18模型"},
+                {"name": "optimized", "path": "models/optimized", "description": "优化模型"}
+            ]
+            
+            # 检查模型文件是否存在
+            for model in available_models:
+                if model["path"]:
+                    model_path = os.path.join(models_dir, os.path.basename(model["path"]))
+                    if os.path.exists(model_path):
+                        model["available"] = True
+                    else:
+                        model["available"] = False
+                else:
+                    model["available"] = True
+            
+            logger.debug(f"获取模型列表成功: {available_models}")
+            return json.dumps({"models": available_models}, ensure_ascii=False), 200, {'Content-Type': 'application/json'}
+        except Exception as e:
+            logger.error(f"获取模型列表失败: {e}")
+            return json.dumps({'error': f'获取模型列表失败: {str(e)}'}), 500
+    
     @app.route('/api/classify', methods=['GET', 'POST'])
     def api_classify():
         """API分类端点（支持图片和视频）"""
@@ -70,12 +104,14 @@ def setup_api_routes(app):
         use_model = request.form.get('use_model') == 'true'
         use_coreml = request.form.get('use_coreml') == 'true'
         use_deepdanbooru = request.form.get('use_deepdanbooru') == 'true'
+        model_name = request.form.get('model_name', 'default')
         frame_skip = int(request.form.get('frame_skip', str(DEFAULT_FRAME_SKIP)))
         
         logger.debug("📋 参数:", {
             'use_model': use_model,
             'use_coreml': use_coreml,
             'use_deepdanbooru': use_deepdanbooru,
+            'model_name': model_name,
             'frame_skip': frame_skip
         })
 

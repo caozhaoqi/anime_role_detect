@@ -7,6 +7,7 @@ import os
 import sys
 import tempfile
 import platform
+import json
 import numpy as np
 from flask import Flask, request, render_template, redirect, url_for, flash
 from flask_cors import CORS
@@ -425,12 +426,17 @@ def api_classify():
     use_coreml = request.form.get('use_coreml') == 'true'
     frame_skip = int(request.form.get('frame_skip', '5'))
     model = request.form.get('model', '')
+    # 同时支持model_name参数，保持与前端的兼容性
+    model_name = request.form.get('model_name', '')
+    if model_name:
+        model = model_name
     
     logger.debug("📋 参数:", {
         'use_model': use_model,
         'use_coreml': use_coreml,
         'frame_skip': frame_skip,
-        'model': model
+        'model': model,
+        'model_name': model_name
     })
 
     # 检查Core ML模型是否可用
@@ -581,6 +587,41 @@ def track_inference():
         return json.dumps({'error': str(e)}), 500
 
 
+@app.route('/api/models', methods=['GET'])
+def api_get_models():
+    """获取可用模型列表"""
+    try:
+        # 定义模型目录
+        models_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'models')
+        
+        # 可用模型列表
+        available_models = [
+            {"name": "default", "path": "", "description": "默认分类模型"},
+            {"name": "augmented_training", "path": "models/augmented_training", "description": "增强训练模型"},
+            {"name": "arona_plana", "path": "models/arona_plana", "description": "阿罗娜普拉娜模型"},
+            {"name": "arona_plana_efficientnet", "path": "models/arona_plana_efficientnet", "description": "EfficientNet模型"},
+            {"name": "arona_plana_resnet18", "path": "models/arona_plana_resnet18", "description": "ResNet18模型"},
+            {"name": "optimized", "path": "models/optimized", "description": "优化模型"}
+        ]
+        
+        # 检查模型文件是否存在
+        for model in available_models:
+            if model["path"]:
+                model_path = os.path.join(models_dir, os.path.basename(model["path"]))
+                if os.path.exists(model_path):
+                    model["available"] = True
+                else:
+                    model["available"] = False
+            else:
+                model["available"] = True
+        
+        logger.debug(f"获取模型列表成功: {available_models}")
+        return json.dumps({"models": available_models}, ensure_ascii=False), 200, {'Content-Type': 'application/json'}
+    except Exception as e:
+        logger.error(f"获取模型列表失败: {e}")
+        return json.dumps({'error': f'获取模型列表失败: {str(e)}'}), 500
+
+
 @app.route('/workflow', methods=['GET', 'POST'])
 def workflow():
     """角色检测工作流"""
@@ -719,6 +760,14 @@ def format_similarity(value):
 if __name__ == '__main__':
     # 初始化系统
     initialize_system()
+
+    # 设置文档路由
+    try:
+        from routes.docs_routes import setup_docs_routes
+        setup_docs_routes(app)
+        logger.debug("📚 API文档路由已设置，访问路径: http://127.0.0.1:5001/docs")
+    except Exception as e:
+        logger.warning(f"⚠️ API文档路由设置失败: {e}")
 
     # 运行应用
     port = 5001
