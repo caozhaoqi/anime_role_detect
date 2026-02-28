@@ -93,7 +93,13 @@ class ModelManager:
         num_classes = len(class_to_idx)
         
         # 初始化模型
-        if model_type == 'simple':
+        if 'mobilenet_v2' in model_path:
+            # 加载MobileNetV2模型
+            from torchvision import models
+            import torch.nn as nn
+            model = models.mobilenet_v2(pretrained=False)
+            model.classifier[1] = nn.Linear(model.classifier[1].in_features, num_classes)
+        elif model_type == 'simple':
             model = SimpleCharacterClassifier(num_classes=num_classes)
         else:
             model = ResNetCharacterClassifier(num_classes=num_classes)
@@ -398,7 +404,17 @@ def main():
     model_configs = [
         {
             'name': 'default',
-            'path': 'models_simple/character_classifier_simple_best.pth',
+            'path': 'models/augmented_training/mobilenet_v2/model_best.pth',
+            'type': 'simple'
+        },
+        {
+            'name': 'mobilenet_v2',
+            'path': 'models/augmented_training/mobilenet_v2/model_best.pth',
+            'type': 'simple'
+        },
+        {
+            'name': 'simple',
+            'path': 'models/models_simple/character_classifier_simple_best.pth',
             'type': 'simple'
         }
     ]
