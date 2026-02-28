@@ -43,7 +43,7 @@ def predict(image):
     img_tensor = preprocess(image).unsqueeze(0)
     with torch.no_grad():
         outputs = model(img_tensor)
-        probabilities = torch.nn.functional.softmax(outputs[0], dim=1)[0] # 修正 dim 为 1
+        probabilities = torch.nn.functional.softmax(outputs, dim=1)[0] # 修正 dim 为 1
     
     return {LABELS[i]: float(probabilities[i]) for i in range(num_classes)}
 
