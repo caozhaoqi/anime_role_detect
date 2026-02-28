@@ -18,7 +18,14 @@ export default function AnimeRoleDetect() {
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [selectedModel, setSelectedModel] = useState<string>("default");
-  const [models, setModels] = useState<Model[]>([{ name: "default", path: "", files: [] }]);
+  const [models, setModels] = useState<Model[]>([
+    { name: "default", path: "", files: [], available: true, description: "默认分类模型" },
+    { name: "augmented_training", path: "models/augmented_training", files: [], available: false, description: "增强训练模型" },
+    { name: "arona_plana", path: "models/arona_plana", files: [], available: false, description: "阿罗娜普拉娜模型" },
+    { name: "arona_plana_efficientnet", path: "models/arona_plana_efficientnet", files: [], available: false, description: "EfficientNet模型" },
+    { name: "arona_plana_resnet18", path: "models/arona_plana_resnet18", files: [], available: false, description: "ResNet18模型" },
+    { name: "optimized", path: "models/optimized", files: [], available: false, description: "优化模型" }
+  ]);
   const [inputText, setInputText] = useState<string>("");
   const [showUploadOptions, setShowUploadOptions] = useState(false);
   const [copySuccess, setCopySuccess] = useState<string | null>(null);
@@ -32,9 +39,13 @@ export default function AnimeRoleDetect() {
   // 使用历史记录Hook
   const { history, loadHistory, addToHistory, clearHistory } = useHistory();
 
+  // 组件挂载时执行
   useEffect(() => {
     isMountedRef.current = true;
-    loadModels();
+    // 立即执行loadModels函数
+    (async () => {
+      await loadModels();
+    })();
     loadHistory();
   }, [loadHistory]);
 
@@ -64,18 +75,49 @@ export default function AnimeRoleDetect() {
 
   const loadModels = async () => {
     try {
-      // 由于后端API没有提供获取模型列表的端点，我们直接在前端硬编码一个模型列表
-      const modelList = [
-        { name: "default", path: "", files: [] },
-        { name: "efficientnet-b3", path: "", files: [] },
-        { name: "mobilenet-v2", path: "", files: [] }
-      ];
-      setModels(modelList);
-      if (modelList.length > 0) {
-        setSelectedModel(modelList[0].name);
+      console.log('开始加载模型列表');
+      // 从后端API获取模型列表
+      const response = await fetch('http://localhost:5001/api/models');
+      console.log('获取模型列表响应:', response);
+      if (!response.ok) {
+        throw new Error('Failed to load models');
+      }
+      const data = await response.json();
+      console.log('获取模型列表数据:', data);
+      const modelList = data.models || [];
+      console.log('获取模型列表:', modelList);
+      // 添加files属性，确保符合Model接口
+      const modelsWithFiles = modelList.map((model: any) => ({
+        ...model,
+        files: model.files || []
+      }));
+      console.log('添加files属性后的模型列表:', modelsWithFiles);
+      // 确保组件仍然挂载
+      if (isMountedRef.current) {
+        setModels(modelsWithFiles);
+        if (modelsWithFiles.length > 0) {
+          setSelectedModel(modelsWithFiles[0].name);
+        }
       }
     } catch (error) {
       console.error("Failed to load models:", error);
+      // 如果API调用失败，使用默认模型列表
+      const defaultModels = [
+        { name: "default", path: "", description: "默认分类模型", available: true, files: [] },
+        { name: "augmented_training", path: "models/augmented_training", description: "增强训练模型", available: false, files: [] },
+        { name: "arona_plana", path: "models/arona_plana", description: "阿罗娜普拉娜模型", available: false, files: [] },
+        { name: "arona_plana_efficientnet", path: "models/arona_plana_efficientnet", description: "EfficientNet模型", available: false, files: [] },
+        { name: "arona_plana_resnet18", path: "models/arona_plana_resnet18", description: "ResNet18模型", available: false, files: [] },
+        { name: "optimized", path: "models/optimized", description: "优化模型", available: false, files: [] }
+      ];
+      console.log('使用默认模型列表:', defaultModels);
+      // 确保组件仍然挂载
+      if (isMountedRef.current) {
+        setModels(defaultModels);
+        if (defaultModels.length > 0) {
+          setSelectedModel(defaultModels[0].name);
+        }
+      }
     }
   };
 
@@ -148,8 +190,9 @@ export default function AnimeRoleDetect() {
       const formData = new FormData();
       formData.append("file", file);
       formData.append("use_model", "true");
+      formData.append("model_name", selectedModel);
 
-      const apiResponse = await fetch("http://localhost:5002/api/classify", {
+      const apiResponse = await fetch("http://localhost:5001/api/classify", {
         method: "POST",
         body: formData,
       });
@@ -311,6 +354,24 @@ export default function AnimeRoleDetect() {
           <h2 className="text-base font-semibold gradient-text">动漫角色识别</h2>
         </div>
         <div className="flex items-center gap-2">
+          <div className="relative">
+            <select
+              value={selectedModel}
+              onChange={(e) => setSelectedModel(e.target.value)}
+              className="appearance-none pl-3 pr-8 py-1.5 border border-[#3f3f46] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6366f1] focus:border-transparent bg-[#18181b] text-[#fafafa] text-sm transition-all duration-300 hover:border-[#6366f1]/50"
+            >
+              {models.map((model) => (
+                <option key={model.name} value={model.name}>
+                  {model.description || (model.name === "default" ? "默认模型" : model.name)}
+                </option>
+              ))}
+            </select>
+            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2.5 text-[#71717a]">
+              <svg className="h-4 w-4 transition-transform duration-300 hover:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </div>
+          </div>
           <button className="p-1.5 rounded-lg hover:bg-[#27272a] transition-all duration-300 transform hover:scale-105">
             <Moon className="h-4 w-4 text-[#a1a1aa]" />
           </button>
@@ -377,54 +438,20 @@ export default function AnimeRoleDetect() {
         </div>
 
         {/* 主内容区域 */}
-        <div className="flex-1 flex flex-col h-full overflow-hidden">
-          {/* 顶部导航栏（仅在中等及以上屏幕显示） */}
-          <div className="hidden md:flex h-14 border-b border-[#27272a] items-center justify-between px-6 flex-shrink-0 glass shadow-md">
+        <div className="flex-1 flex flex-col h-[calc(100vh-3.5rem)] overflow-hidden ml-0 md:ml-16 lg:ml-60 bg-[#18181b]">
+          {/* 顶部导航栏（在所有屏幕显示） */}
+          <div className="flex h-14 border-b border-[#27272a] items-center justify-between px-6 flex-shrink-0 glass shadow-md">
             <h2 className="text-base font-semibold gradient-text">{showHistory ? "历史记录" : "动漫角色识别"}</h2>
             <div className="flex items-center gap-3">
-              {!showHistory && (
-                <div className="relative">
-                  <select
-                    value={selectedModel}
-                    onChange={(e) => setSelectedModel(e.target.value)}
-                    className="appearance-none pl-3 pr-8 py-1.5 border border-[#3f3f46] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6366f1] focus:border-transparent bg-[#18181b] text-[#fafafa] text-sm transition-all duration-300 hover:border-[#6366f1]/50"
-                  >
-                    {models.map((model) => (
-                      <option key={model.name} value={model.name}>
-                        {model.name === "default" ? "默认模型" : model.name}
-                      </option>
-                    ))}
-                  </select>
-                  <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2.5 text-[#71717a]">
-                    <svg className="h-4 w-4 transition-transform duration-300 hover:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                    </svg>
-                  </div>
-                </div>
-              )}
-              {showHistory && (
-                <button 
-                  onClick={clearHistory}
-                  className="px-3 py-1.5 bg-[#ef4444]/10 text-[#ef4444] rounded-lg text-sm hover:bg-[#ef4444]/20 transition-all duration-300 transform hover:scale-105"
-                >
-                  清空历史
-                </button>
-              )}
-            </div>
-          </div>
-
-          {/* 移动端模型选择 */}
-          <div className="md:hidden px-4 py-2.5 border-b border-[#27272a] glass shadow-md">
-            {!showHistory && (
               <div className="relative">
                 <select
                   value={selectedModel}
                   onChange={(e) => setSelectedModel(e.target.value)}
-                  className="w-full appearance-none pl-3 pr-8 py-1.5 border border-[#3f3f46] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6366f1] focus:border-transparent bg-[#18181b] text-[#fafafa] text-sm transition-all duration-300 hover:border-[#6366f1]/50"
+                  className="appearance-none pl-3 pr-8 py-1.5 border border-[#3f3f46] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6366f1] focus:border-transparent bg-[#18181b] text-[#fafafa] text-sm transition-all duration-300 hover:border-[#6366f1]/50"
                 >
                   {models.map((model) => (
                     <option key={model.name} value={model.name}>
-                      {model.name === "default" ? "默认模型" : model.name}
+                      {model.description || (model.name === "default" ? "默认模型" : model.name)}
                     </option>
                   ))}
                 </select>
@@ -434,18 +461,15 @@ export default function AnimeRoleDetect() {
                   </svg>
                 </div>
               </div>
-            )}
-            {showHistory && (
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-medium text-[#fafafa]">历史记录</h3>
+              {showHistory && (
                 <button 
                   onClick={clearHistory}
-                  className="px-3 py-1 bg-[#ef4444]/10 text-[#ef4444] rounded-lg text-xs hover:bg-[#ef4444]/20 transition-all duration-300 transform hover:scale-105"
+                  className="px-3 py-1.5 bg-[#ef4444]/10 text-[#ef4444] rounded-lg text-sm hover:bg-[#ef4444]/20 transition-all duration-300 transform hover:scale-105"
                 >
-                  清空
+                  清空历史
                 </button>
-              </div>
-            )}
+              )}
+            </div>
           </div>
 
           {/* 消息列表或历史记录 */}
@@ -641,6 +665,26 @@ export default function AnimeRoleDetect() {
           {/* 输入区域 */}
           <div className="border-t border-[#27272a] glass shadow-2xl">
             <div className="px-4 sm:px-6 lg:px-8 py-4">
+              <div className="mb-3">
+                <div className="relative">
+                  <select
+                    value={selectedModel}
+                    onChange={(e) => setSelectedModel(e.target.value)}
+                    className="appearance-none pl-3 pr-8 py-1.5 border border-[#3f3f46] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6366f1] focus:border-transparent bg-[#18181b] text-[#fafafa] text-sm transition-all duration-300 hover:border-[#6366f1]/50"
+                  >
+                    {models.map((model) => (
+                      <option key={model.name} value={model.name}>
+                        {model.description || (model.name === "default" ? "默认模型" : model.name)}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2.5 text-[#71717a]">
+                    <svg className="h-4 w-4 transition-transform duration-300 hover:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </div>
+                </div>
+              </div>
               {imagePreview && (
                 <div className="mb-3 inline-flex items-center space-x-3 px-4 py-3 glass rounded-xl shadow-sm w-full max-w-xs transform transition-all duration-300 hover:shadow-md hover:border-[#6366f1]/30 border border-transparent hover:border-[#6366f1]/30">
                   <img src={imagePreview} alt="Preview" className="w-12 h-12 object-cover rounded-lg shadow transform transition-all duration-300 hover:scale-110" />

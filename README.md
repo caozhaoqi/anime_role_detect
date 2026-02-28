@@ -115,24 +115,6 @@ anime_role_detect/
 - **Hina**
 - **Yuuka**
 
-### BangDream MyGo!
-
-- **Aimi Kanazawa** (千早爱音)
-- **Ritsuki椎名立希** (椎名立希)
-- **Touko Takamatsu** (高松灯)
-- **Soyo Nagasaki** (长崎素世)
-- **Sakiko Tamagawa** (丰川祥子)
-- **Mutsumi Wakaba** (若叶睦)
-
-### Other Characters
-
-- **Genshin Impact** characters (原神)
-- **Spy × Family** characters (间谍过家家)
-- **Attack on Titan** characters (进击的巨人)
-- **One Piece** characters (海贼王)
-- **Naruto** characters (火影忍者)
-- **Tokyo Revengers** characters (东京复仇者)
-
 ## 🌐 Usage
 
 ### Web Interface Usage
@@ -417,43 +399,4 @@ If you have any questions or suggestions, please contact us through:
 ---
 
 **© 2026 Character Classification System** - Making character recognition simple!
-
-## 📋 Latest Updates
-
-### February 2026
-
-- **Added BangDream MyGo! characters** with 50-102 images per character
-- **Implemented end-to-end character detection workflow** from data collection to model training
-- **Added EfficientNet-B0 model** for character classification
-- **Improved API documentation** with GET request support
-- **Enhanced data processing pipeline** with automatic dataset splitting
-- **Added MPS acceleration** for faster training on Apple Silicon
-- **Added video detection support** for anime character recognition in videos
-- **Implemented video frame analysis** with frame-by-frame character detection
-- **Updated frontend interface** to support video upload and playback
-- **Enhanced API** to handle both image and video files for detection
-- **Implemented global logging system** with log rotation and categorized storage
-- **Integrated logging into all core modules** (API services, model inference, data processing)
-- **Added detailed logging** for all key operations and error scenarios
-- **Updated documentation** to include logging system usage guide
-- **Fixed error logging issues** and unified log handling across the system
-- **Integrated DeepDanbooru** for anime tag recognition to improve classification accuracy
-- **Implemented tag-assisted inference** to adjust classification scores based on tag matching
-- **Added DeepDanbooruInference class** for interacting with Hugging Face API
-- **Modified EfficientNetInference** to support tag-assisted prediction
-- **Updated API** to include use_deepdanbooru parameter
-- **Added multi-model integration** with CLIP + EfficientNet-B0 + DeepDanbooru
-- **Improved recognition accuracy** for characters with similar appearances
-- **Updated documentation** to include DeepDanbooru integration details
-- **Enhanced data collection scripts** with keyword-based collector for targeted data gathering
-- **Implemented comprehensive data augmentation** with style transfer and random augmentations
-- **Added automatic dataset splitting** with 80/10/10 train/val/test split
-- **Started model training** with current progress: 2/50 epochs, accuracy improving from 4.31% to 5.62%
-- **Optimized training pipeline** with MPS acceleration reaching ~9.0 batch/s
-- **Updated frontend API integration** to use actual backend API instead of mock data
-- **Fixed inference logging issues** by integrating global logging into classification services
-- **Improved FAISS index management** with automatic rebuilding and loading
-- **Enhanced backend API** to handle both image and video files for detection
-- **Updated data statistics** with 380 total characters, 352 valid characters, and 8644 total images
-
 
