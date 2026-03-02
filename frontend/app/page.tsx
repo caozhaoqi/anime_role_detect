@@ -31,7 +31,8 @@ export default function AnimeRoleDetect() {
   const [copySuccess, setCopySuccess] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
-  const [showSidebar, setShowSidebar] = useState(true);
+  const [showSidebar, setShowSidebar] = useState(false); // 默认隐藏侧边栏
+  const [darkMode, setDarkMode] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const isMountedRef = useRef(false);
