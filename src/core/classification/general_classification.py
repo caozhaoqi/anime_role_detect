@@ -153,7 +153,7 @@ class GeneralClassification:
             # 6. 尝试初始化DeepDanbooru推理器（单独处理，非致命）
             try:
                 logger.info("初始化DeepDanbooru推理模型...")
-                from core.classification.deepdanbooru_inference import DeepDanbooruInference
+                from src.core.classification.deepdanbooru_inference import DeepDanbooruInference
                 self.deepdanbooru_inference = DeepDanbooruInference()
                 logger.info("DeepDanbooru推理模型初始化成功")
             except Exception as e:

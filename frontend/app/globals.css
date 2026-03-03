@@ -3,29 +3,29 @@
 @tailwind utilities;
 
 :root {
-  --background: #0a0a0a;
-  --foreground: #ededed;
-  --primary: #6366f1;
-  --primary-hover: #4f46e5;
-  --secondary: #8b5cf6;
-  --accent: #ec4899;
+  --background: #f0f9ff;
+  --foreground: #1e293b;
+  --primary: #3b82f6;
+  --primary-hover: #2563eb;
+  --secondary: #60a5fa;
+  --accent: #0ea5e9;
   --danger: #ef4444;
   --warning: #f59e0b;
   --info: #3b82f6;
   --success: #10b981;
-  --border: #27272a;
-  --border-light: #3f3f46;
-  --border-dark: #18181b;
-  --text-primary: #fafafa;
-  --text-secondary: #a1a1aa;
-  --text-light: #71717a;
-  --text-placeholder: #52525b;
-  --card-bg: #18181b;
-  --card-hover: #27272a;
-  --gradient-start: #6366f1;
-  --gradient-end: #8b5cf6;
-  --glass-bg: rgba(24, 24, 27, 0.8);
-  --glass-border: rgba(255, 255, 255, 0.1);
+  --border: #e2e8f0;
+  --border-light: #cbd5e1;
+  --border-dark: #94a3b8;
+  --text-primary: #1e293b;
+  --text-secondary: #475569;
+  --text-light: #64748b;
+  --text-placeholder: #94a3b8;
+  --card-bg: #ffffff;
+  --card-hover: #f8fafc;
+  --gradient-start: #3b82f6;
+  --gradient-end: #0ea5e9;
+  --glass-bg: rgba(255, 255, 255, 0.8);
+  --glass-border: rgba(59, 130, 246, 0.2);
 }
 
 * {
@@ -38,8 +38,8 @@ body {
   line-height: 1.6;
   background-color: var(--background) !important;
   background-image: 
-    radial-gradient(circle at 15% 50%, rgba(99, 102, 241, 0.08) 0%, transparent 25%),
-    radial-gradient(circle at 85% 30%, rgba(139, 92, 246, 0.08) 0%, transparent 25%);
+    radial-gradient(circle at 15% 50%, rgba(59, 130, 246, 0.08) 0%, transparent 25%),
+    radial-gradient(circle at 85% 30%, rgba(14, 165, 233, 0.08) 0%, transparent 25%);
   background-attachment: fixed;
 }
 
@@ -50,16 +50,16 @@ body {
 }
 
 ::-webkit-scrollbar-track {
-  background: var(--background);
+  background: #f1f5f9;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--border-light);
+  background: #cbd5e1;
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--text-light);
+  background: #94a3b8;
 }
 
 /* 玻璃态效果 */

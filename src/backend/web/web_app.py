@@ -489,8 +489,24 @@ def api_classify():
                 # 使用默认模型
                 logger.debug("🤖 使用默认模型")
                 classifier = get_classifier(model=model)
-                role, similarity, boxes = classifier.classify_image(temp_path, use_model=use_model)
-                mode = 'EfficientNet' if use_model else 'CLIP'
+                
+                # 首先尝试使用集成方法，提高识别精度
+                try:
+                    logger.debug("🔄 尝试使用集成分类方法")
+                    role, similarity, boxes = classifier.classify_image_with_deepdanbooru(temp_path)
+                    mode = 'Ensemble (CLIP + EfficientNet + DeepDanbooru)'
+                except Exception as e:
+                    logger.warning(f"集成分类失败，回退到单一模型: {e}")
+                    # 回退到使用指定模型或默认模型
+                    if use_model:
+                        logger.debug("🤖 使用专用模型")
+                        role, similarity, boxes = classifier.classify_image(temp_path, use_model=True)
+                        mode = 'EfficientNet'
+                    else:
+                        logger.debug("🤖 使用CLIP模型")
+                        role, similarity, boxes = classifier.classify_image(temp_path, use_model=False)
+                        mode = 'CLIP'
+                
                 # 记录分类日志
                 record_classification_log(
                     image_path=temp_path,
