@@ -1,0 +1,52 @@
+{
+  "clip": {
+    "model": "CLIP",
+    "accuracy": 0.0,
+    "correct": 0,
+    "total": 1,
+    "results": [
+      {
+        "image": "微信图片_20260204115846_481_347.jpg",
+        "true_label": "test",
+        "predicted_label": "蔚蓝档案_阿罗娜",
+        "similarity": 0.7606216669082642,
+        "correct": false
+      }
+    ]
+  },
+  "efficientnet": {
+    "model": "EfficientNet",
+    "accuracy": 0.0,
+    "correct": 0,
+    "total": 1,
+    "results": [
+      {
+        "image": "微信图片_20260204115846_481_347.jpg",
+        "true_label": "test",
+        "predicted_label": "genshin_impact_八重神子",
+        "similarity": 0.8135327100753784,
+        "correct": false
+      }
+    ]
+  },
+  "ensemble": {
+    "model": "Ensemble",
+    "accuracy": 0.0,
+    "correct": 0,
+    "total": 1,
+    "results": [
+      {
+        "image": "微信图片_20260204115846_481_347.jpg",
+        "true_label": "test",
+        "predicted_label": "genshin_impact_八重神子",
+        "similarity": 0.3254130840301514,
+        "correct": false
+      }
+    ]
+  },
+  "summary": {
+    "total_test_samples": 1,
+    "best_model": "CLIP",
+    "best_accuracy": 0.0
+  }
+}
