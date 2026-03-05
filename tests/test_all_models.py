@@ -220,7 +220,7 @@ def main():
     dataset = CharacterDataset(data_dir, transform=transform)
     
     # 查找所有模型文件
-    models_dir = '../models'
+    models_dir = '../models' if os.path.exists('../models') else './models'
     model_files = find_model_files(models_dir)
     logger.info(f"找到 {len(model_files)} 个模型文件")
     
@@ -291,7 +291,13 @@ def main():
         logger.info(f'过滤后的测试集大小: {len(filtered_dataset)}')
         
         # 评估分类性能
-        class_names = list(filtered_class_to_idx.keys())
+        # 构建从模型类别索引到类名的映射
+        idx_to_class = {v: k for k, v in filtered_class_to_idx.items()}
+        # 确保类名列表与模型类别索引对应
+        max_idx = max(idx_to_class.keys()) if idx_to_class else 0
+        class_names = [''] * (max_idx + 1)
+        for idx, name in idx_to_class.items():
+            class_names[idx] = name
         classification_results = evaluate_classification(model, filtered_loader, device, class_names)
         
         # 汇总结果
