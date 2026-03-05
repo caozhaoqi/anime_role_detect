@@ -1,48 +1,36 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
-检查EfficientNet模型的类别列表
+检查模型文件中的类别信息
 """
-from src.core.classification.efficientnet_inference import EfficientNetInference
 
-# 初始化EfficientNet模型
-infer = EfficientNetInference()
+import os
+import torch
 
-# 打印模型类别信息
-print('模型类别数量:', len(infer.classes))
-print('模型类别示例:')
-for i, cls in enumerate(infer.classes[:30]):
-    print(f'{i}: {cls}')
-
-# 检查测试角色是否在模型类别中
-test_roles = [
-    'one_piece_路飞',
-    'demon_slayer_炭治郎', 
-    'honkai_star_rail_三月七',
-    'genshin_impact_胡桃',
-    'genshin_impact_雷电将军',
-    'genshin_impact_温迪',
-    'demon_slayer_祢豆子',
-    'dragon_ball_贝吉塔',
-    'honkai_impact_3_琪亚娜·卡斯兰娜',
-    'genshin_impact_神里绫华'
+# 检查模型文件
+model_paths = [
+    'models/arona_plana/model_best.pth',
+    'models/arona_plana_resnet18/model_best.pth',
+    'models/augmented_training/mobilenet_v2/model_best.pth'
 ]
 
-print('\n检查测试角色是否在模型类别中:')
-for role in test_roles:
-    print(f'{role}: {role in infer.classes}')
-
-# 检查是否有相似的类别
-print('\n检查是否有相似的类别:')
-similar_classes = []
-for cls in infer.classes:
-    for role in test_roles:
-        if role in cls or cls in role:
-            similar_classes.append(cls)
-            break
-
-if similar_classes:
-    print('找到相似的类别:')
-    for cls in similar_classes:
-        print(cls)
-else:
-    print('未找到相似的类别')
+for model_path in model_paths:
+    if os.path.exists(model_path):
+        print(f"\n检查模型: {model_path}")
+        try:
+            checkpoint = torch.load(model_path, map_location='cpu')
+            if 'class_to_idx' in checkpoint:
+                class_to_idx = checkpoint['class_to_idx']
+                print(f"类别数量: {len(class_to_idx)}")
+                print("类别映射:")
+                for cls, idx in sorted(class_to_idx.items(), key=lambda x: x[1]):
+                    print(f"  {cls}: {idx}")
+            else:
+                print("模型中没有 class_to_idx 信息")
+            
+            if 'model_type' in checkpoint:
+                print(f"模型类型: {checkpoint['model_type']}")
+        except Exception as e:
+            print(f"读取模型失败: {e}")
+    else:
+        print(f"模型文件不存在: {model_path}")

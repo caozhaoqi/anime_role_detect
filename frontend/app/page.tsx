@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Bot, User, Image as ImageIcon, X, Sparkles, Upload, Copy, Download, CheckCircle, Menu, Search, Settings, HelpCircle, Moon, Sun, Zap, Layers } from "lucide-react";
+import { Bot, User, Image as ImageIcon, X, Sparkles, Upload, Copy, Download, CheckCircle, Menu, Search, Settings, HelpCircle, Moon, Sun, Zap, Layers, Trash2, Clock } from "lucide-react";
 import { Message, Model } from "./types";
 import { useHistory } from "./hooks/useHistory";
 
@@ -32,6 +32,7 @@ export default function AnimeRoleDetect() {
   const [isDragging, setIsDragging] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [showSidebar, setShowSidebar] = useState(false); // 默认隐藏侧边栏
+  const [showModelSelect, setShowModelSelect] = useState(false); // 移动端模型选择
   const [darkMode, setDarkMode] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -412,7 +413,7 @@ export default function AnimeRoleDetect() {
 
   return (
     <div 
-      className="flex flex-col h-screen font-sans overflow-hidden bg-[#0a0a0a] text-[#ededed]"
+      className="flex flex-col h-screen font-sans overflow-hidden bg-gradient-to-br from-[#f8fafc] to-[#e2e8f0]"
       onDragEnter={handleDragEnter}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
@@ -420,23 +421,23 @@ export default function AnimeRoleDetect() {
     >
       {/* 拖拽上传覆盖层 */}
       {isDragging && (
-        <div className="fixed inset-0 bg-[#0a0a0a]/80 backdrop-blur-sm flex items-center justify-center z-50 border-2 border-dashed border-[#6366f1] rounded-lg animate-pulse-glow">
+        <div className="fixed inset-0 bg-white/80 backdrop-blur-sm flex items-center justify-center z-50 border-2 border-dashed border-[#3b82f6] rounded-lg animate-pulse-glow">
           <div className="text-center p-8 glass rounded-xl shadow-2xl transform transition-transform hover:scale-105">
-            <Upload className="h-16 w-16 mx-auto mb-4 text-[#6366f1] animate-bounce" />
-            <h3 className="text-xl font-semibold mb-2 text-[#fafafa] animate-fade-in">拖拽图片到这里</h3>
-            <p className="text-[#a1a1aa] animate-fade-in">松开鼠标即可上传图片进行识别</p>
+            <Upload className="h-16 w-16 mx-auto mb-4 text-[#3b82f6] animate-bounce" />
+            <h3 className="text-xl font-semibold mb-2 text-[#1e293b] animate-fade-in">拖拽图片到这里</h3>
+            <p className="text-[#64748b] animate-fade-in">松开鼠标即可上传图片进行识别</p>
           </div>
         </div>
       )}
 
       {/* 移动端顶部导航栏 */}
-      <div className="md:hidden h-14 border-b border-[#27272a] flex items-center justify-between px-4 flex-shrink-0 glass shadow-md">
+      <div className="md:hidden h-14 border-b border-[#e2e8f0] flex items-center justify-between px-4 flex-shrink-0 glass shadow-md">
         <div className="flex items-center gap-2.5">
           <button 
-            className="p-1.5 rounded-lg hover:bg-[#27272a] transition-all duration-300 transform hover:scale-105"
+            className="p-1.5 rounded-lg hover:bg-[#f1f5f9] transition-all duration-300 transform hover:scale-105"
             onClick={() => setShowSidebar(!showSidebar)}
           >
-            <Menu size={18} className="text-[#a1a1aa]" />
+            <Menu size={18} className="text-[#64748b]" />
           </button>
           <h2 className="text-base font-semibold gradient-text">动漫角色识别</h2>
         </div>
@@ -445,7 +446,7 @@ export default function AnimeRoleDetect() {
             <select
               value={selectedModel}
               onChange={(e) => setSelectedModel(e.target.value)}
-              className="appearance-none pl-3 pr-8 py-1.5 border border-[#3f3f46] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6366f1] focus:border-transparent bg-[#18181b] text-[#fafafa] text-sm transition-all duration-300 hover:border-[#6366f1]/50"
+              className="appearance-none pl-3 pr-8 py-1.5 border border-[#cbd5e1] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] focus:border-transparent bg-white text-[#1e293b] text-sm transition-all duration-300 hover:border-[#3b82f6]/50"
             >
               {models.map((model) => (
                 <option key={model.name} value={model.name}>
@@ -453,14 +454,14 @@ export default function AnimeRoleDetect() {
                 </option>
               ))}
             </select>
-            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2.5 text-[#71717a]">
+            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2.5 text-[#94a3b8]">
               <svg className="h-4 w-4 transition-transform duration-300 hover:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
               </svg>
             </div>
           </div>
-          <button className="p-1.5 rounded-lg hover:bg-[#27272a] transition-all duration-300 transform hover:scale-105">
-            <Moon className="h-4 w-4 text-[#a1a1aa]" />
+          <button className="p-1.5 rounded-lg hover:bg-[#f1f5f9] transition-all duration-300 transform hover:scale-105">
+            <Moon className="h-4 w-4 text-[#64748b]" />
           </button>
         </div>
       </div>
@@ -468,10 +469,10 @@ export default function AnimeRoleDetect() {
       {/* 主内容区域 */}
       <div className="flex-1 flex overflow-hidden">
         {/* 左侧边栏（仅在中等及以上屏幕显示） */}
-        <div className={`fixed md:relative top-14 left-0 z-50 flex flex-col items-center lg:items-start w-16 lg:w-60 h-[calc(100%-3.5rem)] glass border-r border-[#27272a] p-3 transition-all duration-300 transform ${showSidebar ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0 shadow-lg`}>
+        <div className={`fixed md:relative top-14 left-0 z-30 flex flex-col items-center lg:items-start w-16 lg:w-56 h-[calc(100%-3.5rem)] glass border-r border-[#e2e8f0] p-4 transition-all duration-300 transform ${showSidebar ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0 shadow-lg`}>
           {/* Logo */}
-          <div className="flex items-center gap-2.5 mb-6">
-            <div className="p-2.5 gradient-bg rounded-lg shadow-lg animate-pulse-glow transform hover:scale-110 transition-transform duration-300">
+          <div className="flex items-center gap-3 mb-8">
+            <div className="p-3 gradient-bg rounded-lg shadow-lg animate-pulse-glow transform hover:scale-110 transition-transform duration-300">
               <Sparkles className="h-5 w-5 text-white" />
             </div>
             <h1 className="text-lg font-bold gradient-text hidden lg:block animate-fade-in">动漫角色识别</h1>
@@ -479,9 +480,9 @@ export default function AnimeRoleDetect() {
 
           {/* 导航菜单 */}
           <nav className="flex-1 w-full">
-            <ul className="space-y-1.5">
+            <ul className="space-y-2">
               <li>
-                <button className="flex items-center gap-2.5 w-full px-3 py-2.5 rounded-lg bg-[#6366f1]/10 text-[#6366f1] font-medium hover:bg-[#6366f1]/20 transition-all duration-300 transform hover:translate-x-1">
+                <button className="flex items-center gap-3 w-full px-4 py-3 rounded-lg bg-[#3b82f6]/10 text-[#3b82f6] font-medium hover:bg-[#3b82f6]/20 transition-all duration-300 transform hover:translate-x-1">
                   <Search className="h-4 w-4" />
                   <span className="hidden lg:block">识别</span>
                 </button>
@@ -489,25 +490,25 @@ export default function AnimeRoleDetect() {
               <li>
                 <button 
                   onClick={() => setShowHistory(!showHistory)}
-                  className="flex items-center gap-2.5 w-full px-3 py-2.5 rounded-lg hover:bg-[#27272a] text-[#a1a1aa] transition-all duration-300 transform hover:translate-x-1"
+                  className="flex items-center gap-3 w-full px-4 py-3 rounded-lg hover:bg-[#f1f5f9] text-[#64748b] transition-all duration-300 transform hover:translate-x-1"
                 >
                   <Layers className="h-4 w-4" />
                   <span className="hidden lg:block">历史记录</span>
                   {history.length > 0 && (
-                    <span className="ml-auto bg-[#6366f1] text-white text-xs px-2 py-0.5 rounded-full animate-pulse">
+                    <span className="ml-auto bg-[#3b82f6] text-white text-xs px-2 py-0.5 rounded-full animate-pulse">
                       {history.length}
                     </span>
                   )}
                 </button>
               </li>
               <li>
-                <button className="flex items-center gap-2.5 w-full px-3 py-2.5 rounded-lg hover:bg-[#27272a] text-[#a1a1aa] transition-all duration-300 transform hover:translate-x-1">
+                <button className="flex items-center gap-3 w-full px-4 py-3 rounded-lg hover:bg-[#f1f5f9] text-[#64748b] transition-all duration-300 transform hover:translate-x-1">
                   <Settings className="h-4 w-4" />
                   <span className="hidden lg:block">设置</span>
                 </button>
               </li>
               <li>
-                <button className="flex items-center gap-2.5 w-full px-3 py-2.5 rounded-lg hover:bg-[#27272a] text-[#a1a1aa] transition-all duration-300 transform hover:translate-x-1">
+                <button className="flex items-center gap-3 w-full px-4 py-3 rounded-lg hover:bg-[#f1f5f9] text-[#64748b] transition-all duration-300 transform hover:translate-x-1">
                   <HelpCircle className="h-4 w-4" />
                   <span className="hidden lg:block">帮助</span>
                 </button>
@@ -517,7 +518,7 @@ export default function AnimeRoleDetect() {
 
           {/* 底部设置 */}
           <div className="w-full mt-auto">
-            <button className="flex items-center gap-2.5 w-full px-3 py-2.5 rounded-lg hover:bg-[#27272a] text-[#a1a1aa] transition-all duration-300 transform hover:translate-x-1">
+            <button className="flex items-center gap-3 w-full px-4 py-3 rounded-lg hover:bg-[#f1f5f9] text-[#64748b] transition-all duration-300 transform hover:translate-x-1">
               <Moon className="h-4 w-4" />
               <span className="hidden lg:block">深色模式</span>
             </button>
@@ -525,20 +526,20 @@ export default function AnimeRoleDetect() {
         </div>
 
         {/* 主内容区域 */}
-        <div className="flex-1 flex flex-col h-[calc(100vh-3.5rem)] overflow-hidden ml-0 md:ml-16 lg:ml-60 bg-gradient-to-br from-[#f0f9ff] to-[#e0f2fe]">
+        <div className="flex-1 flex flex-col h-[calc(100vh-3.5rem)] overflow-hidden ml-0 md:ml-16 lg:ml-56 bg-gradient-to-br from-[#f0f9ff] to-[#e0f2fe]">
           {/* 顶部导航栏（在所有屏幕显示） */}
-          <div className="flex h-16 border-b border-[#e2e8f0] items-center justify-between px-6 flex-shrink-0 glass shadow-lg">
+          <div className="flex h-16 border-b border-[#e2e8f0] items-center justify-between px-6 flex-shrink-0 glass shadow-md">
             <div className="flex items-center gap-4">
               <Zap className="h-6 w-6 gradient-text" />
               <h2 className="text-xl font-semibold gradient-text">{showHistory ? "历史记录" : "动漫角色识别"}</h2>
             </div>
             <div className="flex items-center gap-4">
-              {/* 模型选择 */}
-              <div className="relative">
+              {/* 模型选择下拉框（仅在中等及以上屏幕显示） */}
+              <div className="relative hidden sm:block">
                 <select
                   value={selectedModel}
                   onChange={(e) => setSelectedModel(e.target.value)}
-                  className="appearance-none pl-4 pr-10 py-2 border border-[#cbd5e1] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] focus:border-transparent bg-white text-[#1e293b] text-sm transition-all duration-300 hover:border-[#3b82f6]/50 shadow-md min-w-[180px]"
+                  className="appearance-none pl-4 pr-10 py-2 border border-[#cbd5e1] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] focus:border-transparent bg-white text-[#1e293b] text-sm transition-all duration-300 hover:border-[#3b82f6]/50 shadow-sm min-w-[180px]"
                 >
                   {models.map((model) => (
                     <option key={model.name} value={model.name}>
@@ -553,10 +554,37 @@ export default function AnimeRoleDetect() {
                 </div>
               </div>
               
+              {/* 移动端模型选择按钮 */}
+              <div className="sm:hidden">
+                <button
+                  onClick={() => setShowModelSelect(!showModelSelect)}
+                  className="flex items-center gap-2 px-4 py-2 border border-[#cbd5e1] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] focus:border-transparent bg-white text-[#1e293b] text-sm transition-all duration-300 hover:border-[#3b82f6]/50 shadow-sm"
+                >
+                  <Settings className="h-4 w-4 text-[#3b82f6]" />
+                  <span>模型</span>
+                </button>
+                {showModelSelect && (
+                  <div className="absolute top-16 right-6 glass rounded-2xl shadow-2xl border border-[#e2e8f0] p-2 z-50 transform transition-all duration-300 animate-slide-up w-48">
+                    {models.map((model) => (
+                      <button
+                        key={model.name}
+                        onClick={() => {
+                          setSelectedModel(model.name);
+                          setShowModelSelect(false);
+                        }}
+                        className={`w-full text-left px-4 py-2 rounded-lg transition-all duration-300 ${selectedModel === model.name ? "bg-[#3b82f6]/10 text-[#3b82f6]" : "hover:bg-[#f1f5f9]"}`}
+                      >
+                        {model.description || (model.name === "default" ? "默认模型" : model.name)}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              
               {/* 主题切换 */}
               <button 
                 onClick={() => setDarkMode(!darkMode)}
-                className="p-2 rounded-lg hover:bg-[#f1f5f9] transition-all duration-300 transform hover:scale-110"
+                className="p-2 rounded-lg hover:bg-[#f1f5f9] transition-all duration-300 transform hover:scale-105"
                 title={darkMode ? "切换到浅色模式" : "切换到深色模式"}
               >
                 {darkMode ? <Sun className="h-5 w-5 text-[#f59e0b]" /> : <Moon className="h-5 w-5 text-[#3b82f6]" />}
@@ -565,7 +593,7 @@ export default function AnimeRoleDetect() {
               {/* 历史记录按钮 */}
               <button 
                 onClick={() => setShowHistory(!showHistory)}
-                className="p-2 rounded-lg hover:bg-[#f1f5f9] transition-all duration-300 transform hover:scale-110"
+                className="p-2 rounded-lg hover:bg-[#f1f5f9] transition-all duration-300 transform hover:scale-105"
                 title="查看历史记录"
               >
                 <Layers className="h-5 w-5 text-[#3b82f6]" />
@@ -574,47 +602,48 @@ export default function AnimeRoleDetect() {
               {showHistory && (
                 <button 
                   onClick={clearHistory}
-                  className="px-4 py-2 bg-[#ef4444]/10 text-[#ef4444] rounded-lg text-sm hover:bg-[#ef4444]/20 transition-all duration-300 transform hover:scale-105 shadow-sm"
+                  className="p-2 rounded-lg hover:bg-[#f1f5f9] transition-all duration-300 transform hover:scale-105"
+                  title="清空历史记录"
                 >
-                  清空历史
+                  <Trash2 className="h-5 w-5 text-[#ef4444]" />
                 </button>
               )}
             </div>
           </div>
 
           {/* 消息列表或历史记录 */}
-          <div className="flex-1 overflow-y-auto p-4 md:p-6 scroll-smooth">
+          <div className="flex-1 overflow-y-auto p-6 md:p-8 scroll-smooth">
             {copySuccess && (
-              <div className="fixed top-20 right-4 left-4 md:left-auto md:right-4 bg-[#10b981] text-white px-6 py-3 rounded-xl shadow-lg animate-slide-up z-50 transform transition-all duration-300 hover:scale-105">
+              <div className="fixed top-24 right-6 left-6 md:left-auto md:right-6 bg-[#10b981] text-white px-6 py-4 rounded-xl shadow-lg animate-slide-up z-50 transform transition-all duration-300 hover:scale-105">
                 {copySuccess}
               </div>
             )}
             
             {/* 历史记录显示 */}
             {showHistory ? (
-              <div className="max-w-3xl mx-auto space-y-6 pb-12">
+              <div className="max-w-3xl mx-auto space-y-8 pb-16">
                 {history.length === 0 ? (
-                  <div className="glass p-8 rounded-xl text-center shadow-lg transform transition-all duration-300 hover:scale-[1.02]">
-                    <Layers className="h-12 w-12 mx-auto mb-4 text-[#94a3b8] animate-float" />
-                    <h3 className="text-lg font-semibold text-[#1e293b] mb-2 animate-fade-in">暂无历史记录</h3>
+                  <div className="glass p-10 rounded-xl text-center shadow-lg transform transition-all duration-300 hover:scale-[1.02]">
+                    <Layers className="h-16 w-16 mx-auto mb-6 text-[#94a3b8] animate-float" />
+                    <h3 className="text-xl font-semibold text-[#1e293b] mb-3 animate-fade-in">暂无历史记录</h3>
                     <p className="text-[#64748b] animate-fade-in">上传图片进行识别后，结果将显示在这里</p>
                   </div>
                 ) : (
                   history.map((record, idx) => (
                     <div key={idx} className="glass border border-[#e2e8f0] rounded-xl p-6 shadow-lg animate-slide-up transition-all duration-300 hover:shadow-xl hover:border-[#3b82f6]/30">
-                      <div className="flex items-center justify-between mb-4">
-                        <span className="text-xs text-[#94a3b8]">
+                      <div className="flex items-center justify-between mb-6">
+                        <span className="text-sm text-[#94a3b8]">
                           {new Date(record.timestamp).toLocaleString()}
                         </span>
-                        <span className={`text-xs px-3 py-1.5 rounded-full border ${record.classification?.confidence === "high" ? "bg-[#10b981]/10 text-[#10b981] border-[#10b981]/30" : record.classification?.confidence === "medium" ? "bg-[#f59e0b]/10 text-[#f59e0b] border-[#f59e0b]/30" : "bg-[#ef4444]/10 text-[#ef4444] border-[#ef4444]/30"}`}>
+                        <span className={`text-sm px-3 py-1.5 rounded-full border ${record.classification?.confidence === "high" ? "bg-[#10b981]/10 text-[#10b981] border-[#10b981]/30" : record.classification?.confidence === "medium" ? "bg-[#f59e0b]/10 text-[#f59e0b] border-[#f59e0b]/30" : "bg-[#ef4444]/10 text-[#ef4444] border-[#ef4444]/30"}`}>
                           {record.classification && getConfidenceText(record.classification.confidence)}
                         </span>
                       </div>
                       {record.classification && (
-                        <div className="mb-4">
-                          <div className="text-lg font-bold text-[#1e293b] mb-2 animate-fade-in">{record.classification.role}</div>
-                          <div className="text-sm text-[#64748b] mb-3">相似度: {(record.classification.similarity * 100).toFixed(1)}%</div>
-                          <div className="progress-bar h-3 mb-4 bg-[#cbd5e1] rounded-full overflow-hidden">
+                        <div className="mb-6">
+                          <div className="text-xl font-bold text-[#1e293b] mb-3 animate-fade-in">{record.classification.role}</div>
+                          <div className="text-sm text-[#64748b] mb-4">相似度: {(record.classification.similarity * 100).toFixed(1)}%</div>
+                          <div className="progress-bar h-3 mb-6 bg-[#cbd5e1] rounded-full overflow-hidden">
                             <div
                               className={`progress-bar-fill h-3 rounded-full transition-all duration-1000 ease-out ${record.classification.confidence === "high" ? "bg-[#10b981]" : record.classification.confidence === "medium" ? "bg-[#f59e0b]" : "bg-[#ef4444]"}`}
                               style={{ width: `${record.classification.similarity * 100}%` }}
@@ -639,22 +668,22 @@ export default function AnimeRoleDetect() {
               </div>
             ) : (
               /* 消息列表显示 */
-              <div className="max-w-3xl mx-auto space-y-8 pb-12">
+              <div className="max-w-3xl mx-auto space-y-8 pb-16">
                 {messages.map((msg, idx) => (
                   <div key={idx} className={`flex gap-4 ${msg.role === "user" ? "justify-end" : "justify-start"} animate-slide-up`}>
                     {msg.role === "assistant" && (
-                      <div className="w-12 h-12 rounded-full flex-shrink-0 flex items-center justify-center shadow-lg gradient-bg animate-float">
-                        <Bot size={24} className="text-white" />
+                      <div className="w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center shadow-lg gradient-bg animate-float">
+                        <Bot size={20} className="text-white" />
                       </div>
                     )}
 
-                    <div className={`max-w-[80%] sm:max-w-[75%] md:max-w-[70%] rounded-2xl px-6 py-5 text-sm leading-6 shadow-lg message-bubble transition-all duration-300 ${msg.role === "user" ? "gradient-bg text-white" : "glass border border-[#e2e8f0] text-[#1e293b] shadow-inner"} hover:shadow-xl transform hover:scale-[1.01]`}>
+                    <div className={`max-w-[85%] sm:max-w-[80%] md:max-w-[75%] rounded-2xl px-5 py-4 text-sm leading-6 shadow-lg message-bubble transition-all duration-300 ${msg.role === "user" ? "gradient-bg text-white" : "glass border border-[#e2e8f0] text-[#1e293b] shadow-inner"} hover:shadow-xl transform hover:scale-[1.01]`}>
                       {msg.role === "assistant" ? (
-                        <div className="flex flex-col gap-4">
+                        <div className="flex flex-col gap-3">
                           {/* 思考过程展示 */}
                           {msg.thoughts && msg.thoughts.length > 0 && (
-                            <div className="mb-4">
-                              <div className="flex items-center gap-2 text-xs px-4 py-2 rounded-full transition-all cursor-pointer w-fit select-none border border-[#3b82f6]/30 bg-[#3b82f6]/10 text-[#3b82f6] shadow-sm hover:bg-[#3b82f6]/20 transform hover:scale-105">
+                            <div className="mb-3">
+                              <div className="flex items-center gap-2 text-xs px-3 py-1.5 rounded-full transition-all cursor-pointer w-fit select-none border border-[#3b82f6]/30 bg-[#3b82f6]/10 text-[#3b82f6] shadow-sm hover:bg-[#3b82f6]/20 transform hover:scale-105">
                                 <div className="relative">
                                   <Sparkles size={14} className="text-[#3b82f6]" />
                                   {!msg.isThinkingFinished && (
@@ -668,7 +697,7 @@ export default function AnimeRoleDetect() {
                                   {msg.isThinkingFinished ? "思考完成" : "正在思考..."}
                                 </span>
                               </div>
-                              <div className="relative pl-4 border-l-2 border-[#cbd5e1] py-2">
+                              <div className="relative pl-3 border-l-2 border-[#cbd5e1] py-2">
                                 <div className="text-sm text-[#64748b] leading-relaxed font-serif italic whitespace-pre-wrap">
                                   {msg.thoughts.join("\n")}
                                   {!msg.isThinkingFinished && (
@@ -692,28 +721,28 @@ export default function AnimeRoleDetect() {
 
                           {/* 识别结果 */}
                           {msg.classification && (
-                            <div className="mt-4 pt-4 border-t border-[#e2e8f0]">
-                              <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+                            <div className="mt-3 pt-3 border-t border-[#e2e8f0]">
+                              <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
                                 <span className="text-xs font-medium text-[#64748b]">识别结果</span>
                                 <span className={`text-xs px-3 py-1.5 rounded-full border ${msg.classification.confidence === "high" ? "bg-[#10b981]/10 text-[#10b981] border-[#10b981]/30" : msg.classification.confidence === "medium" ? "bg-[#f59e0b]/10 text-[#f59e0b] border-[#f59e0b]/30" : "bg-[#ef4444]/10 text-[#ef4444] border-[#ef4444]/30"}`}>
                                   {getConfidenceText(msg.classification.confidence)}
                                 </span>
                               </div>
-                              <div className="glass p-6 rounded-2xl shadow-lg transition-all duration-300 hover:shadow-xl border border-[#e2e8f0]">
-                                <div className="flex flex-col sm:flex-row items-center space-x-6">
+                              <div className="glass p-5 rounded-xl shadow-lg transition-all duration-300 hover:shadow-xl border border-[#e2e8f0]">
+                                <div className="flex flex-col sm:flex-row items-center space-x-4">
                                   <div className="flex-1 w-full sm:w-auto">
                                     <div className="text-lg font-bold text-[#1e293b] animate-fade-in">{msg.classification.role}</div>
-                                    <div className="text-sm text-[#64748b] mt-3 animate-fade-in">相似度: {(msg.classification.similarity * 100).toFixed(1)}%</div>
-                                    <div className="mt-4">
-                                      <div className="progress-bar h-3 bg-[#cbd5e1] rounded-full overflow-hidden">
+                                    <div className="text-sm text-[#64748b] mt-2 animate-fade-in">相似度: {(msg.classification.similarity * 100).toFixed(1)}%</div>
+                                    <div className="mt-3">
+                                      <div className="progress-bar h-2.5 bg-[#cbd5e1] rounded-full overflow-hidden">
                                         <div
-                                          className={`progress-bar-fill h-3 rounded-full transition-all duration-1000 ease-out ${msg.classification.confidence === "high" ? "bg-[#10b981]" : msg.classification.confidence === "medium" ? "bg-[#f59e0b]" : "bg-[#ef4444]"}`}
+                                          className={`progress-bar-fill h-2.5 rounded-full transition-all duration-1000 ease-out ${msg.classification.confidence === "high" ? "bg-[#10b981]" : msg.classification.confidence === "medium" ? "bg-[#f59e0b]" : "bg-[#ef4444]"}`}
                                           style={{ width: `${msg.classification.similarity * 100}%` }}
                                         ></div>
                                       </div>
                                     </div>
                                   </div>
-                                  <div className="w-20 h-20 rounded-full bg-[#3b82f6]/10 flex items-center justify-center shadow-md mt-6 sm:mt-0 animate-float">
+                                  <div className="w-20 h-20 rounded-full bg-[#3b82f6]/10 flex items-center justify-center shadow-md mt-4 sm:mt-0 animate-float">
                                     <CheckCircle
                                       className={`w-10 h-10 ${msg.classification.confidence === "high" ? "text-[#10b981]" : msg.classification.confidence === "medium" ? "text-[#f59e0b]" : "text-[#ef4444]"}`}
                                     />
@@ -722,7 +751,7 @@ export default function AnimeRoleDetect() {
                               </div>
                               
                               {/* 识别时间 */}
-                              <div className="mt-4 text-xs text-[#94a3b8] flex items-center gap-2 justify-end">
+                              <div className="mt-3 text-xs text-[#94a3b8] flex items-center gap-2 justify-end">
                                 <Clock className="h-3 w-3" />
                                 <span>{msg.timestamp}</span>
                               </div>
@@ -730,9 +759,9 @@ export default function AnimeRoleDetect() {
                           )}
                         </div>
                       ) : (
-                        <div className="flex flex-col gap-3">
+                        <div className="flex flex-col gap-2">
                           {msg.image && (
-                            <div className="mb-3">
+                            <div className="mb-2">
                               <div className="relative transform transition-all duration-300 hover:scale-[1.02]">
                                 <img src={msg.image} alt="Uploaded" className="max-w-xs max-h-64 h-auto rounded-xl shadow-lg animate-fade-in object-contain" />
                                 <div className="absolute top-2 right-2 bg-black/50 text-white text-xs px-2 py-1 rounded-lg backdrop-blur-sm">{selectedImage?.name}</div>
@@ -742,7 +771,7 @@ export default function AnimeRoleDetect() {
                           <div className="whitespace-pre-wrap">{msg.content}</div>
                           
                           {/* 发送时间 */}
-                          <div className="text-xs text-white/70 flex items-center gap-2 justify-end mt-2">
+                          <div className="text-xs text-white/70 flex items-center gap-2 justify-end mt-1">
                             <Clock className="h-3 w-3" />
                             <span>{msg.timestamp}</span>
                           </div>
@@ -751,10 +780,10 @@ export default function AnimeRoleDetect() {
 
                       {/* 复制和下载按钮 */}
                       {msg.content && (
-                        <div className="flex justify-end gap-3 mt-4">
+                        <div className="flex justify-end gap-2 mt-3">
                           <button
                             onClick={() => handleCopyMessage(msg.content)}
-                            className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs transition-all duration-300 ${msg.role === "user" ? "bg-white/10 hover:bg-white/20 text-white" : "bg-[#f1f5f9] hover:bg-[#e2e8f0] text-[#64748b]"} transform hover:scale-105`}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-all duration-300 ${msg.role === "user" ? "bg-white/10 hover:bg-white/20 text-white" : "bg-[#f1f5f9] hover:bg-[#e2e8f0] text-[#64748b]"} transform hover:scale-105`}
                             title="复制消息内容"
                           >
                             <Copy size={14} />
@@ -762,7 +791,7 @@ export default function AnimeRoleDetect() {
                           </button>
                           <button
                             onClick={() => handleDownloadMessage(msg.content, msg.role)}
-                            className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs transition-all duration-300 ${msg.role === "user" ? "bg-white/10 hover:bg-white/20 text-white" : "bg-[#f1f5f9] hover:bg-[#e2e8f0] text-[#64748b]"} transform hover:scale-105`}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-all duration-300 ${msg.role === "user" ? "bg-white/10 hover:bg-white/20 text-white" : "bg-[#f1f5f9] hover:bg-[#e2e8f0] text-[#64748b]"} transform hover:scale-105`}
                             title="下载消息内容"
                           >
                             <Download size={14} />
@@ -773,8 +802,8 @@ export default function AnimeRoleDetect() {
                     </div>
 
                     {msg.role === "user" && (
-                      <div className="w-12 h-12 rounded-full flex-shrink-0 flex items-center justify-center shadow-lg gradient-bg animate-float">
-                        <User size={24} className="text-white" />
+                      <div className="w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center shadow-lg gradient-bg animate-float">
+                        <User size={20} className="text-white" />
                       </div>
                     )}
                   </div>
@@ -786,7 +815,7 @@ export default function AnimeRoleDetect() {
 
           {/* 输入区域 */}
           <div className="border-t border-[#e2e8f0] glass shadow-2xl">
-            <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+            <div className="max-w-3xl mx-auto px-6 sm:px-8 lg:px-10 py-6">
               {/* 移除重复的模型选择下拉框，因为已经在顶部导航栏中添加了 */}
               
               {/* 移除预览图片显示 */}
@@ -825,7 +854,7 @@ export default function AnimeRoleDetect() {
                   />
                   <button
                     onClick={() => fileInputRef.current?.click()}
-                    className="absolute right-4 top-1/2 transform -translate-y-1/2 p-2 hover:bg-[#f1f5f9] rounded-lg transition-colors duration-300 hover:scale-110 shadow-sm"
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 p-2 hover:bg-[#f1f5f9] rounded-lg transition-colors duration-300 hover:scale-110 shadow-sm"
                     disabled={isProcessing}
                     title="上传图片"
                   >
@@ -848,14 +877,13 @@ export default function AnimeRoleDetect() {
                       </>
                     ) : (
                       <>
-                        <Sparkles className="w-5 h-5 transition-transform duration-300 hover:rotate-12" />
+                        <Sparkles className="h-5 w-5 transition-transform duration-300 hover:rotate-12" />
                         <span className="hidden sm:inline">发送</span>
                       </>
                     )}
                   </button>
                 </div>
               </div>
-
               <div className="mt-4 text-xs text-[#64748b] text-center transition-all duration-300 hover:text-[#475569]">按 Enter 发送，Shift + Enter 换行</div>
             </div>
           </div>
