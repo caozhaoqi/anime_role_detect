@@ -81,7 +81,7 @@ def integrate_tags(annotations_file, tags_dir, output_file):
 
 def main():
     parser = argparse.ArgumentParser(description='集成WD Vit V3 Tagger标签到现有标注系统')
-    parser.add_argument('--annotations', type=str, default='attribute_annotations.json', help='现有标注文件')
+    parser.add_argument('--annotations', type=str, default='../config/attribute_annotations.json', help='现有标注文件')
     parser.add_argument('--tags-dir', type=str, default='../data/image_tags', help='WD标签目录')
     parser.add_argument('--output', type=str, default='attribute_annotations_with_wd_tags.json', help='输出文件')
     

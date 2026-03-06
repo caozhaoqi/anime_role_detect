@@ -16,7 +16,9 @@ import logging
 from tqdm import tqdm
 import json
 import time
-from models import get_model_with_attributes
+import sys
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+from models.models import get_model_with_attributes
 
 # 配置日志
 logging.basicConfig(
@@ -229,7 +231,7 @@ def train_model(model, train_loader, val_loader, device, num_epochs=50, lr=0.000
 def main():
     parser = argparse.ArgumentParser(description='带有属性标签的角色分类模型训练脚本')
     parser.add_argument('--data-dir', type=str, default='../data/downloaded_images', help='数据目录')
-    parser.add_argument('--annotations-file', type=str, default='attribute_annotations.json', help='标注文件路径')
+    parser.add_argument('--annotations-file', type=str, default='../config/attribute_annotations.json', help='标注文件路径')
     parser.add_argument('--model-type', type=str, default='mobilenet_v2', 
                        choices=['mobilenet_v2', 'efficientnet_b0', 'resnet18'],
                        help='模型类型')

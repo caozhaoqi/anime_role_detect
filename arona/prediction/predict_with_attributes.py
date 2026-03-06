@@ -11,6 +11,9 @@ from torchvision import transforms
 from PIL import Image
 import logging
 import json
+import sys
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+from models.models import get_model_with_attributes
 
 # 配置日志
 logging.basicConfig(

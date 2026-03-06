@@ -14,7 +14,9 @@ import logging
 from tqdm import tqdm
 import json
 from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
-from models import get_model_with_attributes
+import sys
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+from models.models import get_model_with_attributes
 
 # 配置日志
 logging.basicConfig(
@@ -252,7 +254,7 @@ def main():
                        choices=['mobilenet_v2', 'efficientnet_b0', 'resnet18'],
                        help='模型类型')
     parser.add_argument('--data-dir', type=str, default='../data/downloaded_images', help='数据目录')
-    parser.add_argument('--annotations-file', type=str, default='attribute_annotations.json', help='标注文件路径')
+    parser.add_argument('--annotations-file', type=str, default='../config/attribute_annotations.json', help='标注文件路径')
     parser.add_argument('--batch-size', type=int, default=8, help='批量大小')
     parser.add_argument('--output-dir', type=str, default='test_results_with_attributes', help='输出目录')
     parser.add_argument('--test-image', type=str, default=None, help='测试单张图像')

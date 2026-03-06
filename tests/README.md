@@ -1,91 +1,273 @@
-# 测试数据准备指南
+# 测试目录
 
-本指南介绍如何准备测试数据，用于评估系统的性能和准确率。
+本目录包含项目的所有测试脚本，按功能分类存储。
 
-## 测试数据结构
-
-测试数据目录结构如下：
+## 目录结构
 
 ```
 tests/
-├── test_images/
-│   ├── single_character/  # 单角色测试图片
-│   │   ├── 角色1/         # 角色1的测试图片
-│   │   ├── 角色2/         # 角色2的测试图片
-│   │   └── ...
-│   └── multiple_characters/  # 多角色测试图片
-├── evaluate_system.py    # 系统评估脚本
-├── prepare_test_data.py  # 测试数据准备脚本
-└── README.md             # 测试数据准备指南
+├── api/                    # API测试
+│   └── test_api_accuracy.py
+├── benchmark/              # 性能基准测试
+│   ├── benchmark_model.py
+│   ├── benchmark_models.py
+│   └── compare_models.py
+├── data/                   # 数据采集和准备测试
+│   ├── batch_spider_roles.py
+│   ├── collect_all_characters.py
+│   ├── collect_test_data.py
+│   ├── download_images.py
+│   ├── download_images_from_urls.py
+│   └── prepare_test_data.py
+├── docs/                   # 测试文档和报告
+│   ├── benchmark_report.md
+│   ├── BILIBILI_VIDEO_COLLECTION_GUIDE.md
+│   ├── VIDEO_DETECTION_TEST_REPORT.md
+│   ├── test_report.md
+│   ├── test_report.txt
+│   ├── training_report.pdf
+│   ├── dataset_distribution.png
+│   ├── detailed_results.json
+│   ├── insufficient_characters.png
+│   ├── log_analysis_report.txt
+│   ├── model_accuracy_results_short.json
+│   ├── role_distribution.png
+│   ├── role_index.faiss
+│   ├── role_index_mapping.json
+│   ├── similarity_distribution.png
+│   └── test_midterm_optimization_results.json
+├── evaluation/              # 模型评估测试
+│   ├── evaluate_system.py
+│   ├── simple_evaluate.py
+│   ├── test_all_inference_modes.py
+│   ├── test_all_models.py
+│   ├── test_model_accuracy.py
+│   └── test_model_performance.py
+├── img/                    # 测试图片
+│   └── 微信图片_20260204115846_481_347.jpg
+├── integration/             # 集成测试
+│   ├── test_api_integration.py
+│   └── test_data_integration.py
+├── legacy/                 # 旧版测试脚本（已废弃）
+│   ├── basic_verify.py
+│   ├── final_verify.py
+│   ├── test_classification_fix.py
+│   ├── test_config.py
+│   ├── test_data_collection.py
+│   ├── test_frontend.html
+│   ├── test_frontend.js
+│   ├── test_generator.py
+│   └── test_performance.py
+├── model/                  # 模型测试
+│   ├── check_classifier_weights.py
+│   ├── check_model.py
+│   ├── check_model_classes.py
+│   ├── check_models.py
+│   ├── comprehensive_model_test.py
+│   ├── quick_test_models.py
+│   ├── test_class_mapping.py
+│   ├── test_coreml_model.py
+│   ├── test_coreml_performance.py
+│   ├── test_ensemble_method.py
+│   ├── test_individual_models.py
+│   ├── test_infinity_fix.py
+│   ├── test_midterm_optimization.py
+│   ├── test_model_fix.py
+│   ├── test_model_on_collected_data.py
+│   ├── test_optimization.py
+│   ├── test_processing.py
+│   ├── test_single_model.py
+│   ├── test_weight_loading.py
+│   └── test_wuthering_waves.py
+├── unit/                   # 单元测试
+│   ├── test_classification.py
+│   ├── test_data_collection.py
+│   ├── test_data_preprocessing.py
+│   ├── test_feature_extraction.py
+│   └── test_model_management.py
+├── workflow/                # 工作流测试
+│   ├── test_workflow.py
+│   ├── test_workflow_results.json
+│   └── verify_pipeline.py
+├── README.md              # 本文档
+└── __init__.py
 ```
 
-## 准备单角色测试数据
+## 使用方法
 
-### 方法1：从现有数据集复制
-
-如果您已经有了训练数据集，可以使用 `prepare_test_data.py` 脚本从数据集中复制测试数据：
+### 1. 单元测试
 
 ```bash
-# 从 dataset 目录准备测试数据
-python tests/prepare_test_data.py --dataset_dir dataset --test_dir tests/test_images/single_character
+# 运行所有单元测试
+python -m pytest tests/unit/
+
+# 运行特定单元测试
+python -m pytest tests/unit/test_classification.py
 ```
 
-### 方法2：手动收集
-
-1. 在 `tests/test_images/single_character/` 目录下为每个角色创建一个子目录
-2. 在每个角色子目录中放入该角色的测试图片（建议每个角色至少10张图片）
-
-## 准备多角色测试数据
-
-多角色测试数据需要包含多个角色的图片。您可以：
-
-1. 从网络搜索包含多个动漫角色的图片
-2. 使用图像处理软件将多个单角色图片合成一张多角色图片
-3. 确保图片清晰，角色之间有明显的区分
-
-将准备好的多角色图片放入 `tests/test_images/multiple_characters/` 目录。
-
-## 运行测试
-
-使用 `evaluate_system.py` 脚本运行测试：
+### 2. 模型测试
 
 ```bash
-# 运行完整测试
-python tests/evaluate_system.py
+# 测试单个模型
+python tests/model/test_single_model.py --model models/checkpoints/model.pth
 
-# 自定义参数运行测试
-python tests/evaluate_system.py \
-    --single_character_dir tests/test_images/single_character \
-    --multiple_character_dir tests/test_images/multiple_characters \
-    --index_path role_index \
-    --threshold 0.7
+# 测试所有模型
+python tests/model/test_all_models.py
+
+# 测试模型权重
+python tests/model/check_classifier_weights.py
 ```
 
-## 查看测试结果
+### 3. 评估测试
 
-测试完成后，评估报告将生成在 `tests/test_results/evaluation_report.txt` 文件中，包含以下内容：
+```bash
+# 评估系统性能
+python tests/evaluation/evaluate_system.py
 
-- 单角色识别的准确率、无法识别率和平均处理时间
-- 多角色识别的平均每张图片识别角色数和平均处理时间
-- 系统配置信息
+# 评估模型准确率
+python tests/evaluation/test_model_accuracy.py --model models/checkpoints/model.pth
 
-## 测试建议
+# 评估所有推理模式
+python tests/evaluation/test_all_inference_modes.py
+```
 
-1. **测试数据多样性**：确保测试数据包含不同角度、不同场景、不同风格的角色图片
-2. **测试数据数量**：建议每个角色至少10张测试图片，多角色测试至少10张图片
-3. **阈值调整**：根据测试结果调整 `threshold` 参数，平衡准确率和召回率
-4. **性能测试**：在不同硬件配置下测试系统性能，评估处理速度
+### 4. 基准测试
 
-## 示例测试数据
+```bash
+# 运行性能基准测试
+python tests/benchmark/benchmark_models.py
 
-如果您没有现成的测试数据，可以参考以下方法获取：
+# 比较模型性能
+python tests/benchmark/compare_models.py
+```
 
-1. **使用公开数据集**：如 Danbooru、Konachan 等动漫图片数据集
-2. **网络搜索**：使用搜索引擎搜索动漫角色图片
-3. **动漫截图**：从动漫视频中截取角色图片
+### 5. API测试
+
+```bash
+# 测试API准确率
+python tests/api/test_api_accuracy.py
+
+# 测试API集成
+python tests/integration/test_api_integration.py
+```
+
+### 6. 数据采集测试
+
+```bash
+# 采集测试数据
+python tests/data/collect_test_data.py --character "arona" --limit 10
+
+# 批量采集角色
+python tests/data/collect_all_characters.py
+
+# 准备测试数据
+python tests/data/prepare_test_data.py
+```
+
+### 7. 工作流测试
+
+```bash
+# 测试完整工作流
+python tests/workflow/test_workflow.py
+
+# 验证处理管道
+python tests/workflow/verify_pipeline.py
+```
+
+## 测试分类说明
+
+### 单元测试 (unit/)
+- **test_classification.py**: 分类功能单元测试
+- **test_data_collection.py**: 数据采集单元测试
+- **test_data_preprocessing.py**: 数据预处理单元测试
+- **test_feature_extraction.py**: 特征提取单元测试
+- **test_model_management.py**: 模型管理单元测试
+
+### 模型测试 (model/)
+- **check_classifier_weights.py**: 检查分类器权重
+- **check_model.py**: 检查模型文件
+- **check_model_classes.py**: 检查模型类别
+- **check_models.py**: 检查所有模型
+- **test_single_model.py**: 测试单个模型
+- **test_individual_models.py**: 测试独立模型
+- **test_all_models.py**: 测试所有模型
+- **test_model_accuracy.py**: 测试模型准确率
+- **test_model_performance.py**: 测试模型性能
+- **test_model_on_collected_data.py**: 在采集数据上测试模型
+- **test_model_fix.py**: 测试模型修复
+- **test_optimization.py**: 测试优化
+- **test_processing.py**: 测试处理
+- **test_weight_loading.py**: 测试权重加载
+- **test_class_mapping.py**: 测试类别映射
+- **test_coreml_model.py**: 测试CoreML模型
+- **test_coreml_performance.py**: 测试CoreML性能
+- **test_ensemble_method.py**: 测试集成方法
+- **test_infinity_fix.py**: 测试无穷大修复
+- **test_midterm_optimization.py**: 测试中期优化
+- **test_wuthering_waves.py**: 测试呜呼波
+- **comprehensive_model_test.py**: 综合模型测试
+- **quick_test_models.py**: 快速模型测试
+
+### 评估测试 (evaluation/)
+- **evaluate_system.py**: 评估系统
+- **simple_evaluate.py**: 简单评估
+- **test_all_inference_modes.py**: 测试所有推理模式
+- **test_all_models.py**: 测试所有模型
+- **test_model_accuracy.py**: 测试模型准确率
+- **test_model_performance.py**: 测试模型性能
+
+### 基准测试 (benchmark/)
+- **benchmark_model.py**: 基准测试模型
+- **benchmark_models.py**: 基准测试所有模型
+- **compare_models.py**: 比较模型
+
+### API测试 (api/)
+- **test_api_accuracy.py**: 测试API准确率
+
+### 数据测试 (data/)
+- **batch_spider_roles.py**: 批量爬取角色
+- **collect_all_characters.py**: 采集所有角色
+- **collect_test_data.py**: 采集测试数据
+- **download_images.py**: 下载图片
+- **download_images_from_urls.py**: 从URL下载图片
+- **prepare_test_data.py**: 准备测试数据
+
+### 集成测试 (integration/)
+- **test_api_integration.py**: API集成测试
+- **test_data_integration.py**: 数据集成测试
+
+### 工作流测试 (workflow/)
+- **test_workflow.py**: 测试工作流
+- **verify_pipeline.py**: 验证管道
+- **test_workflow_results.json**: 工作流测试结果
+
+### 旧版测试 (legacy/)
+- 包含已废弃的测试脚本，仅供参考
+
+### 文档 (docs/)
+- 包含测试报告、基准报告等文档
+
+## 最佳实践
+
+1. **单元测试优先**: 在修改代码前先运行单元测试
+2. **模型验证**: 训练后使用模型测试验证模型
+3. **性能评估**: 定期运行基准测试监控性能
+4. **集成测试**: 确保各模块正常集成
+5. **工作流验证**: 测试完整的端到端工作流
 
 ## 注意事项
 
-1. 测试数据应与训练数据分开，避免数据泄露
-2. 确保测试数据的版权合规，仅用于个人研究和测试
-3. 多角色测试数据需要确保角色之间有足够的区分度，便于系统检测和识别
+1. **测试隔离**: 每个测试应该独立运行
+2. **清理资源**: 测试后清理临时文件
+3. **断言清晰**: 使用清晰的断言信息
+4. **覆盖率**: 尽量提高测试覆盖率
+5. **文档更新**: 修改测试后更新相关文档
+
+## 扩展指南
+
+如需添加新的测试：
+
+1. 在相应目录下创建新的测试文件
+2. 遵循现有的测试模式
+3. 更新本README文档
+4. 确保测试可以独立运行

@@ -129,7 +129,7 @@ def main():
     
     parser = argparse.ArgumentParser(description='为训练数据创建属性标注')
     parser.add_argument('--data-dir', type=str, default='../data/downloaded_images', help='数据目录')
-    parser.add_argument('--output-file', type=str, default='attribute_annotations.json', help='输出文件路径')
+    parser.add_argument('--output-file', type=str, default='../config/attribute_annotations.json', help='输出文件路径')
     parser.add_argument('--config', type=str, default=None, help='属性配置文件路径')
     
     args = parser.parse_args()
