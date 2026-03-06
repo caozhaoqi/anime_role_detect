@@ -237,8 +237,24 @@ def main():
     parser.add_argument('--epochs', type=int, default=50, help='训练轮数')
     parser.add_argument('--lr', type=float, default=0.0001, help='学习率')
     parser.add_argument('--output-dir', type=str, default='models/arona_plana_with_attributes', help='输出目录')
+    parser.add_argument('--config', type=str, default=None, help='属性配置文件路径')
     
     args = parser.parse_args()
+    
+    # 如果未指定配置文件，尝试使用默认路径
+    if args.config is None:
+        possible_configs = [
+            '../config/character_attributes.json',
+            '../../config/character_attributes.json',
+            os.path.join(os.path.dirname(__file__), '..', 'config', 'character_attributes.json')
+        ]
+        for config_path in possible_configs:
+            if os.path.exists(config_path):
+                args.config = config_path
+                break
+    
+    if args.config:
+        logger.info(f"使用属性配置文件: {args.config}")
     
     # 设置设备
     device = torch.device('mps' if torch.backends.mps.is_available() else 'cpu')

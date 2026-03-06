@@ -256,8 +256,24 @@ def main():
     parser.add_argument('--batch-size', type=int, default=8, help='批量大小')
     parser.add_argument('--output-dir', type=str, default='test_results_with_attributes', help='输出目录')
     parser.add_argument('--test-image', type=str, default=None, help='测试单张图像')
+    parser.add_argument('--config', type=str, default=None, help='属性配置文件路径')
     
     args = parser.parse_args()
+    
+    # 如果未指定配置文件，尝试使用默认路径
+    if args.config is None:
+        possible_configs = [
+            '../config/character_attributes.json',
+            '../../config/character_attributes.json',
+            os.path.join(os.path.dirname(__file__), '..', 'config', 'character_attributes.json')
+        ]
+        for config_path in possible_configs:
+            if os.path.exists(config_path):
+                args.config = config_path
+                break
+    
+    if args.config:
+        logger.info(f"使用属性配置文件: {args.config}")
     
     # 设置设备
     device = torch.device('mps' if torch.backends.mps.is_available() else 'cpu')
@@ -275,8 +291,17 @@ def main():
     model, loaded_class_to_idx = load_model(args.model_path, args.model_type)
     model = model.to(device)
     
-    # 属性名称
+    # 加载属性配置文件
     attribute_names = ['hair_color', 'eye_color', 'has_halo', 'outfit', 'hair_style', 'accessories']
+    if args.config and os.path.exists(args.config):
+        try:
+            with open(args.config, 'r', encoding='utf-8') as f:
+                config = json.load(f)
+                if 'attribute_order' in config:
+                    attribute_names = config['attribute_order']
+                    logger.info(f"从配置文件加载属性名称: {attribute_names}")
+        except Exception as e:
+            logger.warning(f"无法加载配置文件: {e}")
     
     # 创建数据集
     logger.info('加载数据集...')

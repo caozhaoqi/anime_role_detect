@@ -1,31 +1,24 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-模型评估脚本
-
-评估模型的性能和准确率
+统一的模型评估脚本
 """
 
 import os
 import sys
 import argparse
-import logging
 import torch
-import torch.nn as nn
 from torch.utils.data import DataLoader
 from torchvision import transforms
 from PIL import Image
-import numpy as np
-from sklearn.metrics import classification_report, confusion_matrix, accuracy_score
-import matplotlib.pyplot as plt
-import seaborn as sns
+import logging
+from tqdm import tqdm
+import json
+from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
 
 # 添加项目根目录到Python路径
-project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if project_root not in sys.path:
-    sys.path.insert(0, project_root)
-
-from src.model_training.train_model import CharacterDataset, CharacterClassifier
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..')))
+from src.core.classification.models import get_model, get_model_with_attributes
 
 # 配置日志
 logging.basicConfig(
@@ -35,201 +28,342 @@ logging.basicConfig(
 logger = logging.getLogger('evaluate_model')
 
 
-def evaluate_model(model, data_loader, device, class_to_idx):
-    """
-    评估模型
-    
-    Args:
-        model: 模型
-        data_loader: 数据加载器
-        device: 设备
-        class_to_idx: 类别到索引的映射
+class CharacterDataset(torch.utils.data.Dataset):
+    """角色数据集类"""
+    def __init__(self, data_dir, transform=None):
+        self.data_dir = data_dir
+        self.transform = transform
+        self.images = []
+        self.labels = []
+        self.class_to_idx = {}
         
-    Returns:
-        预测结果和真实标签
-    """
-    model.eval()
-    all_preds = []
-    all_labels = []
+        # 加载数据
+        self._load_data()
     
-    idx_to_class = {v: k for k, v in class_to_idx.items()}
+    def _load_data(self):
+        """加载数据"""
+        classes = sorted(os.listdir(self.data_dir))
+        for idx, class_name in enumerate(classes):
+            self.class_to_idx[class_name] = idx
+            class_dir = os.path.join(self.data_dir, class_name)
+            if not os.path.isdir(class_dir):
+                continue
+            
+            for file in os.listdir(class_dir):
+                if file.endswith(('.jpg', '.jpeg', '.png', '.webp')):
+                    self.images.append(os.path.join(class_name, file))
+                    self.labels.append(idx)
+    
+    def __len__(self):
+        return len(self.images)
+    
+    def __getitem__(self, idx):
+        image_path = os.path.join(self.data_dir, self.images[idx])
+        image = Image.open(image_path).convert('RGB')
+        label = self.labels[idx]
+        
+        if self.transform:
+            image = self.transform(image)
+        
+        return image, label
+
+
+class CharacterAttributeDataset(torch.utils.data.Dataset):
+    """带有属性标签的角色数据集类"""
+    def __init__(self, data_dir, annotations_file, transform=None):
+        self.data_dir = data_dir
+        self.transform = transform
+        self.annotations = []
+        self.class_to_idx = {}
+        
+        # 加载标注
+        self._load_annotations(annotations_file)
+    
+    def _load_annotations(self, annotations_file):
+        """加载标注"""
+        with open(annotations_file, 'r', encoding='utf-8') as f:
+            annotations = json.load(f)
+        
+        # 构建类别映射
+        classes = set()
+        for item in annotations:
+            classes.add(item['character'])
+        
+        self.class_to_idx = {class_name: idx for idx, class_name in enumerate(sorted(classes))}
+        
+        # 加载标注
+        for item in annotations:
+            image_path = os.path.join(self.data_dir, item['image_path'])
+            if os.path.exists(image_path):
+                self.annotations.append({
+                    'image_path': image_path,
+                    'character': item['character'],
+                    'attribute_labels': item['attribute_labels']
+                })
+    
+    def __len__(self):
+        return len(self.annotations)
+    
+    def __getitem__(self, idx):
+        item = self.annotations[idx]
+        image = Image.open(item['image_path']).convert('RGB')
+        class_label = self.class_to_idx[item['character']]
+        attribute_labels = torch.tensor(item['attribute_labels'], dtype=torch.float32)
+        
+        if self.transform:
+            image = self.transform(image)
+        
+        return image, class_label, attribute_labels
+
+
+def load_model(model_path, model_type):
+    """加载模型"""
+    logger.info(f"加载模型: {model_path}")
+    
+    # 加载权重
+    checkpoint = torch.load(model_path, map_location='cpu')
+    
+    # 从checkpoint中获取类别数
+    if 'class_to_idx' in checkpoint:
+        class_to_idx = checkpoint['class_to_idx']
+        num_classes = len(class_to_idx)
+    else:
+        num_classes = 5
+    
+    logger.info(f"检测到类别数: {num_classes}")
+    
+    # 创建模型
+    if 'attribute_predictor' in checkpoint['model_state_dict']:
+        # 带有属性预测的模型
+        num_attributes = checkpoint['model_state_dict']['attribute_predictor.weight'].shape[0]
+        model = get_model_with_attributes(model_type, num_classes, num_attributes)
+    else:
+        # 普通分类模型
+        model = get_model(model_type, num_classes)
+    
+    # 加载权重
+    if 'model_state_dict' in checkpoint:
+        model.load_state_dict(checkpoint['model_state_dict'])
+    else:
+        model.load_state_dict(checkpoint)
+    
+    logger.info(f"模型加载完成")
+    
+    return model, class_to_idx
+
+
+def evaluate_model(model, test_loader, device, class_names):
+    """评估模型"""
+    model.eval()
+    
+    y_true = []
+    y_pred = []
     
     with torch.no_grad():
-        for inputs, labels in data_loader:
-            inputs, labels = inputs.to(device), labels.to(device)
+        for images, labels in tqdm(test_loader, desc='评估模型'):
+            images = images.to(device)
+            labels = labels.to(device)
             
-            outputs = model(inputs)
+            outputs = model(images)
             _, preds = torch.max(outputs, 1)
             
-            all_preds.extend(preds.cpu().numpy())
-            all_labels.extend(labels.cpu().numpy())
+            y_true.extend(labels.cpu().numpy())
+            y_pred.extend(preds.cpu().numpy())
     
-    return np.array(all_preds), np.array(all_labels), idx_to_class
-
-
-def plot_confusion_matrix(y_true, y_pred, classes, save_path='confusion_matrix.png'):
-    """
-    绘制混淆矩阵
-    
-    Args:
-        y_true: 真实标签
-        y_pred: 预测标签
-        classes: 类别列表
-        save_path: 保存路径
-    """
+    # 计算评估指标
+    accuracy = accuracy_score(y_true, y_pred)
+    report = classification_report(y_true, y_pred, target_names=class_names, output_dict=True)
     cm = confusion_matrix(y_true, y_pred)
     
-    plt.figure(figsize=(12, 10))
-    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', 
-                xticklabels=classes, yticklabels=classes)
-    plt.xlabel('Predicted')
-    plt.ylabel('True')
-    plt.title('Confusion Matrix')
-    plt.tight_layout()
-    plt.savefig(save_path, dpi=300, bbox_inches='tight')
-    plt.close()
+    results = {
+        'accuracy': accuracy,
+        'classification_report': report,
+        'confusion_matrix': cm.tolist()
+    }
     
-    logger.info(f"混淆矩阵已保存到 {save_path}")
+    return results
 
 
-def plot_per_class_accuracy(y_true, y_pred, classes, save_path='per_class_accuracy.png'):
-    """
-    绘制每个类别的准确率
+def evaluate_model_with_attributes(model, test_loader, device, class_names, attribute_names):
+    """评估带有属性预测的模型"""
+    model.eval()
     
-    Args:
-        y_true: 真实标签
-        y_pred: 预测标签
-        classes: 类别列表
-        save_path: 保存路径
-    """
-    per_class_acc = {}
+    y_true = []
+    y_pred = []
+    attribute_true = []
+    attribute_pred = []
     
-    for i, cls in enumerate(classes):
-        mask = y_true == i
-        if mask.sum() > 0:
-            acc = (y_pred[mask] == y_true[mask]).sum() / mask.sum()
-            per_class_acc[cls] = acc
+    with torch.no_grad():
+        for images, class_labels, attribute_labels in tqdm(test_loader, desc='评估模型'):
+            images = images.to(device)
+            class_labels = class_labels.to(device)
+            attribute_labels = attribute_labels.to(device)
+            
+            class_outputs, attribute_outputs = model(images)
+            _, class_preds = torch.max(class_outputs, 1)
+            
+            y_true.extend(class_labels.cpu().numpy())
+            y_pred.extend(class_preds.cpu().numpy())
+            attribute_true.extend(attribute_labels.cpu().numpy())
+            attribute_pred.extend(attribute_outputs.cpu().numpy())
     
-    # 排序
-    per_class_acc = dict(sorted(per_class_acc.items(), key=lambda x: x[1], reverse=True))
+    # 计算分类评估指标
+    accuracy = accuracy_score(y_true, y_pred)
+    report = classification_report(y_true, y_pred, target_names=class_names, output_dict=True)
+    cm = confusion_matrix(y_true, y_pred)
     
-    plt.figure(figsize=(12, 6))
-    plt.barh(list(per_class_acc.keys()), list(per_class_acc.values()))
-    plt.xlabel('Accuracy')
-    plt.ylabel('Class')
-    plt.title('Per-Class Accuracy')
-    plt.xlim(0, 1)
-    plt.tight_layout()
-    plt.savefig(save_path, dpi=300, bbox_inches='tight')
-    plt.close()
+    # 计算属性预测评估指标
+    import numpy as np
+    attribute_accuracy = []
+    for i in range(len(attribute_names)):
+        attr_true = np.array(attribute_true)[:, i]
+        attr_pred = np.array(attribute_pred)[:, i]
+        # 对于二分类属性，使用准确率
+        if len(np.unique(attr_true)) == 2:
+            attr_acc = accuracy_score(attr_true, np.round(attr_pred))
+        else:
+            # 对于多分类属性，使用MSE
+            attr_acc = np.mean((attr_true - attr_pred) ** 2)
+        attribute_accuracy.append(attr_acc)
     
-    logger.info(f"每类别准确率图已保存到 {save_path}")
+    results = {
+        'accuracy': accuracy,
+        'classification_report': report,
+        'confusion_matrix': cm.tolist(),
+        'attribute_accuracy': dict(zip(attribute_names, attribute_accuracy))
+    }
     
-    return per_class_acc
+    return results
+
+
+def test_single_image(model, image_path, transform, device, class_names, attribute_names=None):
+    """测试单张图像"""
+    logger.info(f"测试图像: {image_path}")
+    
+    # 加载并预处理图像
+    image = Image.open(image_path).convert('RGB')
+    image_tensor = transform(image).unsqueeze(0).to(device)
+    
+    # 预测
+    model.eval()
+    with torch.no_grad():
+        if attribute_names:
+            class_output, attribute_output = model(image_tensor)
+        else:
+            class_output = model(image_tensor)
+    
+    # 分类预测
+    class_prob = torch.softmax(class_output, dim=1)
+    class_idx = torch.argmax(class_prob, dim=1).item()
+    class_confidence = class_prob[0, class_idx].item()
+    predicted_class = class_names[class_idx]
+    
+    # 构建结果
+    result = {
+        "character": predicted_class,
+        "confidence": class_confidence
+    }
+    
+    # 属性预测
+    if attribute_names:
+        attribute_preds = attribute_output.squeeze().cpu().numpy()
+        predicted_attributes = {}
+        for i, attr_name in enumerate(attribute_names):
+            predicted_attributes[attr_name] = attribute_preds[i]
+        result["attributes"] = predicted_attributes
+    
+    return result
 
 
 def main():
-    """主函数"""
-    parser = argparse.ArgumentParser(description='评估模型性能')
-    
-    parser.add_argument('--model_path', type=str, default='models/character_classifier_best.pth', 
-                       help='模型路径')
-    parser.add_argument('--data_dir', type=str, default='data/split_dataset/val', 
-                       help='数据目录')
-    parser.add_argument('--batch_size', type=int, default=8, help='批量大小')
-    parser.add_argument('--output_dir', type=str, default='evaluation_results', 
-                       help='输出目录')
+    parser = argparse.ArgumentParser(description='统一的模型评估脚本')
+    parser.add_argument('--model-path', type=str, required=True, help='模型文件路径')
+    parser.add_argument('--model-type', type=str, default='mobilenet_v2', 
+                       choices=['mobilenet_v2', 'efficientnet_b0', 'resnet18'],
+                       help='模型类型')
+    parser.add_argument('--data-dir', type=str, default='data/downloaded_images', help='数据目录')
+    parser.add_argument('--annotations-file', type=str, default=None, help='属性标注文件路径')
+    parser.add_argument('--batch-size', type=int, default=8, help='批量大小')
+    parser.add_argument('--output-dir', type=str, default='test_results', help='输出目录')
+    parser.add_argument('--test-image', type=str, default=None, help='测试单张图像')
     
     args = parser.parse_args()
     
-    # 创建输出目录
-    os.makedirs(args.output_dir, exist_ok=True)
-    
-    # 检测设备
+    # 设置设备
     device = torch.device('mps' if torch.backends.mps.is_available() else 'cpu')
-    logger.info(f"使用设备: {device}")
+    logger.info(f'使用设备: {device}')
     
-    # 数据预处理
-    val_transform = transforms.Compose([
-        transforms.Resize((330, 330)),
-        transforms.CenterCrop((300, 300)),
+    # 数据变换
+    transform = transforms.Compose([
+        transforms.Resize((256, 256)),
+        transforms.CenterCrop((224, 224)),
         transforms.ToTensor(),
-        transforms.Normalize(
-            mean=[0.485, 0.456, 0.406], 
-            std=[0.229, 0.224, 0.225]
-        )
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     ])
     
-    # 加载数据集
-    val_dataset = CharacterDataset(args.data_dir, transform=val_transform)
-    val_loader = DataLoader(
-        val_dataset, 
-        batch_size=args.batch_size, 
-        shuffle=False, 
-        num_workers=4
-    )
-    
-    logger.info(f"数据集加载完成，包含 {len(val_dataset.class_to_idx)} 个类别，{len(val_dataset)} 张图像")
-    
     # 加载模型
-    checkpoint = torch.load(args.model_path, map_location=device)
-    num_classes = len(checkpoint['class_to_idx'])
+    model, class_to_idx = load_model(args.model_path, args.model_type)
+    model = model.to(device)
     
-    model = CharacterClassifier(num_classes=num_classes).to(device)
-    model.load_state_dict(checkpoint['model_state_dict'])
+    # 获取类别名称
+    class_names = list(class_to_idx.keys())
+    logger.info(f'类别名称: {class_names}')
     
-    logger.info(f"模型加载完成: {args.model_path}")
+    # 属性名称
+    attribute_names = ['hair_color', 'eye_color', 'has_halo', 'outfit', 'hair_style', 'accessories']
+    
+    # 如果指定了单张测试图像
+    if args.test_image:
+        result = test_single_image(model, args.test_image, transform, device, class_names, attribute_names if args.annotations_file else None)
+        logger.info("\n" + "="*50)
+        logger.info("预测结果:")
+        logger.info("="*50)
+        logger.info(f"角色: {result['character']}")
+        logger.info(f"置信度: {result['confidence']:.4f}")
+        if 'attributes' in result:
+            logger.info("\n属性预测:")
+            for attr, value in result['attributes'].items():
+                logger.info(f"  {attr}: {value}")
+        logger.info("="*50)
+        return
+    
+    # 创建数据集
+    if args.annotations_file:
+        logger.info('加载带有属性标签的数据集...')
+        dataset = CharacterAttributeDataset(args.data_dir, args.annotations_file, transform=transform)
+    else:
+        logger.info('加载普通数据集...')
+        dataset = CharacterDataset(args.data_dir, transform=transform)
+    
+    # 创建数据加载器
+    test_loader = DataLoader(dataset, batch_size=args.batch_size, shuffle=False, num_workers=0)
+    logger.info(f'测试集大小: {len(dataset)}')
     
     # 评估模型
-    logger.info("开始评估模型...")
-    preds, labels, idx_to_class = evaluate_model(
-        model, val_loader, device, checkpoint['class_to_idx']
-    )
+    if args.annotations_file:
+        results = evaluate_model_with_attributes(model, test_loader, device, class_names, attribute_names)
+    else:
+        results = evaluate_model(model, test_loader, device, class_names)
     
-    # 计算准确率
-    accuracy = accuracy_score(labels, preds)
-    logger.info(f"总体准确率: {accuracy:.4f} ({accuracy*100:.2f}%)")
+    # 保存结果
+    os.makedirs(args.output_dir, exist_ok=True)
+    output_path = os.path.join(args.output_dir, 'test_results.json')
+    with open(output_path, 'w', encoding='utf-8') as f:
+        json.dump(results, f, indent=2, ensure_ascii=False)
     
-    # 生成分类报告
-    classes = [idx_to_class[i] for i in range(len(idx_to_class))]
-    report = classification_report(labels, preds, target_names=classes, output_dict=True)
+    # 打印结果
+    logger.info("\n" + "="*50)
+    logger.info("评估结果:")
+    logger.info("="*50)
+    logger.info(f"准确率: {results['accuracy']:.4f}")
     
-    # 保存分类报告
-    import json
-    report_path = os.path.join(args.output_dir, 'classification_report.json')
-    with open(report_path, 'w', encoding='utf-8') as f:
-        json.dump(report, f, ensure_ascii=False, indent=2)
-    logger.info(f"分类报告已保存到 {report_path}")
+    if 'attribute_accuracy' in results:
+        logger.info("\n属性预测准确率:")
+        for attr, acc in results['attribute_accuracy'].items():
+            logger.info(f"  {attr}: {acc:.4f}")
     
-    # 打印分类报告
-    logger.info("\n分类报告:")
-    print(classification_report(labels, preds, target_names=classes))
-    
-    # 绘制混淆矩阵
-    confusion_matrix_path = os.path.join(args.output_dir, 'confusion_matrix.png')
-    plot_confusion_matrix(labels, preds, classes, confusion_matrix_path)
-    
-    # 绘制每类别准确率
-    per_class_acc_path = os.path.join(args.output_dir, 'per_class_accuracy.png')
-    per_class_acc = plot_per_class_accuracy(labels, preds, classes, per_class_acc_path)
-    
-    # 保存评估结果
-    results = {
-        'model_path': args.model_path,
-        'data_dir': args.data_dir,
-        'total_samples': len(val_dataset),
-        'num_classes': len(classes),
-        'accuracy': float(accuracy),
-        'per_class_accuracy': {k: float(v) for k, v in per_class_acc.items()},
-        'classification_report': report
-    }
-    
-    results_path = os.path.join(args.output_dir, 'evaluation_results.json')
-    with open(results_path, 'w', encoding='utf-8') as f:
-        json.dump(results, f, ensure_ascii=False, indent=2)
-    logger.info(f"评估结果已保存到 {results_path}")
-    
-    logger.info("模型评估完成！")
+    logger.info("\n详细报告已保存到: {output_path}")
+    logger.info("="*50)
 
 
 if __name__ == '__main__':
