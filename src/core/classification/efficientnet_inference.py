@@ -250,7 +250,7 @@ class EfficientNetInference:
             # 如果没有提供标签，使用DeepDanbooru提取
             if tags is None:
                 try:
-                    from src.core.classification.deepdanbooru_inference import DeepDanbooruInference
+                    from core.classification.deepdanbooru_inference import DeepDanbooruInference
                     deepdanbooru = DeepDanbooruInference()
                     tags = deepdanbooru.predict(image_path)
                     print(f"DeepDanbooru提取到 {len(tags)} 个标签")

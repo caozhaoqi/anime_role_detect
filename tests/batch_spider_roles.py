@@ -20,7 +20,7 @@ logger = logging.getLogger('batch_spider_roles')
 API_URL = "http://localhost:33333/api/v1.2.5.260305/sis/spider_start/single?key_word="
 
 # 角色列表文件路径
-ROLES_FILE = "auto_spider_img/blda_spider_img_keyword.txt"
+ROLES_FILE = "../auto_spider_img/blda_spider_img_keyword.txt"
 
 def load_roles():
     """加载角色列表"""

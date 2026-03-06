@@ -118,7 +118,7 @@ class CharacterAttributeDataset(Dataset):
         return image, class_label, attribute_labels
 
 
-def train_model(model, train_loader, val_loader, criterion, optimizer, device, epochs, output_dir):
+def train_model(model, train_loader, val_loader, criterion, optimizer, device, epochs, output_dir, dataset):
     """训练模型"""
     best_val_acc = 0.0
     
@@ -143,7 +143,7 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, device, e
             running_corrects += torch.sum(preds == labels.data)
         
         train_loss = running_loss / len(train_loader.dataset)
-        train_acc = running_corrects.double() / len(train_loader.dataset)
+        train_acc = running_corrects.float() / len(train_loader.dataset)
         
         # 验证阶段
         model.eval()
@@ -163,7 +163,7 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, device, e
                 val_corrects += torch.sum(preds == labels.data)
         
         val_loss = val_loss / len(val_loader.dataset)
-        val_acc = val_corrects.double() / len(val_loader.dataset)
+        val_acc = val_corrects.float() / len(val_loader.dataset)
         
         logger.info(f'Epoch {epoch+1}/{epochs}')
         logger.info(f'Train Loss: {train_loss:.4f}, Train Acc: {train_acc:.4f}')
@@ -176,7 +176,7 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, device, e
             model_path = os.path.join(output_dir, 'model_best.pth')
             torch.save({
                 'model_state_dict': model.state_dict(),
-                'class_to_idx': train_loader.dataset.class_to_idx,
+                'class_to_idx': dataset.class_to_idx,
                 'model_type': args.model_type,
                 'epoch': epoch+1,
                 'val_acc': val_acc.item()
@@ -186,7 +186,7 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, device, e
     return best_val_acc
 
 
-def train_model_with_attributes(model, train_loader, val_loader, class_criterion, attribute_criterion, optimizer, device, epochs, output_dir):
+def train_model_with_attributes(model, train_loader, val_loader, class_criterion, attribute_criterion, optimizer, device, epochs, output_dir, dataset):
     """训练带有属性预测的模型"""
     best_val_acc = 0.0
     
@@ -219,7 +219,7 @@ def train_model_with_attributes(model, train_loader, val_loader, class_criterion
         
         train_class_loss = running_class_loss / len(train_loader.dataset)
         train_attribute_loss = running_attribute_loss / len(train_loader.dataset)
-        train_acc = running_corrects.double() / len(train_loader.dataset)
+        train_acc = running_corrects.float() / len(train_loader.dataset)
         
         # 验证阶段
         model.eval()
@@ -245,7 +245,7 @@ def train_model_with_attributes(model, train_loader, val_loader, class_criterion
         
         val_class_loss = val_class_loss / len(val_loader.dataset)
         val_attribute_loss = val_attribute_loss / len(val_loader.dataset)
-        val_acc = val_corrects.double() / len(val_loader.dataset)
+        val_acc = val_corrects.float() / len(val_loader.dataset)
         
         logger.info(f'Epoch {epoch+1}/{epochs}')
         logger.info(f'Train Class Loss: {train_class_loss:.4f}, Train Attribute Loss: {train_attribute_loss:.4f}, Train Acc: {train_acc:.4f}')
@@ -258,7 +258,7 @@ def train_model_with_attributes(model, train_loader, val_loader, class_criterion
             model_path = os.path.join(output_dir, 'model_best.pth')
             torch.save({
                 'model_state_dict': model.state_dict(),
-                'class_to_idx': train_loader.dataset.class_to_idx,
+                'class_to_idx': dataset.class_to_idx,
                 'model_type': args.model_type,
                 'epoch': epoch+1,
                 'val_acc': val_acc.item()
@@ -345,13 +345,13 @@ def main():
         best_val_acc = train_model_with_attributes(
             model, train_loader, val_loader, 
             class_criterion, attribute_criterion, 
-            optimizer, device, args.epochs, args.output_dir
+            optimizer, device, args.epochs, args.output_dir, dataset
         )
     else:
         best_val_acc = train_model(
             model, train_loader, val_loader, 
             criterion, optimizer, 
-            device, args.epochs, args.output_dir
+            device, args.epochs, args.output_dir, dataset
         )
     
     end_time = time.time()

@@ -8,6 +8,10 @@ export interface Message {
     similarity: number;
     confidence: "high" | "medium" | "low";
   };
+  attributes?: Array<{
+    tag: string;
+    confidence: number;
+  }>;
   thoughts?: string[];
   isThinkingFinished?: boolean;
   timestamp: number;

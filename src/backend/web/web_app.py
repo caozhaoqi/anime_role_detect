@@ -493,19 +493,27 @@ def api_classify():
                 # 首先尝试使用集成方法，提高识别精度
                 try:
                     logger.debug("🔄 尝试使用集成分类方法")
-                    role, similarity, boxes = classifier.classify_image_with_deepdanbooru(temp_path)
+                    role, similarity, boxes, attributes = classifier.classify_image_with_deepdanbooru(temp_path, use_attributes=True)
                     mode = 'Ensemble (CLIP + EfficientNet + DeepDanbooru)'
                 except Exception as e:
                     logger.warning(f"集成分类失败，回退到单一模型: {e}")
                     # 回退到使用指定模型或默认模型
                     if use_model:
                         logger.debug("🤖 使用专用模型")
-                        role, similarity, boxes = classifier.classify_image(temp_path, use_model=True)
+                        role, similarity, boxes, attributes = classifier.classify_image(temp_path, use_model=True, use_attributes=True)
                         mode = 'EfficientNet'
                     else:
-                        logger.debug("🤖 使用CLIP模型")
-                        role, similarity, boxes = classifier.classify_image(temp_path, use_model=False)
-                        mode = 'CLIP'
+                        # 尝试使用CLIP模型
+                        try:
+                            logger.debug("🤖 尝试使用CLIP模型")
+                            role, similarity, boxes, attributes = classifier.classify_image(temp_path, use_model=False, use_attributes=True)
+                            mode = 'CLIP'
+                        except Exception as clip_error:
+                            # 如果CLIP模型失败（例如索引不存在），回退到使用专用模型
+                            logger.warning(f"CLIP模型分类失败，回退到专用模型: {clip_error}")
+                            logger.debug("🤖 回退到使用专用模型")
+                            role, similarity, boxes, attributes = classifier.classify_image(temp_path, use_model=True, use_attributes=True)
+                            mode = 'EfficientNet'
                 
                 # 记录分类日志
                 record_classification_log(
@@ -524,7 +532,8 @@ def api_classify():
                 'similarity': float(similarity),
                 'boxes': boxes,
                 'fileType': 'image',
-                'mode': mode
+                'mode': mode,
+                'attributes': attributes
             }
             logger.debug("✅ 图像处理完成，结果:", result)
         else:
