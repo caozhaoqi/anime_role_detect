@@ -10,6 +10,7 @@ The Character Classification System is an AI-based image recognition tool specif
 - **High Accuracy**: Uses CLIP model and Faiss indexing for high recognition accuracy
 - **DeepDanbooru Integration**: Integrates DeepDanbooru for anime tag recognition to improve classification accuracy
 - **Tag-assisted Inference**: Uses DeepDanbooru tags to adjust classification results, solving "Sameface Syndrome"
+- **Attribute Prediction**: Predicts character attributes such as hair color, eye color, and clothing
 - **Real-time Feedback**: Provides recognition confidence and detailed results
 - **User-friendly Interface**: Intuitive web interface with simple operation
 - **API Support**: Provides RESTful API interface for batch processing
@@ -18,6 +19,8 @@ The Character Classification System is an AI-based image recognition tool specif
 - **EfficientNet-B0 Model**: Uses state-of-the-art EfficientNet-B0 for classification
 - **Data Collection**: Supports automatic image collection via Bing Image Search API
 - **Dataset Splitting**: Automatically splits collected data into training and validation sets
+- **Model Fallback Mechanism**: Automatically falls back to alternative models when primary models fail
+- **Error Handling**: Robust error handling to ensure system stability
 
 ## 🚀 Quick Start
 
@@ -144,6 +147,9 @@ curl -X POST -F "file=@path/to/image.jpg" -F "use_model=true" http://127.0.0.1:5
 
 # Use curl with DeepDanbooru integration
 curl -X POST -F "file=@path/to/image.jpg" -F "use_deepdanbooru=true" http://127.0.0.1:5001/api/classify
+
+# Use curl with attribute prediction
+curl -X POST -F "file=@path/to/image.jpg" -F "use_attributes=true" http://127.0.0.1:5001/api/classify
 ```
 
 API response example:
@@ -153,22 +159,36 @@ API response example:
   "filename": "image.jpg",
   "role": "Blue Archive_Hoshino",
   "similarity": 0.98,
-  "boxes": []
+  "boxes": [],
+  "fileType": "image",
+  "mode": "CLIP",
+  "attributes": [
+    {"tag": "blue_hair", "confidence": 0.95},
+    {"tag": "school_uniform", "confidence": 0.87},
+    {"tag": "red_eyes", "confidence": 0.82}
+  ]
 }
 ```
 
 ## 📊 System Performance
 
-### Recognition Accuracy
+### Model Performance Evaluation
 
-| Character | Accuracy |
-|-----------|----------|
-| Yuuka     | 100%     |
-| Arona     | 83.33%   |
-| Miyako    | 60%      |
-| Hoshino   | 40%      |
-| Shiroko   | 37.50%   |
-| Hina      | 30%      |
+| Model | Accuracy | Precision | Recall | F1 Score |
+|-------|----------|-----------|--------|----------|
+| Conditional GAN | 85.94% | 0.871 | 0.859 | 0.858 |
+| Arona Plana | 12.50% | 0.250 | 0.125 | 0.167 |
+| Arona Plana ResNet18 | 12.50% | 0.500 | 0.125 | 0.200 |
+| General Classification | 7.50% | 0.008 | 0.075 | 0.014 |
+
+### Character-specific Performance
+
+| Character | Precision | Recall | F1 Score |
+|-----------|-----------|--------|----------|
+| 蔚蓝档案_普拉娜 | 0.805 | 0.948 | 0.871 |
+| 蔚蓝档案_阿罗娜 | 0.937 | 0.771 | 0.846 |
+| sdv50_凝光 | 0.080 | 1.000 | 0.148 |
+| sdv50_申鹤 | 0.083 | 0.500 | 0.143 |
 
 ### Average Processing Time
 

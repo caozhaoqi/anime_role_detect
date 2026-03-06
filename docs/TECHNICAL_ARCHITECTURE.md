@@ -149,6 +149,33 @@
     *   实现帧采样策略，平衡处理速度和检测精度。
     *   提供视频播放和结果可视化界面。
 
+### 2.11 API 服务模块 (API Service Module)
+*   **实现文件**: `src/backend/web/web_app.py`
+*   **核心功能**:
+    *   **RESTful API**: 提供图像和视频分类的 RESTful 接口。
+    *   **文件处理**: 处理上传的图像和视频文件。
+    *   **模型选择**: 支持选择不同的模型进行推理。
+    *   **属性预测**: 支持角色属性的预测和返回。
+    *   **错误处理**: 提供详细的错误信息和回退机制。
+*   **技术实现**:
+    *   使用 `Flask` 框架构建 API 服务。
+    *   实现文件上传和处理功能。
+    *   集成多个分类模型，支持模型选择。
+    *   实现错误处理和回退机制，确保服务稳定性。
+    *   提供详细的 API 文档和示例。
+
+### 2.12 属性预测模块 (Attribute Prediction Module)
+*   **实现文件**: 集成到分类模块中
+*   **核心功能**:
+    *   **属性提取**: 从角色图像中提取属性信息。
+    *   **标签预测**: 预测角色的各种属性标签。
+    *   **置信度计算**: 为每个预测的属性计算置信度。
+*   **技术实现**:
+    *   使用预训练的属性分类模型。
+    *   集成到分类流程中，与角色识别同时进行。
+    *   支持多种属性类型，包括发型、服装、配饰等。
+    *   提供属性置信度排序和过滤功能。
+
 ---
 
 ## 3. 数据流向图
@@ -180,6 +207,17 @@ graph TD
     FakeImg -->|Classifier| Loss2[分类损失]
     FakeImg -->|VGG16| Loss3[感知损失]
     Loss1 & Loss2 & Loss3 -->|Backprop| UpdateG[更新生成器]
+    end
+    
+    subgraph API服务路径
+    Client[客户端] -->|HTTP请求| API[API服务]
+    API -->|文件处理| FileProcess[文件处理模块]
+    FileProcess -->|图像/视频| Preprocessing[预处理模块]
+    Preprocessing -->|处理后数据| Classification[分类模块]
+    Classification -->|角色识别| AttrPred[属性预测模块]
+    Classification -->|识别结果| API
+    AttrPred -->|属性结果| API
+    API -->|JSON响应| Client
     end
 ```
 

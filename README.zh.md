@@ -10,6 +10,7 @@
 - **高准确率**：使用CLIP模型和Faiss索引，识别准确率高
 - **DeepDanbooru集成**：集成DeepDanbooru进行动漫标签识别，提高分类准确率
 - **标签辅助推理**：使用DeepDanbooru标签调整分类结果，解决"大众脸"问题
+- **属性预测**：预测角色的属性，如发色、瞳色、服装等
 - **实时反馈**：提供识别置信度和详细结果
 - **用户友好界面**：直观的Web界面，操作简单
 - **API支持**：提供RESTful API接口，支持批量处理
@@ -18,6 +19,8 @@
 - **EfficientNet-B3模型**：使用先进的EfficientNet-B0进行角色分类
 - **数据收集**：支持通过Bing Image Search API自动收集角色图片
 - **数据集分割**：自动将收集的数据分割为训练集和验证集
+- **模型回退机制**：当主模型失败时，自动回退到替代模型
+- **错误处理**：健壮的错误处理，确保系统稳定性
 
 ## 🚀 快速开始
 
@@ -144,6 +147,9 @@ curl -X POST -F "file=@path/to/image.jpg" -F "use_model=true" http://127.0.0.1:5
 
 # 使用curl带DeepDanbooru集成
 curl -X POST -F "file=@path/to/image.jpg" -F "use_deepdanbooru=true" http://127.0.0.1:5001/api/classify
+
+# 使用curl带属性预测
+curl -X POST -F "file=@path/to/image.jpg" -F "use_attributes=true" http://127.0.0.1:5001/api/classify
 ```
 
 API返回结果示例：
@@ -153,22 +159,36 @@ API返回结果示例：
   "filename": "image.jpg",
   "role": "蔚蓝档案_星野",
   "similarity": 0.98,
-  "boxes": []
+  "boxes": [],
+  "fileType": "image",
+  "mode": "CLIP",
+  "attributes": [
+    {"tag": "blue_hair", "confidence": 0.95},
+    {"tag": "school_uniform", "confidence": 0.87},
+    {"tag": "red_eyes", "confidence": 0.82}
+  ]
 }
 ```
 
 ## 📊 系统性能
 
-### 识别准确率
+### 模型性能评估
 
-| 角色 | 准确率 |
-|------|--------|
-| 优花梨 | 100% |
-| 阿罗娜 | 83.33% |
-| 宫子 | 60% |
-| 星野 | 40% |
-| 白子 | 37.50% |
-| 日奈 | 30% |
+| 模型 | 准确率 | 精确率 | 召回率 | F1分数 |
+|------|--------|--------|--------|--------|
+| 条件GAN | 85.94% | 0.871 | 0.859 | 0.858 |
+| Arona Plana | 12.50% | 0.250 | 0.125 | 0.167 |
+| Arona Plana ResNet18 | 12.50% | 0.500 | 0.125 | 0.200 |
+| 通用分类 | 7.50% | 0.008 | 0.075 | 0.014 |
+
+### 角色特定性能
+
+| 角色 | 精确率 | 召回率 | F1分数 |
+|------|--------|--------|--------|
+| 蔚蓝档案_普拉娜 | 0.805 | 0.948 | 0.871 |
+| 蔚蓝档案_阿罗娜 | 0.937 | 0.771 | 0.846 |
+| sdv50_凝光 | 0.080 | 1.000 | 0.148 |
+| sdv50_申鹤 | 0.083 | 0.500 | 0.143 |
 
 ### 平均处理时间
 
