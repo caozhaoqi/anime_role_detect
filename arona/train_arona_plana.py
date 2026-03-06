@@ -245,7 +245,7 @@ def train_model(model, train_loader, val_loader, device, num_epochs=50, lr=0.000
 
 def main():
     parser = argparse.ArgumentParser(description='蔚蓝档案阿罗娜和普拉娜专用训练脚本')
-    parser.add_argument('--data-dir', type=str, default='data/train', help='数据目录')
+    parser.add_argument('--data-dir', type=str, default='../data/downloaded_images', help='数据目录')
     parser.add_argument('--model-type', type=str, default='mobilenet_v2', 
                        choices=['mobilenet_v2', 'efficientnet_b0', 'resnet18'],
                        help='模型类型')
@@ -279,7 +279,7 @@ def main():
     ])
     
     # 目标角色
-    target_characters = ['蔚蓝档案_阿罗娜', '蔚蓝档案_普拉娜']
+    target_characters = ['阿罗娜', '普拉娜', '日奈', '亚子', '伊织']
     
     # 创建数据集
     logger.info('加载数据集...')
