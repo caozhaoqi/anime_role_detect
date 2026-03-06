@@ -157,6 +157,39 @@ python -m src.model_training.model_ensemble --models models/checkpoints/model1.p
 **参数说明**:
 - `--models`: 模型文件列表
 
+### 4.5 模型蒸馏
+
+```bash
+# 运行模型蒸馏
+python -m src.model_training.train_model_distillation --teacher-model models/checkpoints/teacher_model.pth --student-model mobilenet_v2
+```
+
+**参数说明**:
+- `--teacher-model`: 教师模型文件路径
+- `--student-model`: 学生模型类型 (mobilenet_v2, shufflenet_v2, squeezenet)
+
+### 4.6 在线学习
+
+```bash
+# 运行在线学习
+python -m src.model_training.online_learning_system --model models/checkpoints/best_model.pth --new-data data/new_characters
+```
+
+**参数说明**:
+- `--model`: 基础模型文件路径
+- `--new-data`: 新角色数据目录
+
+### 4.7 多模态融合
+
+```bash
+# 运行多模态融合训练
+python -m src.model_training.multimodal_fusion --train-dir data/train --val-dir data/val
+```
+
+**参数说明**:
+- `--train-dir`: 训练数据目录
+- `--val-dir`: 验证数据目录
+
 ## 5. 模型评估
 
 ### 5.1 评估模型性能
