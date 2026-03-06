@@ -278,6 +278,7 @@ export default function AnimeRoleDetect() {
       const formData = new FormData();
       formData.append("file", file);
       formData.append("use_model", "true");
+      formData.append("use_attributes", "true");
       formData.append("model_name", selectedModel);
 
       const apiResponse = await fetch("http://localhost:5001/api/classify", {
@@ -339,6 +340,7 @@ export default function AnimeRoleDetect() {
             similarity: result.similarity || 0,
             confidence: (result.similarity || 0) >= 0.8 ? "high" : (result.similarity || 0) >= 0.5 ? "medium" : "low",
           },
+          attributes: result.attributes || [],
           thoughts: ["正在分析图片特征...", "提取角色关键信息...", "匹配数据库中的角色...", "识别完成！"],
           isThinkingFinished: true,
           timestamp: Date.now(),
@@ -748,6 +750,23 @@ export default function AnimeRoleDetect() {
                                     />
                                   </div>
                                 </div>
+                                
+                                {/* 属性标签展示 */}
+                                {msg.attributes && msg.attributes.length > 0 && (
+                                  <div className="mt-4 pt-4 border-t border-[#e2e8f0]">
+                                    <div className="text-xs font-medium text-[#64748b] mb-3">属性标签</div>
+                                    <div className="flex flex-wrap gap-2">
+                                      {msg.attributes.slice(0, 10).map((attr, idx) => (
+                                        <span
+                                          key={idx}
+                                          className="px-3 py-1.5 bg-[#f1f5f9] text-[#64748b] text-xs rounded-full border border-[#e2e8f0] hover:bg-[#e2e8f0] transition-all duration-300"
+                                        >
+                                          {attr.tag} ({(attr.confidence * 100).toFixed(0)}%)
+                                        </span>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
                               </div>
                               
                               {/* 识别时间 */}

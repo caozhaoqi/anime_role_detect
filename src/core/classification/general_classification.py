@@ -150,10 +150,27 @@ class GeneralClassification:
                 logger.warning(f"EfficientNet模型初始化失败 (非致命): {e}")
                 self.model_inference = None
             
+            # 6. 尝试初始化属性推理器（单独处理，非致命）
+            try:
+                logger.info("初始化属性推理模型...")
+                from core.classification.attribute_inference import AttributeInference
+                # 构建属性模型路径
+                base_model_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..', 'models'))
+                attribute_model_path = os.path.join(base_model_dir, 'character_classifier_with_attributes', 'model_best.pth')
+                if os.path.exists(attribute_model_path):
+                    self.attribute_inference = AttributeInference(model_path=attribute_model_path)
+                    logger.info("属性推理模型初始化成功")
+                else:
+                    logger.warning("属性模型文件不存在")
+                    self.attribute_inference = None
+            except Exception as e:
+                logger.warning(f"属性推理模型初始化失败 (非致命): {e}")
+                self.attribute_inference = None
+            
             # 6. 尝试初始化DeepDanbooru推理器（单独处理，非致命）
             try:
                 logger.info("初始化DeepDanbooru推理模型...")
-                from src.core.classification.deepdanbooru_inference import DeepDanbooruInference
+                from core.classification.deepdanbooru_inference import DeepDanbooruInference
                 self.deepdanbooru_inference = DeepDanbooruInference()
                 logger.info("DeepDanbooru推理模型初始化成功")
             except Exception as e:
@@ -260,23 +277,33 @@ class GeneralClassification:
             logger.error(f"构建索引失败: {e}")
             return False
     
-    def classify_image(self, image_path, use_model=False):
+    def classify_image(self, image_path, use_model=False, use_attributes=False):
         """分类单个图像
         :param image_path: 图片路径
         :param use_model: 是否使用EfficientNet模型进行推理
+        :param use_attributes: 是否使用属性预测
         """
         if not self.initialize():
             logger.error("分类器未初始化，无法进行分类")
-            return None, 0.0, None
+            return None, 0.0, None, []
             
         try:
-            logger.info(f"开始分类图像: {image_path}, use_model={use_model}")
+            logger.info(f"开始分类图像: {image_path}, use_model={use_model}, use_attributes={use_attributes}")
             # 预处理 (YOLO检测)
             # 无论使用哪种方法，先用YOLO裁剪出人物主体总是好的
             normalized_img, boxes = self.preprocessor.process(image_path)
             
+            # 初始化属性结果
+            attributes = []
+            
+            # 如果指定使用属性模型且模型已加载
+            if use_attributes and self.attribute_inference:
+                # 使用属性模型进行推理
+                logger.info("使用属性模型进行推理")
+                role, similarity, _, attributes = self.attribute_inference.predict(image_path)
+                feature = None # 模型推理不产生CLIP特征向量
             # 如果指定使用模型且模型已加载
-            if use_model and self.model_inference:
+            elif use_model and self.model_inference:
                 # 注意：EfficientNetInference 内部会再次读取图片并进行自己的预处理
                 # 这里我们传入原始路径，或者我们可以优化让它接受 PIL Image
                 # 目前为了简单，直接传路径
@@ -304,11 +331,12 @@ class GeneralClassification:
                     role=role,
                     similarity=similarity,
                     feature=feature if feature is not None else [],
-                    boxes=boxes
+                    boxes=boxes,
+                    metadata={'attributes': [attr['tag'] for attr in attributes[:5]]} if attributes else {}
                 )
             
-            logger.info(f"分类完成，角色: {role}, 相似度: {similarity:.4f}")
-            return role, similarity, boxes
+            logger.info(f"分类完成，角色: {role}, 相似度: {similarity:.4f}, 属性: {len(attributes)}个")
+            return role, similarity, boxes, attributes
         except Exception as e:
             logger.error(f"分类图像失败: {e}")
             raise e # 抛出异常以便上层捕获
@@ -403,28 +431,30 @@ class GeneralClassification:
             logger.error(f"集成分类失败: {e}")
             # 失败时回退到CLIP模型
             logger.warning("回退到CLIP模型进行分类")
-            return self.classify_image(image_path, use_model=False)
+            role, similarity, boxes, _ = self.classify_image(image_path, use_model=False)
+            return role, similarity, boxes
     
-    def classify_image_with_deepdanbooru(self, image_path, clip_weight=0.4, model_weight=0.4, deepdanbooru_weight=0.2, confidence_threshold=0.6):
+    def classify_image_with_deepdanbooru(self, image_path, clip_weight=0.4, model_weight=0.4, deepdanbooru_weight=0.2, confidence_threshold=0.6, use_attributes=True):
         """使用集成方法分类单个图像（整合CLIP、专用模型和DeepDanbooru的结果）
         :param image_path: 图片路径
         :param clip_weight: CLIP模型的权重
         :param model_weight: 专用模型的权重
         :param deepdanbooru_weight: DeepDanbooru模型的权重
         :param confidence_threshold: 置信度阈值
+        :param use_attributes: 是否使用属性预测
         """
         if not self.initialize():
-            return None, 0.0, None
+            return None, 0.0, None, []
             
         try:
             logger.info(f"开始集成DeepDanbooru的分类: {image_path}")
             
             # 1. 使用CLIP模型分类
-            clip_role, clip_similarity, boxes = self.classify_image(image_path, use_model=False)
+            clip_role, clip_similarity, boxes, clip_attributes = self.classify_image(image_path, use_model=False, use_attributes=use_attributes)
             logger.info(f"CLIP模型结果: {clip_role}, 相似度: {clip_similarity:.4f}")
             
             # 2. 使用专用模型分类
-            model_role, model_similarity, _ = self.classify_image(image_path, use_model=True)
+            model_role, model_similarity, _, model_attributes = self.classify_image(image_path, use_model=True, use_attributes=use_attributes)
             logger.info(f"专用模型结果: {model_role}, 相似度: {model_similarity:.4f}")
             
             # 3. 使用DeepDanbooru模型分类
@@ -542,7 +572,9 @@ class GeneralClassification:
                         }
                     )
                 
-                return final_role, normalized_score, boxes
+                # 合并属性信息，优先使用专用模型的属性
+                attributes = model_attributes if model_attributes else clip_attributes
+                return final_role, normalized_score, boxes, attributes
             else:
                 # 如果所有模型的置信度都低于阈值，使用CLIP模型的结果
                 logger.warning("所有模型置信度都低于阈值，使用CLIP模型结果")
@@ -566,13 +598,16 @@ class GeneralClassification:
                         }
                     )
                 
-                return clip_role, clip_similarity, boxes
+                # 合并属性信息，优先使用专用模型的属性
+                attributes = model_attributes if model_attributes else clip_attributes
+                return clip_role, clip_similarity, boxes, attributes
                 
         except Exception as e:
             logger.error(f"集成DeepDanbooru分类失败: {e}")
             # 失败时回退到CLIP模型
             logger.warning("回退到CLIP模型进行分类")
-            return self.classify_image(image_path, use_model=False)
+            role, similarity, boxes, attributes = self.classify_image(image_path, use_model=False, use_attributes=use_attributes)
+            return role, similarity, boxes, attributes
     
     def classify_pil_image(self, pil_image, use_model=False):
         """分类PIL图像对象"""

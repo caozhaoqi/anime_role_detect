@@ -4,7 +4,7 @@ import json
 import os
 
 # 使用全局日志系统
-from src.core.logging.global_logger import get_logger, log_system, log_error
+from core.logging.global_logger import get_logger, log_system, log_error
 logger = get_logger("classification")
 
 class Classification:
@@ -310,8 +310,8 @@ class Classification:
     
     def incremental_learning(self, image_path, correct_role):
         """增量学习：根据用户提供的正确角色更新索引"""
-        from src.core.preprocessing.preprocessing import Preprocessing
-        from src.core.feature_extraction.feature_extraction import FeatureExtraction
+        from core.preprocessing.preprocessing import Preprocessing
+        from core.feature_extraction.feature_extraction import FeatureExtraction
         
         logger.info(f"开始增量学习，图像路径: {image_path}, 正确角色: {correct_role}")
         

@@ -104,6 +104,7 @@ def setup_api_routes(app):
         use_model = request.form.get('use_model') == 'true'
         use_coreml = request.form.get('use_coreml') == 'true'
         use_deepdanbooru = request.form.get('use_deepdanbooru') == 'true'
+        use_attributes = request.form.get('use_attributes') == 'true'
         model_name = request.form.get('model_name', 'default')
         frame_skip = int(request.form.get('frame_skip', str(DEFAULT_FRAME_SKIP)))
         
@@ -111,6 +112,7 @@ def setup_api_routes(app):
             'use_model': use_model,
             'use_coreml': use_coreml,
             'use_deepdanbooru': use_deepdanbooru,
+            'use_attributes': use_attributes,
             'model_name': model_name,
             'frame_skip': frame_skip
         })
@@ -150,15 +152,15 @@ def setup_api_routes(app):
                 if use_coreml:
                     # 使用Core ML模型
                     logger.debug("🤖 使用Core ML模型")
-                    role, similarity, boxes, mode = classify_image(temp_path, use_coreml=True, use_model=False, use_deepdanbooru=False)
+                    role, similarity, boxes, mode, attributes = classify_image(temp_path, use_coreml=True, use_model=False, use_deepdanbooru=False, use_attributes=False)
                 elif use_deepdanbooru:
                     # 使用集成DeepDanbooru的分类方法
                     logger.debug("🤖 使用集成DeepDanbooru的分类方法")
-                    role, similarity, boxes, mode = classify_image(temp_path, use_coreml=False, use_model=False, use_deepdanbooru=True)
+                    role, similarity, boxes, mode, attributes = classify_image(temp_path, use_coreml=False, use_model=False, use_deepdanbooru=True, use_attributes=False)
                 else:
                     # 使用默认模型
                     logger.debug("🤖 使用默认模型")
-                    role, similarity, boxes, mode = classify_image(temp_path, use_coreml=False, use_model=use_model, use_deepdanbooru=False)
+                    role, similarity, boxes, mode, attributes = classify_image(temp_path, use_coreml=False, use_model=use_model, use_deepdanbooru=False, use_attributes=use_attributes)
                 
                 # 构建响应
                 response = {
@@ -166,11 +168,16 @@ def setup_api_routes(app):
                     'role': role if role else '未知',
                     'similarity': similarity,
                     'boxes': boxes,
-                    'fileType': 'image'
+                    'fileType': 'image',
+                    'mode': mode
                 }
                 
+                # 添加属性标签
+                if attributes:
+                    response['attributes'] = attributes
+                
                 # 记录推理结果
-                log_inference(f"✅ 图像分类成功: {file.filename}, 角色: {role}, 相似度: {similarity:.4f}, 模式: {mode}")
+                log_inference(f"✅ 图像分类成功: {file.filename}, 角色: {role}, 相似度: {similarity:.4f}, 模式: {mode}, 属性: {len(attributes)}个")
                 logger.debug(f"✅ 图像分类成功: {response}")
                 return json.dumps(response, ensure_ascii=False), 200, {'Content-Type': 'application/json'}
                 

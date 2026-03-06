@@ -206,6 +206,44 @@ python -m src.inference.infer_batch --model models/onnx/model.onnx --input-dir t
 - `--input-dir`: 输入图像目录
 - `--output-dir`: 输出结果目录
 
+### 6.3 API 推理
+
+```bash
+# 启动 API 服务器
+python src/backend/web/web_app.py
+```
+
+**API 端点**:
+- `POST /api/classify`: 分类图像或视频
+
+**请求参数**:
+- `file`: 媒体文件（必填，支持图片和视频）
+- `use_model`: 是否使用专用模型 (true/false, 默认false)
+- `use_attributes`: 是否使用属性预测 (true/false, 默认true)
+- `model_name`: 模型名称（可选）
+
+**示例请求**:
+```bash
+# 使用 curl 发送请求
+curl -X POST -F "file=@image.jpg" -F "use_model=true" http://localhost:5001/api/classify
+```
+
+**响应格式**:
+```json
+{
+  "filename": "image.jpg",
+  "role": "one_piece_索隆",
+  "similarity": 0.7187,
+  "boxes": [[...]],
+  "fileType": "image",
+  "mode": "EfficientNet",
+  "attributes": [
+    {"tag": "sword", "confidence": 0.95},
+    {"tag": "green_hair", "confidence": 0.87}
+  ]
+}
+```
+
 ## 7. 常见问题
 
 ### 7.1 数据采集问题
