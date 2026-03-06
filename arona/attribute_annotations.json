@@ -1,0 +1,3422 @@
+[
+  {
+    "image_path": "日奈/日奈_49.jpg",
+    "character": "日奈",
+    "attributes": {
+      "hair_color": "black",
+      "eye_color": "purple",
+      "has_halo": false,
+      "outfit": "school_uniform",
+      "hair_style": "long_hair",
+      "accessories": "glasses"
+    },
+    "attribute_labels": [
+      2,
+      2,
+      1,
+      0,
+      1,
+      2
+    ]
+  },
+  {
+    "image_path": "日奈/日奈_48.jpg",
+    "character": "日奈",
+    "attributes": {
+      "hair_color": "black",
+      "eye_color": "purple",
+      "has_halo": false,
+      "outfit": "school_uniform",
+      "hair_style": "long_hair",
+      "accessories": "glasses"
+    },
+    "attribute_labels": [
+      2,
+      2,
+      1,
+      0,
+      1,
+      2
+    ]
+  },
+  {
+    "image_path": "日奈/日奈_13.jpg",
+    "character": "日奈",
+    "attributes": {
+      "hair_color": "black",
+      "eye_color": "purple",
+      "has_halo": false,
+      "outfit": "school_uniform",
+      "hair_style": "long_hair",
+      "accessories": "glasses"
+    },
+    "attribute_labels": [
+      2,
+      2,
+      1,
+      0,
+      1,
+      2
+    ]
+  },
+  {
+    "image_path": "日奈/日奈_12.jpg",
+    "character": "日奈",
+    "attributes": {
+      "hair_color": "black",
+      "eye_color": "purple",
+      "has_halo": false,
+      "outfit": "school_uniform",
+      "hair_style": "long_hair",
+      "accessories": "glasses"
+    },
+    "attribute_labels": [
+      2,
+      2,
+      1,
+      0,
+      1,
+      2
+    ]
+  },
+  {
+    "image_path": "日奈/日奈_10.jpg",
+    "character": "日奈",
+    "attributes": {
+      "hair_color": "black",
+      "eye_color": "purple",
+      "has_halo": false,
+      "outfit": "school_uniform",
+      "hair_style": "long_hair",
+      "accessories": "glasses"
+    },
+    "attribute_labels": [
+      2,
+      2,
+      1,
+      0,
+      1,
+      2
+    ]
+  },
+  {
+    "image_path": "日奈/日奈_38.jpg",
+    "character": "日奈",
+    "attributes": {
+      "hair_color": "black",
+      "eye_color": "purple",
+      "has_halo": false,
+      "outfit": "school_uniform",
+      "hair_style": "long_hair",
+      "accessories": "glasses"
+    },
+    "attribute_labels": [
+      2,
+      2,
+      1,
+      0,
+      1,
+      2
+    ]
+  },
+  {
+    "image_path": "日奈/日奈_39.jpg",
+    "character": "日奈",
+    "attributes": {
+      "hair_color": "black",
+      "eye_color": "purple",
+      "has_halo": false,
+      "outfit": "school_uniform",
+      "hair_style": "long_hair",
+      "accessories": "glasses"
+    },
+    "attribute_labels": [
+      2,
+      2,
+      1,
+      0,
+      1,
+      2
+    ]
+  },
+  {
+    "image_path": "日奈/日奈_29.jpg",
+    "character": "日奈",
+    "attributes": {
+      "hair_color": "black",
+      "eye_color": "purple",
+      "has_halo": false,
+      "outfit": "school_uniform",
+      "hair_style": "long_hair",
+      "accessories": "glasses"
+    },
+    "attribute_labels": [
+      2,
+      2,
+      1,
+      0,
+      1,
+      2
+    ]
+  },
+  {
+    "image_path": "日奈/日奈_14.jpg",
+    "character": "日奈",
+    "attributes": {
+      "hair_color": "black",
+      "eye_color": "purple",
+      "has_halo": false,
+      "outfit": "school_uniform",
+      "hair_style": "long_hair",
+      "accessories": "glasses"
+    },
+    "attribute_labels": [
+      2,
+      2,
+      1,
+      0,
+      1,
+      2
+    ]
+  },
+  {
+    "image_path": "日奈/日奈_28.jpg",
+    "character": "日奈",
+    "attributes": {
+      "hair_color": "black",
+      "eye_color": "purple",
+      "has_halo": false,
+      "outfit": "school_uniform",
+      "hair_style": "long_hair",
+      "accessories": "glasses"
+    },
+    "attribute_labels": [
+      2,
+      2,
+      1,
+      0,
+      1,
+      2
+    ]
+  },
+  {
+    "image_path": "日奈/日奈_8.jpg",
+    "character": "日奈",
+    "attributes": {
+      "hair_color": "black",
+      "eye_color": "purple",
+      "has_halo": false,
+      "outfit": "school_uniform",
+      "hair_style": "long_hair",
+      "accessories": "glasses"
+    },
+    "attribute_labels": [
+      2,
+      2,
+      1,
+      0,
+      1,
+      2
+    ]
+  },
+  {
+    "image_path": "日奈/日奈_16.jpg",
+    "character": "日奈",
+    "attributes": {
+      "hair_color": "black",
+      "eye_color": "purple",
+      "has_halo": false,
+      "outfit": "school_uniform",
+      "hair_style": "long_hair",
+      "accessories": "glasses"
+    },
+    "attribute_labels": [
+      2,
+      2,
+      1,
+      0,
+      1,
+      2
+    ]
+  },
+  {
+    "image_path": "日奈/日奈_17.jpg",
+    "character": "日奈",
+    "attributes": {
+      "hair_color": "black",
+      "eye_color": "purple",
+      "has_halo": false,
+      "outfit": "school_uniform",
+      "hair_style": "long_hair",
+      "accessories": "glasses"
+    },
+    "attribute_labels": [
+      2,
+      2,
+      1,
+      0,
+      1,
+      2
+    ]
+  },
+  {
+    "image_path": "日奈/日奈_9.jpg",
+    "character": "日奈",
+    "attributes": {
+      "hair_color": "black",
+      "eye_color": "purple",
+      "has_halo": false,
+      "outfit": "school_uniform",
+      "hair_style": "long_hair",
+      "accessories": "glasses"
+    },
+    "attribute_labels": [
+      2,
+      2,
+      1,
+      0,
+      1,
+      2
+    ]
+  },
+  {
+    "image_path": "日奈/日奈_32.jpg",
+    "character": "日奈",
+    "attributes": {
+      "hair_color": "black",
+      "eye_color": "purple",
+      "has_halo": false,
+      "outfit": "school_uniform",
+      "hair_style": "long_hair",
+      "accessories": "glasses"
+    },
+    "attribute_labels": [
+      2,
+      2,
+      1,
+      0,
+      1,
+      2
+    ]
+  },
+  {
+    "image_path": "日奈/日奈_26.jpg",
+    "character": "日奈",
+    "attributes": {
+      "hair_color": "black",
+      "eye_color": "purple",
+      "has_halo": false,
+      "outfit": "school_uniform",
+      "hair_style": "long_hair",
+      "accessories": "glasses"
+    },
+    "attribute_labels": [
+      2,
+      2,
+      1,
+      0,
+      1,
+      2
+    ]
+  },
+  {
+    "image_path": "日奈/日奈_27.jpg",
+    "character": "日奈",
+    "attributes": {
+      "hair_color": "black",
+      "eye_color": "purple",
+      "has_halo": false,
+      "outfit": "school_uniform",
+      "hair_style": "long_hair",
+      "accessories": "glasses"
+    },
+    "attribute_labels": [
+      2,
+      2,
+      1,
+      0,
+      1,
+      2
+    ]
+  },
+  {
+    "image_path": "日奈/日奈_33.jpg",
+    "character": "日奈",
+    "attributes": {
+      "hair_color": "black",
+      "eye_color": "purple",
+      "has_halo": false,
+      "outfit": "school_uniform",
+      "hair_style": "long_hair",
+      "accessories": "glasses"
+    },
+    "attribute_labels": [
+      2,
+      2,
+      1,
+      0,
+      1,
+      2
+    ]
+  },
+  {
+    "image_path": "日奈/日奈_25.jpg",
+    "character": "日奈",
+    "attributes": {
+      "hair_color": "black",
+      "eye_color": "purple",
+      "has_halo": false,
+      "outfit": "school_uniform",
+      "hair_style": "long_hair",
+      "accessories": "glasses"
+    },
+    "attribute_labels": [
+      2,
+      2,
+      1,
+      0,
+      1,
+      2
+    ]
+  },
+  {
+    "image_path": "日奈/日奈_31.jpg",
+    "character": "日奈",
+    "attributes": {
+      "hair_color": "black",
+      "eye_color": "purple",
+      "has_halo": false,
+      "outfit": "school_uniform",
+      "hair_style": "long_hair",
+      "accessories": "glasses"
+    },
+    "attribute_labels": [
+      2,
+      2,
+      1,
+      0,
+      1,
+      2
+    ]
+  },
+  {
+    "image_path": "日奈/日奈_19.jpg",
+    "character": "日奈",
+    "attributes": {
+      "hair_color": "black",
+      "eye_color": "purple",
+      "has_halo": false,
+      "outfit": "school_uniform",
+      "hair_style": "long_hair",
+      "accessories": "glasses"
+    },
+    "attribute_labels": [
+      2,
+      2,
+      1,
+      0,
+      1,
+      2
+    ]
+  },
+  {
+    "image_path": "日奈/日奈_18.jpg",
+    "character": "日奈",
+    "attributes": {
+      "hair_color": "black",
+      "eye_color": "purple",
+      "has_halo": false,
+      "outfit": "school_uniform",
+      "hair_style": "long_hair",
+      "accessories": "glasses"
+    },
+    "attribute_labels": [
+      2,
+      2,
+      1,
+      0,
+      1,
+      2
+    ]
+  },
+  {
+    "image_path": "日奈/日奈_30.jpg",
+    "character": "日奈",
+    "attributes": {
+      "hair_color": "black",
+      "eye_color": "purple",
+      "has_halo": false,
+      "outfit": "school_uniform",
+      "hair_style": "long_hair",
+      "accessories": "glasses"
+    },
+    "attribute_labels": [
+      2,
+      2,
+      1,
+      0,
+      1,
+      2
+    ]
+  },
+  {
+    "image_path": "日奈/日奈_24.jpg",
+    "character": "日奈",
+    "attributes": {
+      "hair_color": "black",
+      "eye_color": "purple",
+      "has_halo": false,
+      "outfit": "school_uniform",
+      "hair_style": "long_hair",
+      "accessories": "glasses"
+    },
+    "attribute_labels": [
+      2,
+      2,
+      1,
+      0,
+      1,
+      2
+    ]
+  },
+  {
+    "image_path": "日奈/日奈_6.jpg",
+    "character": "日奈",
+    "attributes": {
+      "hair_color": "black",
+      "eye_color": "purple",
+      "has_halo": false,
+      "outfit": "school_uniform",
+      "hair_style": "long_hair",
+      "accessories": "glasses"
+    },
+    "attribute_labels": [
+      2,
+      2,
+      1,
+      0,
+      1,
+      2
+    ]
+  },
+  {
+    "image_path": "日奈/日奈_20.jpg",
+    "character": "日奈",
+    "attributes": {
+      "hair_color": "black",
+      "eye_color": "purple",
+      "has_halo": false,
+      "outfit": "school_uniform",
+      "hair_style": "long_hair",
+      "accessories": "glasses"
+    },
+    "attribute_labels": [
+      2,
+      2,
+      1,
+      0,
+      1,
+      2
+    ]
+  },
+  {
+    "image_path": "日奈/日奈_34.jpg",
+    "character": "日奈",
+    "attributes": {
+      "hair_color": "black",
+      "eye_color": "purple",
+      "has_halo": false,
+      "outfit": "school_uniform",
+      "hair_style": "long_hair",
+      "accessories": "glasses"
+    },
+    "attribute_labels": [
+      2,
+      2,
+      1,
+      0,
+      1,
+      2
+    ]
+  },
+  {
+    "image_path": "日奈/日奈_35.jpg",
+    "character": "日奈",
+    "attributes": {
+      "hair_color": "black",
+      "eye_color": "purple",
+      "has_halo": false,
+      "outfit": "school_uniform",
+      "hair_style": "long_hair",
+      "accessories": "glasses"
+    },
+    "attribute_labels": [
+      2,
+      2,
+      1,
+      0,
+      1,
+      2
+    ]
+  },
+  {
+    "image_path": "日奈/日奈_3.jpg",
+    "character": "日奈",
+    "attributes": {
+      "hair_color": "black",
+      "eye_color": "purple",
+      "has_halo": false,
+      "outfit": "school_uniform",
+      "hair_style": "long_hair",
+      "accessories": "glasses"
+    },
+    "attribute_labels": [
+      2,
+      2,
+      1,
+      0,
+      1,
+      2
+    ]
+  },
+  {
+    "image_path": "日奈/日奈_37.jpg",
+    "character": "日奈",
+    "attributes": {
+      "hair_color": "black",
+      "eye_color": "purple",
+      "has_halo": false,
+      "outfit": "school_uniform",
+      "hair_style": "long_hair",
+      "accessories": "glasses"
+    },
+    "attribute_labels": [
+      2,
+      2,
+      1,
+      0,
+      1,
+      2
+    ]
+  },
+  {
+    "image_path": "日奈/日奈_23.jpg",
+    "character": "日奈",
+    "attributes": {
+      "hair_color": "black",
+      "eye_color": "purple",
+      "has_halo": false,
+      "outfit": "school_uniform",
+      "hair_style": "long_hair",
+      "accessories": "glasses"
+    },
+    "attribute_labels": [
+      2,
+      2,
+      1,
+      0,
+      1,
+      2
+    ]
+  },
+  {
+    "image_path": "日奈/日奈_36.jpg",
+    "character": "日奈",
+    "attributes": {
+      "hair_color": "black",
+      "eye_color": "purple",
+      "has_halo": false,
+      "outfit": "school_uniform",
+      "hair_style": "long_hair",
+      "accessories": "glasses"
+    },
+    "attribute_labels": [
+      2,
+      2,
+      1,
+      0,
+      1,
+      2
+    ]
+  },
+  {
+    "image_path": "日奈/日奈_51.jpg",
+    "character": "日奈",
+    "attributes": {
+      "hair_color": "black",
+      "eye_color": "purple",
+      "has_halo": false,
+      "outfit": "school_uniform",
+      "hair_style": "long_hair",
+      "accessories": "glasses"
+    },
+    "attribute_labels": [
+      2,
+      2,
+      1,
+      0,
+      1,
+      2
+    ]
+  },
+  {
+    "image_path": "日奈/日奈_45.jpg",
+    "character": "日奈",
+    "attributes": {
+      "hair_color": "black",
+      "eye_color": "purple",
+      "has_halo": false,
+      "outfit": "school_uniform",
+      "hair_style": "long_hair",
+      "accessories": "glasses"
+    },
+    "attribute_labels": [
+      2,
+      2,
+      1,
+      0,
+      1,
+      2
+    ]
+  },
+  {
+    "image_path": "日奈/日奈_44.jpg",
+    "character": "日奈",
+    "attributes": {
+      "hair_color": "black",
+      "eye_color": "purple",
+      "has_halo": false,
+      "outfit": "school_uniform",
+      "hair_style": "long_hair",
+      "accessories": "glasses"
+    },
+    "attribute_labels": [
+      2,
+      2,
+      1,
+      0,
+      1,
+      2
+    ]
+  },
+  {
+    "image_path": "日奈/日奈_50.jpg",
+    "character": "日奈",
+    "attributes": {
+      "hair_color": "black",
+      "eye_color": "purple",
+      "has_halo": false,
+      "outfit": "school_uniform",
+      "hair_style": "long_hair",
+      "accessories": "glasses"
+    },
+    "attribute_labels": [
+      2,
+      2,
+      1,
+      0,
+      1,
+      2
+    ]
+  },
+  {
+    "image_path": "日奈/日奈_46.jpg",
+    "character": "日奈",
+    "attributes": {
+      "hair_color": "black",
+      "eye_color": "purple",
+      "has_halo": false,
+      "outfit": "school_uniform",
+      "hair_style": "long_hair",
+      "accessories": "glasses"
+    },
+    "attribute_labels": [
+      2,
+      2,
+      1,
+      0,
+      1,
+      2
+    ]
+  },
+  {
+    "image_path": "日奈/日奈_52.jpg",
+    "character": "日奈",
+    "attributes": {
+      "hair_color": "black",
+      "eye_color": "purple",
+      "has_halo": false,
+      "outfit": "school_uniform",
+      "hair_style": "long_hair",
+      "accessories": "glasses"
+    },
+    "attribute_labels": [
+      2,
+      2,
+      1,
+      0,
+      1,
+      2
+    ]
+  },
+  {
+    "image_path": "日奈/日奈_53.jpg",
+    "character": "日奈",
+    "attributes": {
+      "hair_color": "black",
+      "eye_color": "purple",
+      "has_halo": false,
+      "outfit": "school_uniform",
+      "hair_style": "long_hair",
+      "accessories": "glasses"
+    },
+    "attribute_labels": [
+      2,
+      2,
+      1,
+      0,
+      1,
+      2
+    ]
+  },
+  {
+    "image_path": "日奈/日奈_47.jpg",
+    "character": "日奈",
+    "attributes": {
+      "hair_color": "black",
+      "eye_color": "purple",
+      "has_halo": false,
+      "outfit": "school_uniform",
+      "hair_style": "long_hair",
+      "accessories": "glasses"
+    },
+    "attribute_labels": [
+      2,
+      2,
+      1,
+      0,
+      1,
+      2
+    ]
+  },
+  {
+    "image_path": "日奈/日奈_43.jpg",
+    "character": "日奈",
+    "attributes": {
+      "hair_color": "black",
+      "eye_color": "purple",
+      "has_halo": false,
+      "outfit": "school_uniform",
+      "hair_style": "long_hair",
+      "accessories": "glasses"
+    },
+    "attribute_labels": [
+      2,
+      2,
+      1,
+      0,
+      1,
+      2
+    ]
+  },
+  {
+    "image_path": "日奈/日奈_56.jpg",
+    "character": "日奈",
+    "attributes": {
+      "hair_color": "black",
+      "eye_color": "purple",
+      "has_halo": false,
+      "outfit": "school_uniform",
+      "hair_style": "long_hair",
+      "accessories": "glasses"
+    },
+    "attribute_labels": [
+      2,
+      2,
+      1,
+      0,
+      1,
+      2
+    ]
+  },
+  {
+    "image_path": "日奈/日奈_42.jpg",
+    "character": "日奈",
+    "attributes": {
+      "hair_color": "black",
+      "eye_color": "purple",
+      "has_halo": false,
+      "outfit": "school_uniform",
+      "hair_style": "long_hair",
+      "accessories": "glasses"
+    },
+    "attribute_labels": [
+      2,
+      2,
+      1,
+      0,
+      1,
+      2
+    ]
+  },
+  {
+    "image_path": "日奈/日奈_54.jpg",
+    "character": "日奈",
+    "attributes": {
+      "hair_color": "black",
+      "eye_color": "purple",
+      "has_halo": false,
+      "outfit": "school_uniform",
+      "hair_style": "long_hair",
+      "accessories": "glasses"
+    },
+    "attribute_labels": [
+      2,
+      2,
+      1,
+      0,
+      1,
+      2
+    ]
+  },
+  {
+    "image_path": "日奈/日奈_40.jpg",
+    "character": "日奈",
+    "attributes": {
+      "hair_color": "black",
+      "eye_color": "purple",
+      "has_halo": false,
+      "outfit": "school_uniform",
+      "hair_style": "long_hair",
+      "accessories": "glasses"
+    },
+    "attribute_labels": [
+      2,
+      2,
+      1,
+      0,
+      1,
+      2
+    ]
+  },
+  {
+    "image_path": "日奈/日奈_41.jpg",
+    "character": "日奈",
+    "attributes": {
+      "hair_color": "black",
+      "eye_color": "purple",
+      "has_halo": false,
+      "outfit": "school_uniform",
+      "hair_style": "long_hair",
+      "accessories": "glasses"
+    },
+    "attribute_labels": [
+      2,
+      2,
+      1,
+      0,
+      1,
+      2
+    ]
+  },
+  {
+    "image_path": "日奈/日奈_55.jpg",
+    "character": "日奈",
+    "attributes": {
+      "hair_color": "black",
+      "eye_color": "purple",
+      "has_halo": false,
+      "outfit": "school_uniform",
+      "hair_style": "long_hair",
+      "accessories": "glasses"
+    },
+    "attribute_labels": [
+      2,
+      2,
+      1,
+      0,
+      1,
+      2
+    ]
+  },
+  {
+    "image_path": "伊织/伊织_3.jpg",
+    "character": "伊织",
+    "attributes": {
+      "hair_color": "brown",
+      "eye_color": "brown",
+      "has_halo": false,
+      "outfit": "school_uniform",
+      "hair_style": "ponytail",
+      "accessories": "none"
+    },
+    "attribute_labels": [
+      4,
+      4,
+      1,
+      0,
+      3,
+      3
+    ]
+  },
+  {
+    "image_path": "阿罗娜/118747602_p0_master1200.jpg",
+    "character": "阿罗娜",
+    "attributes": {
+      "hair_color": "blue",
+      "eye_color": "blue",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "twintails",
+      "accessories": "ribbon"
+    },
+    "attribute_labels": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "image_path": "阿罗娜/131006751_p0_master1200.jpg",
+    "character": "阿罗娜",
+    "attributes": {
+      "hair_color": "blue",
+      "eye_color": "blue",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "twintails",
+      "accessories": "ribbon"
+    },
+    "attribute_labels": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "image_path": "阿罗娜/133152096-bc474e4a7a538bde6d73a7873004146d_p0_master1200.jpg",
+    "character": "阿罗娜",
+    "attributes": {
+      "hair_color": "blue",
+      "eye_color": "blue",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "twintails",
+      "accessories": "ribbon"
+    },
+    "attribute_labels": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "image_path": "阿罗娜/129609823-79c57f7324bad911ca5d81aad01bdcd8_p0_master1200.jpg",
+    "character": "阿罗娜",
+    "attributes": {
+      "hair_color": "blue",
+      "eye_color": "blue",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "twintails",
+      "accessories": "ribbon"
+    },
+    "attribute_labels": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "image_path": "阿罗娜/134327500-2c6b33e85bd1137cedfb1138077609f4_p0_master1200.jpg",
+    "character": "阿罗娜",
+    "attributes": {
+      "hair_color": "blue",
+      "eye_color": "blue",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "twintails",
+      "accessories": "ribbon"
+    },
+    "attribute_labels": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "image_path": "阿罗娜/130266343_p0_master1200.jpg",
+    "character": "阿罗娜",
+    "attributes": {
+      "hair_color": "blue",
+      "eye_color": "blue",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "twintails",
+      "accessories": "ribbon"
+    },
+    "attribute_labels": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "image_path": "阿罗娜/118958510_p0_master1200.jpg",
+    "character": "阿罗娜",
+    "attributes": {
+      "hair_color": "blue",
+      "eye_color": "blue",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "twintails",
+      "accessories": "ribbon"
+    },
+    "attribute_labels": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "image_path": "阿罗娜/133780054_p0_master1200.jpg",
+    "character": "阿罗娜",
+    "attributes": {
+      "hair_color": "blue",
+      "eye_color": "blue",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "twintails",
+      "accessories": "ribbon"
+    },
+    "attribute_labels": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "image_path": "阿罗娜/115475516_p0_master1200.jpg",
+    "character": "阿罗娜",
+    "attributes": {
+      "hair_color": "blue",
+      "eye_color": "blue",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "twintails",
+      "accessories": "ribbon"
+    },
+    "attribute_labels": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "image_path": "阿罗娜/133434723_p0_master1200.jpg",
+    "character": "阿罗娜",
+    "attributes": {
+      "hair_color": "blue",
+      "eye_color": "blue",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "twintails",
+      "accessories": "ribbon"
+    },
+    "attribute_labels": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "image_path": "阿罗娜/133070788_p0_master1200.jpg",
+    "character": "阿罗娜",
+    "attributes": {
+      "hair_color": "blue",
+      "eye_color": "blue",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "twintails",
+      "accessories": "ribbon"
+    },
+    "attribute_labels": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "image_path": "阿罗娜/129890897-928b291a9a3259a6d3989ae14689e274_p0_master1200.jpg",
+    "character": "阿罗娜",
+    "attributes": {
+      "hair_color": "blue",
+      "eye_color": "blue",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "twintails",
+      "accessories": "ribbon"
+    },
+    "attribute_labels": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "image_path": "阿罗娜/119791816_p0_master1200.jpg",
+    "character": "阿罗娜",
+    "attributes": {
+      "hair_color": "blue",
+      "eye_color": "blue",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "twintails",
+      "accessories": "ribbon"
+    },
+    "attribute_labels": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "image_path": "阿罗娜/117082166_p0_master1200.jpg",
+    "character": "阿罗娜",
+    "attributes": {
+      "hair_color": "blue",
+      "eye_color": "blue",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "twintails",
+      "accessories": "ribbon"
+    },
+    "attribute_labels": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "image_path": "阿罗娜/125737111_p0_master1200.jpg",
+    "character": "阿罗娜",
+    "attributes": {
+      "hair_color": "blue",
+      "eye_color": "blue",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "twintails",
+      "accessories": "ribbon"
+    },
+    "attribute_labels": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "image_path": "阿罗娜/133490898-b4cab8965e9f12541bfd9cf8dc0b19ea_p0_master1200.jpg",
+    "character": "阿罗娜",
+    "attributes": {
+      "hair_color": "blue",
+      "eye_color": "blue",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "twintails",
+      "accessories": "ribbon"
+    },
+    "attribute_labels": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "image_path": "阿罗娜/129815894-f21120f70a399415c63fe2c9591939b5_p0_master1200.jpg",
+    "character": "阿罗娜",
+    "attributes": {
+      "hair_color": "blue",
+      "eye_color": "blue",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "twintails",
+      "accessories": "ribbon"
+    },
+    "attribute_labels": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "image_path": "阿罗娜/126550879_p0_master1200.jpg",
+    "character": "阿罗娜",
+    "attributes": {
+      "hair_color": "blue",
+      "eye_color": "blue",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "twintails",
+      "accessories": "ribbon"
+    },
+    "attribute_labels": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "image_path": "阿罗娜/124930443_p0_master1200.jpg",
+    "character": "阿罗娜",
+    "attributes": {
+      "hair_color": "blue",
+      "eye_color": "blue",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "twintails",
+      "accessories": "ribbon"
+    },
+    "attribute_labels": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "image_path": "阿罗娜/133324701_p0_master1200.jpg",
+    "character": "阿罗娜",
+    "attributes": {
+      "hair_color": "blue",
+      "eye_color": "blue",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "twintails",
+      "accessories": "ribbon"
+    },
+    "attribute_labels": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "image_path": "阿罗娜/124062159_p0_master1200.jpg",
+    "character": "阿罗娜",
+    "attributes": {
+      "hair_color": "blue",
+      "eye_color": "blue",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "twintails",
+      "accessories": "ribbon"
+    },
+    "attribute_labels": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "image_path": "阿罗娜/115837628_p0_master1200.jpg",
+    "character": "阿罗娜",
+    "attributes": {
+      "hair_color": "blue",
+      "eye_color": "blue",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "twintails",
+      "accessories": "ribbon"
+    },
+    "attribute_labels": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "image_path": "阿罗娜/115475413_p0_master1200.jpg",
+    "character": "阿罗娜",
+    "attributes": {
+      "hair_color": "blue",
+      "eye_color": "blue",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "twintails",
+      "accessories": "ribbon"
+    },
+    "attribute_labels": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "image_path": "阿罗娜/112840001_p0_master1200.jpg",
+    "character": "阿罗娜",
+    "attributes": {
+      "hair_color": "blue",
+      "eye_color": "blue",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "twintails",
+      "accessories": "ribbon"
+    },
+    "attribute_labels": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "image_path": "阿罗娜/122590202_p0_master1200.jpg",
+    "character": "阿罗娜",
+    "attributes": {
+      "hair_color": "blue",
+      "eye_color": "blue",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "twintails",
+      "accessories": "ribbon"
+    },
+    "attribute_labels": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "image_path": "阿罗娜/134357831-32d7c1a548f464326d6a449fd0454092_p0_master1200.jpg",
+    "character": "阿罗娜",
+    "attributes": {
+      "hair_color": "blue",
+      "eye_color": "blue",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "twintails",
+      "accessories": "ribbon"
+    },
+    "attribute_labels": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "image_path": "阿罗娜/122379145_p0_master1200.jpg",
+    "character": "阿罗娜",
+    "attributes": {
+      "hair_color": "blue",
+      "eye_color": "blue",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "twintails",
+      "accessories": "ribbon"
+    },
+    "attribute_labels": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "image_path": "阿罗娜/114795463_p0_master1200.jpg",
+    "character": "阿罗娜",
+    "attributes": {
+      "hair_color": "blue",
+      "eye_color": "blue",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "twintails",
+      "accessories": "ribbon"
+    },
+    "attribute_labels": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "image_path": "阿罗娜/134395943-0646c4a63938da81db5a4656522e2046_p0_master1200.jpg",
+    "character": "阿罗娜",
+    "attributes": {
+      "hair_color": "blue",
+      "eye_color": "blue",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "twintails",
+      "accessories": "ribbon"
+    },
+    "attribute_labels": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "image_path": "阿罗娜/129905777-1d3f2a3cdcd9cffb7918b053f1c7e645_p0_master1200.jpg",
+    "character": "阿罗娜",
+    "attributes": {
+      "hair_color": "blue",
+      "eye_color": "blue",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "twintails",
+      "accessories": "ribbon"
+    },
+    "attribute_labels": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "image_path": "阿罗娜/116623311_p0_master1200.jpg",
+    "character": "阿罗娜",
+    "attributes": {
+      "hair_color": "blue",
+      "eye_color": "blue",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "twintails",
+      "accessories": "ribbon"
+    },
+    "attribute_labels": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "image_path": "阿罗娜/118749599_p0_master1200.jpg",
+    "character": "阿罗娜",
+    "attributes": {
+      "hair_color": "blue",
+      "eye_color": "blue",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "twintails",
+      "accessories": "ribbon"
+    },
+    "attribute_labels": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "image_path": "阿罗娜/131081541_p0_master1200.jpg",
+    "character": "阿罗娜",
+    "attributes": {
+      "hair_color": "blue",
+      "eye_color": "blue",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "twintails",
+      "accessories": "ribbon"
+    },
+    "attribute_labels": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "image_path": "阿罗娜/134048285-43a5958276fa5c0b12c4c21ba1fc3895_p0_master1200.jpg",
+    "character": "阿罗娜",
+    "attributes": {
+      "hair_color": "blue",
+      "eye_color": "blue",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "twintails",
+      "accessories": "ribbon"
+    },
+    "attribute_labels": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "image_path": "阿罗娜/115375093_p0_master1200.jpg",
+    "character": "阿罗娜",
+    "attributes": {
+      "hair_color": "blue",
+      "eye_color": "blue",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "twintails",
+      "accessories": "ribbon"
+    },
+    "attribute_labels": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "image_path": "阿罗娜/130635568_p0_master1200.jpg",
+    "character": "阿罗娜",
+    "attributes": {
+      "hair_color": "blue",
+      "eye_color": "blue",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "twintails",
+      "accessories": "ribbon"
+    },
+    "attribute_labels": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "image_path": "阿罗娜/127430926_p0_master1200.jpg",
+    "character": "阿罗娜",
+    "attributes": {
+      "hair_color": "blue",
+      "eye_color": "blue",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "twintails",
+      "accessories": "ribbon"
+    },
+    "attribute_labels": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "image_path": "阿罗娜/133846792-b5afdd96a90ccf7cd33a536d66b01b59_p0_master1200.jpg",
+    "character": "阿罗娜",
+    "attributes": {
+      "hair_color": "blue",
+      "eye_color": "blue",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "twintails",
+      "accessories": "ribbon"
+    },
+    "attribute_labels": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "image_path": "阿罗娜/132255824-b355f56c156473a832075a6e15a0d547_p0_master1200.jpg",
+    "character": "阿罗娜",
+    "attributes": {
+      "hair_color": "blue",
+      "eye_color": "blue",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "twintails",
+      "accessories": "ribbon"
+    },
+    "attribute_labels": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "image_path": "阿罗娜/116504901_p0_master1200.jpg",
+    "character": "阿罗娜",
+    "attributes": {
+      "hair_color": "blue",
+      "eye_color": "blue",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "twintails",
+      "accessories": "ribbon"
+    },
+    "attribute_labels": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "image_path": "阿罗娜/115509924_p0_master1200.jpg",
+    "character": "阿罗娜",
+    "attributes": {
+      "hair_color": "blue",
+      "eye_color": "blue",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "twintails",
+      "accessories": "ribbon"
+    },
+    "attribute_labels": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "image_path": "阿罗娜/133490815_p0_master1200.jpg",
+    "character": "阿罗娜",
+    "attributes": {
+      "hair_color": "blue",
+      "eye_color": "blue",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "twintails",
+      "accessories": "ribbon"
+    },
+    "attribute_labels": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "image_path": "阿罗娜/124403971_p0_master1200.jpg",
+    "character": "阿罗娜",
+    "attributes": {
+      "hair_color": "blue",
+      "eye_color": "blue",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "twintails",
+      "accessories": "ribbon"
+    },
+    "attribute_labels": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "image_path": "阿罗娜/130037661_p0_master1200.jpg",
+    "character": "阿罗娜",
+    "attributes": {
+      "hair_color": "blue",
+      "eye_color": "blue",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "twintails",
+      "accessories": "ribbon"
+    },
+    "attribute_labels": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "image_path": "阿罗娜/125486909-b8f7a93ed0681192767198b7d1c2796c_p0_master1200.jpg",
+    "character": "阿罗娜",
+    "attributes": {
+      "hair_color": "blue",
+      "eye_color": "blue",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "twintails",
+      "accessories": "ribbon"
+    },
+    "attribute_labels": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "image_path": "阿罗娜/112253418_p0_master1200.jpg",
+    "character": "阿罗娜",
+    "attributes": {
+      "hair_color": "blue",
+      "eye_color": "blue",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "twintails",
+      "accessories": "ribbon"
+    },
+    "attribute_labels": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "image_path": "阿罗娜/115475238_p0_master1200.jpg",
+    "character": "阿罗娜",
+    "attributes": {
+      "hair_color": "blue",
+      "eye_color": "blue",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "twintails",
+      "accessories": "ribbon"
+    },
+    "attribute_labels": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "image_path": "阿罗娜/134293284_p0_master1200.jpg",
+    "character": "阿罗娜",
+    "attributes": {
+      "hair_color": "blue",
+      "eye_color": "blue",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "twintails",
+      "accessories": "ribbon"
+    },
+    "attribute_labels": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "image_path": "阿罗娜/130977300_p0_master1200.jpg",
+    "character": "阿罗娜",
+    "attributes": {
+      "hair_color": "blue",
+      "eye_color": "blue",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "twintails",
+      "accessories": "ribbon"
+    },
+    "attribute_labels": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "image_path": "阿罗娜/134679001_p0_master1200.jpg",
+    "character": "阿罗娜",
+    "attributes": {
+      "hair_color": "blue",
+      "eye_color": "blue",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "twintails",
+      "accessories": "ribbon"
+    },
+    "attribute_labels": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "image_path": "阿罗娜/134785355_p0_master1200.jpg",
+    "character": "阿罗娜",
+    "attributes": {
+      "hair_color": "blue",
+      "eye_color": "blue",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "twintails",
+      "accessories": "ribbon"
+    },
+    "attribute_labels": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "image_path": "阿罗娜/122861644_p0_master1200.jpg",
+    "character": "阿罗娜",
+    "attributes": {
+      "hair_color": "blue",
+      "eye_color": "blue",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "twintails",
+      "accessories": "ribbon"
+    },
+    "attribute_labels": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "image_path": "阿罗娜/132419572_p0_master1200.jpg",
+    "character": "阿罗娜",
+    "attributes": {
+      "hair_color": "blue",
+      "eye_color": "blue",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "twintails",
+      "accessories": "ribbon"
+    },
+    "attribute_labels": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "image_path": "阿罗娜/133436485_p0_master1200.jpg",
+    "character": "阿罗娜",
+    "attributes": {
+      "hair_color": "blue",
+      "eye_color": "blue",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "twintails",
+      "accessories": "ribbon"
+    },
+    "attribute_labels": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "image_path": "阿罗娜/134470270_p0_master1200.jpg",
+    "character": "阿罗娜",
+    "attributes": {
+      "hair_color": "blue",
+      "eye_color": "blue",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "twintails",
+      "accessories": "ribbon"
+    },
+    "attribute_labels": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "image_path": "阿罗娜/134326679_p0_master1200.jpg",
+    "character": "阿罗娜",
+    "attributes": {
+      "hair_color": "blue",
+      "eye_color": "blue",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "twintails",
+      "accessories": "ribbon"
+    },
+    "attribute_labels": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "image_path": "阿罗娜/133366399-5a1a79ee133195533bb4aefcb47fecee_p0_master1200.jpg",
+    "character": "阿罗娜",
+    "attributes": {
+      "hair_color": "blue",
+      "eye_color": "blue",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "twintails",
+      "accessories": "ribbon"
+    },
+    "attribute_labels": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "image_path": "阿罗娜/125413184-d35efb05321472fe5da09398289717cb_p0_master1200.jpg",
+    "character": "阿罗娜",
+    "attributes": {
+      "hair_color": "blue",
+      "eye_color": "blue",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "twintails",
+      "accessories": "ribbon"
+    },
+    "attribute_labels": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "image_path": "阿罗娜/130817315_p0_master1200.jpg",
+    "character": "阿罗娜",
+    "attributes": {
+      "hair_color": "blue",
+      "eye_color": "blue",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "twintails",
+      "accessories": "ribbon"
+    },
+    "attribute_labels": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "image_path": "阿罗娜/130446707-c2417bdb68a414dd81432e97a9f9b74f_p0_master1200.jpg",
+    "character": "阿罗娜",
+    "attributes": {
+      "hair_color": "blue",
+      "eye_color": "blue",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "twintails",
+      "accessories": "ribbon"
+    },
+    "attribute_labels": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "image_path": "阿罗娜/134586786_p0_master1200.jpg",
+    "character": "阿罗娜",
+    "attributes": {
+      "hair_color": "blue",
+      "eye_color": "blue",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "twintails",
+      "accessories": "ribbon"
+    },
+    "attribute_labels": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "image_path": "阿罗娜/132268054-9dc00b58c5a6d86eb51ef32097d9558b_p0_master1200.jpg",
+    "character": "阿罗娜",
+    "attributes": {
+      "hair_color": "blue",
+      "eye_color": "blue",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "twintails",
+      "accessories": "ribbon"
+    },
+    "attribute_labels": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "image_path": "阿罗娜/120673612_p0_master1200.jpg",
+    "character": "阿罗娜",
+    "attributes": {
+      "hair_color": "blue",
+      "eye_color": "blue",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "twintails",
+      "accessories": "ribbon"
+    },
+    "attribute_labels": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "image_path": "阿罗娜/131750608_p0_master1200.jpg",
+    "character": "阿罗娜",
+    "attributes": {
+      "hair_color": "blue",
+      "eye_color": "blue",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "twintails",
+      "accessories": "ribbon"
+    },
+    "attribute_labels": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "image_path": "阿罗娜/125417986_p0_master1200.jpg",
+    "character": "阿罗娜",
+    "attributes": {
+      "hair_color": "blue",
+      "eye_color": "blue",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "twintails",
+      "accessories": "ribbon"
+    },
+    "attribute_labels": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "image_path": "阿罗娜/118573207_p0_master1200.jpg",
+    "character": "阿罗娜",
+    "attributes": {
+      "hair_color": "blue",
+      "eye_color": "blue",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "twintails",
+      "accessories": "ribbon"
+    },
+    "attribute_labels": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "image_path": "阿罗娜/126097757_p0_master1200.jpg",
+    "character": "阿罗娜",
+    "attributes": {
+      "hair_color": "blue",
+      "eye_color": "blue",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "twintails",
+      "accessories": "ribbon"
+    },
+    "attribute_labels": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "image_path": "阿罗娜/132332733_p0_master1200.jpg",
+    "character": "阿罗娜",
+    "attributes": {
+      "hair_color": "blue",
+      "eye_color": "blue",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "twintails",
+      "accessories": "ribbon"
+    },
+    "attribute_labels": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "image_path": "阿罗娜/134204280-b644d1b8bae9642722c26bded1fbbd8a_p0_master1200.jpg",
+    "character": "阿罗娜",
+    "attributes": {
+      "hair_color": "blue",
+      "eye_color": "blue",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "twintails",
+      "accessories": "ribbon"
+    },
+    "attribute_labels": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "image_path": "阿罗娜/133847180-cbc8f08fedb4c32fc7a2a9e57c7d1a61_p0_master1200.jpg",
+    "character": "阿罗娜",
+    "attributes": {
+      "hair_color": "blue",
+      "eye_color": "blue",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "twintails",
+      "accessories": "ribbon"
+    },
+    "attribute_labels": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "image_path": "阿罗娜/130511266_p0_master1200.jpg",
+    "character": "阿罗娜",
+    "attributes": {
+      "hair_color": "blue",
+      "eye_color": "blue",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "twintails",
+      "accessories": "ribbon"
+    },
+    "attribute_labels": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "image_path": "阿罗娜/119522800_p0_master1200.jpg",
+    "character": "阿罗娜",
+    "attributes": {
+      "hair_color": "blue",
+      "eye_color": "blue",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "twintails",
+      "accessories": "ribbon"
+    },
+    "attribute_labels": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "image_path": "阿罗娜/131505838-d2f7894f4a7f8f5fbffb1a552ddceb37_p0_master1200.jpg",
+    "character": "阿罗娜",
+    "attributes": {
+      "hair_color": "blue",
+      "eye_color": "blue",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "twintails",
+      "accessories": "ribbon"
+    },
+    "attribute_labels": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "image_path": "阿罗娜/131754512_p0_master1200.jpg",
+    "character": "阿罗娜",
+    "attributes": {
+      "hair_color": "blue",
+      "eye_color": "blue",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "twintails",
+      "accessories": "ribbon"
+    },
+    "attribute_labels": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "image_path": "阿罗娜/115830567_p0_master1200.jpg",
+    "character": "阿罗娜",
+    "attributes": {
+      "hair_color": "blue",
+      "eye_color": "blue",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "twintails",
+      "accessories": "ribbon"
+    },
+    "attribute_labels": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "image_path": "阿罗娜/127904807-71311225218bc94245ac1a246a0e05e9_p0_master1200.jpg",
+    "character": "阿罗娜",
+    "attributes": {
+      "hair_color": "blue",
+      "eye_color": "blue",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "twintails",
+      "accessories": "ribbon"
+    },
+    "attribute_labels": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "image_path": "阿罗娜/120510453_p0_master1200.jpg",
+    "character": "阿罗娜",
+    "attributes": {
+      "hair_color": "blue",
+      "eye_color": "blue",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "twintails",
+      "accessories": "ribbon"
+    },
+    "attribute_labels": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "image_path": "阿罗娜/116410832_p0_master1200.jpg",
+    "character": "阿罗娜",
+    "attributes": {
+      "hair_color": "blue",
+      "eye_color": "blue",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "twintails",
+      "accessories": "ribbon"
+    },
+    "attribute_labels": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "image_path": "阿罗娜/133070652_p0_master1200.jpg",
+    "character": "阿罗娜",
+    "attributes": {
+      "hair_color": "blue",
+      "eye_color": "blue",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "twintails",
+      "accessories": "ribbon"
+    },
+    "attribute_labels": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "image_path": "阿罗娜/120030152_p0_master1200.jpg",
+    "character": "阿罗娜",
+    "attributes": {
+      "hair_color": "blue",
+      "eye_color": "blue",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "twintails",
+      "accessories": "ribbon"
+    },
+    "attribute_labels": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "image_path": "阿罗娜/134757771_p0_master1200.jpg",
+    "character": "阿罗娜",
+    "attributes": {
+      "hair_color": "blue",
+      "eye_color": "blue",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "twintails",
+      "accessories": "ribbon"
+    },
+    "attribute_labels": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "image_path": "阿罗娜/124902884-7b0d3a661d1506d620137aac00b1d154_p0_master1200.jpg",
+    "character": "阿罗娜",
+    "attributes": {
+      "hair_color": "blue",
+      "eye_color": "blue",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "twintails",
+      "accessories": "ribbon"
+    },
+    "attribute_labels": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "image_path": "阿罗娜/134871401_p0_master1200.jpg",
+    "character": "阿罗娜",
+    "attributes": {
+      "hair_color": "blue",
+      "eye_color": "blue",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "twintails",
+      "accessories": "ribbon"
+    },
+    "attribute_labels": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "image_path": "阿罗娜/115509906_p0_master1200.jpg",
+    "character": "阿罗娜",
+    "attributes": {
+      "hair_color": "blue",
+      "eye_color": "blue",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "twintails",
+      "accessories": "ribbon"
+    },
+    "attribute_labels": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "image_path": "阿罗娜/119472789_p0_master1200.jpg",
+    "character": "阿罗娜",
+    "attributes": {
+      "hair_color": "blue",
+      "eye_color": "blue",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "twintails",
+      "accessories": "ribbon"
+    },
+    "attribute_labels": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "image_path": "阿罗娜/118646069_p0_master1200.jpg",
+    "character": "阿罗娜",
+    "attributes": {
+      "hair_color": "blue",
+      "eye_color": "blue",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "twintails",
+      "accessories": "ribbon"
+    },
+    "attribute_labels": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "image_path": "阿罗娜/118048909_p0_master1200.jpg",
+    "character": "阿罗娜",
+    "attributes": {
+      "hair_color": "blue",
+      "eye_color": "blue",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "twintails",
+      "accessories": "ribbon"
+    },
+    "attribute_labels": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "image_path": "阿罗娜/134518589_p0_master1200.jpg",
+    "character": "阿罗娜",
+    "attributes": {
+      "hair_color": "blue",
+      "eye_color": "blue",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "twintails",
+      "accessories": "ribbon"
+    },
+    "attribute_labels": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "image_path": "阿罗娜/116760768_p0_master1200.jpg",
+    "character": "阿罗娜",
+    "attributes": {
+      "hair_color": "blue",
+      "eye_color": "blue",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "twintails",
+      "accessories": "ribbon"
+    },
+    "attribute_labels": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "image_path": "阿罗娜/131239502_p0_master1200.jpg",
+    "character": "阿罗娜",
+    "attributes": {
+      "hair_color": "blue",
+      "eye_color": "blue",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "twintails",
+      "accessories": "ribbon"
+    },
+    "attribute_labels": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "image_path": "阿罗娜/78965037_p0_master1200.jpg",
+    "character": "阿罗娜",
+    "attributes": {
+      "hair_color": "blue",
+      "eye_color": "blue",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "twintails",
+      "accessories": "ribbon"
+    },
+    "attribute_labels": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "image_path": "阿罗娜/133694048-6da2b28726659c65f8406cac5ba8f3d1_p0_master1200.jpg",
+    "character": "阿罗娜",
+    "attributes": {
+      "hair_color": "blue",
+      "eye_color": "blue",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "twintails",
+      "accessories": "ribbon"
+    },
+    "attribute_labels": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "image_path": "阿罗娜/133070986_p0_master1200.jpg",
+    "character": "阿罗娜",
+    "attributes": {
+      "hair_color": "blue",
+      "eye_color": "blue",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "twintails",
+      "accessories": "ribbon"
+    },
+    "attribute_labels": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "image_path": "阿罗娜/129162072_p0_master1200.jpg",
+    "character": "阿罗娜",
+    "attributes": {
+      "hair_color": "blue",
+      "eye_color": "blue",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "twintails",
+      "accessories": "ribbon"
+    },
+    "attribute_labels": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "image_path": "阿罗娜/133780091_p0_master1200.jpg",
+    "character": "阿罗娜",
+    "attributes": {
+      "hair_color": "blue",
+      "eye_color": "blue",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "twintails",
+      "accessories": "ribbon"
+    },
+    "attribute_labels": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "image_path": "阿罗娜/130430210-92aacd4edf38d26a4715876dd7ae4c38_p0_master1200.jpg",
+    "character": "阿罗娜",
+    "attributes": {
+      "hair_color": "blue",
+      "eye_color": "blue",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "twintails",
+      "accessories": "ribbon"
+    },
+    "attribute_labels": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "image_path": "阿罗娜/134569936_p0_master1200.jpg",
+    "character": "阿罗娜",
+    "attributes": {
+      "hair_color": "blue",
+      "eye_color": "blue",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "twintails",
+      "accessories": "ribbon"
+    },
+    "attribute_labels": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "image_path": "阿罗娜/122268172_p0_master1200.jpg",
+    "character": "阿罗娜",
+    "attributes": {
+      "hair_color": "blue",
+      "eye_color": "blue",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "twintails",
+      "accessories": "ribbon"
+    },
+    "attribute_labels": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "image_path": "阿罗娜/130635735-c4cea3f66de6b8a601a5ebe43b207f9d_p0_master1200.jpg",
+    "character": "阿罗娜",
+    "attributes": {
+      "hair_color": "blue",
+      "eye_color": "blue",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "twintails",
+      "accessories": "ribbon"
+    },
+    "attribute_labels": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "image_path": "阿罗娜/119376672_p0_master1200.jpg",
+    "character": "阿罗娜",
+    "attributes": {
+      "hair_color": "blue",
+      "eye_color": "blue",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "twintails",
+      "accessories": "ribbon"
+    },
+    "attribute_labels": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "image_path": "阿罗娜/125467963-613fc6af14bd4074b1158a73db0669e6_p0_master1200.jpg",
+    "character": "阿罗娜",
+    "attributes": {
+      "hair_color": "blue",
+      "eye_color": "blue",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "twintails",
+      "accessories": "ribbon"
+    },
+    "attribute_labels": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "image_path": "阿罗娜/114206068_p0_master1200.jpg",
+    "character": "阿罗娜",
+    "attributes": {
+      "hair_color": "blue",
+      "eye_color": "blue",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "twintails",
+      "accessories": "ribbon"
+    },
+    "attribute_labels": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "image_path": "阿罗娜/124985992-a461f098314304081d5ff4201c3ce92c_p0_master1200.jpg",
+    "character": "阿罗娜",
+    "attributes": {
+      "hair_color": "blue",
+      "eye_color": "blue",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "twintails",
+      "accessories": "ribbon"
+    },
+    "attribute_labels": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "image_path": "普拉娜/108460691_p0_master1200.jpg",
+    "character": "普拉娜",
+    "attributes": {
+      "hair_color": "pink",
+      "eye_color": "pink",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "long_hair",
+      "accessories": "headband"
+    },
+    "attribute_labels": [
+      1,
+      1,
+      0,
+      0,
+      1,
+      1
+    ]
+  },
+  {
+    "image_path": "普拉娜/112512702_p0_master1200.jpg",
+    "character": "普拉娜",
+    "attributes": {
+      "hair_color": "pink",
+      "eye_color": "pink",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "long_hair",
+      "accessories": "headband"
+    },
+    "attribute_labels": [
+      1,
+      1,
+      0,
+      0,
+      1,
+      1
+    ]
+  },
+  {
+    "image_path": "普拉娜/120370691_p0_master1200.jpg",
+    "character": "普拉娜",
+    "attributes": {
+      "hair_color": "pink",
+      "eye_color": "pink",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "long_hair",
+      "accessories": "headband"
+    },
+    "attribute_labels": [
+      1,
+      1,
+      0,
+      0,
+      1,
+      1
+    ]
+  },
+  {
+    "image_path": "普拉娜/106698156_p0_master1200.jpg",
+    "character": "普拉娜",
+    "attributes": {
+      "hair_color": "pink",
+      "eye_color": "pink",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "long_hair",
+      "accessories": "headband"
+    },
+    "attribute_labels": [
+      1,
+      1,
+      0,
+      0,
+      1,
+      1
+    ]
+  },
+  {
+    "image_path": "普拉娜/114903052_p0_master1200.jpg",
+    "character": "普拉娜",
+    "attributes": {
+      "hair_color": "pink",
+      "eye_color": "pink",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "long_hair",
+      "accessories": "headband"
+    },
+    "attribute_labels": [
+      1,
+      1,
+      0,
+      0,
+      1,
+      1
+    ]
+  },
+  {
+    "image_path": "普拉娜/121938497_p0_master1200.jpg",
+    "character": "普拉娜",
+    "attributes": {
+      "hair_color": "pink",
+      "eye_color": "pink",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "long_hair",
+      "accessories": "headband"
+    },
+    "attribute_labels": [
+      1,
+      1,
+      0,
+      0,
+      1,
+      1
+    ]
+  },
+  {
+    "image_path": "普拉娜/123936437_p0_master1200.jpg",
+    "character": "普拉娜",
+    "attributes": {
+      "hair_color": "pink",
+      "eye_color": "pink",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "long_hair",
+      "accessories": "headband"
+    },
+    "attribute_labels": [
+      1,
+      1,
+      0,
+      0,
+      1,
+      1
+    ]
+  },
+  {
+    "image_path": "普拉娜/115090411_p0_master1200.jpg",
+    "character": "普拉娜",
+    "attributes": {
+      "hair_color": "pink",
+      "eye_color": "pink",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "long_hair",
+      "accessories": "headband"
+    },
+    "attribute_labels": [
+      1,
+      1,
+      0,
+      0,
+      1,
+      1
+    ]
+  },
+  {
+    "image_path": "普拉娜/123083770_p0_master1200.jpg",
+    "character": "普拉娜",
+    "attributes": {
+      "hair_color": "pink",
+      "eye_color": "pink",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "long_hair",
+      "accessories": "headband"
+    },
+    "attribute_labels": [
+      1,
+      1,
+      0,
+      0,
+      1,
+      1
+    ]
+  },
+  {
+    "image_path": "普拉娜/122127287_p0_master1200.jpg",
+    "character": "普拉娜",
+    "attributes": {
+      "hair_color": "pink",
+      "eye_color": "pink",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "long_hair",
+      "accessories": "headband"
+    },
+    "attribute_labels": [
+      1,
+      1,
+      0,
+      0,
+      1,
+      1
+    ]
+  },
+  {
+    "image_path": "普拉娜/107839058_p0_master1200.jpg",
+    "character": "普拉娜",
+    "attributes": {
+      "hair_color": "pink",
+      "eye_color": "pink",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "long_hair",
+      "accessories": "headband"
+    },
+    "attribute_labels": [
+      1,
+      1,
+      0,
+      0,
+      1,
+      1
+    ]
+  },
+  {
+    "image_path": "普拉娜/112767931_p0_master1200.jpg",
+    "character": "普拉娜",
+    "attributes": {
+      "hair_color": "pink",
+      "eye_color": "pink",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "long_hair",
+      "accessories": "headband"
+    },
+    "attribute_labels": [
+      1,
+      1,
+      0,
+      0,
+      1,
+      1
+    ]
+  },
+  {
+    "image_path": "普拉娜/119344122_p0_master1200.jpg",
+    "character": "普拉娜",
+    "attributes": {
+      "hair_color": "pink",
+      "eye_color": "pink",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "long_hair",
+      "accessories": "headband"
+    },
+    "attribute_labels": [
+      1,
+      1,
+      0,
+      0,
+      1,
+      1
+    ]
+  },
+  {
+    "image_path": "普拉娜/118836567_p0_master1200.jpg",
+    "character": "普拉娜",
+    "attributes": {
+      "hair_color": "pink",
+      "eye_color": "pink",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "long_hair",
+      "accessories": "headband"
+    },
+    "attribute_labels": [
+      1,
+      1,
+      0,
+      0,
+      1,
+      1
+    ]
+  },
+  {
+    "image_path": "普拉娜/120786466_p0_master1200.jpg",
+    "character": "普拉娜",
+    "attributes": {
+      "hair_color": "pink",
+      "eye_color": "pink",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "long_hair",
+      "accessories": "headband"
+    },
+    "attribute_labels": [
+      1,
+      1,
+      0,
+      0,
+      1,
+      1
+    ]
+  },
+  {
+    "image_path": "普拉娜/111801815_p0_master1200.jpg",
+    "character": "普拉娜",
+    "attributes": {
+      "hair_color": "pink",
+      "eye_color": "pink",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "long_hair",
+      "accessories": "headband"
+    },
+    "attribute_labels": [
+      1,
+      1,
+      0,
+      0,
+      1,
+      1
+    ]
+  },
+  {
+    "image_path": "普拉娜/117875989_p0_master1200.jpg",
+    "character": "普拉娜",
+    "attributes": {
+      "hair_color": "pink",
+      "eye_color": "pink",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "long_hair",
+      "accessories": "headband"
+    },
+    "attribute_labels": [
+      1,
+      1,
+      0,
+      0,
+      1,
+      1
+    ]
+  },
+  {
+    "image_path": "普拉娜/115335730_p0_master1200.jpg",
+    "character": "普拉娜",
+    "attributes": {
+      "hair_color": "pink",
+      "eye_color": "pink",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "long_hair",
+      "accessories": "headband"
+    },
+    "attribute_labels": [
+      1,
+      1,
+      0,
+      0,
+      1,
+      1
+    ]
+  },
+  {
+    "image_path": "普拉娜/78965037_p0_master1200.jpg",
+    "character": "普拉娜",
+    "attributes": {
+      "hair_color": "pink",
+      "eye_color": "pink",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "long_hair",
+      "accessories": "headband"
+    },
+    "attribute_labels": [
+      1,
+      1,
+      0,
+      0,
+      1,
+      1
+    ]
+  },
+  {
+    "image_path": "普拉娜/110312879_p0_master1200.jpg",
+    "character": "普拉娜",
+    "attributes": {
+      "hair_color": "pink",
+      "eye_color": "pink",
+      "has_halo": true,
+      "outfit": "school_uniform",
+      "hair_style": "long_hair",
+      "accessories": "headband"
+    },
+    "attribute_labels": [
+      1,
+      1,
+      0,
+      0,
+      1,
+      1
+    ]
+  }
+]
