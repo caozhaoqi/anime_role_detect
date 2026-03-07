@@ -1,0 +1,282 @@
+{
+  "characters": {
+    "阿罗娜": {
+      "attributes": {
+        "hair_color": "blue",
+        "eye_color": "blue",
+        "has_halo": true,
+        "outfit": "school_uniform",
+        "hair_style": "twintails",
+        "accessories": "ribbon"
+      }
+    },
+    "普拉娜": {
+      "attributes": {
+        "hair_color": "pink",
+        "eye_color": "pink",
+        "has_halo": true,
+        "outfit": "school_uniform",
+        "hair_style": "long_hair",
+        "accessories": "headband"
+      }
+    },
+    "日奈": {
+      "attributes": {
+        "hair_color": "black",
+        "eye_color": "purple",
+        "has_halo": false,
+        "outfit": "school_uniform",
+        "hair_style": "long_hair",
+        "accessories": "glasses"
+      }
+    },
+    "亚子": {
+      "attributes": {
+        "hair_color": "green",
+        "eye_color": "green",
+        "has_halo": false,
+        "outfit": "school_uniform",
+        "hair_style": "short_hair",
+        "accessories": "none"
+      }
+    },
+    "伊织": {
+      "attributes": {
+        "hair_color": "brown",
+        "eye_color": "brown",
+        "has_halo": false,
+        "outfit": "school_uniform",
+        "hair_style": "ponytail",
+        "accessories": "none"
+      }
+    },
+    "千夏": {
+      "attributes": {
+        "hair_color": "purple",
+        "eye_color": "red",
+        "has_halo": false,
+        "outfit": "school_uniform",
+        "hair_style": "twintails",
+        "accessories": "none"
+      }
+    },
+    "遥香": {
+      "attributes": {
+        "hair_color": "blonde",
+        "eye_color": "blue",
+        "has_halo": false,
+        "outfit": "school_uniform",
+        "hair_style": "long_hair",
+        "accessories": "none"
+      }
+    },
+    "春奈": {
+      "attributes": {
+        "hair_color": "blonde",
+        "eye_color": "blue",
+        "has_halo": false,
+        "outfit": "school_uniform",
+        "hair_style": "long_hair",
+        "accessories": "none"
+      }
+    },
+    "伊保": {
+      "attributes": {
+        "hair_color": "black",
+        "eye_color": "black",
+        "has_halo": false,
+        "outfit": "school_uniform",
+        "hair_style": "short_hair",
+        "accessories": "none"
+      }
+    },
+    "彩叶": {
+      "attributes": {
+        "hair_color": "red",
+        "eye_color": "red",
+        "has_halo": false,
+        "outfit": "school_uniform",
+        "hair_style": "long_hair",
+        "accessories": "none"
+      }
+    },
+    "淳子": {
+      "attributes": {
+        "hair_color": "black",
+        "eye_color": "black",
+        "has_halo": false,
+        "outfit": "school_uniform",
+        "hair_style": "long_hair",
+        "accessories": "none"
+      }
+    },
+    "朱莉": {
+      "attributes": {
+        "hair_color": "black",
+        "eye_color": "red",
+        "has_halo": false,
+        "outfit": "school_uniform",
+        "hair_style": "long_hair",
+        "accessories": "none"
+      }
+    },
+    "枫": {
+      "attributes": {
+        "hair_color": "brown",
+        "eye_color": "brown",
+        "has_halo": false,
+        "outfit": "school_uniform",
+        "hair_style": "long_hair",
+        "accessories": "none"
+      }
+    },
+    "佳代子": {
+      "attributes": {
+        "hair_color": "blonde",
+        "eye_color": "blue",
+        "has_halo": false,
+        "outfit": "school_uniform",
+        "hair_style": "long_hair",
+        "accessories": "none"
+      }
+    },
+    "花音": {
+      "attributes": {
+        "hair_color": "pink",
+        "eye_color": "pink",
+        "has_halo": false,
+        "outfit": "school_uniform",
+        "hair_style": "long_hair",
+        "accessories": "none"
+      }
+    },
+    "香织": {
+      "attributes": {
+        "hair_color": "black",
+        "eye_color": "black",
+        "has_halo": false,
+        "outfit": "school_uniform",
+        "hair_style": "long_hair",
+        "accessories": "none"
+      }
+    },
+    "美游": {
+      "attributes": {
+        "hair_color": "blonde",
+        "eye_color": "blue",
+        "has_halo": false,
+        "outfit": "school_uniform",
+        "hair_style": "long_hair",
+        "accessories": "none"
+      }
+    },
+    "睦月": {
+      "attributes": {
+        "hair_color": "black",
+        "eye_color": "black",
+        "has_halo": false,
+        "outfit": "school_uniform",
+        "hair_style": "long_hair",
+        "accessories": "none"
+      }
+    },
+    "卡琳": {
+      "attributes": {
+        "hair_color": "purple",
+        "eye_color": "purple",
+        "has_halo": false,
+        "outfit": "school_uniform",
+        "hair_style": "long_hair",
+        "accessories": "none"
+      }
+    },
+    "濑名": {
+      "attributes": {
+        "hair_color": "blonde",
+        "eye_color": "blue",
+        "has_halo": false,
+        "outfit": "school_uniform",
+        "hair_style": "long_hair",
+        "accessories": "none"
+      }
+    },
+    "静子": {
+      "attributes": {
+        "hair_color": "black",
+        "eye_color": "black",
+        "has_halo": false,
+        "outfit": "school_uniform",
+        "hair_style": "long_hair",
+        "accessories": "none"
+      }
+    },
+    "阿鲁": {
+      "attributes": {
+        "hair_color": "pink",
+        "eye_color": "pink",
+        "has_halo": true,
+        "outfit": "school_uniform",
+        "hair_style": "long_hair",
+        "accessories": "none"
+      }
+    },
+    "明日奈": {
+      "attributes": {
+        "hair_color": "blonde",
+        "eye_color": "blue",
+        "has_halo": false,
+        "outfit": "school_uniform",
+        "hair_style": "long_hair",
+        "accessories": "none"
+      }
+    }
+  },
+  "attribute_mappings": {
+    "hair_color": {
+      "blue": 0,
+      "pink": 1,
+      "black": 2,
+      "green": 3,
+      "brown": 4,
+      "purple": 5,
+      "red": 6,
+      "blonde": 7
+    },
+    "eye_color": {
+      "blue": 0,
+      "pink": 1,
+      "purple": 2,
+      "green": 3,
+      "brown": 4,
+      "red": 5,
+      "black": 6
+    },
+    "has_halo": {
+      "true": 0,
+      "false": 1
+    },
+    "outfit": {
+      "school_uniform": 0
+    },
+    "hair_style": {
+      "twintails": 0,
+      "long_hair": 1,
+      "short_hair": 2,
+      "ponytail": 3
+    },
+    "accessories": {
+      "ribbon": 0,
+      "headband": 1,
+      "glasses": 2,
+      "none": 3
+    }
+  },
+  "attribute_order": [
+    "hair_color",
+    "eye_color",
+    "has_halo",
+    "outfit",
+    "hair_style",
+    "accessories"
+  ]
+}

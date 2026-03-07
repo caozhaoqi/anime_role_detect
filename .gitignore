@@ -27050,3 +27050,6 @@ yolov8s.pt
 /src/backend/web/src/web/static/uploads/【阿洛娜频道】#3 アロナちゃんねる中字熟肉.mp4
 /frontend/.next/
 /data/
+models/attribute_aware/model_best.pth
+.gitignore
+models/efficientnet_b3/model_best.pth
