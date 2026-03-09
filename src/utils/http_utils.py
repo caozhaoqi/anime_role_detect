@@ -4,14 +4,14 @@ HTTP工具类，封装网络请求逻辑
 """
 import requests
 import time
-import logging
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 from functools import lru_cache
 
 from src.utils.cache_manager import cache_manager
+from core.logging.global_logger import get_logger, log_system, log_error
 
-logger = logging.getLogger(__name__)
+logger = get_logger("http_utils")
 
 
 class HTTPUtils:

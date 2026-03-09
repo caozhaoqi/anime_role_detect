@@ -7,7 +7,6 @@ API服务启动脚本
 import os
 import sys
 import argparse
-import logging
 import subprocess
 import time
 from typing import Optional
@@ -15,21 +14,12 @@ from typing import Optional
 # 添加项目根目录到Python路径
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-logger = logging.getLogger('run_api')
+from src.core.logging.global_logger import get_logger
+
+logger = get_logger("run_api")
 
 
-def setup_logging(verbose: bool = False):
-    """
-    设置日志
-    
-    Args:
-        verbose: 是否启用详细日志
-    """
-    level = logging.DEBUG if verbose else logging.INFO
-    logging.basicConfig(
-        level=level,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-    )
+
 
 
 def check_dependencies():
@@ -138,9 +128,6 @@ def main():
     parser.add_argument('--verbose', action='store_true', help='启用详细日志')
     
     args = parser.parse_args()
-    
-    # 设置日志
-    setup_logging(args.verbose)
     
     # 检查依赖项
     if not check_dependencies():

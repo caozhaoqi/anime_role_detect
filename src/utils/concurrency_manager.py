@@ -4,11 +4,12 @@
 """
 import os
 import psutil
-import logging
 import time
 from concurrent.futures import ThreadPoolExecutor
 
-logger = logging.getLogger(__name__)
+from core.logging.global_logger import get_logger, log_system, log_error
+
+logger = get_logger("concurrency_manager")
 
 
 class ConcurrencyManager:

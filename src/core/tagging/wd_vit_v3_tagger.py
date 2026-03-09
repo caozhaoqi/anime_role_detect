@@ -8,18 +8,14 @@ import os
 import argparse
 import torch
 from PIL import Image
-import logging
 import json
 from tqdm import tqdm
 from transformers import AutoProcessor, AutoModelForImageClassification, CLIPProcessor, CLIPModel
 import requests
 
-# 配置日志
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger('wd_vit_v3_tagger')
+from core.logging.global_logger import get_logger
+
+logger = get_logger("wd_vit_v3_tagger")
 
 
 class WDViTV3Tagger:
@@ -32,6 +28,7 @@ class WDViTV3Tagger:
         self.clip_processor = None
         self.id2label = {}
         self.num_id2label = {}
+        self.logger = get_logger("wd_vit_v3_tagger")
         self.tags = [
             '1girl', 'solo', 'blue hair', 'blue eyes', 'school uniform',
             'halo', 'ribbon', 'twintails', 'smile', 'looking at viewer',
@@ -75,14 +72,14 @@ class WDViTV3Tagger:
             model_name: 模型名称
         """
         try:
-            logger.info(f"加载模型: {model_name}")
+            self.logger.info(f"加载模型: {model_name}")
             self.wd_processor = AutoProcessor.from_pretrained(model_name)
             self.wd_model = AutoModelForImageClassification.from_pretrained(model_name)
             self.wd_model.to(self.device)
             self.wd_model.eval()
             
             # 加载CLIP模型作为替代
-            logger.info("加载CLIP模型作为标签生成的替代方案...")
+            self.logger.info("加载CLIP模型作为标签生成的替代方案...")
             self.clip_model = CLIPModel.from_pretrained("openai/clip-vit-base-patch32")
             self.clip_processor = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32")
             self.clip_model.to(self.device)
@@ -103,7 +100,7 @@ class WDViTV3Tagger:
                     reader = csv.reader(csv_content.splitlines())
                     # 读取表头
                     header = next(reader)
-                    logger.info(f"CSV表头: {header}")
+                    self.logger.info(f"CSV表头: {header}")
                     # 构建数字ID到标签的映射
                     for i, row in enumerate(reader):
                         if len(row) > 1:
@@ -114,9 +111,8 @@ class WDViTV3Tagger:
                             # 如果只有一列，使用该列作为标签
                             label = row[0].strip()
                             self.num_id2label[i] = label
-                    logger.info(f"从Hugging Face获取标签映射成功！标签数量: {len(self.num_id2label)}")
-                    # 打印前10个标签，确认解析是否正确
-                    logger.info(f"前10个标签: {list(self.num_id2label.items())[:10]}")
+                    self.logger.info(f"从Hugging Face获取标签映射成功！标签数量: {len(self.num_id2label)}")
+                    self.logger.info(f"前10个标签: {list(self.num_id2label.items())[:10]}")
                 else:
                     # 尝试 labels.json
                     labels_url = f"https://huggingface.co/{model_name}/raw/main/labels.json"
@@ -126,15 +122,15 @@ class WDViTV3Tagger:
                         # 构建数字ID到标签的映射
                         for i, label in enumerate(labels_data):
                             self.num_id2label[i] = label
-                        logger.info(f"从Hugging Face获取标签映射成功！标签数量: {len(self.num_id2label)}")
+                        self.logger.info(f"从Hugging Face获取标签映射成功！标签数量: {len(self.num_id2label)}")
                     else:
-                        logger.warning("无法从Hugging Face获取标签映射，将使用CLIP模型生成标签")
+                        self.logger.warning("无法从Hugging Face获取标签映射，将使用CLIP模型生成标签")
             except Exception as e:
-                logger.warning(f"获取标签映射失败: {e}，将使用CLIP模型生成标签")
+                self.logger.warning(f"获取标签映射失败: {e}，将使用CLIP模型生成标签")
             
-            logger.info(f"模型加载成功！")
+            self.logger.info(f"模型加载成功！")
         except Exception as e:
-            logger.error(f"加载模型失败: {e}")
+            self.logger.error(f"加载模型失败: {e}")
             raise
     
     def generate_tags(self, image_path, threshold=0.05):
@@ -153,7 +149,7 @@ class WDViTV3Tagger:
         try:
             # 加载图像
             image = Image.open(image_path).convert('RGB')
-            logger.info(f"加载图像成功: {image_path}")
+            self.logger.info(f"加载图像成功: {image_path}")
             
             # 首先尝试使用WD Vit Tagger v3
             try:
@@ -190,15 +186,15 @@ class WDViTV3Tagger:
                 tag_probs.sort(key=lambda x: x[1], reverse=True)
                 
                 # 打印前10个标签
-                logger.info(f"WD Vit Tagger v3 前10个标签: {[(tag, prob) for tag, prob in tag_probs[:10]]}")
+                self.logger.info(f"WD Vit Tagger v3 前10个标签: {[(tag, prob) for tag, prob in tag_probs[:10]]}")
                 
                 # 如果有有意义的标签，返回
                 if tag_probs:
                     return [tag for tag, prob in tag_probs]
                 else:
-                    logger.info("WD Vit Tagger v3未生成有意义的标签，使用CLIP模型作为替代")
+                    self.logger.info("WD Vit Tagger v3未生成有意义的标签，使用CLIP模型作为替代")
             except Exception as e:
-                logger.warning(f"WD Vit Tagger v3推理失败: {e}，使用CLIP模型作为替代")
+                self.logger.warning(f"WD Vit Tagger v3推理失败: {e}，使用CLIP模型作为替代")
             
             # 使用CLIP模型作为替代
             if self.clip_model:
@@ -226,14 +222,14 @@ class WDViTV3Tagger:
                 tag_probs.sort(key=lambda x: x[1], reverse=True)
                 
                 # 打印前10个标签
-                logger.info(f"CLIP模型 前10个标签: {[(tag, prob) for tag, prob in tag_probs[:10]]}")
+                self.logger.info(f"CLIP模型 前10个标签: {[(tag, prob) for tag, prob in tag_probs[:10]]}")
                 
                 # 返回标签
                 return [tag for tag, prob in tag_probs]
             else:
                 return []
         except Exception as e:
-            logger.error(f"生成标签失败: {e}")
+            self.logger.error(f"生成标签失败: {e}")
             return []
     
     def batch_generate_tags(self, image_dir, output_file, threshold=0.05):

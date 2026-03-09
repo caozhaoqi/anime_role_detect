@@ -8,11 +8,10 @@ API接口服务
 
 import os
 import sys
-import logging
 from typing import Dict, Any, List, Optional
 
 # 添加项目根目录到Python路径
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from fastapi import FastAPI, HTTPException, Query, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
@@ -24,13 +23,9 @@ from src.utils.monitoring_system import MonitoringSystem
 from src.utils.cache_manager import cache_manager
 from src.data_collection.keyword_based_collector import KeywordBasedDataCollector
 from src.utils.distributed_manager import DistributedManager
+from src.core.logging.global_logger import get_logger
 
-# 配置日志
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger('api_service')
+logger = get_logger("api_service")
 
 # 创建FastAPI应用
 app = FastAPI(

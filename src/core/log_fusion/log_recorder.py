@@ -5,15 +5,11 @@
 """
 import os
 import json
-import logging
 from datetime import datetime
 
-# 配置日志
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger('log_recorder')
+from src.core.logging.global_logger import get_logger
+
+logger = get_logger("log_recorder")
 
 class LogRecorder:
     """日志记录类"""
@@ -25,6 +21,7 @@ class LogRecorder:
             log_dir: 日志目录
         """
         self.log_dir = log_dir
+        self.logger = get_logger("log_recorder")
         
         # 创建日志目录
         os.makedirs(self.log_dir, exist_ok=True)
@@ -64,10 +61,10 @@ class LogRecorder:
             with open(log_path, 'w', encoding='utf-8') as f:
                 json.dump(log_data, f, ensure_ascii=False, indent=2)
             
-            logger.info(f"分类日志记录成功: {log_path}")
+            self.logger.info(f"分类日志记录成功: {log_path}")
             return log_path
         except Exception as e:
-            logger.error(f"记录分类日志失败: {e}")
+            self.logger.error(f"记录分类日志失败: {e}")
             return None
     
     def record_batch_logs(self, batch_results):
@@ -94,10 +91,10 @@ class LogRecorder:
                 if log_path:
                     log_paths.append(log_path)
             except Exception as e:
-                logger.error(f"批量记录日志失败: {e}")
+                self.logger.error(f"批量记录日志失败: {e}")
                 continue
         
-        logger.info(f"批量日志记录完成，共记录 {len(log_paths)} 条日志")
+        self.logger.info(f"批量日志记录完成，共记录 {len(log_paths)} 条日志")
         return log_paths
     
     def get_log_count(self):
@@ -110,7 +107,7 @@ class LogRecorder:
             log_files = [f for f in os.listdir(self.log_dir) if f.endswith('.json')]
             return len(log_files)
         except Exception as e:
-            logger.error(f"获取日志数量失败: {e}")
+            self.logger.error(f"获取日志数量失败: {e}")
             return 0
     
     def clear_logs(self, keep_days=7):
@@ -134,10 +131,10 @@ class LogRecorder:
                         os.remove(file_path)
                         delete_count += 1
             
-            logger.info(f"清理过期日志完成，共删除 {delete_count} 条日志")
+            self.logger.info(f"清理过期日志完成，共删除 {delete_count} 条日志")
             return delete_count
         except Exception as e:
-            logger.error(f"清理过期日志失败: {e}")
+            self.logger.error(f"清理过期日志失败: {e}")
             return 0
 
 # 全局日志记录器实例

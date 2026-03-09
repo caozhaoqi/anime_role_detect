@@ -8,13 +8,12 @@ import os
 import json
 import argparse
 
-# 配置日志
-import logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger('convert_tags_to_annotations')
+# 添加项目根目录到Python路径
+import sys
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../../..')))
+from src.core.logging.global_logger import get_logger
+
+logger = get_logger("convert_tags_to_annotations")
 
 
 def convert_tags_to_annotations(tags_file, output_file):

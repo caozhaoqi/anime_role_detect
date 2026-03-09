@@ -8,17 +8,13 @@ import os
 import argparse
 import torch
 from PIL import Image
-import logging
 import json
 from tqdm import tqdm
 from transformers import CLIPProcessor, CLIPModel
 
-# 配置日志
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger('tagger')
+from core.logging.global_logger import get_logger
+
+logger = get_logger("image_tagger")
 
 
 class ImageTagger:
@@ -28,6 +24,7 @@ class ImageTagger:
         self.model = None
         self.processor = None
         self.tags = []
+        self.logger = get_logger("image_tagger")
     
     def load_model(self, model_name="openai/clip-vit-base-patch32"):
         """加载CLIP模型
@@ -36,7 +33,7 @@ class ImageTagger:
             model_name: 模型名称
         """
         try:
-            logger.info(f"加载模型: {model_name}")
+            self.logger.info(f"加载模型: {model_name}")
             self.model = CLIPModel.from_pretrained(model_name)
             self.processor = CLIPProcessor.from_pretrained(model_name)
             self.model.to(self.device)
@@ -79,9 +76,9 @@ class ImageTagger:
                 'simple background', 'complex background', 'gradient background', 'solid color background'
             ]
             
-            logger.info("模型加载成功！")
+            self.logger.info("模型加载成功！")
         except Exception as e:
-            logger.error(f"加载模型失败: {e}")
+            self.logger.error(f"加载模型失败: {e}")
             raise
     
     def generate_tags(self, image_path, threshold=0.25, top_k=20):
@@ -128,7 +125,7 @@ class ImageTagger:
             # 返回前k个标签
             return [tag for tag, prob in tag_probs[:top_k]]
         except Exception as e:
-            logger.error(f"生成标签失败: {e}")
+            self.logger.error(f"生成标签失败: {e}")
             return []
     
     def batch_generate_tags(self, image_dir, output_file, threshold=0.25, top_k=20):

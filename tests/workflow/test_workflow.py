@@ -8,25 +8,20 @@
 
 import os
 import sys
-import logging
 import time
 import json
 from pathlib import Path
 
 # 添加项目根目录到Python路径
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from src.data_collection.keyword_based_collector import KeywordBasedDataCollector
 from src.utils.image_utils import ImageUtils
 from src.utils.monitoring_system import MonitoringSystem
 from src.utils.cache_manager import cache_manager
+from src.core.logging.global_logger import get_logger
 
-# 配置日志
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger('test_workflow')
+logger = get_logger('test_workflow')
 
 
 class WorkflowTest:

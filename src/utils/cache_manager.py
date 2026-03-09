@@ -8,7 +8,6 @@
 
 import os
 import json
-import logging
 import pickle
 import time
 import threading
@@ -16,7 +15,9 @@ from functools import lru_cache
 from datetime import datetime, timedelta
 from collections import OrderedDict
 
-logger = logging.getLogger(__name__)
+from core.logging.global_logger import get_logger, log_system, log_error
+
+logger = get_logger("cache_manager")
 
 
 class CacheManager:

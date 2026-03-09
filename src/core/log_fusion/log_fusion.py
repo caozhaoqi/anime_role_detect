@@ -7,15 +7,11 @@ import os
 import json
 import numpy as np
 import faiss
-import logging
 from datetime import datetime
 
-# 配置日志
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger('log_fusion')
+from src.core.logging.global_logger import get_logger
+
+logger = get_logger("log_fusion")
 
 class LogFusion:
     """日志融合类"""
@@ -25,6 +21,7 @@ class LogFusion:
         self.log_dir = log_dir
         self.model_dir = model_dir
         self.logs = []
+        self.logger = get_logger("log_fusion")
         
         # 创建必要的目录
         os.makedirs(self.log_dir, exist_ok=True)
@@ -39,7 +36,7 @@ class LogFusion:
         Returns:
             list: 收集的日志列表
         """
-        logger.info(f"开始收集日志，最多收集 {max_logs} 条")
+        self.logger.info(f"开始收集日志，最多收集 {max_logs} 条")
         
         # 获取所有日志文件
         log_files = []
@@ -61,12 +58,12 @@ class LogFusion:
                 with open(file_path, 'r', encoding='utf-8') as f:
                     log_data = json.load(f)
                     self.logs.append(log_data)
-                logger.info(f"成功读取日志文件: {file_path}")
+                self.logger.info(f"成功读取日志文件: {file_path}")
             except Exception as e:
-                logger.error(f"读取日志文件失败: {file_path}, 错误: {e}")
+                self.logger.error(f"读取日志文件失败: {file_path}, 错误: {e}")
                 continue
         
-        logger.info(f"日志收集完成，共收集 {len(self.logs)} 条日志")
+        self.logger.info(f"日志收集完成，共收集 {len(self.logs)} 条日志")
         return self.logs
     
     def extract_features(self):
@@ -75,7 +72,7 @@ class LogFusion:
         Returns:
             tuple: (features, role_names) 特征向量和角色名称
         """
-        logger.info("开始从日志中提取特征")
+        self.logger.info("开始从日志中提取特征")
         
         features = []
         role_names = []
@@ -87,19 +84,19 @@ class LogFusion:
                     feature = np.array(log['feature'], dtype=np.float32)
                     features.append(feature)
                     role_names.append(log['role'])
-                    logger.info(f"成功提取特征: 角色={log['role']}, 特征维度={feature.shape}")
+                    self.logger.info(f"成功提取特征: 角色={log['role']}, 特征维度={feature.shape}")
                 else:
-                    logger.warning(f"日志结构不完整: {log.keys()}")
+                    self.logger.warning(f"日志结构不完整: {log.keys()}")
             except Exception as e:
-                logger.error(f"提取特征失败: {e}")
+                self.logger.error(f"提取特征失败: {e}")
                 continue
         
         if not features:
-            logger.warning("没有提取到特征")
+            self.logger.warning("没有提取到特征")
             return None, None
         
         features_np = np.array(features, dtype=np.float32)
-        logger.info(f"特征提取完成，共提取 {len(features)} 个特征，维度={features_np.shape}")
+        self.logger.info(f"特征提取完成，共提取 {len(features)} 个特征，维度={features_np.shape}")
         return features_np, role_names
     
     def fuse_features(self, features, role_names, method='mean'):
@@ -113,10 +110,10 @@ class LogFusion:
         Returns:
             tuple: (fused_features, fused_roles) 融合后的特征和角色
         """
-        logger.info(f"开始融合特征，使用方法: {method}")
+        self.logger.info(f"开始融合特征，使用方法: {method}")
         
         if features is None or role_names is None:
-            logger.warning("没有特征可融合")
+            self.logger.warning("没有特征可融合")
             return None, None
         
         # 按角色分组特征
@@ -146,22 +143,22 @@ class LogFusion:
                     weights = weights / np.sum(weights)
                     fused_feature = np.average(role_feature_array, axis=0, weights=weights)
                 else:
-                    logger.error(f"未知的融合方法: {method}")
+                    self.logger.error(f"未知的融合方法: {method}")
                     continue
                 
                 fused_features.append(fused_feature)
                 fused_roles.append(role)
-                logger.info(f"成功融合角色 {role} 的特征，融合方法: {method}")
+                self.logger.info(f"成功融合角色 {role} 的特征，融合方法: {method}")
             except Exception as e:
-                logger.error(f"融合角色 {role} 的特征失败: {e}")
+                self.logger.error(f"融合角色 {role} 的特征失败: {e}")
                 continue
         
         if not fused_features:
-            logger.warning("没有融合到特征")
+            self.logger.warning("没有融合到特征")
             return None, None
         
         fused_features_np = np.array(fused_features, dtype=np.float32)
-        logger.info(f"特征融合完成，共融合 {len(fused_features)} 个角色的特征")
+        self.logger.info(f"特征融合完成，共融合 {len(fused_features)} 个角色的特征")
         return fused_features_np, fused_roles
     
     def build_new_model(self, fused_features, fused_roles, model_name=None):
@@ -175,10 +172,10 @@ class LogFusion:
         Returns:
             str: 模型路径
         """
-        logger.info("开始构建新模型")
+        self.logger.info("开始构建新模型")
         
         if fused_features is None or fused_roles is None:
-            logger.error("没有融合特征可用于构建模型")
+            self.logger.error("没有融合特征可用于构建模型")
             return None
         
         # 生成模型名称
@@ -204,10 +201,10 @@ class LogFusion:
             with open(f"{model_path}_mapping.json", "w", encoding="utf-8") as f:
                 json.dump(fused_roles, f, ensure_ascii=False, indent=2)
             
-            logger.info(f"新模型构建成功，模型路径: {model_path}")
+            self.logger.info(f"新模型构建成功，模型路径: {model_path}")
             return model_path
         except Exception as e:
-            logger.error(f"构建新模型失败: {e}")
+            self.logger.error(f"构建新模型失败: {e}")
             return None
     
     def update_model(self, model_path):
@@ -219,7 +216,7 @@ class LogFusion:
         Returns:
             bool: 更新是否成功
         """
-        logger.info(f"开始更新模型: {model_path}")
+        self.logger.info(f"开始更新模型: {model_path}")
         
         # 这里可以实现模型更新逻辑，例如：
         # 1. 加载现有模型
@@ -227,7 +224,7 @@ class LogFusion:
         # 3. 重新训练或优化模型
         # 4. 保存更新后的模型
         
-        logger.info(f"模型更新完成: {model_path}")
+        self.logger.info(f"模型更新完成: {model_path}")
         return True
     
     def run_fusion(self, max_logs=5, fusion_method='mean', model_name=None):
@@ -241,7 +238,7 @@ class LogFusion:
         Returns:
             str: 新模型路径
         """
-        logger.info("开始运行日志融合流程")
+        self.logger.info("开始运行日志融合流程")
         
         # 1. 收集日志
         self.collect_logs(max_logs)
@@ -249,25 +246,25 @@ class LogFusion:
         # 2. 提取特征
         features, role_names = self.extract_features()
         if features is None:
-            logger.error("特征提取失败，融合流程终止")
+            self.logger.error("特征提取失败，融合流程终止")
             return None
         
         # 3. 融合特征
         fused_features, fused_roles = self.fuse_features(features, role_names, fusion_method)
         if fused_features is None:
-            logger.error("特征融合失败，融合流程终止")
+            self.logger.error("特征融合失败，融合流程终止")
             return None
         
         # 4. 构建新模型
         model_path = self.build_new_model(fused_features, fused_roles, model_name)
         if model_path is None:
-            logger.error("构建新模型失败，融合流程终止")
+            self.logger.error("构建新模型失败，融合流程终止")
             return None
         
         # 5. 更新模型（可选）
         self.update_model(model_path)
         
-        logger.info("日志融合流程完成")
+        self.logger.info("日志融合流程完成")
         return model_path
 
 def main():

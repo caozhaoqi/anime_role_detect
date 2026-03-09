@@ -3,14 +3,15 @@
 日志管理器类，实现更详细的日志记录和分析功能
 """
 import os
-import logging
 import json
 import time
 from logging.handlers import RotatingFileHandler
 from datetime import datetime
 from typing import Dict, Any, List
 
-logger = logging.getLogger(__name__)
+from core.logging.global_logger import get_logger, log_system, log_error
+
+logger = get_logger("log_manager")
 
 
 class LogManager:

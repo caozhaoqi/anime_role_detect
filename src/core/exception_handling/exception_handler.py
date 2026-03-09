@@ -2,11 +2,12 @@
 """
 异常处理类，实现更细粒度的错误处理
 """
-import logging
 import traceback
 from typing import Callable, Any, Optional
 
-logger = logging.getLogger(__name__)
+from src.core.logging.global_logger import get_logger
+
+logger = get_logger(__name__)
 
 
 # 自定义异常类

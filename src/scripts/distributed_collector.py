@@ -9,7 +9,6 @@
 import os
 import sys
 import argparse
-import logging
 import json
 from datetime import datetime
 
@@ -18,16 +17,9 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../.
 
 from src.utils.distributed_manager import DistributedManager
 from src.data_collection.keyword_based_collector import KeywordBasedDataCollector
+from src.core.logging.global_logger import get_logger
 
-# 配置日志
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.StreamHandler()
-    ]
-)
-logger = logging.getLogger('distributed_collector')
+logger = get_logger("distributed_collector")
 
 
 def load_keywords(keyword_file):

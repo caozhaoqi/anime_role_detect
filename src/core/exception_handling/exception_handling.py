@@ -1,50 +1,26 @@
 import os
-import logging
 import traceback
 from datetime import datetime
+
+from src.core.logging.global_logger import get_logger
 
 class ExceptionHandling:
     def __init__(self, log_dir="logs"):
         """初始化异常处理模块"""
         self.log_dir = log_dir
+        self.logger = get_logger("exception_handling")
         
         # 创建日志目录
         if not os.path.exists(self.log_dir):
             os.makedirs(self.log_dir)
             print(f"创建日志目录: {self.log_dir}")
-        
-        # 配置日志
-        self._configure_logging()
-    
-    def _configure_logging(self):
-        """配置日志系统"""
-        # 生成日志文件名
-        log_filename = f"error_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
-        log_path = os.path.join(self.log_dir, log_filename)
-        
-        # 配置日志
-        logging.basicConfig(
-            filename=log_path,
-            level=logging.ERROR,
-            format='%(asctime)s - %(levelname)s - %(message)s',
-            datefmt='%Y-%m-%d %H:%M:%S'
-        )
-        
-        # 添加控制台输出
-        console = logging.StreamHandler()
-        console.setLevel(logging.ERROR)
-        formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
-        console.setFormatter(formatter)
-        logging.getLogger('').addHandler(console)
-        
-        print(f"日志已配置，错误将记录到: {log_path}")
     
     def handle_exception(self, e, context=""):
         """处理异常"""
         # 记录异常信息
         error_message = f"{context}: {str(e)}"
-        logging.error(error_message)
-        logging.error(traceback.format_exc())
+        self.logger.error(error_message)
+        self.logger.error(traceback.format_exc())
         
         # 返回错误信息
         return error_message
@@ -75,7 +51,7 @@ class ExceptionHandling:
         log_message = f"图片 {image_path} 处理失败: {error_message} (错误类型: {error_type})"
         
         # 记录错误
-        logging.error(log_message)
+        self.logger.error(log_message)
         
         print(f"[错误] {log_message}")
         

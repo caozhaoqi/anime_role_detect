@@ -8,7 +8,6 @@
 
 import os
 import time
-import logging
 import threading
 import json
 import psutil
@@ -18,7 +17,9 @@ from email.mime.multipart import MIMEMultipart
 from datetime import datetime
 from collections import defaultdict, deque
 
-logger = logging.getLogger(__name__)
+from core.logging.global_logger import get_logger, log_system, log_error
+
+logger = get_logger("monitoring_system")
 
 
 class Monitor:

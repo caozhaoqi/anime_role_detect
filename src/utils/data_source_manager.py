@@ -8,14 +8,14 @@
 
 import time
 import random
-import logging
 from abc import ABC, abstractmethod
 from collections import defaultdict
 
 from src.utils.http_utils import HTTPUtils
 from src.utils.config_manager import config_manager
+from core.logging.global_logger import get_logger, log_system, log_error
 
-logger = logging.getLogger(__name__)
+logger = get_logger("data_source_manager")
 
 
 class DataSource(ABC):

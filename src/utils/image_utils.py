@@ -3,7 +3,6 @@
 图片处理工具类，封装图片验证、转换和保存等逻辑
 """
 import os
-import logging
 import math
 import random
 import numpy as np
@@ -12,7 +11,9 @@ from io import BytesIO
 from skimage import filters, measure
 from skimage.color import rgb2gray
 
-logger = logging.getLogger(__name__)
+from core.logging.global_logger import get_logger, log_system, log_error
+
+logger = get_logger("image_utils")
 
 
 class ImageUtils:

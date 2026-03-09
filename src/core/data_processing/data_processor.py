@@ -7,19 +7,14 @@
 import os
 import sys
 import argparse
-import logging
 import json
 
 # 添加项目根目录到Python路径
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../../..')))
 from src.core.utils.utils import load_json, save_json, create_directory, list_files
+from src.core.logging.global_logger import get_logger
 
-# 配置日志
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger('data_processing')
+logger = get_logger("data_processing")
 
 
 def process_dataset(data_dir, output_file):
