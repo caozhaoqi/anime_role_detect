@@ -17,7 +17,7 @@ from email.mime.multipart import MIMEMultipart
 from datetime import datetime
 from collections import defaultdict, deque
 
-from core.logging.global_logger import get_logger, log_system, log_error
+from src.core.logging.global_logger import get_logger, log_system, log_error
 
 logger = get_logger("monitoring_system")
 
@@ -482,7 +482,7 @@ class AlertManager:
             request_stats = network_stats.get('request_stats', {})
             total_requests = request_stats.get('total_requests', 1)
             failed_requests = request_stats.get('failed_requests', 0)
-            error_rate = (failed_requests / total_requests) * 100
+            error_rate = (failed_requests / total_requests) * 100 if total_requests > 0 else 0
             
             if error_rate > self.config['thresholds']['network_error_rate']:
                 alerts.append({
@@ -496,7 +496,7 @@ class AlertManager:
             task_stats = stats['task']
             total_tasks = task_stats.get('total_tasks', 1)
             failed_tasks = task_stats.get('failed_tasks', 0)
-            failure_rate = (failed_tasks / total_tasks) * 100
+            failure_rate = (failed_tasks / total_tasks) * 100 if total_tasks > 0 else 0
             
             if failure_rate > self.config['thresholds']['task_failure_rate']:
                 alerts.append({

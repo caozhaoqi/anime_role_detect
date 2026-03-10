@@ -11,7 +11,7 @@ import sys
 from typing import Dict, Any, List, Optional
 
 # 添加项目根目录到Python路径
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from fastapi import FastAPI, HTTPException, Query, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
@@ -21,7 +21,6 @@ from src.utils.http_utils import HTTPUtils
 from src.utils.image_utils import ImageUtils
 from src.utils.monitoring_system import MonitoringSystem
 from src.utils.cache_manager import cache_manager
-from src.data_collection.keyword_based_collector import KeywordBasedDataCollector
 from src.utils.distributed_manager import DistributedManager
 from src.core.logging.global_logger import get_logger
 
@@ -37,7 +36,7 @@ app = FastAPI(
 # 配置CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # 在生产环境中应该设置具体的域名
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -124,124 +123,6 @@ async def clear_cache():
         "status": "success",
         "message": "缓存已清除"
     }
-
-
-@app.post("/api/collect", tags=["数据采集"])
-async def collect_data(
-    keyword: str = Query(..., description="搜索关键词"),
-    character_name: Optional[str] = Query(None, description="角色名称"),
-    max_images: int = Query(10, description="最大图片数量"),
-    min_size: int = Query(300, description="最小图片尺寸"),
-    enable_cache: bool = Query(True, description="启用缓存")
-):
-    """
-    数据采集接口
-    """
-    try:
-        logger.info(f"开始采集数据: 关键词={keyword}, 角色={character_name}, 最大图片数={max_images}")
-        
-        # 创建采集器
-        collector = KeywordBasedDataCollector()
-        
-        # 执行采集
-        result = collector._process_character(
-            keyword,
-            character_name or keyword,
-            max_images=max_images,
-            min_size=min_size
-        )
-        
-        logger.info(f"数据采集完成: 共采集 {result} 张图片")
-        
-        return {
-            "status": "success",
-            "message": f"数据采集完成",
-            "result": {
-                "keyword": keyword,
-                "character_name": character_name or keyword,
-                "collected_images": result,
-                "max_images": max_images
-            }
-        }
-    except Exception as e:
-        logger.error(f"数据采集失败: {e}")
-        raise HTTPException(status_code=500, detail=f"数据采集失败: {str(e)}")
-
-
-@app.post("/api/collect/distributed", tags=["数据采集"])
-async def distributed_collect(
-    keywords: List[str] = Query(..., description="搜索关键词列表"),
-    max_images_per_keyword: int = Query(10, description="每个关键词的最大图片数量"),
-    workers: int = Query(3, description="工作节点数量")
-):
-    """
-    分布式数据采集接口
-    """
-    try:
-        logger.info(f"开始分布式采集: 关键词数量={len(keywords)}, 工作节点数={workers}")
-        
-        # 创建任务
-        task_ids = []
-        for keyword in keywords:
-            task_id = distributed_manager.add_task(
-                "image_collection",
-                keyword=keyword,
-                max_images=max_images_per_keyword
-            )
-            task_ids.append(task_id)
-        
-        # 启动工作节点
-        distributed_manager.start_workers(workers)
-        
-        return {
-            "status": "success",
-            "message": "分布式采集任务已启动",
-            "result": {
-                "keywords": keywords,
-                "task_ids": task_ids,
-                "workers": workers
-            }
-        }
-    except Exception as e:
-        logger.error(f"分布式采集失败: {e}")
-        raise HTTPException(status_code=500, detail=f"分布式采集失败: {str(e)}")
-
-
-@app.get("/api/tasks", tags=["任务管理"])
-async def get_tasks():
-    """
-    获取任务列表
-    """
-    tasks = distributed_manager.get_tasks()
-    return {
-        "tasks": tasks
-    }
-
-
-@app.get("/api/tasks/{task_id}", tags=["任务管理"])
-async def get_task_status(task_id: str):
-    """
-    获取任务状态
-    """
-    status = distributed_manager.get_task_status(task_id)
-    if not status:
-        raise HTTPException(status_code=404, detail="任务不存在")
-    return status
-
-
-@app.post("/api/tasks/{task_id}/cancel", tags=["任务管理"])
-async def cancel_task(task_id: str):
-    """
-    取消任务
-    """
-    try:
-        result = distributed_manager.cancel_task(task_id)
-        return {
-            "status": "success" if result else "failed",
-            "message": "任务已取消" if result else "任务取消失败"
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"取消任务失败: {str(e)}")
 
 
 @app.post("/api/image/analyze", tags=["图片处理"])
@@ -344,19 +225,122 @@ async def scale_workers(count: int = Query(..., description="工作节点数量"
         raise HTTPException(status_code=500, detail=f"调整工作节点失败: {str(e)}")
 
 
-@app.get("/api/data/sources", tags=["数据源"])
-async def get_data_sources():
+@app.get("/api/models", tags=["模型"])
+async def get_models():
     """
-    获取数据源信息
+    获取模型列表
     """
     try:
-        from src.utils.data_source_manager import data_source_manager
-        sources = data_source_manager.get_sources()
-        return {
-            "sources": sources
-        }
+        # 这里可以从配置或数据库中获取模型列表
+        # 暂时返回默认模型
+        models = [
+            {"name": "default", "path": "", "description": "默认分类模型", "available": True},
+            {"name": "augmented_training", "path": "models/augmented_training", "description": "增强训练模型", "available": False},
+            {"name": "arona_plana", "path": "models/arona_plana", "description": "阿罗娜普拉娜模型", "available": False},
+            {"name": "arona_plana_efficientnet", "path": "models/arona_plana_efficientnet", "description": "EfficientNet模型", "available": False},
+            {"name": "arona_plana_resnet18", "path": "models/arona_plana_resnet18", "description": "ResNet18模型", "available": False},
+            {"name": "optimized", "path": "models/optimized", "description": "优化模型", "available": False}
+        ]
+        
+        return {"models": models}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"获取数据源失败: {str(e)}")
+        logger.error(f"获取模型列表失败: {e}")
+        raise HTTPException(status_code=500, detail=f"获取模型列表失败: {str(e)}")
+
+
+@app.post("/api/classify", tags=["分类"])
+async def classify_image(file: UploadFile = File(...), use_model: bool = Query(False, description="是否使用专用模型"), use_attributes: bool = Query(True, description="是否使用属性预测"), model_name: str = Query("default", description="模型名称")):
+    """
+    分类图片
+    """
+    try:
+        # 读取文件内容
+        content = await file.read()
+        logger.info(f"接收到文件，大小: {len(content)} 字节")
+        logger.info(f"文件类型: {file.content_type}")
+        
+        # 保存临时文件
+        import tempfile
+        import os
+        # 根据文件类型确定后缀
+        suffix = ".jpg"
+        if file.content_type == "image/png":
+            suffix = ".png"
+        elif file.content_type == "image/gif":
+            suffix = ".gif"
+        elif file.content_type == "image/bmp":
+            suffix = ".bmp"
+        
+        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as temp_file:
+            temp_file.write(content)
+            temp_path = temp_file.name
+        
+        logger.info(f"临时文件已创建: {temp_path}")
+        
+        # 检查临时文件是否存在且大小大于0
+        if not os.path.exists(temp_path):
+            raise ValueError(f"临时文件不存在: {temp_path}")
+        if os.path.getsize(temp_path) == 0:
+            raise ValueError(f"临时文件为空: {temp_path}")
+        logger.info(f"临时文件大小: {os.path.getsize(temp_path)} 字节")
+        
+        # 尝试使用 PIL 加载图像，验证文件是否是有效的图像
+        from PIL import Image
+        try:
+            pil_img = Image.open(temp_path)
+            pil_img.verify()  # 验证图像文件的有效性
+            logger.info(f"PIL 加载图像成功，格式: {pil_img.format}, 大小: {pil_img.size}")
+        except Exception as e:
+            logger.error(f"PIL 加载图像失败: {e}")
+            raise ValueError(f"无效的图像文件: {str(e)}")
+        
+        try:
+            # 初始化特征提取和分类模块
+            from src.core.feature_extraction.feature_extraction import FeatureExtraction
+            from src.core.classification.classification import Classification
+            
+            extractor = FeatureExtraction()
+            classifier = Classification("role_index")
+            
+            # 打开图像
+            with Image.open(temp_path) as img:
+                # 调整图像大小
+                img = img.resize((224, 224))
+                
+                # 提取特征
+                logger.info("开始提取特征")
+                feature = extractor.extract_features(img)
+                logger.info(f"特征提取完成，特征维度: {feature.shape}")
+                
+                # 分类图片
+                logger.info("开始分类图片")
+                try:
+                    role, similarity = classifier.classify(feature)
+                    logger.info(f"分类完成，角色: {role}, 相似度: {similarity}")
+                except ValueError as e:
+                    if "索引尚未构建" in str(e):
+                        logger.warning("索引尚未构建，返回默认值")
+                        role = "unknown"
+                        similarity = 0.0
+                    else:
+                        raise
+            
+            # 构建响应
+            result = {
+                "role": role,
+                "similarity": float(similarity),
+                "attributes": []  # 暂时返回空属性列表
+            }
+            
+            return result
+        finally:
+            # 清理临时文件
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+                logger.info(f"临时文件已删除: {temp_path}")
+    except Exception as e:
+        logger.error(f"分类失败: {e}")
+        raise HTTPException(status_code=500, detail=f"分类失败: {str(e)}")
 
 
 # 错误处理

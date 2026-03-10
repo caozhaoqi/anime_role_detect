@@ -59,12 +59,11 @@ class GlobalLogger:
         system_log_file = str(self.system_log_dir / "system_{time:YYYY-MM-DD}.log")
         logger.add(
             system_log_file,
-            rotation="100 MB",  # 按大小轮转
-            retention="7 days",  # 保留7天
-            compression="zip",  # 压缩旧日志
+            rotation="100 MB",
+            retention="7 days",
+            compression="zip",
             level="INFO",
-            format=log_format,
-            filter=lambda record: "system" in record["extra"]
+            format=log_format
         )
         
         # 推理日志配置
@@ -72,23 +71,21 @@ class GlobalLogger:
         logger.add(
             inference_log_file,
             rotation="100 MB",
-            retention="14 days",  # 保留14天
+            retention="14 days",
             compression="zip",
             level="INFO",
-            format=log_format,
-            filter=lambda record: "inference" in record["extra"]
+            format=log_format
         )
         
         # 训练日志配置
         training_log_file = str(self.training_log_dir / "training_{time:YYYY-MM-DD}.log")
         logger.add(
             training_log_file,
-            rotation="200 MB",  # 训练日志可能更大
-            retention="30 days",  # 保留30天
+            rotation="200 MB",
+            retention="30 days",
             compression="zip",
             level="INFO",
-            format=log_format,
-            filter=lambda record: "training" in record["extra"]
+            format=log_format
         )
         
         # 错误日志配置
@@ -99,8 +96,7 @@ class GlobalLogger:
             retention="30 days",
             compression="zip",
             level="ERROR",
-            format=log_format,
-            filter=lambda record: "error" in record["extra"] or record["level"].no >= logger.level("ERROR").no
+            format=log_format
         )
         
         # 控制台输出配置
