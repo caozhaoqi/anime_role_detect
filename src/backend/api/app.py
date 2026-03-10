@@ -13,7 +13,7 @@ from typing import Dict, Any, List, Optional
 # 添加项目根目录到Python路径
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from fastapi import FastAPI, HTTPException, Query, UploadFile, File
+from fastapi import FastAPI, HTTPException, Query, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
@@ -249,7 +249,7 @@ async def get_models():
 
 
 @app.post("/api/classify", tags=["分类"])
-async def classify_image(file: UploadFile = File(...), use_model: bool = Query(False, description="是否使用专用模型"), use_attributes: bool = Query(True, description="是否使用属性预测"), model_name: str = Query("default", description="模型名称")):
+async def classify_image(file: UploadFile = File(...), use_model: bool = Form(False, description="是否使用专用模型"), use_attributes: bool = Form(True, description="是否使用属性预测"), model_name: str = Form("default", description="模型名称")):
     """
     分类图片
     """
@@ -258,6 +258,7 @@ async def classify_image(file: UploadFile = File(...), use_model: bool = Query(F
         content = await file.read()
         logger.info(f"接收到文件，大小: {len(content)} 字节")
         logger.info(f"文件类型: {file.content_type}")
+        logger.info(f"使用模型: {model_name}, use_model: {use_model}, use_attributes: {use_attributes}")
         
         # 保存临时文件
         import tempfile
@@ -299,8 +300,29 @@ async def classify_image(file: UploadFile = File(...), use_model: bool = Query(F
             from src.core.feature_extraction.feature_extraction import FeatureExtraction
             from src.core.classification.classification import Classification
             
+            # 根据模型名称选择索引路径
+            index_mapping = {
+                "default": "role_index",
+                "augmented_training": "models/augmented_training/role_index",
+                "arona_plana": "models/arona_plana/role_index",
+                "arona_plana_efficientnet": "models/arona_plana_efficientnet/role_index",
+                "arona_plana_resnet18": "models/arona_plana_resnet18/role_index",
+                "optimized": "models/optimized/role_index"
+            }
+            
+            # 获取对应模型的索引路径
+            index_path = index_mapping.get(model_name, "role_index")
+            logger.info(f"使用模型: {model_name}, 索引路径: {index_path}")
+            
             extractor = FeatureExtraction()
-            classifier = Classification("role_index")
+            classifier = Classification(index_path)
+            
+            # 检查索引是否加载成功
+            if classifier.index is None:
+                logger.warning("索引未加载，使用默认分类")
+                return {"role": "unknown", "similarity": 0.0, "attributes": []}
+            
+            logger.info(f"索引已加载，角色数量: {len(classifier.role_mapping)}")
             
             # 打开图像
             with Image.open(temp_path) as img:

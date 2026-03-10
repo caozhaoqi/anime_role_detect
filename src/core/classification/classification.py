@@ -17,12 +17,18 @@ class Classification:
         self.index = None
         self.role_mapping = []  # 存储向量索引到角色名称的映射
         
-        logger.info(f"初始化分类模块，阈值: {threshold}")
+        logger.info(f"初始化分类模块，阈值: {threshold}, index_path: {index_path}")
         
         # 如果提供了索引路径，加载索引
-        if index_path and os.path.exists(index_path):
-            logger.info(f"加载索引: {index_path}")
-            self.load_index(index_path)
+        if index_path:
+            faiss_path = f"{index_path}.faiss"
+            mapping_path = f"{index_path}_mapping.json"
+            logger.info(f"检查索引文件是否存在: {faiss_path} -> {os.path.exists(faiss_path)}")
+            logger.info(f"检查映射文件是否存在: {mapping_path} -> {os.path.exists(mapping_path)}")
+            
+            if os.path.exists(faiss_path) and os.path.exists(mapping_path):
+                logger.info(f"加载索引: {index_path}")
+                self.load_index(index_path)
     
     def build_index(self, features, role_names):
         """构建向量索引"""

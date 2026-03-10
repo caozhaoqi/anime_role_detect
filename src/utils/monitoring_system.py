@@ -252,7 +252,7 @@ class NetworkMonitor(Monitor):
                 'request_stats': self.request_stats.copy()
             }
         except Exception as e:
-            logger.error(f"收集网络数据失败: {e}")
+            logger.warning(f"收集网络数据失败: {e}")
             return {
                 'timestamp': datetime.now().isoformat(),
                 'active_connections': 0,
