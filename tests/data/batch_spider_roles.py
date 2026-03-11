@@ -78,7 +78,7 @@ def main():
         return
     
     # 只采集阿罗娜和普拉娜这两个角色
-    test_roles = ["阿罗娜", "普拉娜", "arona", "plana"]
+    test_roles = ['klee', 'nahida', 'qiqi','yaoyao','缇宝', '火花', '遐蝶', 'Furina']
     logger.info(f"开始采集 {len(test_roles)} 个角色: {test_roles}")
     logger.info("每个角色目标采集200个数据")
     
