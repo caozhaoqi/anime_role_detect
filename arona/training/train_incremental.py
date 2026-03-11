@@ -118,6 +118,19 @@ def get_model(model_type, num_classes, dropout_rate=0.3, checkpoint=None):
             nn.Dropout(p=dropout_rate * 0.5),
             nn.Linear(512, num_classes)
         )
+    elif model_type == 'efficientnet_b3':
+        logger.info(f"加载模型: EfficientNet-B3 (dropout={dropout_rate})")
+        model = models.efficientnet_b3(pretrained=not checkpoint)
+        
+        # 调整分类器
+        model.classifier = nn.Sequential(
+            nn.Dropout(p=dropout_rate),
+            nn.Linear(model.classifier[1].in_features, 512),
+            nn.ReLU(inplace=True),
+            nn.BatchNorm1d(512),
+            nn.Dropout(p=dropout_rate * 0.5),
+            nn.Linear(512, num_classes)
+        )
     elif model_type == 'resnet50':
         logger.info(f"加载模型: ResNet50 (dropout={dropout_rate})")
         model = models.resnet50(pretrained=not checkpoint)
@@ -308,7 +321,7 @@ def main():
     parser = argparse.ArgumentParser(description='增量训练脚本')
     parser.add_argument('--data-dir', type=str, default='../../data/train', help='数据目录')
     parser.add_argument('--model-type', type=str, default='mobilenet_v2', 
-                       choices=['mobilenet_v2', 'efficientnet_b0', 'resnet50'],
+                       choices=['mobilenet_v2', 'efficientnet_b0', 'efficientnet_b3', 'resnet50'],
                        help='模型类型')
     parser.add_argument('--checkpoint', type=str, default=None, help='已有模型的检查点路径')
     parser.add_argument('--batch-size', type=int, default=32, help='批量大小')

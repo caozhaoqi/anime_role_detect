@@ -79,7 +79,7 @@ export default function AnimeRoleDetect() {
     try {
       console.log('开始加载模型列表');
       // 从后端API获取模型列表
-      const response = await fetch('http://localhost:8000/api/models');
+      const response = await fetch('http://localhost:5002/api/models');
       console.log('获取模型列表响应:', response);
       if (!response.ok) {
         throw new Error('Failed to load models');
@@ -281,7 +281,7 @@ export default function AnimeRoleDetect() {
       formData.append("use_attributes", "true");
       formData.append("model_name", selectedModel);
 
-      const apiResponse = await fetch("http://localhost:8000/api/classify", {
+      const apiResponse = await fetch("http://localhost:5002/api/classify", {
         method: "POST",
         body: formData,
       });

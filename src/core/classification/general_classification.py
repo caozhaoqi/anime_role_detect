@@ -38,13 +38,16 @@ class GeneralClassification:
     
     def __new__(cls, threshold=0.7, index_path=None, model=None):
         """单例模式，避免重复初始化"""
-        if cls._instance_cache is None:
+        # 如果model参数发生变化，返回一个新的实例
+        if hasattr(cls, '_instance_cache') and hasattr(cls._instance_cache, 'model') and cls._instance_cache.model != model:
+            cls._instance_cache = super(GeneralClassification, cls).__new__(cls)
+        elif cls._instance_cache is None:
             cls._instance_cache = super(GeneralClassification, cls).__new__(cls)
         return cls._instance_cache
     
     def __init__(self, threshold=0.7, index_path=None, model=None):
         """初始化通用分类器"""
-        if hasattr(self, 'is_initialized') and self.is_initialized:
+        if hasattr(self, 'is_initialized') and self.is_initialized and getattr(self, 'model', None) == model:
             return
         
         self.threshold = threshold
@@ -135,19 +138,22 @@ class GeneralClassification:
             
             # 5. 尝试初始化EfficientNet推理器（单独处理，非致命）
             try:
-                logger.info("初始化EfficientNet推理模型...")
-                from core.classification.efficientnet_inference import EfficientNetInference
-                # 如果指定了模型，则构建模型路径
-                model_path = None
                 if self.model:
+                    logger.info("初始化EfficientNet推理模型...")
+                    import traceback
+                    from core.classification.efficientnet_inference import EfficientNetInference
                     # 构建模型路径
-                    base_model_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..', 'models'))
+                    base_model_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..', '..', 'models'))
                     model_path = os.path.join(base_model_dir, self.model, 'model_best.pth')
                     logger.info(f"使用指定模型: {model_path}")
-                self.model_inference = EfficientNetInference(model_path=model_path)
-                logger.info("EfficientNet推理模型初始化成功")
+                    self.model_inference = EfficientNetInference(model_path=model_path)
+                    logger.info("EfficientNet推理模型初始化成功")
+                else:
+                    logger.info("未指定模型，跳过EfficientNet推理模型初始化")
+                    self.model_inference = None
             except Exception as e:
                 logger.warning(f"EfficientNet模型初始化失败 (非致命): {e}")
+                logger.warning(f"错误堆栈: {traceback.format_exc()}")
                 self.model_inference = None
             
             # 6. 尝试初始化属性推理器（单独处理，非致命）
@@ -302,15 +308,29 @@ class GeneralClassification:
                 logger.info("使用属性模型进行推理")
                 role, similarity, _, attributes = self.attribute_inference.predict(image_path)
                 feature = None # 模型推理不产生CLIP特征向量
-            # 如果指定使用模型且模型已加载
-            elif use_model and self.model_inference:
-                # 注意：EfficientNetInference 内部会再次读取图片并进行自己的预处理
-                # 这里我们传入原始路径，或者我们可以优化让它接受 PIL Image
-                # 目前为了简单，直接传路径
-                logger.info("使用 EfficientNet 模型进行推理")
-                # 使用标签辅助推理
-                role, similarity, _ = self.model_inference.predict_with_tags(image_path)
-                feature = None # 模型推理不产生CLIP特征向量
+            # 如果指定使用模型
+            elif use_model:
+                # 尝试初始化EfficientNet推理器
+                try:
+                    logger.info("使用 EfficientNet 模型进行推理")
+                    import traceback
+                    from core.classification.efficientnet_inference import EfficientNetInference
+                    # 构建模型路径
+                    base_model_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..', 'models'))
+                    model_path = os.path.join(base_model_dir, self.model, 'model_best.pth')
+                    logger.info(f"使用指定模型: {model_path}")
+                    # 直接创建EfficientNetInference实例
+                    model_inference = EfficientNetInference(model_path=model_path)
+                    # 使用标签辅助推理
+                    role, similarity, _ = model_inference.predict_with_tags(image_path)
+                    feature = None # 模型推理不产生CLIP特征向量
+                    logger.info("EfficientNet 模型推理成功")
+                except Exception as e:
+                    logger.warning(f"EfficientNet 模型推理失败: {e}")
+                    logger.warning(f"错误堆栈: {traceback.format_exc()}")
+                    role = "未知"
+                    similarity = 0.0
+                    feature = None
             else:
                 # 使用默认的 CLIP + FAISS 索引
                 if self.classifier.index is None:

@@ -59,11 +59,13 @@ def get_model(model_type, num_classes):
 
 def parse_args():
     parser = argparse.ArgumentParser(description='增量训练模型基准测试')
-    parser.add_argument('--model-path', type=str, default='models/incremental/model_best.pth',
-                        help='模型文件路径')
-    parser.add_argument('--model-type', type=str, default='mobilenet_v2',
+    parser.add_argument('--model-paths', nargs='+', type=str, 
+                        default=['models/incremental/model_best.pth'],
+                        help='模型文件路径列表')
+    parser.add_argument('--model-types', nargs='+', type=str, 
+                        default=['mobilenet_v2'],
                         choices=['mobilenet_v2', 'efficientnet_b0', 'resnet50'],
-                        help='模型类型')
+                        help='模型类型列表')
     parser.add_argument('--data-dir', type=str, default='data/downloaded_images',
                         help='数据目录')
     parser.add_argument('--batch-size', type=int, default=32, help='批量大小')
@@ -251,18 +253,51 @@ def main():
     device = torch.device('mps' if torch.backends.mps.is_available() else 'cpu')
     print(f"使用设备: {device}")
     
-    model, class_to_idx, idx_to_class = load_model(args.model_path, args.model_type, device)
-    
     dataloader, classes, dataset_class_to_idx = get_data_loader(
         args.data_dir, args.batch_size, args.num_workers
     )
     print(f"数据集: {len(dataloader.dataset)} 张图片, {len(classes)} 个类别")
     
-    results = benchmark_model(model, dataloader, device, idx_to_class)
+    all_results = {}
     
-    print_results(results)
+    # 确保模型路径和类型列表长度一致
+    if len(args.model_paths) != len(args.model_types):
+        print("错误: --model-paths 和 --model-types 的长度必须一致")
+        sys.exit(1)
     
-    save_results(results, args.output_dir)
+    # 遍历测试每个模型
+    for model_path, model_type in zip(args.model_paths, args.model_types):
+        print(f"\n{'='*80}")
+        print(f"测试模型: {model_type}")
+        print(f"模型路径: {model_path}")
+        print(f"{'='*80}")
+        
+        model, class_to_idx, idx_to_class = load_model(model_path, model_type, device)
+        results = benchmark_model(model, dataloader, device, idx_to_class)
+        print_results(results)
+        all_results[model_type] = results
+    
+    # 保存所有模型的结果
+    os.makedirs(args.output_dir, exist_ok=True)
+    output_path = os.path.join(args.output_dir, 'benchmark_results.json')
+    with open(output_path, 'w', encoding='utf-8') as f:
+        json.dump(all_results, f, indent=2, ensure_ascii=False)
+    
+    print(f"\n{'='*80}")
+    print(f"所有模型测试完成")
+    print(f"结果已保存到: {output_path}")
+    print(f"{'='*80}")
+    
+    # 打印模型性能对比
+    print("\n模型性能对比:")
+    print("-"*80)
+    print(f"{'模型':<15} {'准确率':<10} {'精确率':<10} {'召回率':<10} {'F1分数':<10} {'FPS':<10}")
+    print("-"*80)
+    
+    for model_type, results in all_results.items():
+        print(f"{model_type:<15} {results['accuracy']*100:<10.2f} {results['precision']*100:<10.2f} {results['recall']*100:<10.2f} {results['f1_score']*100:<10.2f} {results['fps']:<10.2f}")
+    
+    print("-"*80)
 
 
 if __name__ == '__main__':

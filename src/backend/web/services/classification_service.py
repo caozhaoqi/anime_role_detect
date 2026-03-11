@@ -26,7 +26,7 @@ def initialize_system():
     logger.info("分类系统初始化完成")
 
 
-def classify_image(image_path, use_coreml=False, use_model=False, use_deepdanbooru=False, use_attributes=False):
+def classify_image(image_path, use_coreml=False, use_model=False, use_deepdanbooru=False, use_attributes=False, model_name=None):
     """分类图像
     
     Args:
@@ -35,11 +35,12 @@ def classify_image(image_path, use_coreml=False, use_model=False, use_deepdanboo
         use_model: 是否使用专用模型
         use_deepdanbooru: 是否使用集成DeepDanbooru的分类方法
         use_attributes: 是否使用属性预测
+        model_name: 模型名称
     
     Returns:
         (role, similarity, boxes, mode, attributes): 角色名称、相似度、边界框、使用的模式、属性标签
     """
-    logger.info(f"开始分类图像: {image_path}, use_coreml={use_coreml}, use_model={use_model}, use_deepdanbooru={use_deepdanbooru}, use_attributes={use_attributes}")
+    logger.info(f"开始分类图像: {image_path}, use_coreml={use_coreml}, use_model={use_model}, use_deepdanbooru={use_deepdanbooru}, use_attributes={use_attributes}, model_name={model_name}")
     
     # 初始化属性结果
     attributes = []
@@ -63,7 +64,7 @@ def classify_image(image_path, use_coreml=False, use_model=False, use_deepdanboo
     elif use_deepdanbooru:
         # 使用集成DeepDanbooru的分类方法
         logger.info("使用集成DeepDanbooru的分类方法")
-        classifier = get_classifier(index_path=DEFAULT_INDEX_PATH)
+        classifier = get_classifier(index_path=DEFAULT_INDEX_PATH, model=model_name)
         role, similarity, boxes = classifier.classify_image_with_deepdanbooru(image_path)
         mode = '集成模型 (CLIP + 专用模型 + DeepDanbooru)'
         # 记录分类日志
@@ -79,8 +80,8 @@ def classify_image(image_path, use_coreml=False, use_model=False, use_deepdanboo
         log_inference(f"✅ 图像分类成功: {os.path.basename(image_path)}, 角色: {role}, 相似度: {similarity:.4f}, 模式: {mode}")
     else:
         # 使用默认模型
-        logger.info(f"使用默认模型进行分类，use_model={use_model}, use_attributes={use_attributes}")
-        classifier = get_classifier(index_path=DEFAULT_INDEX_PATH)
+        logger.info(f"使用默认模型进行分类，use_model={use_model}, use_attributes={use_attributes}, model_name={model_name}")
+        classifier = get_classifier(index_path=DEFAULT_INDEX_PATH, model=model_name)
         role, similarity, boxes, attributes = classifier.classify_image(image_path, use_model=use_model, use_attributes=use_attributes)
         if use_attributes:
             mode = '属性模型 (带属性预测)'

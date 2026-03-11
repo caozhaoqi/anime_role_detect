@@ -19,7 +19,7 @@ class EfficientNetInference:
         return cls._instance
 
     def __init__(self, model_path=None, data_dir=None, enable_optimizations=True):
-        if self.initialized:
+        if self.initialized and getattr(self, 'model_path', None) == model_path:
             return
             
         self.device = torch.device("cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")
@@ -147,11 +147,30 @@ class EfficientNetInference:
             print("使用MobileNetV2模型结构")
             model = models.mobilenet_v2(pretrained=False)
             model.classifier[1] = nn.Linear(model.classifier[1].in_features, num_classes)
+        elif 'efficientnet_b3' in self.model_path:
+            # 使用EfficientNetB3模型结构
+            print("使用EfficientNetB3模型结构")
+            model = models.efficientnet_b3(pretrained=False)
+            model.classifier = nn.Sequential(
+                nn.Dropout(p=0.2),
+                nn.Linear(model.classifier[1].in_features, 512),
+                nn.ReLU(inplace=True),
+                nn.BatchNorm1d(512),
+                nn.Dropout(p=0.1),
+                nn.Linear(512, num_classes)
+            )
         else:
             # 默认使用EfficientNetB0模型结构
             print("使用EfficientNetB0模型结构")
             model = models.efficientnet_b0(pretrained=False)
-            model.classifier[1] = nn.Linear(model.classifier[1].in_features, num_classes)
+            model.classifier = nn.Sequential(
+                nn.Dropout(p=0.2),
+                nn.Linear(model.classifier[1].in_features, 512),
+                nn.ReLU(inplace=True),
+                nn.BatchNorm1d(512),
+                nn.Dropout(p=0.1),
+                nn.Linear(512, num_classes)
+            )
         
         # 加载权重
         try:

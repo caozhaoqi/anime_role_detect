@@ -1,4 +1,4 @@
-from src.web.config.config import ALLOWED_EXTENSIONS, ALLOWED_VIDEO_EXTENSIONS
+from backend.web.config.config import ALLOWED_EXTENSIONS, ALLOWED_VIDEO_EXTENSIONS
 
 def allowed_file(filename):
     """检查文件扩展名是否允许（图片文件）"""
