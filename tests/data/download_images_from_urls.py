@@ -9,6 +9,7 @@ import requests
 import time
 import logging
 import json
+import random
 from urllib.parse import urlparse
 
 # 配置日志
@@ -34,6 +35,30 @@ ROLE_MAPPING = {
     "qian1xia4": "千夏",
     "feng1xiang1": "枫香"
 }
+
+# 请求头信息
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+    "Accept": "image/webp,image/apng,image/*,*/*;q=0.8",
+    "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+    "Accept-Encoding": "gzip, deflate, br",
+    "Connection": "keep-alive",
+    "Referer": "https://www.google.com/"
+}
+
+# 代理服务器列表（可选）
+PROXIES = [
+    # 示例代理，实际使用时需要替换为有效的代理
+    # {"http": "http://proxy1:port", "https": "https://proxy1:port"},
+    # {"http": "http://proxy2:port", "https": "https://proxy2:port"},
+]
+
+# 下载重试次数
+MAX_RETRIES = 3
+
+# 随机延迟范围（秒）
+MIN_DELAY = 0.5
+MAX_DELAY = 2.0
 
 def load_character_attributes():
     """加载角色属性配置"""
@@ -88,20 +113,36 @@ def download_image(url, save_path):
     Returns:
         bool: 是否下载成功
     """
-    try:
-        # 发送请求
-        response = requests.get(url, timeout=10)
-        response.raise_for_status()
-        
-        # 保存图片
-        with open(save_path, 'wb') as f:
-            f.write(response.content)
-        
-        logger.debug(f"下载成功: {url} -> {save_path}")
-        return True
-    except Exception as e:
-        logger.error(f"下载失败: {url}, 错误: {e}")
-        return False
+    for attempt in range(MAX_RETRIES):
+        try:
+            # 选择随机代理（如果有）
+            proxies = random.choice(PROXIES) if PROXIES else None
+            
+            # 发送请求
+            response = requests.get(
+                url, 
+                headers=HEADERS, 
+                proxies=proxies, 
+                timeout=15, 
+                allow_redirects=True
+            )
+            response.raise_for_status()
+            
+            # 保存图片
+            with open(save_path, 'wb') as f:
+                f.write(response.content)
+            
+            logger.debug(f"下载成功: {url} -> {save_path}")
+            return True
+        except requests.exceptions.RequestException as e:
+            logger.warning(f"下载失败 (尝试 {attempt+1}/{MAX_RETRIES}): {url}, 错误: {e}")
+            if attempt < MAX_RETRIES - 1:
+                # 重试前随机延迟
+                delay = random.uniform(MIN_DELAY, MAX_DELAY)
+                time.sleep(delay)
+            else:
+                logger.error(f"下载失败（达到最大重试次数）: {url}, 错误: {e}")
+                return False
 
 def process_url_file(file_name, role_name):
     """处理URL文件
@@ -135,6 +176,7 @@ def process_url_file(file_name, role_name):
     # 下载图片
     success_count = 0
     fail_count = 0
+    skip_count = 0
     
     # 属性注释文件
     annotations = []
@@ -143,10 +185,30 @@ def process_url_file(file_name, role_name):
         # 生成文件名
         parsed_url = urlparse(url)
         file_ext = os.path.splitext(parsed_url.path)[1]
+        
+        # 过滤SVG格式
+        if file_ext.lower() == ".svg":
+            logger.info(f"跳过SVG格式图片: {url}")
+            skip_count += 1
+            continue
+        
         if not file_ext:
             file_ext = ".jpg"
         file_name = f"{role_name}_{i}{file_ext}"
         save_path = os.path.join(save_dir, file_name)
+        
+        # 检查文件是否已存在
+        if os.path.exists(save_path):
+            logger.info(f"图片已存在，跳过: {file_name}")
+            skip_count += 1
+            # 添加属性注释
+            annotations.append({
+                "image_path": os.path.join(role_name, file_name),
+                "character": role_name,
+                "attributes": dict(zip(attribute_order, attribute_labels)),
+                "attribute_labels": attribute_labels
+            })
+            continue
         
         # 下载图片
         if download_image(url, save_path):
@@ -161,8 +223,9 @@ def process_url_file(file_name, role_name):
         else:
             fail_count += 1
         
-        # 避免请求过快
-        time.sleep(1)
+        # 避免请求过快，使用随机延迟
+        delay = random.uniform(MIN_DELAY, MAX_DELAY)
+        time.sleep(delay)
     
     # 保存属性注释文件
     os.makedirs(ATTRIBUTES_DIR, exist_ok=True)
@@ -174,7 +237,7 @@ def process_url_file(file_name, role_name):
     except Exception as e:
         logger.error(f"保存属性注释失败: {e}")
     
-    logger.info(f"{role_name} 图片下载完成，成功: {success_count}, 失败: {fail_count}")
+    logger.info(f"{role_name} 图片下载完成，成功: {success_count}, 失败: {fail_count}, 跳过: {skip_count}")
 
 def main():
     """主函数"""
