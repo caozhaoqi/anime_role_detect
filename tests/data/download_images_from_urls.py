@@ -25,15 +25,20 @@ IMG_URL_DIR = os.path.join(DATA_DIR, "img_url")
 DOWNLOADED_DIR = os.path.join(DATA_DIR, "downloaded_images")
 ATTRIBUTES_DIR = os.path.join(DATA_DIR, "attributes")
 
-# 角色拼音到名称的映射
-ROLE_MAPPING = {
+# 角色拼音到名称的映射（默认映射）
+DEFAULT_ROLE_MAPPING = {
     "a1luo2na4": "阿罗娜",
     "pu3la1na4": "普拉娜",
     "ri4nai4": "日奈",
     "xiang3": "亚子",
     "yi1zhi1": "伊织",
     "qian1xia4": "千夏",
-    "feng1xiang1": "枫香"
+    "feng1xiang1": "枫香",
+    "plana": "普拉娜",
+    "klee": "可莉",
+    "huo3hua1": "火花",
+    "nahida": "纳西妲",
+    "ti2bao3": "提宝"
 }
 
 # 请求头信息
@@ -239,25 +244,43 @@ def process_url_file(file_name, role_name):
     
     logger.info(f"{role_name} 图片下载完成，成功: {success_count}, 失败: {fail_count}, 跳过: {skip_count}")
 
+def get_role_name_from_file(file_name):
+    """从文件名中提取角色名称
+    
+    Args:
+        file_name: 文件名
+    
+    Returns:
+        str: 角色名称
+    """
+    # 提取文件名前缀（去掉_img.txt）
+    prefix = file_name.replace('_img.txt', '')
+    
+    # 检查是否在默认映射中
+    if prefix in DEFAULT_ROLE_MAPPING:
+        return DEFAULT_ROLE_MAPPING[prefix]
+    
+    # 如果不在默认映射中，直接使用前缀作为角色名称
+    return prefix
+
 def main():
     """主函数"""
-    # 处理每个角色的URL文件
-    for url_file, role_name in ROLE_MAPPING.items():
-        file_name = f"{url_file}_img.txt"
-        file_path = os.path.join(IMG_URL_DIR, file_name)
-        if os.path.exists(file_path):
-            logger.info(f"开始处理 {role_name} 的图片URL文件: {file_name}")
-            process_url_file(file_name, role_name)
-        else:
-            logger.warning(f"URL文件不存在: {file_name}")
-    
-    # 检查是否有未在映射中的URL文件
+    # 获取所有URL文件
     existing_files = [f for f in os.listdir(IMG_URL_DIR) if f.endswith('_img.txt')]
-    mapped_files = [f"{url_file}_img.txt" for url_file in ROLE_MAPPING.keys()]
     
+    if not existing_files:
+        logger.warning("没有找到URL文件")
+        return
+    
+    logger.info(f"找到 {len(existing_files)} 个URL文件")
+    
+    # 处理每个URL文件
     for file_name in existing_files:
-        if file_name not in mapped_files:
-            logger.warning(f"未在角色映射中找到 {file_name} 对应的角色名称")
+        # 从文件名中提取角色名称
+        role_name = get_role_name_from_file(file_name)
+        
+        logger.info(f"开始处理 {role_name} 的图片URL文件: {file_name}")
+        process_url_file(file_name, role_name)
     
     logger.info("所有图片下载任务完成")
 
