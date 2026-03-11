@@ -24,11 +24,15 @@ IMG_URL_DIR = os.path.join(DATA_DIR, "img_url")
 DOWNLOADED_DIR = os.path.join(DATA_DIR, "downloaded_images")
 ATTRIBUTES_DIR = os.path.join(DATA_DIR, "attributes")
 
-# 角色映射
+# 角色拼音到名称的映射
 ROLE_MAPPING = {
+    "a1luo2na4": "阿罗娜",
+    "pu3la1na4": "普拉娜",
     "ri4nai4": "日奈",
     "xiang3": "亚子",
-    "yi1zhi1": "伊织"
+    "yi1zhi1": "伊织",
+    "qian1xia4": "千夏",
+    "feng1xiang1": "枫香"
 }
 
 def load_character_attributes():
@@ -177,10 +181,20 @@ def main():
     # 处理每个角色的URL文件
     for url_file, role_name in ROLE_MAPPING.items():
         file_name = f"{url_file}_img.txt"
-        if os.path.exists(os.path.join(IMG_URL_DIR, file_name)):
+        file_path = os.path.join(IMG_URL_DIR, file_name)
+        if os.path.exists(file_path):
+            logger.info(f"开始处理 {role_name} 的图片URL文件: {file_name}")
             process_url_file(file_name, role_name)
         else:
             logger.warning(f"URL文件不存在: {file_name}")
+    
+    # 检查是否有未在映射中的URL文件
+    existing_files = [f for f in os.listdir(IMG_URL_DIR) if f.endswith('_img.txt')]
+    mapped_files = [f"{url_file}_img.txt" for url_file in ROLE_MAPPING.keys()]
+    
+    for file_name in existing_files:
+        if file_name not in mapped_files:
+            logger.warning(f"未在角色映射中找到 {file_name} 对应的角色名称")
     
     logger.info("所有图片下载任务完成")
 

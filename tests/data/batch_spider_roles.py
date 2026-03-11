@@ -20,7 +20,7 @@ logger = logging.getLogger('batch_spider_roles')
 API_URL = "http://localhost:33333/api/v1.2.5.260305/sis/spider_start/single?key_word="
 
 # 角色列表文件路径
-ROLES_FILE = "../auto_spider_img/blda_spider_img_keyword.txt"
+ROLES_FILE = "/Users/caozhaoqi/PycharmProjects/anime_role_detect/auto_spider_img/blda_spider_img_keyword.txt"
 
 def load_roles():
     """加载角色列表"""
@@ -48,7 +48,7 @@ def collect_role_images(role_name):
         if response.status_code == 200:
             result = response.json()
             if result.get("code") == 0:
-                logger.success(f"角色 {role_name} 采集成功")
+                logger.info(f"角色 {role_name} 采集成功")
                 # 添加延迟，避免请求过快
                 time.sleep(10)  # 增加等待时间
                 return True
@@ -77,9 +77,10 @@ def main():
         logger.error("没有找到角色列表")
         return
     
-    # 只采集日奈、亚子、伊织这三个角色，以便测试
-    test_roles = ["日奈", "亚子", "伊织"]
-    logger.info(f"测试采集 {len(test_roles)} 个角色: {test_roles}")
+    # 只采集阿罗娜和普拉娜这两个角色
+    test_roles = ["阿罗娜", "普拉娜", "arona", "plana"]
+    logger.info(f"开始采集 {len(test_roles)} 个角色: {test_roles}")
+    logger.info("每个角色目标采集200个数据")
     
     # 开始采集
     success_count = 0

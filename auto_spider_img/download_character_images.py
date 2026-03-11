@@ -358,12 +358,20 @@ def search_images_sdvv50(character_name, anime_name, max_images=MAX_IMAGES, retr
 def search_images_danbooru(character_name, anime_name, max_images=MAX_IMAGES, retries=BING_RETRIES):
     """从 Danbooru 搜索角色图片"""
     images = []
-    search_queries = [
-        _get_character_tags(character_name, anime_name),
-        [character_name, 'highres'],
-        [character_name, 'blue_archive'],
-        [character_name, 'solo'],
-    ]
+    # 直接使用角色的英文标签作为搜索标签
+    character_tag = _get_character_tag(character_name)
+    if character_tag:
+        search_queries = [
+            [character_tag, 'highres'],
+            [character_tag, 'solo'],
+            [character_tag],
+        ]
+    else:
+        search_queries = [
+            [character_name, 'blue_archive', 'highres'],
+            [character_name, 'blue_archive'],
+            [character_name],
+        ]
     
     for tags in search_queries:
         if images:
@@ -373,7 +381,7 @@ def search_images_danbooru(character_name, anime_name, max_images=MAX_IMAGES, re
         
         for retry in range(retries):
             try:
-                response = requests.get(search_url, headers=HEADERS, timeout=15)
+                response = requests.get(search_url, headers=HEADERS, timeout=30)
                 if response.status_code == 200:
                     data = response.json()
                     for post in data:
@@ -540,104 +548,168 @@ def _get_character_tag(character_name):
 def search_images_bing(character_name, anime_name, max_images=MAX_IMAGES, retries=BING_RETRIES):
     """从 Bing 图片搜索角色图片（使用 Selenium）"""
     images = []
-    search_query = f"{character_name} {anime_name} anime character"
-    search_url = f"https://www.bing.com/images/search?q={urllib.parse.quote(search_query)}"
+    # 使用角色的英文标签来搜索，提高精度
+    character_tag = _get_character_tag(character_name)
+    if character_tag:
+        # 尝试不同的搜索关键词，提高搜索精度
+        search_queries = [
+            f"{character_tag} anime character",
+            f"{character_tag} blue archive",
+            f"{character_tag} solo",
+            f"{character_tag} artwork",
+            f"{character_tag} fanart"
+        ]
+    else:
+        search_queries = [
+            f"{character_name} {anime_name} anime character",
+            f"{character_name} blue archive",
+            f"{character_name} solo",
+            f"{character_name} artwork",
+            f"{character_name} fanart"
+        ]
     
-    logger.info(f"开始从 Bing 搜索: {search_query}")
-    
-    for retry in range(retries):
-        driver = None
-        try:
-            # 配置 Chrome 选项
-            chrome_options = Options()
-            chrome_options.add_argument(f"user-agent={HEADERS['User-Agent']}")
-            chrome_options.add_argument("--headless")
-            chrome_options.add_argument("--no-sandbox")
-            chrome_options.add_argument("--disable-dev-shm-usage")
-            chrome_options.add_argument("--disable-gpu")
-            chrome_options.add_argument("--window-size=1920,1080")
-            chrome_options.add_argument("--disable-blink-features=AutomationControlled")
-            chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
-            chrome_options.add_experimental_option('useAutomationExtension', False)
-            
-            # 启动浏览器
-            driver = webdriver.Chrome(options=chrome_options)
-            driver.set_page_load_timeout(30)
-            
-            # 访问搜索页面
-            driver.get(search_url)
-            logger.debug(f"已访问 Bing 图片搜索: {search_url}")
-            
-            # 等待页面加载
-            time.sleep(5)
-            
-            # 滚动页面以加载更多图片
-            last_height = driver.execute_script("return document.body.scrollHeight")
-            scroll_attempts = 0
-            max_scroll_attempts = 3
-            
-            while scroll_attempts < max_scroll_attempts and len(images) < max_images:
-                driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-                time.sleep(2)
+    # 遍历所有搜索关键词
+    for search_query in search_queries:
+        if len(images) >= max_images:
+            break
+        
+        search_url = f"https://www.bing.com/images/search?q={urllib.parse.quote(search_query)}"
+        logger.info(f"开始从 Bing 搜索: {search_query}")
+        
+        for retry in range(retries):
+            driver = None
+            try:
+                # 配置 Chrome 选项
+                chrome_options = Options()
+                chrome_options.add_argument(f"user-agent={HEADERS['User-Agent']}")
+                chrome_options.add_argument("--headless")
+                chrome_options.add_argument("--no-sandbox")
+                chrome_options.add_argument("--disable-dev-shm-usage")
+                chrome_options.add_argument("--disable-gpu")
+                chrome_options.add_argument("--window-size=1920,1080")
+                chrome_options.add_argument("--disable-blink-features=AutomationControlled")
+                chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
+                chrome_options.add_experimental_option('useAutomationExtension', False)
                 
-                new_height = driver.execute_script("return document.body.scrollHeight")
-                if new_height == last_height:
-                    break
-                last_height = new_height
-                scroll_attempts += 1
-            
-            # 查找所有图片元素
-            img_elements = driver.find_elements(By.CSS_SELECTOR, "img.mimg")
-            logger.debug(f"找到 {len(img_elements)} 个图片元素")
-            
-            for img in img_elements:
-                try:
-                    img_url = img.get_attribute("src") or img.get_attribute("data-src")
-                    
-                    if not img_url:
-                        continue
-                    
-                    # 过滤掉 base64 图片和小图标
-                    if img_url.startswith('data:'):
-                        continue
-                    
-                    # 只保留图片文件
-                    if not any(ext in img_url.lower() for ext in ['.jpg', '.jpeg', '.png', '.webp']):
-                        # 尝试获取完整 URL
-                        if 'bing.net' in img_url or 'microsoft.com' in img_url:
-                            pass  # 保留 Bing 的图片 URL
-                        else:
-                            continue
-                    
-                    if img_url not in images:
-                        images.append(img_url)
-                        logger.debug(f"找到图片: {img_url[:100]}...")
-                        
-                    if len(images) >= max_images:
-                        break
-                        
-                except Exception as e:
-                    logger.warning(f"处理图片元素时出错: {e}")
-                    continue
-            
-            # 如果找到图片，跳出重试循环
-            if images:
-                logger.success(f"成功从 Bing 找到 {len(images)} 张图片")
-                break
-            else:
-                logger.warning("未找到任何图片，尝试重试...")
+                # 启动浏览器
+                driver = webdriver.Chrome(options=chrome_options)
+                driver.set_page_load_timeout(30)
                 
-        except Exception as e:
-            logger.error(f"Bing 搜索失败 (尝试 {retry+1}/{retries}): {e}")
-            if retry < retries - 1:
+                # 访问搜索页面
+                driver.get(search_url)
+                logger.debug(f"已访问 Bing 图片搜索: {search_url}")
+                
+                # 等待页面加载
                 time.sleep(5)
-        finally:
-            if driver:
-                try:
-                    driver.quit()
-                    logger.debug("浏览器已关闭")
-                except Exception as e:
-                    logger.warning(f"关闭浏览器时出错: {e}")
+                
+                # 滚动页面以加载更多图片
+                last_height = driver.execute_script("return document.body.scrollHeight")
+                scroll_attempts = 0
+                max_scroll_attempts = 3
+                
+                while scroll_attempts < max_scroll_attempts and len(images) < max_images:
+                    driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+                    time.sleep(2)
+                    
+                    new_height = driver.execute_script("return document.body.scrollHeight")
+                    if new_height == last_height:
+                        break
+                    last_height = new_height
+                    scroll_attempts += 1
+                
+                # 查找所有图片元素，使用更具体的 CSS 选择器
+                img_elements = driver.find_elements(By.CSS_SELECTOR, "a.iusc img")
+                logger.debug(f"找到 {len(img_elements)} 个图片元素")
+                
+                # 尝试不同的 CSS 选择器
+                if not img_elements:
+                    img_elements = driver.find_elements(By.CSS_SELECTOR, "img.mimg")
+                    logger.debug(f"使用备用选择器找到 {len(img_elements)} 个图片元素")
+                
+                if not img_elements:
+                    img_elements = driver.find_elements(By.TAG_NAME, "img")
+                    logger.debug(f"使用 TAG_NAME 找到 {len(img_elements)} 个图片元素")
+                
+                # 打印前 5 个图片元素的属性，以便调试
+                for i, img in enumerate(img_elements[:5]):
+                    try:
+                        src = img.get_attribute("src")
+                        data_src = img.get_attribute("data-src")
+                        data_original = img.get_attribute("data-original")
+                        data_srcset = img.get_attribute("data-srcset")
+                        logger.debug(f"图片元素 {i}: src={src}, data-src={data_src}, data-original={data_original}, data-srcset={data_srcset}")
+                    except Exception as e:
+                        logger.warning(f"打印图片元素属性时出错: {e}")
+                
+                for img in img_elements:
+                    try:
+                        # 尝试获取各种可能的图片 URL 属性
+                        img_url = img.get_attribute("src") or img.get_attribute("data-src") or img.get_attribute("data-original") or img.get_attribute("data-srcset")
+                        
+                        if not img_url:
+                            continue
+                        
+                        # 打印获取到的 URL，以便调试
+                        logger.debug(f"获取到 URL: {img_url[:100]}...")
+                        
+                        # 过滤掉 base64 图片和小图标
+                        if img_url.startswith('data:'):
+                            logger.debug(f"过滤掉 base64 图片: {img_url[:50]}...")
+                            continue
+                        
+                        # 处理 srcset 属性
+                        if 'srcset' in img_url:
+                            # 取第一个 URL
+                            img_url = img_url.split(',')[0].split()[0]
+                            logger.debug(f"处理 srcset 后: {img_url[:100]}...")
+                        
+                        # 确保 URL 是完整的
+                        if not img_url.startswith('http'):
+                            logger.debug(f"过滤掉非 HTTP URL: {img_url[:50]}...")
+                            continue
+                        
+                        # 过滤掉 Bing 自己的小图标，但保留缩略图
+                        if 'bing.com' in img_url and 'simg' in img_url:
+                            logger.debug(f"过滤掉 Bing 自己的小图标: {img_url[:100]}...")
+                            continue
+                        
+                        # 只保留图片文件，允许 Bing 缩略图 URL
+                        if not any(ext in img_url.lower() for ext in ['.jpg', '.jpeg', '.png', '.webp']) and 'bing.com/th/id/' not in img_url:
+                            logger.debug(f"过滤掉非图片文件: {img_url[:100]}...")
+                            continue
+                        
+                        if img_url not in images:
+                            images.append(img_url)
+                            logger.debug(f"找到图片: {img_url[:100]}...")
+                            
+                        if len(images) >= max_images:
+                            break
+                            
+                    except Exception as e:
+                        logger.warning(f"处理图片元素时出错: {e}")
+                        continue
+                
+                # 如果找到足够的图片，跳出重试循环
+                if len(images) >= max_images:
+                    logger.success(f"成功从 Bing 找到 {len(images)} 张图片")
+                    break
+                elif images:
+                    logger.success(f"成功从 Bing 找到 {len(images)} 张图片")
+                    break
+                else:
+                    logger.warning("未找到任何图片，尝试重试...")
+                    
+            except Exception as e:
+                logger.error(f"Bing 搜索失败 (尝试 {retry+1}/{retries}): {e}")
+                if retry < retries - 1:
+                    time.sleep(5)
+            finally:
+                if driver:
+                    try:
+                        driver.quit()
+                        logger.debug("浏览器已关闭")
+                    except Exception as e:
+                        logger.warning(f"关闭浏览器时出错: {e}")
     
     logger.info(f"从 Bing 搜索到 {len(images)} 张图片")
     return images
@@ -647,24 +719,9 @@ def search_images(character_name, anime_name, max_images=MAX_IMAGES, retries=BIN
     """搜索角色图片"""
     images = []
     
-    # 优先使用 Bing 图片搜索
+    # 使用 Bing 图片搜索
     bing_images = search_images_bing(character_name, anime_name, max_images=max_images, retries=retries)
     images.extend(bing_images)
-    
-    # 如果 Bing 搜索结果不足，尝试 sdvv50.de
-    if len(images) < max_images:
-        sdvv50_images = search_images_sdvv50(character_name, anime_name, max_images=max_images - len(images), retries=retries)
-        images.extend(sdvv50_images)
-    
-    # 如果还不够，尝试 Danbooru
-    if len(images) < max_images:
-        danbooru_images = search_images_danbooru(character_name, anime_name, max_images=max_images - len(images), retries=retries)
-        images.extend(danbooru_images)
-    
-    # 最后尝试 Safebooru
-    if len(images) < max_images:
-        safebooru_images = search_images_safebooru(character_name, anime_name, max_images=max_images - len(images), retries=retries)
-        images.extend(safebooru_images)
     
     seen = set()
     unique_images = []
@@ -698,13 +755,13 @@ def process_character(character_name, anime_name, output_dir):
     # 下载图片
     downloaded = 0
     for i, url in enumerate(image_urls):
-        if downloaded >= 50:
+        if downloaded >= MAX_IMAGES:
             break
         
         save_path = os.path.join(character_dir, f"{anime_name}_{safe_character_name}_{i:04d}.jpg")
         if download_image(url, save_path):
                 downloaded += 1
-                logger.info(f"  下载成功 {downloaded}/50")
+                logger.info(f"  下载成功 {downloaded}/{MAX_IMAGES}")
         time.sleep(DOWNLOAD_DELAY)  # 礼貌延时
     
     logger.info(f"{anime_name}_{character_name} 下载完成，共 {downloaded} 张图片")
@@ -734,26 +791,27 @@ def main():
     
     # 读取角色列表
     with open(txt_path, 'r', encoding='utf-8') as f:
-        characters = [line.strip() for line in f if line.strip()]
+        all_characters = [line.strip() for line in f if line.strip()]
+    
+    # 只处理指定的角色
+    target_characters = ["阿罗娜", "普拉娜"]
+    characters = [char for char in all_characters if char in target_characters]
     
     if not characters:
-        logger.warning(f"{target_file} 中没有角色信息")
+        logger.warning(f"{target_file} 中没有找到目标角色信息")
         return
     
-    logger.info(f"发现 {len(characters)} 个角色")
+    logger.info(f"发现 {len(characters)} 个目标角色")
+    logger.info(f"目标角色: {', '.join(characters)}")
     
-    # 并发处理角色
-    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
-        futures = []
-        for character in characters:
-            future = executor.submit(process_character, character, anime_name, output_dir)
-            futures.append(future)
-        
-        for future in as_completed(futures):
-            try:
-                future.result()
-            except Exception as e:
-                logger.error(f"处理失败: {e}")
+    # 逐个处理角色（不使用线程池，提高稳定性）
+    for character in characters:
+        try:
+            process_character(character, anime_name, output_dir)
+        except Exception as e:
+            logger.error(f"处理 {character} 时出错: {e}")
+        # 增加角色间的延时
+        time.sleep(5)
     
     time.sleep(ANIME_DELAY)  # 每个作品之间的延时
     

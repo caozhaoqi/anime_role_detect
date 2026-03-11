@@ -109,7 +109,11 @@ def load_model(model_path, model_type='mobilenet_v2'):
             state_dict = checkpoint
         
         # 检查分类器的权重形状
-        if 'classifier.1.weight' in state_dict:
+        if 'classifier.5.weight' in state_dict:
+            num_classes = state_dict['classifier.5.weight'].shape[0]
+        elif 'fc.5.weight' in state_dict:
+            num_classes = state_dict['fc.5.weight'].shape[0]
+        elif 'classifier.1.weight' in state_dict:
             num_classes = state_dict['classifier.1.weight'].shape[0]
         elif 'fc.weight' in state_dict:
             num_classes = state_dict['fc.weight'].shape[0]
@@ -123,13 +127,50 @@ def load_model(model_path, model_type='mobilenet_v2'):
     # 创建模型
     if model_type == 'mobilenet_v2':
         model = models.mobilenet_v2(pretrained=False)
-        model.classifier[1] = nn.Linear(model.classifier[1].in_features, num_classes)
+        # 调整分类器，与train_incremental.py中的结构一致
+        model.classifier = nn.Sequential(
+            nn.Dropout(p=0.3),
+            nn.Linear(model.classifier[1].in_features, 512),
+            nn.ReLU(inplace=True),
+            nn.BatchNorm1d(512),
+            nn.Dropout(p=0.15),
+            nn.Linear(512, num_classes)
+        )
     elif model_type == 'efficientnet_b0':
         model = models.efficientnet_b0(pretrained=False)
-        model.classifier[1] = nn.Linear(model.classifier[1].in_features, num_classes)
+        # 调整分类器，与train_incremental.py中的结构一致
+        model.classifier = nn.Sequential(
+            nn.Dropout(p=0.3),
+            nn.Linear(model.classifier[1].in_features, 512),
+            nn.ReLU(inplace=True),
+            nn.BatchNorm1d(512),
+            nn.Dropout(p=0.15),
+            nn.Linear(512, num_classes)
+        )
+    elif model_type == 'resnet50':
+        model = models.resnet50(pretrained=False)
+        # 调整分类器，与train_incremental.py中的结构一致
+        num_ftrs = model.fc.in_features
+        model.fc = nn.Sequential(
+            nn.Dropout(p=0.3),
+            nn.Linear(num_ftrs, 512),
+            nn.ReLU(inplace=True),
+            nn.BatchNorm1d(512),
+            nn.Dropout(p=0.15),
+            nn.Linear(512, num_classes)
+        )
     elif model_type == 'resnet18':
         model = models.resnet18(pretrained=False)
-        model.fc = nn.Linear(model.fc.in_features, num_classes)
+        # 调整分类器，与train_incremental.py中的结构一致
+        num_ftrs = model.fc.in_features
+        model.fc = nn.Sequential(
+            nn.Dropout(p=0.3),
+            nn.Linear(num_ftrs, 512),
+            nn.ReLU(inplace=True),
+            nn.BatchNorm1d(512),
+            nn.Dropout(p=0.15),
+            nn.Linear(512, num_classes)
+        )
     else:
         raise ValueError(f"不支持的模型类型: {model_type}")
     
@@ -251,7 +292,7 @@ def main():
     parser.add_argument('--model-path', type=str, default='models/arona_plana/model_best.pth', 
                        help='模型文件路径')
     parser.add_argument('--model-type', type=str, default='mobilenet_v2',
-                       choices=['mobilenet_v2', 'efficientnet_b0', 'resnet18'],
+                       choices=['mobilenet_v2', 'efficientnet_b0', 'resnet18', 'resnet50'],
                        help='模型类型')
     parser.add_argument('--data-dir', type=str, default='../data/downloaded_images', 
                        help='数据目录')
