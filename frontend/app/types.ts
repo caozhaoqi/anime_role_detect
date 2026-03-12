@@ -12,6 +12,11 @@ export interface Message {
     tag: string;
     confidence: number;
   }>;
+  text_detections?: Array<{
+    text: string;
+    confidence: number;
+    bbox: number[];
+  }>;
   thoughts?: string[];
   isThinkingFinished?: boolean;
   timestamp: number;

@@ -58,7 +58,7 @@ def setup_api_routes(app):
             model_name = request.form.get('model_name', 'default')
 
             # 分类图像
-            role, similarity, boxes, mode, attributes = classify_image(temp_path, use_model=use_model, model_name=model_name)
+            role, similarity, boxes, mode, attributes, text_detections = classify_image(temp_path, use_model=use_model, model_name=model_name)
 
             # 构建响应
             response = {
@@ -72,6 +72,9 @@ def setup_api_routes(app):
 
             if attributes:
                 response['attributes'] = attributes
+            
+            if text_detections:
+                response['text_detections'] = text_detections
 
             return json.dumps(response, ensure_ascii=False), 200, {'Content-Type': 'application/json'}
         except Exception as e:

@@ -341,6 +341,7 @@ export default function AnimeRoleDetect() {
             confidence: (result.similarity || 0) >= 0.8 ? "high" : (result.similarity || 0) >= 0.5 ? "medium" : "low",
           },
           attributes: result.attributes || [],
+          text_detections: result.text_detections || [],
           thoughts: ["正在分析图片特征...", "提取角色关键信息...", "匹配数据库中的角色...", "识别完成！"],
           isThinkingFinished: true,
           timestamp: Date.now(),
@@ -762,6 +763,23 @@ export default function AnimeRoleDetect() {
                                           className="px-3 py-1.5 bg-[#f1f5f9] text-[#64748b] text-xs rounded-full border border-[#e2e8f0] hover:bg-[#e2e8f0] transition-all duration-300"
                                         >
                                           {attr.tag} ({(attr.confidence * 100).toFixed(0)}%)
+                                        </span>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                                
+                                {/* 文本检测结果展示 */}
+                                {msg.text_detections && msg.text_detections.length > 0 && (
+                                  <div className="mt-4 pt-4 border-t border-[#e2e8f0]">
+                                    <div className="text-xs font-medium text-[#64748b] mb-3">文本检测</div>
+                                    <div className="flex flex-wrap gap-2">
+                                      {msg.text_detections.slice(0, 10).map((text, idx) => (
+                                        <span
+                                          key={idx}
+                                          className="px-3 py-1.5 bg-[#f0f9ff] text-[#3b82f6] text-xs rounded-full border border-[#93c5fd] hover:bg-[#e0f2fe] transition-all duration-300"
+                                        >
+                                          {text.text} ({(text.confidence * 100).toFixed(0)}%)
                                         </span>
                                       ))}
                                     </div>

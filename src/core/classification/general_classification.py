@@ -291,13 +291,17 @@ class GeneralClassification:
         """
         if not self.initialize():
             logger.error("分类器未初始化，无法进行分类")
-            return None, 0.0, None, []
+            return None, 0.0, None, [], []
             
         try:
             logger.info(f"开始分类图像: {image_path}, use_model={use_model}, use_attributes={use_attributes}")
             # 预处理 (YOLO检测)
             # 无论使用哪种方法，先用YOLO裁剪出人物主体总是好的
             normalized_img, boxes = self.preprocessor.process(image_path)
+            
+            # 检测图像中的文本
+            logger.info("检测图像中的文本")
+            text_detections = self.preprocessor.detect_text(image_path)
             
             # 初始化属性结果
             attributes = []
@@ -345,18 +349,18 @@ class GeneralClassification:
                 role, similarity = self.classifier.classify(feature)
             
             # 记录分类日志
-            if record_classification_log is not None:
-                record_classification_log(
+            if hasattr(self, 'record_classification_log') and self.record_classification_log is not None:
+                self.record_classification_log(
                     image_path=image_path,
                     role=role,
                     similarity=similarity,
                     feature=feature if feature is not None else [],
                     boxes=boxes,
-                    metadata={'attributes': [attr['tag'] for attr in attributes[:5]]} if attributes else {}
+                    metadata={'attributes': [attr['tag'] for attr in attributes[:5]] if attributes else {}, 'text_detections': [text['text'] for text in text_detections[:5]] if text_detections else {}}
                 )
             
-            logger.info(f"分类完成，角色: {role}, 相似度: {similarity:.4f}, 属性: {len(attributes)}个")
-            return role, similarity, boxes, attributes
+            logger.info(f"分类完成，角色: {role}, 相似度: {similarity:.4f}, 属性: {len(attributes)}个, 文本: {len(text_detections)}个")
+            return role, similarity, boxes, attributes, text_detections
         except Exception as e:
             logger.error(f"分类图像失败: {e}")
             raise e # 抛出异常以便上层捕获

@@ -10,6 +10,7 @@ logger = get_logger("preprocessing")
 class Preprocessing:
     # 全局模型实例缓存
     _model_instance = None
+    _ocr_instance = None
     
     def __init__(self, model_path=None):
         """初始化预处理模块"""
@@ -33,6 +34,19 @@ class Preprocessing:
         self.model = self.__class__._model_instance
         # 图像标准化参数
         self.img_size = (224, 224)
+        
+        # 初始化OCR模型
+        if not self.__class__._ocr_instance:
+            try:
+                from paddleocr import PaddleOCR
+                logger.info("尝试加载PaddleOCR模型...")
+                self.__class__._ocr_instance = PaddleOCR(use_angle_cls=True, lang='ch')
+                logger.info("PaddleOCR模型加载成功")
+            except Exception as e:
+                logger.warning(f"PaddleOCR模型加载失败: {e}，OCR功能将不可用")
+                self.__class__._ocr_instance = None
+        
+        self.ocr = self.__class__._ocr_instance
         logger.debug(f"预处理模块初始化完成，图像大小: {self.img_size}")
     
     def detect_character(self, image_path):
@@ -101,18 +115,70 @@ class Preprocessing:
         y1 = max(0, y1)
         x2 = min(w, x2)
         y2 = min(h, y2)
-        logger.debug(f"调整边界框坐标: [{x1}, {y1}, {x2}, {y2}]")
         
         # 裁剪图像
         cropped_img = img_rgb[y1:y2, x1:x2]
-        logger.debug(f"角色裁剪完成，裁剪后大小: {cropped_img.shape}")
+        logger.debug(f"裁剪后图像大小: {cropped_img.shape}")
         
-        return cropped_img
+        # 调整大小
+        resized_img = cv2.resize(cropped_img, self.img_size)
+        logger.debug(f"调整大小后图像: {resized_img.shape}")
+        
+        return resized_img
+    
+    def detect_text(self, image_path):
+        """使用OCR检测图像中的文本"""
+        logger.debug(f"开始检测文本: {image_path}")
+        
+        # 检查OCR模型是否可用
+        if not self.ocr:
+            logger.warning("OCR模型不可用，跳过文本检测")
+            return []
+        
+        try:
+            # 加载图像
+            img = cv2.imread(image_path)
+            if img is None:
+                logger.error(f"无法加载图像: {image_path}")
+                return []
+            
+            # 使用PaddleOCR检测文本
+            result = self.ocr.ocr(image_path, cls=True)
+            
+            # 提取检测结果
+            text_detections = []
+            if result:
+                for line in result:
+                    for word_info in line:
+                        bbox = word_info[0]
+                        text = word_info[1][0]
+                        confidence = word_info[1][1]
+                        
+                        # 过滤低置信度的结果
+                        if confidence > 0.5:
+                            # 转换边界框格式
+                            x1 = min([p[0] for p in bbox])
+                            y1 = min([p[1] for p in bbox])
+                            x2 = max([p[0] for p in bbox])
+                            y2 = max([p[1] for p in bbox])
+                            
+                            text_detections.append({
+                                'text': text,
+                                'confidence': confidence,
+                                'bbox': [x1, y1, x2, y2]
+                            })
+            
+            logger.info(f"文本检测完成，检测到 {len(text_detections)} 个文本")
+            return text_detections
+        except Exception as e:
+            logger.error(f"文本检测失败: {e}")
+            return []
     
     def normalize_image(self, img):
         """标准化图像"""
-        logger.debug(f"开始标准化图像，原始大小: {img.shape}")
-        # 调整图像大小
+        logger.debug("开始标准化图像")
+        
+        # 调整大小
         resized_img = cv2.resize(img, self.img_size)
         logger.debug(f"调整图像大小到: {self.img_size}")
         
