@@ -332,6 +332,8 @@ export default function AnimeRoleDetect() {
         const result = await classifyImage(currentImagePreview);
         console.log('API返回的完整结果:', result);
         console.log('text_detections字段:', result.text_detections);
+        console.log('text_detections类型:', typeof result.text_detections);
+        console.log('text_detections长度:', result.text_detections ? result.text_detections.length : 0);
 
         const assistantMessage: Message = {
           id: (Date.now() + 2).toString(),
@@ -772,21 +774,23 @@ export default function AnimeRoleDetect() {
                                 )}
                                 
                                 {/* 文本检测结果展示 */}
-                                {msg.text_detections && msg.text_detections.length > 0 && (
-                                  <div className="mt-4 pt-4 border-t border-[#e2e8f0]">
-                                    <div className="text-xs font-medium text-[#64748b] mb-3">文本检测</div>
-                                    <div className="flex flex-wrap gap-2">
-                                      {msg.text_detections.slice(0, 10).map((text, idx) => (
+                                <div className="mt-4 pt-4 border-t border-[#e2e8f0]">
+                                  <div className="text-xs font-medium text-[#64748b] mb-3">文本检测</div>
+                                  <div className="flex flex-wrap gap-2">
+                                    {msg.text_detections && msg.text_detections.length > 0 ? (
+                                      msg.text_detections.slice(0, 10).map((text, idx) => (
                                         <span
                                           key={idx}
                                           className="px-3 py-1.5 bg-[#f0f9ff] text-[#3b82f6] text-xs rounded-full border border-[#93c5fd] hover:bg-[#e0f2fe] transition-all duration-300"
                                         >
                                           {text.text} ({(text.confidence * 100).toFixed(0)}%)
                                         </span>
-                                      ))}
-                                    </div>
+                                      ))
+                                    ) : (
+                                      <span className="text-xs text-[#94a3b8]">未检测到文本</span>
+                                    )}
                                   </div>
-                                )}
+                                </div>
                               </div>
                               
                               {/* 识别时间 */}

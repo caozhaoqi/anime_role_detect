@@ -16,7 +16,7 @@ The Character Classification System is an AI-based image recognition tool specif
 - **API Support**: Provides RESTful API interface for batch processing
 - **Log Fusion**: Supports fusing features from classification logs to build new models
 - **End-to-End Workflow**: Complete character detection workflow from data collection to model training
-- **EfficientNet-B0 Model**: Uses state-of-the-art EfficientNet-B0 for classification
+- **EfficientNet-B3 Model**: Uses state-of-the-art EfficientNet-B3 for classification
 - **Data Collection**: Supports automatic image collection via Bing Image Search API
 - **Dataset Splitting**: Automatically splits collected data into training and validation sets
 - **Model Fallback Mechanism**: Automatically falls back to alternative models when primary models fail
@@ -187,8 +187,6 @@ API response example:
 |-----------|-----------|--------|----------|
 | 蔚蓝档案_普拉娜 | 0.805 | 0.948 | 0.871 |
 | 蔚蓝档案_阿罗娜 | 0.937 | 0.771 | 0.846 |
-| sdv50_凝光 | 0.080 | 1.000 | 0.148 |
-| sdv50_申鹤 | 0.083 | 0.500 | 0.143 |
 
 ### Average Processing Time
 
