@@ -2,9 +2,10 @@ import cv2
 import numpy as np
 from ultralytics import YOLO
 from PIL import Image
+import traceback
 
 # 使用全局日志系统
-from core.logging.global_logger import get_logger, log_system, log_error
+from src.core.logging.global_logger import get_logger, log_system, log_error
 logger = get_logger("preprocessing")
 
 class Preprocessing:
@@ -142,36 +143,176 @@ class Preprocessing:
                 logger.error(f"无法加载图像: {image_path}")
                 return []
             
+            # 调试：打印OCR模型信息
+            logger.debug(f"OCR模型类型: {type(self.ocr)}")
+            
             # 使用PaddleOCR检测文本
-            result = self.ocr.ocr(image_path, cls=True)
+            logger.debug(f"开始调用PaddleOCR.ocr()")
+            # 尝试不同的OCR调用方式以兼容不同版本
+            try:
+                # 尝试默认调用方式
+                result = self.ocr.ocr(image_path)
+            except TypeError as e:
+                logger.warning(f"OCR调用失败: {e}，尝试使用其他参数")
+                # 尝试不使用cls参数
+                try:
+                    result = self.ocr.ocr(image_path, cls=False)
+                except TypeError as e2:
+                    logger.warning(f"OCR调用失败: {e2}，尝试不使用任何参数")
+                    result = self.ocr.ocr(image_path)
+            logger.debug(f"PaddleOCR.ocr()调用完成")
+            
+            # 调试：打印返回结果格式
+            logger.debug(f"PaddleOCR返回结果类型: {type(result)}")
             
             # 提取检测结果
             text_detections = []
-            if result:
-                for line in result:
-                    for word_info in line:
-                        bbox = word_info[0]
-                        text = word_info[1][0]
-                        confidence = word_info[1][1]
+            
+            # 检查结果是否有效
+            if result is not None:
+                # 处理OCR返回的是列表的情况（包含OCRResult对象）
+                if isinstance(result, list) and len(result) > 0:
+                    # 取第一个结果（通常是OCRResult对象）
+                    ocr_result = result[0]
+                    
+                    # 检查是否是OCRResult对象（使用字典访问方式）
+                    if 'rec_texts' in ocr_result and 'rec_scores' in ocr_result:
+                        # 这是PaddleX的OCR结果格式
+                        rec_texts = ocr_result['rec_texts']
+                        rec_scores = ocr_result['rec_scores']
+                        rec_boxes = ocr_result.get('rec_boxes', None)
                         
-                        # 过滤低置信度的结果
-                        if confidence > 0.5:
-                            # 转换边界框格式
-                            x1 = min([p[0] for p in bbox])
-                            y1 = min([p[1] for p in bbox])
-                            x2 = max([p[0] for p in bbox])
-                            y2 = max([p[1] for p in bbox])
+                        logger.debug(f"PaddleX OCR结果: {len(rec_texts)} 个文本")
+                        
+                        for i, (text, score) in enumerate(zip(rec_texts, rec_scores)):
+                            if score > 0.5:  # 过滤低置信度的结果
+                                # 获取边界框
+                                bbox = [0, 0, 0, 0]
+                                if rec_boxes is not None and i < len(rec_boxes):
+                                    box = rec_boxes[i]
+                                    if hasattr(box, '__iter__'):
+                                        box_list = list(box)
+                                        if len(box_list) == 4:
+                                            # 格式是 [x1, y1, x2, y2]
+                                            bbox = [int(box_list[0]), int(box_list[1]), int(box_list[2]), int(box_list[3])]
+                                        elif len(box_list) >= 4:
+                                            # 假设是 [[x1,y1], [x2,y1], [x2,y2], [x1,y2]] 格式
+                                            x_coords = [p[0] for p in box_list[:4]]
+                                            y_coords = [p[1] for p in box_list[:4]]
+                                            bbox = [min(x_coords), min(y_coords), max(x_coords), max(y_coords)]
+                                
+                                text_detections.append({
+                                    'text': text,
+                                    'confidence': float(score),
+                                    'bbox': bbox
+                                })
+                                logger.info(f"添加文本检测结果 (PaddleX格式): {text} (置信度: {score:.4f})")
+                    else:
+                        # 处理PaddleOCR v2格式（列表中的列表）
+                        for line in result:
+                            if line is None:
+                                continue
+                            
+                            try:
+                                # PaddleOCR v2 格式: [[[x1,y1], [x2,y1], [x2,y2], [x1,y2]], [text, confidence]]
+                                if isinstance(line, list) and len(line) >= 2:
+                                    bbox = line[0]
+                                    text_info = line[1]
+                                    
+                                    if isinstance(text_info, list) and len(text_info) >= 2:
+                                        text = text_info[0]
+                                        confidence = text_info[1]
+                                    else:
+                                        text = text_info
+                                        confidence = 1.0
+                                    
+                                    # 过滤低置信度的结果
+                                    if confidence > 0.5:
+                                        # 转换边界框格式
+                                        if isinstance(bbox, list) and len(bbox) >= 4:
+                                            x1 = min([p[0] for p in bbox])
+                                            y1 = min([p[1] for p in bbox])
+                                            x2 = max([p[0] for p in bbox])
+                                            y2 = max([p[1] for p in bbox])
+                                            
+                                            text_detections.append({
+                                                'text': text,
+                                                'confidence': confidence,
+                                                'bbox': [x1, y1, x2, y2]
+                                            })
+                                            logger.info(f"添加文本检测结果 (v2格式): {text}")
+                                else:
+                                    logger.debug(f"无法识别的行格式: {line}")
+                            except Exception as e:
+                                logger.warning(f"处理OCR结果失败: {e}")
+                                continue
+                
+                # 处理OCRResult对象（非列表）
+                elif 'rec_texts' in result and 'rec_scores' in result:
+                    # 这是PaddleX的OCR结果格式
+                    rec_texts = result['rec_texts']
+                    rec_scores = result['rec_scores']
+                    rec_boxes = result.get('rec_boxes', None)
+                    
+                    logger.debug(f"PaddleX OCR结果: {len(rec_texts)} 个文本")
+                    
+                    for i, (text, score) in enumerate(zip(rec_texts, rec_scores)):
+                        if score > 0.5:  # 过滤低置信度的结果
+                            # 获取边界框
+                            bbox = [0, 0, 0, 0]
+                            if rec_boxes is not None and i < len(rec_boxes):
+                                box = rec_boxes[i]
+                                if hasattr(box, '__iter__'):
+                                    box_list = list(box)
+                                    if len(box_list) >= 4:
+                                        # 假设是 [[x1,y1], [x2,y1], [x2,y2], [x1,y2]] 格式
+                                        x_coords = [p[0] for p in box_list[:4]]
+                                        y_coords = [p[1] for p in box_list[:4]]
+                                        bbox = [min(x_coords), min(y_coords), max(x_coords), max(y_coords)]
+                                    elif len(box_list) == 4:
+                                        bbox = box_list
                             
                             text_detections.append({
                                 'text': text,
-                                'confidence': confidence,
-                                'bbox': [x1, y1, x2, y2]
+                                'confidence': float(score),
+                                'bbox': bbox
                             })
+                            logger.info(f"添加文本检测结果 (PaddleX格式): {text} (置信度: {score:.4f})")
+                
+                # 处理其他格式
+                elif hasattr(result, '__iter__') and not isinstance(result, (str, bytes)):
+                    for line in result:
+                        if line is None:
+                            continue
+                        
+                        try:
+                            # 尝试获取文本和置信度
+                            text = getattr(line, 'text', None)
+                            confidence = getattr(line, 'confidence', 1.0)
+                            bbox = getattr(line, 'bbox', None)
+                            
+                            if text and confidence > 0.5:
+                                text_detections.append({
+                                    'text': text,
+                                    'confidence': confidence,
+                                    'bbox': bbox or [0, 0, 0, 0]
+                                })
+                                logger.info(f"添加文本检测结果 (通用格式): {text}")
+                        except Exception as e:
+                            logger.warning(f"处理OCR结果失败: {e}")
+                            continue
+                else:
+                    logger.debug(f"无法识别的OCR结果格式: {type(result)}")
+            else:
+                logger.debug(f"PaddleOCR返回结果为None")
             
             logger.info(f"文本检测完成，检测到 {len(text_detections)} 个文本")
             return text_detections
         except Exception as e:
             logger.error(f"文本检测失败: {e}")
+            logger.error(f"异常类型: {type(e)}")
+            import traceback
+            logger.error(f"异常详细信息: {traceback.format_exc()}")
             return []
     
     def normalize_image(self, img):

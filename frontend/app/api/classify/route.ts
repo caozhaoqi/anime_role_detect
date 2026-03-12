@@ -18,7 +18,7 @@ export async function POST(request: NextRequest) {
       useDeepdanbooru: useDeepdanbooru
     });
 
-    const backendUrl = 'http://127.0.0.1:5001/api/classify';
+    const backendUrl = 'http://127.0.0.1:8000/api/classify';
     const backendFormData = new FormData();
     backendFormData.append('file', file);
 

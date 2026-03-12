@@ -82,12 +82,33 @@ def classify_image(image_path, use_coreml=False, use_model=False, use_deepdanboo
     else:
         # 使用默认模型
         logger.info(f"使用默认模型进行分类，use_model={use_model}, use_attributes={use_attributes}, model_name={model_name}")
-        classifier = get_classifier(index_path=DEFAULT_INDEX_PATH, model=model_name)
-        role, similarity, boxes, attributes, text_detections = classifier.classify_image(image_path, use_model=use_model, use_attributes=use_attributes)
+        try:
+            # 如果model_name为default且use_model为True，设置model为None，避免加载不存在的模型
+            if model_name == 'default' and use_model:
+                logger.info("模型名称为default，使用CLIP + FAISS索引进行分类")
+                classifier = get_classifier(index_path=DEFAULT_INDEX_PATH, model=None)
+                role, similarity, boxes, attributes, text_detections = classifier.classify_image(image_path, use_model=False, use_attributes=use_attributes)
+            else:
+                classifier = get_classifier(index_path=DEFAULT_INDEX_PATH, model=model_name)
+                role, similarity, boxes, attributes, text_detections = classifier.classify_image(image_path, use_model=use_model, use_attributes=use_attributes)
+        except ValueError as e:
+            if "索引尚未构建或加载" in str(e):
+                logger.warning("索引文件不存在，返回默认结果")
+                role = "未知角色"
+                similarity = 0.0
+                boxes = []
+                attributes = []
+                text_detections = []
+            else:
+                raise e
         if use_attributes:
             mode = '属性模型 (带属性预测)'
         else:
-            mode = '专用模型 (EfficientNet)' if use_model else '通用索引 (CLIP)'
+            # 如果model_name为default且use_model为True，使用CLIP + FAISS索引
+            if model_name == 'default' and use_model:
+                mode = '通用索引 (CLIP)'
+            else:
+                mode = '专用模型 (EfficientNet)' if use_model else '通用索引 (CLIP)'
         # 记录分类日志
         record_classification_log(
             image_path=image_path,

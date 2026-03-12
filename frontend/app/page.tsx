@@ -79,7 +79,7 @@ export default function AnimeRoleDetect() {
     try {
       console.log('开始加载模型列表');
       // 从后端API获取模型列表
-      const response = await fetch('http://localhost:5002/api/models');
+      const response = await fetch('http://localhost:8000/api/models');
       console.log('获取模型列表响应:', response);
       if (!response.ok) {
         throw new Error('Failed to load models');
@@ -281,7 +281,7 @@ export default function AnimeRoleDetect() {
       formData.append("use_attributes", "true");
       formData.append("model_name", selectedModel);
 
-      const apiResponse = await fetch("http://localhost:5002/api/classify", {
+      const apiResponse = await fetch("http://localhost:8000/api/classify", {
         method: "POST",
         body: formData,
       });
@@ -330,6 +330,8 @@ export default function AnimeRoleDetect() {
 
       try {
         const result = await classifyImage(currentImagePreview);
+        console.log('API返回的完整结果:', result);
+        console.log('text_detections字段:', result.text_detections);
 
         const assistantMessage: Message = {
           id: (Date.now() + 2).toString(),

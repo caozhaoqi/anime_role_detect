@@ -12,9 +12,31 @@ import time
 from typing import Optional
 
 # 添加项目根目录到Python路径
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, project_root)
+print(f"添加到Python路径: {project_root}")
+print(f"当前工作目录: {os.getcwd()}")
 
-from src.core.logging.global_logger import get_logger
+# 测试导入
+import sys
+print(f"Python路径: {sys.path[:3]}")
+
+try:
+    from core.logging.global_logger import get_logger
+    print("导入成功")
+except ImportError as e:
+    print(f"导入失败: {e}")
+    # 尝试使用绝对路径
+    try:
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("global_logger", os.path.join(project_root, "core", "logging", "global_logger.py"))
+        global_logger = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(global_logger)
+        get_logger = global_logger.get_logger
+        print("使用绝对路径导入成功")
+    except Exception as e2:
+        print(f"绝对路径导入也失败: {e2}")
+        raise
 
 logger = get_logger("run_api")
 
@@ -67,7 +89,7 @@ def start_api_service(host: str = '0.0.0.0', port: int = 8000, reload: bool = Fa
     cmd = [
         sys.executable,
         '-m', 'uvicorn',
-        'src.api.app:app',
+        'src.backend.api.app:app',
         '--host', host,
         '--port', str(port)
     ]

@@ -347,12 +347,28 @@ async def classify_image(file: UploadFile = File(...), use_model: bool = Form(Fa
                     else:
                         raise
             
+            # 检测图像中的文本
+            logger.info("开始检测图像中的文本")
+            text_detections = []
+            try:
+                from src.core.preprocessing.preprocessing import Preprocessing
+                preprocessor = Preprocessing()
+                text_detections = preprocessor.detect_text(temp_path)
+                logger.info(f"文本检测完成，检测到 {len(text_detections)} 个文本")
+            except Exception as e:
+                logger.warning(f"文本检测失败: {e}")
+            
             # 构建响应
             result = {
                 "role": role,
                 "similarity": float(similarity),
                 "attributes": []  # 暂时返回空属性列表
             }
+            
+            # 添加文本检测结果（如果有）
+            if text_detections:
+                result["text_detections"] = text_detections
+                logger.info(f"返回文本检测结果: {len(text_detections)} 个文本")
             
             return result
         finally:
