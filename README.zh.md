@@ -1,26 +1,20 @@
-# 角色分类系统使用说明
+# 角色分类系统
 
 ## 🎯 系统简介
 
-角色分类系统是一个基于人工智能的图片识别工具，专门用于识别游戏和动漫中的角色。系统使用先进的深度学习技术，能够快速准确地识别上传图片中的角色，现已支持端到端角色检测工作流。
+角色分类系统是一个基于人工智能的图片识别工具，专门用于识别游戏和动漫中的角色。系统使用先进的深度学习技术，能够快速准确地识别上传图片中的角色，支持端到端角色检测工作流。
 
 ## ✨ 核心功能
 
-- **图片/视频上传识别**：支持多种图片和视频格式上传，自动识别图片和视频中的游戏角色
-- **高准确率**：使用CLIP模型和Faiss索引，识别准确率高
-- **DeepDanbooru集成**：集成DeepDanbooru进行动漫标签识别，提高分类准确率
-- **标签辅助推理**：使用DeepDanbooru标签调整分类结果，解决"大众脸"问题
-- **属性预测**：预测角色的属性，如发色、瞳色、服装等
+- **图片/视频识别**：支持多种格式上传
+- **高准确率**：使用CLIP模型和Faiss索引
+- **DeepDanbooru集成**：通过动漫标签识别提高分类准确率
+- **属性预测**：预测角色属性（发色、瞳色、服装等）
 - **实时反馈**：提供识别置信度和详细结果
-- **用户友好界面**：直观的Web界面，操作简单
-- **API支持**：提供RESTful API接口，支持批量处理
-- **日志融合**：支持从分类日志中融合特征，构建新模型
-- **端到端工作流**：完整的角色检测工作流，从数据收集到模型训练
-- **EfficientNet-B3模型**：使用先进的EfficientNet-B3进行角色分类
-- **数据收集**：支持通过Bing Image Search API自动收集角色图片
-- **数据集分割**：自动将收集的数据分割为训练集和验证集
-- **模型回退机制**：当主模型失败时，自动回退到替代模型
-- **错误处理**：健壮的错误处理，确保系统稳定性
+- **用户友好界面**：直观的Web界面
+- **API支持**：RESTful API接口，支持批量处理
+- **日志融合**：从分类日志中融合特征，构建新模型
+- **端到端工作流**：完整的从数据收集到模型训练的流程
 
 ## 🚀 快速开始
 
@@ -32,7 +26,7 @@
 - Transformers
 - Ultralytics (YOLOv8)
 - Faiss
-- EfficientNet-B3
+- EfficientNet-B0
 - Requests (用于DeepDanbooru API集成)
 
 ### 安装依赖
@@ -41,7 +35,7 @@
 # 安装Flask
 pip3 install flask
 
-# 安装其他依赖（如果尚未安装）
+# 安装其他依赖
 pip3 install torch torchvision transformers ultralytics faiss-cpu Pillow efficientnet_pytorch requests
 ```
 
@@ -50,11 +44,11 @@ pip3 install torch torchvision transformers ultralytics faiss-cpu Pillow efficie
 #### 1. 启动后端服务
 
 ```bash
-# 启动Flask后端应用
-python3 src/backend/web/web_app.py
+# 启动后端应用
+python3 src/backend/api/app.py
 ```
 
-后端服务将在 `http://127.0.0.1:5001` 上运行。
+后端服务将在 `http://127.0.0.1:8000` 上运行。
 
 #### 2. 启动前端服务
 
@@ -76,270 +70,49 @@ npm run dev
 ```
 anime_role_detect/
 ├── data/                  # 数据集目录
-│   ├── augmented_dataset/ # 增强后的数据集
-│   ├── split_dataset/     # 分割后的训练/验证数据
-│   └── all_characters/    # 所有角色图片
 ├── models/                # 模型存储目录
 ├── src/                   # 源代码
 │   ├── backend/           # 后端代码
-│   │   ├── api/           # API实现
-│   │   └── web/           # Web界面
 │   ├── core/              # 核心功能
-│   │   ├── classification/ # 分类模块
-│   │   ├── feature_extraction/ # 特征提取模块
-│   │   ├── preprocessing/ # 预处理模块
-│   │   └── logging/       # 日志模块
 │   ├── data/              # 数据相关代码
-│   │   ├── collection/    # 数据收集脚本
-│   │   ├── preprocessing/ # 数据预处理脚本
-│   │   └── augmentation/  # 数据增强脚本
 │   ├── frontend/          # 前端代码
 │   ├── models/            # 模型相关代码
-│   │   ├── training/      # 模型训练脚本
-│   │   ├── evaluation/    # 模型评估脚本
-│   │   └── deployment/    # 模型部署脚本
 │   ├── config/            # 配置文件
 │   ├── scripts/           # 实用脚本
 │   └── utils/             # 工具函数
+├── docs/                  # 详细文档
 ├── cache/                 # 缓存目录
 ├── auto_spider_img/       # 自动爬虫图片
 ├── README.md              # 英文文档
-└── README.zh.md            # 中文文档
+└── README.zh.md           # 中文文档
 ```
-
-## 🎮 支持的角色
-
-### 蔚蓝档案 (Blue Archive)
-
-- **星野** (Hoshino)
-- **白子** (Shiroko)
-- **阿罗娜** (Arona)
-- **宫子** (Miyako)
-- **日奈** (Hina)
-- **优花梨** (Yuuka)
 
 ## 🌐 使用方法
 
 ### Web界面使用
 
-1. 打开浏览器，访问 `http://127.0.0.1:5001`
-2. 点击「选择图片文件」按钮，选择要识别的图片
-3. 点击「识别角色」按钮，系统将自动分析图片
-4. 等待分析完成，查看识别结果和置信度
-
-### 角色检测工作流
-
-1. 打开浏览器，访问 `http://127.0.0.1:5001/workflow`
-2. 以JSON格式输入角色信息（例如：`[{"name": "千早爱音", "series": "bangdream_mygo"}]`）
-3. 输入测试图片路径
-4. 调整训练参数（批量大小、轮数、学习率等）
-5. 点击「开始工作流」按钮开始端到端流程
-6. 在终端中监控进度
+1. 打开浏览器，访问 `http://localhost:3000`
+2. 上传要识别的角色图片
+3. 等待系统分析图片
+4. 查看识别结果和置信度
 
 ### API调用
 
 ```bash
-# 使用curl上传图片并识别（默认方法）
-curl -X POST -F "file=@path/to/image.jpg" http://127.0.0.1:5001/api/classify
+# 基本使用
+curl -X POST -F "file=@path/to/image.jpg" http://127.0.0.1:8000/api/classify
 
-# 使用curl带专用模型
-curl -X POST -F "file=@path/to/image.jpg" -F "use_model=true" http://127.0.0.1:5001/api/classify
-
-# 使用curl带DeepDanbooru集成
-curl -X POST -F "file=@path/to/image.jpg" -F "use_deepdanbooru=true" http://127.0.0.1:5001/api/classify
-
-# 使用curl带属性预测
-curl -X POST -F "file=@path/to/image.jpg" -F "use_attributes=true" http://127.0.0.1:5001/api/classify
+# 使用模型和属性预测
+curl -X POST -F "file=@path/to/image.jpg" -F "use_model=true" -F "use_attributes=true" http://127.0.0.1:8000/api/classify
 ```
 
-API返回结果示例：
+## � 文档
 
-```json
-{
-  "filename": "image.jpg",
-  "role": "蔚蓝档案_星野",
-  "similarity": 0.98,
-  "boxes": [],
-  "fileType": "image",
-  "mode": "CLIP",
-  "attributes": [
-    {"tag": "blue_hair", "confidence": 0.95},
-    {"tag": "school_uniform", "confidence": 0.87},
-    {"tag": "red_eyes", "confidence": 0.82}
-  ]
-}
-```
+详细技术文档请参考 `docs/` 目录：
 
-## 📊 系统性能
+- **docs/technical_guide.md**：完整技术文档
 
-### 模型性能评估
-
-| 模型 | 准确率 | 精确率 | 召回率 | F1分数 |
-|------|--------|--------|--------|--------|
-| 条件GAN | 85.94% | 0.871 | 0.859 | 0.858 |
-| Arona Plana | 12.50% | 0.250 | 0.125 | 0.167 |
-| Arona Plana ResNet18 | 12.50% | 0.500 | 0.125 | 0.200 |
-| 通用分类 | 7.50% | 0.008 | 0.075 | 0.014 |
-
-### 角色特定性能
-
-| 角色 | 精确率 | 召回率 | F1分数 |
-|------|--------|--------|--------|
-| 蔚蓝档案_普拉娜 | 0.805 | 0.948 | 0.871 |
-| 蔚蓝档案_阿罗娜 | 0.937 | 0.771 | 0.846 |
-
-### 平均处理时间
-
-- 图片上传：~1秒
-- 预处理：~0.5秒
-- 特征提取：~0.3秒
-- 分类：~0.1秒
-- 总时间：~2秒
-
-### 模型训练性能
-
-- **训练速度**：在MPS上约9.0 batch/s
-- **每轮耗时**：约35-40分钟
-- **总训练时间**：50轮约30小时
-- **初始损失**：4.79
-- **当前损失**：约3.25（第2轮后）
-- **最佳验证准确率**：0.0562（第2轮后，训练进行中）
-
-## 🔧 技术实现
-
-### 核心技术栈
-
-| 技术 | 用途 |
-|------|------|
-| Python | 主要开发语言 |
-| Flask | Web应用框架 |
-| PyTorch | 深度学习框架 |
-| CLIP | 图像特征提取 |
-| YOLOv8 | 角色检测 |
-| Faiss | 相似性搜索 |
-| EfficientNet-B0 | 角色分类 |
-| DeepDanbooru | 动漫标签识别 |
-| HTML/CSS | 前端界面 |
-
-### 端到端工作流
-
-1. **数据收集**：通过Bing Image Search API收集角色图片
-2. **数据集分割**：将收集的数据分割为训练集（80%）和验证集（20%）
-3. **模型训练**：使用数据增强训练EfficientNet-B0模型
-4. **模型评估**：在验证集上评估模型性能
-5. **角色检测**：使用训练好的模型检测新图片中的角色
-
-### 模型训练流水线
-
-- **数据增强**：随机大小裁剪、水平/垂直翻转、旋转、颜色抖动
-- **优化器**：AdamW带权重衰减
-- **学习率调度**：余弦退火
-- **批量大小**：16
-- **训练轮数**：50
-- **初始学习率**：5e-5
-
-### 分布式训练
-
-系统支持跨多个GPU的分布式训练，以加快训练速度：
-
-```bash
-# 启动分布式训练
-python scripts/model_training/train_model_distributed.py --batch_size 8 --num_epochs 50 --learning_rate 5e-5 --weight_decay 1e-4 --num_workers 4
-```
-
-**主要特性：**
-- 自动检测可用GPU
-- DistributedDataParallel (DDP) 实现
-- 多GPU同步训练
-- 自动批量大小缩放（每个GPU的批量大小）
-- 如果只有一个GPU，自动回退到单GPU模式
-
-**预期加速效果：**
-- 2个GPU：约2倍训练速度
-- 4个GPU：约4倍训练速度
-- 8个GPU：约8倍训练速度
-
-**注意：** 分布式训练需要至少2个GPU才能有效。
-
-### DeepDanbooru集成
-
-#### 实现原理
-
-系统集成DeepDanbooru进行动漫标签识别，以提高分类准确率。实现采用**标签辅助推理**方法：
-
-1. **标签提取**：使用DeepDanbooru从输入图像中提取标签
-2. **标签映射**：将提取的标签映射到角色属性
-3. **分数调整**：根据标签匹配调整分类分数
-4. **结果重排序**：根据调整后的分数重排分类结果
-
-#### 主要优势
-
-- **解决"大众脸"问题**：DeepDanbooru能够识别发色、瞳色、服装等区分性特征
-- **提高鲁棒性**：即使不同画风，系统也能根据关键特征识别角色
-- **更快收敛**：模型在标签信息指导下学习更快
-- **更高准确率**：标签辅助推理显著提高识别准确率
-
-#### 使用方法
-
-系统提供三种推理模式：
-
-1. **默认模式**：使用CLIP + Faiss进行分类
-2. **专用模型模式**：使用EfficientNet-B0进行分类
-3. **DeepDanbooru模式**：使用集成的CLIP + EfficientNet-B0 + DeepDanbooru进行分类
-
-要使用DeepDanbooru集成，只需在API请求中添加`use_deepdanbooru=true`参数。
-
-## 📈 系统优化
-
-### 性能优化
-
-- **单例模式**：避免重复初始化模型，减少内存使用
-- **缓存机制**：缓存已处理的结果，提高响应速度
-- **批量处理**：支持批量图像分类，提高处理效率
-- **异步加载**：模型懒加载，加快系统启动速度
-- **MPS加速**：使用Apple Silicon GPU加快训练和推理速度
-
-### 用户体验优化
-
-- **加载动画**：添加上传和处理时的加载动画
-- **响应式设计**：适配不同屏幕尺寸
-- **实时反馈**：提供详细的识别结果和置信度
-- **错误处理**：友好的错误提示
-- **工作流界面**：专门的端到端角色检测工作流界面
-
-## 🔄 日志融合功能
-
-### 功能介绍
-
-日志融合功能是系统的一个重要特性，它能够：
-
-- **收集分类日志**：自动收集每次分类的结果和特征
-- **融合特征**：将多个分类结果的特征融合成一个新的模型
-- **持续学习**：从历史分类数据中学习，不断提高分类准确率
-- **模型更新**：定期更新模型，保持系统性能
-
-### 使用方法
-
-#### 1. 收集分类日志
-
-系统会自动收集每次分类的结果，包括：
-- 上传的图片
-- 提取的特征向量
-- 分类结果
-- 置信度
-
-#### 2. 融合特征构建新模型
-
-```bash
-# 运行日志融合脚本
-python3 src/core/log_fusion/log_fusion.py --log_dir ./logs --output_model ./models/fused_model
-```
-
-#### 3. 使用新模型进行分类
-
-系统会自动使用最新构建的模型进行分类，无需额外配置。
-
-## 🤝 贡献指南
+## 🤝 贡献
 
 欢迎提交Issue和Pull Request，共同改进系统性能和功能。
 
@@ -347,9 +120,7 @@ python3 src/core/log_fusion/log_fusion.py --log_dir ./logs --output_model ./mode
 
 本项目基于MIT许可证开源。
 
-## 📞 联系我们
-
-如有问题或建议，请通过以下方式联系：
+## 📞 联系
 
 - Email: zhaoqi.cao@icloud.com
 - GitHub: https://github.com/caozhaoqi/anime-role-detect
