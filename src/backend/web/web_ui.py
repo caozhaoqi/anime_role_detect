@@ -287,7 +287,7 @@ class WebUI:
         
         return interface
     
-    def launch(self, share=False, server_port=7860):
+    def launch(self, share=True, server_port=7860):
         """启动Web UI"""
         interface = self.create_interface()
         interface.launch(share=share, server_port=server_port)
@@ -295,4 +295,4 @@ class WebUI:
 if __name__ == "__main__":
     # 创建Web UI实例并启动
     web_ui = WebUI()
-    web_ui.launch(share=False)
+    web_ui.launch(share=True)

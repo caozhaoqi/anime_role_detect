@@ -5,13 +5,13 @@ import sys
 # 添加项目根目录到Python路径
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from src.core.preprocessing.preprocessing import Preprocessing
-from src.core.feature_extraction.feature_extraction import FeatureExtraction
-from src.core.classification.classification import Classification
+from core.preprocessing.preprocessing import Preprocessing
+from core.feature_extraction.feature_extraction import FeatureExtraction
+from core.classification.classification import Classification
 from PIL import Image
 
 class DataPreparation:
-    def __init__(self, data_dir="dataset", index_path="role_index"):
+    def __init__(self, data_dir="data/downloaded_images", index_path="role_index"):
         """初始化数据准备模块"""
         self.data_dir = data_dir
         self.index_path = index_path
@@ -51,16 +51,30 @@ class DataPreparation:
             raise ValueError(f"数据集目录中没有角色子目录: {self.data_dir}")
         
         print(f"发现 {len(role_dirs)} 个角色目录")
+        # 打印前10个角色目录
+        print(f"前10个角色目录: {role_dirs[:10]}")
+        # 检查是否包含日奈目录
+        if '日奈' in role_dirs:
+            print("包含日奈目录")
+        else:
+            print("不包含日奈目录")
         
         # 提取所有角色的特征向量
         all_features = []
         all_role_names = []
+        
+        # 打印所有角色目录
+        print(f"所有角色目录: {role_dirs}")
         
         for role_name in role_dirs:
             role_dir = os.path.join(self.data_dir, role_name)
             image_files = [f for f in os.listdir(role_dir) if f.lower().endswith(('.jpg', '.jpeg', '.png', '.bmp'))]
             
             print(f"处理角色 '{role_name}'，发现 {len(image_files)} 张图片")
+            # 对于日奈目录，打印更多信息
+            if role_name == '日奈':
+                print(f"日奈目录路径: {role_dir}")
+                print(f"日奈目录中的文件: {os.listdir(role_dir)[:5]}")
             
             for img_file in image_files:
                 img_path = os.path.join(role_dir, img_file)

@@ -15,7 +15,7 @@ from flask import Flask, render_template, jsonify, request
 # 添加项目根目录到Python路径
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
-from src.utils.monitoring_system import MonitoringSystem
+from utils.monitoring_system import MonitoringSystem
 
 app = Flask(__name__, template_folder='../templates')
 

@@ -15,9 +15,9 @@ from datetime import datetime
 # 添加项目根目录到Python路径
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
-from src.utils.distributed_manager import DistributedManager
+from utils.distributed_manager import DistributedManager
 from src.data_collection.keyword_based_collector import KeywordBasedDataCollector
-from src.core.logging.global_logger import get_logger
+from core.logging.global_logger import get_logger
 
 logger = get_logger("distributed_collector")
 

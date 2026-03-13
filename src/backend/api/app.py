@@ -17,12 +17,12 @@ from fastapi import FastAPI, HTTPException, Query, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from src.utils.http_utils import HTTPUtils
-from src.utils.image_utils import ImageUtils
-from src.utils.monitoring_system import MonitoringSystem
-from src.utils.cache_manager import cache_manager
-from src.utils.distributed_manager import DistributedManager
-from src.core.logging.global_logger import get_logger
+from utils.http_utils import HTTPUtils
+from utils.image_utils import ImageUtils
+from utils.monitoring_system import MonitoringSystem
+from utils.cache_manager import cache_manager
+from utils.distributed_manager import DistributedManager
+from core.logging.global_logger import get_logger
 
 logger = get_logger("api_service")
 
@@ -297,8 +297,8 @@ async def classify_image(file: UploadFile = File(...), use_model: bool = Form(Fa
         
         try:
             # 初始化特征提取和分类模块
-            from src.core.feature_extraction.feature_extraction import FeatureExtraction
-            from src.core.classification.classification import Classification
+            from core.feature_extraction.feature_extraction import FeatureExtraction
+            from core.classification.classification import Classification
             
             # 根据模型名称选择索引路径
             index_mapping = {
@@ -351,7 +351,7 @@ async def classify_image(file: UploadFile = File(...), use_model: bool = Form(Fa
             logger.info("开始检测图像中的文本")
             text_detections = []
             try:
-                from src.core.preprocessing.preprocessing import Preprocessing
+                from core.preprocessing.preprocessing import Preprocessing
                 preprocessor = Preprocessing()
                 text_detections = preprocessor.detect_text(temp_path)
                 logger.info(f"文本检测完成，检测到 {len(text_detections)} 个文本")

@@ -5,7 +5,7 @@ from PIL import Image
 import traceback
 
 # 使用全局日志系统
-from src.core.logging.global_logger import get_logger, log_system, log_error
+from core.logging.global_logger import get_logger, log_system, log_error
 logger = get_logger("preprocessing")
 
 class Preprocessing:
@@ -54,13 +54,24 @@ class Preprocessing:
         """使用YOLOv8检测图像中的角色主体"""
         logger.debug(f"开始检测角色: {image_path}")
         # 加载图像
-        img = cv2.imread(image_path)
-        if img is None:
-            logger.error(f"无法加载图像: {image_path}")
-            raise ValueError(f"无法加载图像: {image_path}")
-        
-        # 转换为RGB格式
-        img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        if image_path.lower().endswith(('.svg', '.webp')):
+            # 使用PIL加载SVG和WebP文件
+            from PIL import Image
+            img = Image.open(image_path)
+            # 转换为RGB
+            img = img.convert('RGB')
+            # 转换为numpy数组
+            import numpy as np
+            img_rgb = np.array(img)
+        else:
+            # 使用OpenCV加载其他格式
+            img = cv2.imread(image_path)
+            if img is None:
+                logger.error(f"无法加载图像: {image_path}")
+                raise ValueError(f"无法加载图像: {image_path}")
+            
+            # 转换为RGB格式
+            img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         logger.debug(f"图像加载成功，大小: {img_rgb.shape}")
         
         # 使用YOLOv8检测
@@ -89,13 +100,24 @@ class Preprocessing:
         """根据检测结果裁剪角色主体"""
         logger.debug(f"开始裁剪角色: {image_path}")
         # 加载图像
-        img = cv2.imread(image_path)
-        if img is None:
-            logger.error(f"无法加载图像: {image_path}")
-            raise ValueError(f"无法加载图像: {image_path}")
-        
-        # 转换为RGB格式
-        img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        if image_path.lower().endswith(('.svg', '.webp')):
+            # 使用PIL加载SVG和WebP文件
+            from PIL import Image
+            img = Image.open(image_path)
+            # 转换为RGB
+            img = img.convert('RGB')
+            # 转换为numpy数组
+            import numpy as np
+            img_rgb = np.array(img)
+        else:
+            # 使用OpenCV加载其他格式
+            img = cv2.imread(image_path)
+            if img is None:
+                logger.error(f"无法加载图像: {image_path}")
+                raise ValueError(f"无法加载图像: {image_path}")
+            
+            # 转换为RGB格式
+            img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         
         # 如果没有检测到角色，返回原始图像
         if not boxes:
@@ -138,10 +160,21 @@ class Preprocessing:
         
         try:
             # 加载图像
-            img = cv2.imread(image_path)
-            if img is None:
-                logger.error(f"无法加载图像: {image_path}")
-                return []
+            if image_path.lower().endswith(('.svg', '.webp')):
+                # 使用PIL加载SVG和WebP文件
+                from PIL import Image
+                img = Image.open(image_path)
+                # 转换为RGB
+                img = img.convert('RGB')
+                # 转换为numpy数组
+                import numpy as np
+                img = np.array(img)
+            else:
+                # 使用OpenCV加载其他格式
+                img = cv2.imread(image_path)
+                if img is None:
+                    logger.error(f"无法加载图像: {image_path}")
+                    return []
             
             # 调试：打印OCR模型信息
             logger.debug(f"OCR模型类型: {type(self.ocr)}")
@@ -354,14 +387,27 @@ class Preprocessing:
         except Exception as e:
             logger.error(f"预处理失败: {e}")
             # 如果处理失败，返回原始图像的标准化版本
-            img = cv2.imread(image_path)
-            if img is not None:
+            if image_path.lower().endswith('.svg'):
+                # 使用PIL加载SVG文件
+                from PIL import Image
+                img = Image.open(image_path)
+                # 转换为RGB
+                img = img.convert('RGB')
+                # 转换为numpy数组
+                import numpy as np
+                img_rgb = np.array(img)
                 logger.warning("返回原始图像的标准化版本")
-                img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
                 return self.normalize_image(img_rgb), []
             else:
-                logger.error("无法加载图像，抛出异常")
-                raise
+                # 使用OpenCV加载其他格式
+                img = cv2.imread(image_path)
+                if img is not None:
+                    logger.warning("返回原始图像的标准化版本")
+                    img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+                    return self.normalize_image(img_rgb), []
+                else:
+                    logger.error("无法加载图像，抛出异常")
+                    raise
     
     def process_multiple_characters(self, image_path, max_characters=5):
         """处理图片中的多个角色"""

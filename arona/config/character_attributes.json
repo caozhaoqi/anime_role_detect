@@ -229,6 +229,16 @@
         "hair_style": "long_hair",
         "accessories": "none"
       }
+    },
+    "提宝": {
+      "attributes": {
+        "hair_color": "blonde",
+        "eye_color": "blue",
+        "has_halo": false,
+        "outfit": "school_uniform",
+        "hair_style": "long_hair",
+        "accessories": "none"
+      }
     }
   },
   "attribute_mappings": {

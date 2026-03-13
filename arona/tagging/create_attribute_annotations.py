@@ -108,7 +108,7 @@ def create_annotations(data_dir, output_file, config_path=None):
             continue
         
         # 获取角色属性
-        character_attrs = characters[character_cn]
+        character_attrs = characters[character_cn].get('attributes', {})
         
         # 遍历角色目录下的所有图像
         for img_name in os.listdir(character_dir):
