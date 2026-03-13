@@ -5,6 +5,7 @@
 """
 
 import os
+import sys
 import argparse
 import torch
 import torch.nn as nn
@@ -12,17 +13,18 @@ import torch.optim as optim
 from torch.utils.data import DataLoader, Dataset, random_split
 from torchvision import transforms, models
 from PIL import Image
-import logging
 from tqdm import tqdm
 import json
 import numpy as np
 import random
 
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger('train_incremental')
+# 添加项目根目录到Python路径
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
+
+# 使用项目的全局日志系统
+from src.core.logging.global_logger import get_logger, log_training, log_error
+
+logger = get_logger('train_incremental')
 
 
 class CharacterDataset(Dataset):
@@ -159,18 +161,23 @@ def load_existing_model(checkpoint_path, model_type, num_classes, dropout_rate=0
     # 创建新模型
     model = get_model(model_type, num_classes, dropout_rate)
     
-    # 加载除分类器外的参数
-    pretrained_dict = checkpoint['model_state_dict']
-    model_dict = model.state_dict()
+    # 检查模型类型是否相同
+    if 'model_type' in checkpoint and checkpoint['model_type'].startswith(model_type):
+        # 加载除分类器外的参数
+        pretrained_dict = checkpoint['model_state_dict']
+        model_dict = model.state_dict()
+        
+        # 过滤掉分类器层的参数
+        pretrained_dict = {k: v for k, v in pretrained_dict.items() if not k.startswith('classifier') and not k.startswith('fc')}
+        
+        # 更新模型参数
+        model_dict.update(pretrained_dict)
+        model.load_state_dict(model_dict)
+        
+        logger.info("模型加载完成，分类器已重置以适应新的类别数")
+    else:
+        logger.info("模型类型不同，使用新的预训练权重")
     
-    # 过滤掉分类器层的参数
-    pretrained_dict = {k: v for k, v in pretrained_dict.items() if not k.startswith('classifier') and not k.startswith('fc')}
-    
-    # 更新模型参数
-    model_dict.update(pretrained_dict)
-    model.load_state_dict(model_dict)
-    
-    logger.info("模型加载完成，分类器已重置以适应新的类别数")
     return model, checkpoint
 
 
@@ -186,13 +193,11 @@ def train_model(model, train_loader, val_loader, device, num_epochs=50, lr=0.000
     criterion = nn.CrossEntropyLoss(label_smoothing=label_smoothing)
     optimizer = optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)
     
-    # 如果有 checkpoint，加载优化器状态
-    if checkpoint and 'optimizer_state_dict' in checkpoint:
-        try:
-            optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-            logger.info("优化器状态加载完成")
-        except Exception as e:
-            logger.warning(f"优化器状态加载失败: {e}，使用新的优化器")
+    # 不加载优化器状态，因为类别数发生了变化
+    # 如果有 checkpoint，只继承最佳验证准确率
+    if checkpoint and 'val_acc' in checkpoint:
+        best_val_acc = checkpoint['val_acc']
+        logger.info(f"继承之前的最佳验证准确率: {best_val_acc:.2f}%")
     
     scheduler = optim.lr_scheduler.CosineAnnealingWarmRestarts(
         optimizer, T_0=10, T_mult=2, eta_min=lr * 0.01
