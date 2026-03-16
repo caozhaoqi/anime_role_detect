@@ -28,11 +28,13 @@ logger = get_logger('train_incremental')
 
 
 class CharacterDataset(Dataset):
-    def __init__(self, root_dir, transform=None, target_characters=None, existing_class_to_idx=None):
+    def __init__(self, root_dir, transform=None, target_characters=None, existing_class_to_idx=None, keypoint_annotations=None):
         self.root_dir = root_dir
         self.transform = transform
+        self.keypoint_annotations = keypoint_annotations
         self.images = []
         self.labels = []
+        self.keypoints = []
         self.class_to_idx = existing_class_to_idx.copy() if existing_class_to_idx else {}
         
         all_classes = sorted([d for d in os.listdir(root_dir) if os.path.isdir(os.path.join(root_dir, d))])
@@ -54,11 +56,36 @@ class CharacterDataset(Dataset):
             cls_dir = os.path.join(root_dir, cls)
             for img_name in os.listdir(cls_dir):
                 if img_name.lower().endswith(('.jpg', '.jpeg', '.png', '.bmp', '.webp')):
-                    self.images.append(os.path.join(cls_dir, img_name))
+                    img_path = os.path.join(cls_dir, img_name)
+                    self.images.append(img_path)
                     self.labels.append(self.class_to_idx[cls])
+                    
+                    # 加载关键点标注
+                    if self.keypoint_annotations:
+                        # 尝试从标注中获取关键点
+                        keypoint = self._load_keypoint(cls, img_name)
+                        self.keypoints.append(keypoint)
+                    else:
+                        self.keypoints.append(None)
             logger.info(f"角色 {cls}: {len([f for f in os.listdir(cls_dir) if f.lower().endswith(('.jpg', '.jpeg', '.png', '.bmp', '.webp'))])} 张图像")
         
         logger.info(f"数据集初始化完成，包含 {len(self.class_to_idx)} 个类别，{len(self.images)} 张图像")
+        if self.keypoint_annotations:
+            logger.info(f"关键点标注加载完成，包含 {sum(1 for k in self.keypoints if k is not None)} 个标注")
+    
+    def _load_keypoint(self, cls, img_name):
+        """加载图像的关键点标注"""
+        try:
+            # 构建标注文件路径
+            annotation_file = os.path.join(self.keypoint_annotations, f"{cls.replace('/', '_')}_keypoints.json")
+            if os.path.exists(annotation_file):
+                with open(annotation_file, 'r', encoding='utf-8') as f:
+                    annotations = json.load(f)
+                if img_name in annotations:
+                    return annotations[img_name]['keypoints']
+        except Exception as e:
+            logger.warning(f"加载关键点标注失败: {e}")
+        return None
     
     def __len__(self):
         return len(self.images)
@@ -67,11 +94,16 @@ class CharacterDataset(Dataset):
         img_path = self.images[idx]
         image = Image.open(img_path).convert('RGB')
         label = self.labels[idx]
+        keypoint = self.keypoints[idx]
         
         if self.transform:
             image = self.transform(image)
             
-        return image, label
+        # 如果有关键点标注，返回图像、标签和关键点
+        if keypoint:
+            return image, label, keypoint
+        else:
+            return image, label
 
 
 def mixup_data(x, y, alpha=0.4):
@@ -93,62 +125,67 @@ def mixup_criterion(criterion, pred, y_a, y_b, lam):
     return lam * criterion(pred, y_a) + (1 - lam) * criterion(pred, y_b)
 
 
-def get_model(model_type, num_classes, dropout_rate=0.3, checkpoint=None):
-    if model_type == 'mobilenet_v2':
-        logger.info(f"加载模型: MobileNetV2 (dropout={dropout_rate})")
-        model = models.mobilenet_v2(pretrained=not checkpoint)
-        
-        # 调整分类器
-        model.classifier = nn.Sequential(
-            nn.Dropout(p=dropout_rate),
-            nn.Linear(model.classifier[1].in_features, 512),
-            nn.ReLU(inplace=True),
-            nn.BatchNorm1d(512),
-            nn.Dropout(p=dropout_rate * 0.5),
-            nn.Linear(512, num_classes)
-        )
-    elif model_type == 'efficientnet_b0':
-        logger.info(f"加载模型: EfficientNet-B0 (dropout={dropout_rate})")
-        model = models.efficientnet_b0(pretrained=not checkpoint)
-        
-        # 调整分类器
-        model.classifier = nn.Sequential(
-            nn.Dropout(p=dropout_rate),
-            nn.Linear(model.classifier[1].in_features, 512),
-            nn.ReLU(inplace=True),
-            nn.BatchNorm1d(512),
-            nn.Dropout(p=dropout_rate * 0.5),
-            nn.Linear(512, num_classes)
-        )
-    elif model_type == 'efficientnet_b3':
-        logger.info(f"加载模型: EfficientNet-B3 (dropout={dropout_rate})")
-        model = models.efficientnet_b3(pretrained=not checkpoint)
-        
-        # 调整分类器
-        model.classifier = nn.Sequential(
-            nn.Dropout(p=dropout_rate),
-            nn.Linear(model.classifier[1].in_features, 512),
-            nn.ReLU(inplace=True),
-            nn.BatchNorm1d(512),
-            nn.Dropout(p=dropout_rate * 0.5),
-            nn.Linear(512, num_classes)
-        )
-    elif model_type == 'resnet50':
-        logger.info(f"加载模型: ResNet50 (dropout={dropout_rate})")
-        model = models.resnet50(pretrained=not checkpoint)
-        
-        # 调整分类器
-        num_ftrs = model.fc.in_features
-        model.fc = nn.Sequential(
-            nn.Dropout(p=dropout_rate),
-            nn.Linear(num_ftrs, 512),
-            nn.ReLU(inplace=True),
-            nn.BatchNorm1d(512),
-            nn.Dropout(p=dropout_rate * 0.5),
-            nn.Linear(512, num_classes)
-        )
+def get_model(model_type, num_classes, dropout_rate=0.3, checkpoint=None, use_keypoints=False):
+    if use_keypoints:
+        logger.info(f"加载模型: {model_type} (支持关键点)")
+        from models.keypoint_aware_model import get_keypoint_aware_model
+        model = get_keypoint_aware_model(model_type, num_classes)
     else:
-        raise ValueError(f"不支持的模型类型: {model_type}")
+        if model_type == 'mobilenet_v2':
+            logger.info(f"加载模型: MobileNetV2 (dropout={dropout_rate})")
+            model = models.mobilenet_v2(pretrained=not checkpoint)
+            
+            # 调整分类器
+            model.classifier = nn.Sequential(
+                nn.Dropout(p=dropout_rate),
+                nn.Linear(model.classifier[1].in_features, 512),
+                nn.ReLU(inplace=True),
+                nn.BatchNorm1d(512),
+                nn.Dropout(p=dropout_rate * 0.5),
+                nn.Linear(512, num_classes)
+            )
+        elif model_type == 'efficientnet_b0':
+            logger.info(f"加载模型: EfficientNet-B0 (dropout={dropout_rate})")
+            model = models.efficientnet_b0(pretrained=not checkpoint)
+            
+            # 调整分类器
+            model.classifier = nn.Sequential(
+                nn.Dropout(p=dropout_rate),
+                nn.Linear(model.classifier[1].in_features, 512),
+                nn.ReLU(inplace=True),
+                nn.BatchNorm1d(512),
+                nn.Dropout(p=dropout_rate * 0.5),
+                nn.Linear(512, num_classes)
+            )
+        elif model_type == 'efficientnet_b3':
+            logger.info(f"加载模型: EfficientNet-B3 (dropout={dropout_rate})")
+            model = models.efficientnet_b3(pretrained=not checkpoint)
+            
+            # 调整分类器
+            model.classifier = nn.Sequential(
+                nn.Dropout(p=dropout_rate),
+                nn.Linear(model.classifier[1].in_features, 512),
+                nn.ReLU(inplace=True),
+                nn.BatchNorm1d(512),
+                nn.Dropout(p=dropout_rate * 0.5),
+                nn.Linear(512, num_classes)
+            )
+        elif model_type == 'resnet50':
+            logger.info(f"加载模型: ResNet50 (dropout={dropout_rate})")
+            model = models.resnet50(pretrained=not checkpoint)
+            
+            # 调整分类器
+            num_ftrs = model.fc.in_features
+            model.fc = nn.Sequential(
+                nn.Dropout(p=dropout_rate),
+                nn.Linear(num_ftrs, 512),
+                nn.ReLU(inplace=True),
+                nn.BatchNorm1d(512),
+                nn.Dropout(p=dropout_rate * 0.5),
+                nn.Linear(512, num_classes)
+            )
+        else:
+            raise ValueError(f"不支持的模型类型: {model_type}")
     
     return model
 
@@ -158,8 +195,11 @@ def load_existing_model(checkpoint_path, model_type, num_classes, dropout_rate=0
     logger.info(f"加载已有模型: {checkpoint_path}")
     checkpoint = torch.load(checkpoint_path)
     
+    # 检查是否使用关键点
+    use_keypoints = checkpoint.get('use_keypoints', False)
+    
     # 创建新模型
-    model = get_model(model_type, num_classes, dropout_rate)
+    model = get_model(model_type, num_classes, dropout_rate, use_keypoints=use_keypoints)
     
     # 检查模型类型是否相同
     if 'model_type' in checkpoint and checkpoint['model_type'].startswith(model_type):
@@ -168,7 +208,12 @@ def load_existing_model(checkpoint_path, model_type, num_classes, dropout_rate=0
         model_dict = model.state_dict()
         
         # 过滤掉分类器层的参数
-        pretrained_dict = {k: v for k, v in pretrained_dict.items() if not k.startswith('classifier') and not k.startswith('fc')}
+        if use_keypoints:
+            # 对于关键点感知模型，过滤掉分类器和keypoint_encoder层
+            pretrained_dict = {k: v for k, v in pretrained_dict.items() if not k.startswith('classifier') and not k.startswith('keypoint_encoder')}
+        else:
+            # 对于普通模型，过滤掉分类器层
+            pretrained_dict = {k: v for k, v in pretrained_dict.items() if not k.startswith('classifier') and not k.startswith('fc')}
         
         # 更新模型参数
         model_dict.update(pretrained_dict)
@@ -183,10 +228,11 @@ def load_existing_model(checkpoint_path, model_type, num_classes, dropout_rate=0
 
 def train_model(model, train_loader, val_loader, device, num_epochs=50, lr=0.0008, weight_decay=0.0003, 
                 output_dir='models/incremental', class_to_idx=None, use_mixup=True, label_smoothing=0.08, 
-                checkpoint=None, model_type='mobilenet_v2'):
+                checkpoint=None, model_type='mobilenet_v2', use_keypoints=False):
     logger.info(f"开始增量训练，设备: {device}")
     logger.info(f"训练轮数: {num_epochs}, 学习率: {lr}, 权重衰减: {weight_decay}")
     logger.info(f"数据增强: Mixup={use_mixup}, 标签平滑={label_smoothing}")
+    logger.info(f"使用关键点: {use_keypoints}")
     
     os.makedirs(output_dir, exist_ok=True)
     
@@ -224,18 +270,34 @@ def train_model(model, train_loader, val_loader, device, num_epochs=50, lr=0.000
         train_total = 0
         
         pbar = tqdm(train_loader, desc=f'Epoch {epoch+1}/{num_epochs} [Train]')
-        for images, labels in pbar:
+        for batch in pbar:
+            # 处理不同的批次格式
+            if len(batch) == 3:
+                images, labels, keypoints = batch
+            else:
+                images, labels = batch
+                keypoints = None
+            
             images, labels = images.to(device), labels.to(device)
             
             if use_mixup and random.random() < 0.5:
                 images, labels_a, labels_b, lam = mixup_data(images, labels, alpha=0.4)
                 optimizer.zero_grad()
-                outputs = model(images)
+                if use_keypoints and keypoints is not None:
+                    outputs = model(images, keypoints)
+                else:
+                    outputs = model(images)
                 loss = mixup_criterion(criterion, outputs, labels_a, labels_b, lam)
             else:
                 optimizer.zero_grad()
-                outputs = model(images)
+                if use_keypoints and keypoints is not None:
+                    outputs = model(images, keypoints)
+                else:
+                    outputs = model(images)
                 loss = criterion(outputs, labels)
+            
+            # 如果有关键点信息，可以在这里添加关键点相关的损失
+            # 例如：loss += keypoint_loss(keypoints, predicted_keypoints)
             
             loss.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
@@ -261,10 +323,23 @@ def train_model(model, train_loader, val_loader, device, num_epochs=50, lr=0.000
         val_total = 0
         
         with torch.no_grad():
-            for images, labels in tqdm(val_loader, desc=f'Epoch {epoch+1}/{num_epochs} [Val]'):
+            for batch in tqdm(val_loader, desc=f'Epoch {epoch+1}/{num_epochs} [Val]'):
+                # 处理不同的批次格式
+                if len(batch) == 3:
+                    images, labels, keypoints = batch
+                else:
+                    images, labels = batch
+                    keypoints = None
+                
                 images, labels = images.to(device), labels.to(device)
-                outputs = model(images)
+                if use_keypoints and keypoints is not None:
+                    outputs = model(images, keypoints)
+                else:
+                    outputs = model(images)
                 loss = criterion(outputs, labels)
+                
+                # 如果有关键点信息，可以在这里添加关键点相关的损失
+                # 例如：loss += keypoint_loss(keypoints, predicted_keypoints)
                 
                 val_loss += loss.item()
                 _, predicted = torch.max(outputs, 1)
@@ -287,7 +362,8 @@ def train_model(model, train_loader, val_loader, device, num_epochs=50, lr=0.000
             'model_state_dict': model.state_dict(),
             'optimizer_state_dict': optimizer.state_dict(),
             'val_acc': val_acc,
-            'class_to_idx': class_to_idx
+            'class_to_idx': class_to_idx,
+            'use_keypoints': use_keypoints
         }, os.path.join(output_dir, 'model_best.pth'))
         logger.info(f'保存模型，验证准确率: {val_acc:.2f}%')
         
@@ -337,6 +413,7 @@ def main():
     parser.add_argument('--label-smoothing', type=float, default=0.08, help='标签平滑系数')
     parser.add_argument('--use-mixup', action='store_true', help='使用Mixup数据增强')
     parser.add_argument('--output-dir', type=str, default='models/incremental', help='输出目录')
+    parser.add_argument('--keypoint-annotations', type=str, default=None, help='关键点标注目录')
     
     args = parser.parse_args()
     
@@ -375,7 +452,12 @@ def main():
             logger.info(f"加载已有类别映射: {existing_class_to_idx}")
     
     logger.info('加载数据集...')
-    full_dataset = CharacterDataset(args.data_dir, transform=train_transform, existing_class_to_idx=existing_class_to_idx)
+    full_dataset = CharacterDataset(
+        args.data_dir, 
+        transform=train_transform, 
+        existing_class_to_idx=existing_class_to_idx,
+        keypoint_annotations=args.keypoint_annotations
+    )
     
     train_size = int(0.8 * len(full_dataset))
     val_size = len(full_dataset) - train_size
@@ -410,7 +492,8 @@ def main():
         use_mixup=args.use_mixup,
         label_smoothing=args.label_smoothing,
         checkpoint=checkpoint,
-        model_type=args.model_type
+        model_type=args.model_type,
+        use_keypoints=args.keypoint_annotations is not None
     )
     
     logger.info('增量训练完成！')

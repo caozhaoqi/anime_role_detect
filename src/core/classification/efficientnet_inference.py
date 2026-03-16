@@ -8,6 +8,7 @@ from collections import OrderedDict
 import numpy as np
 from concurrent.futures import ThreadPoolExecutor
 import time
+from src.core.keypoint.mediapipe_keypoint_detector import MediaPipeKeypointDetector
 
 class EfficientNetInference:
     _instance = None
@@ -18,14 +19,16 @@ class EfficientNetInference:
             cls._instance.initialized = False
         return cls._instance
 
-    def __init__(self, model_path=None, data_dir=None, enable_optimizations=True):
+    def __init__(self, model_path=None, data_dir=None, enable_optimizations=True, enable_keypoint_detection=True):
         if self.initialized and getattr(self, 'model_path', None) == model_path:
             return
             
         self.device = torch.device("cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")
         self.enable_optimizations = enable_optimizations
+        self.enable_keypoint_detection = enable_keypoint_detection
         print(f"EfficientNet推理使用设备: {self.device}")
         print(f"启用优化: {self.enable_optimizations}")
+        print(f"启用关键点检测: {self.enable_keypoint_detection}")
         
         # 默认路径配置
         if model_path is None:
@@ -61,6 +64,19 @@ class EfficientNetInference:
         self.classes = self._load_classes()
         self.model = self._load_model()
         self.transform = self._get_transforms()
+        
+        # 初始化关键点检测器
+        if self.enable_keypoint_detection:
+            try:
+                self.keypoint_detector = MediaPipeKeypointDetector()
+                print("关键点检测器初始化成功")
+            except Exception as e:
+                print(f"关键点检测器初始化失败: {e}")
+                self.enable_keypoint_detection = False
+                self.keypoint_detector = None
+        else:
+            self.keypoint_detector = None
+        
         self.initialized = True
         
         # 性能统计
@@ -252,16 +268,17 @@ class EfficientNetInference:
             )
         ])
 
-    def predict_with_tags(self, image_path, top_k=5, tags=None):
+    def predict_with_tags(self, image_path, top_k=5, tags=None, return_keypoints=True):
         """使用标签辅助预测图片角色
         
         Args:
             image_path: 图片路径
             top_k: 返回前k个结果
             tags: DeepDanbooru标签列表，如果为None则自动提取
+            return_keypoints: 是否返回关键点信息
             
         Returns:
-            (best_role, best_score, results): 最佳角色、最佳相似度、所有结果
+            (best_role, best_score, results, keypoints): 最佳角色、最佳相似度、所有结果、关键点信息
         """
         start_time = time.time()
         
@@ -280,6 +297,16 @@ class EfficientNetInference:
             # 预测图片角色
             image = Image.open(image_path).convert('RGB')
             image_tensor = self.transform(image).unsqueeze(0).to(self.device)
+            
+            # 检测关键点
+            keypoints = None
+            if self.enable_keypoint_detection and return_keypoints:
+                try:
+                    keypoints = self.keypoint_detector.detect_keypoints(image)
+                    print(f"关键点检测完成: 面部={keypoints['face'] is not None}, 手部={keypoints['hands'] is not None}, 姿态={keypoints['pose'] is not None}")
+                except Exception as e:
+                    print(f"关键点检测失败: {e}")
+                    keypoints = None
             
             # 如果启用了FP16，转换输入
             if self.enable_optimizations and torch.cuda.is_available():
@@ -349,7 +376,7 @@ class EfficientNetInference:
             results.sort(key=lambda x: x['similarity'], reverse=True)
             
             if not results:
-                return "Unknown", 0.0, []
+                return "Unknown", 0.0, [], keypoints
                 
             # 返回最佳结果和完整列表
             best_role = results[0]["role"]
@@ -362,17 +389,17 @@ class EfficientNetInference:
                 avg_time = sum(self.inference_times) / len(self.inference_times)
                 print(f"平均推理时间: {avg_time:.4f}秒")
             
-            return best_role, best_score, results
+            return best_role, best_score, results, keypoints
             
         except Exception as e:
             print(f"推理失败: {e}")
-            return None, 0.0, []
+            return None, 0.0, [], None
     
-    def predict(self, image_path, top_k=5):
+    def predict(self, image_path, top_k=5, return_keypoints=True):
         """预测图片角色"""
-        return self.predict_with_tags(image_path, top_k, tags=None)
+        return self.predict_with_tags(image_path, top_k, tags=None, return_keypoints=return_keypoints)
 
-    def predict_batch(self, image_paths, batch_size=32, top_k=5):
+    def predict_batch(self, image_paths, batch_size=32, top_k=5, return_keypoints=False):
         """批量预测多张图片"""
         if not image_paths:
             return []
@@ -386,11 +413,13 @@ class EfficientNetInference:
                 batch_paths = image_paths[i:i+batch_size]
                 batch_images = []
                 valid_indices = []
+                original_images = []  # 保存原始图像用于关键点检测
                 
                 # 加载和预处理批量图像
                 for j, img_path in enumerate(batch_paths):
                     try:
                         image = Image.open(img_path).convert('RGB')
+                        original_images.append(image)
                         image_tensor = self.transform(image)
                         batch_images.append(image_tensor)
                         valid_indices.append(j)
@@ -418,10 +447,11 @@ class EfficientNetInference:
                     top_probs, top_idxs = torch.topk(probabilities, k)
                 
                 # 处理批量结果
-                for j, (img_path, probs, idxs) in enumerate(zip(
+                for j, (img_path, probs, idxs, original_image) in enumerate(zip(
                     [batch_paths[idx] for idx in valid_indices], 
                     top_probs, 
-                    top_idxs
+                    top_idxs,
+                    [original_images[idx] for idx in valid_indices]
                 )):
                     img_results = []
                     for prob, idx in zip(probs, idxs):
@@ -434,22 +464,37 @@ class EfficientNetInference:
                                 "similarity": prob
                             })
                     
+                    # 检测关键点
+                    keypoints = None
+                    if self.enable_keypoint_detection and return_keypoints:
+                        try:
+                            keypoints = self.keypoint_detector.detect_keypoints(original_image)
+                        except Exception as e:
+                            print(f"关键点检测失败 ({img_path}): {e}")
+                            keypoints = None
+                    
                     if img_results:
                         best_role = img_results[0]["role"]
                         best_score = img_results[0]["similarity"]
-                        results.append({
+                        result = {
                             "image_path": img_path,
                             "best_role": best_role,
                             "best_score": best_score,
                             "all_results": img_results
-                        })
+                        }
+                        if return_keypoints:
+                            result["keypoints"] = keypoints
+                        results.append(result)
                     else:
-                        results.append({
+                        result = {
                             "image_path": img_path,
                             "best_role": "Unknown",
                             "best_score": 0.0,
                             "all_results": []
-                        })
+                        }
+                        if return_keypoints:
+                            result["keypoints"] = keypoints
+                        results.append(result)
             
             # 计算批量处理时间
             total_time = time.time() - start_time
@@ -462,7 +507,7 @@ class EfficientNetInference:
             print(f"批量推理失败: {e}")
             return []
 
-    def predict_parallel(self, image_paths, num_workers=4, top_k=5):
+    def predict_parallel(self, image_paths, num_workers=4, top_k=5, return_keypoints=False):
         """并行预测多张图片"""
         if not image_paths:
             return []
@@ -474,19 +519,26 @@ class EfficientNetInference:
             # 使用线程池并行处理
             with ThreadPoolExecutor(max_workers=num_workers) as executor:
                 # 提交所有预测任务
-                future_to_path = {executor.submit(self.predict, path, top_k): path for path in image_paths}
+                future_to_path = {executor.submit(self.predict, path, top_k, return_keypoints): path for path in image_paths}
                 
                 # 收集结果
                 for future in future_to_path:
                     img_path = future_to_path[future]
                     try:
-                        best_role, best_score, all_results = future.result()
-                        results.append({
+                        if return_keypoints:
+                            best_role, best_score, all_results, keypoints = future.result()
+                        else:
+                            best_role, best_score, all_results, keypoints = future.result()
+                        
+                        result = {
                             "image_path": img_path,
                             "best_role": best_role,
                             "best_score": best_score,
                             "all_results": all_results
-                        })
+                        }
+                        if return_keypoints:
+                            result["keypoints"] = keypoints
+                        results.append(result)
                     except Exception as e:
                         print(f"处理图像 {img_path} 失败: {e}")
                         results.append({
@@ -526,11 +578,40 @@ class EfficientNetInference:
         """清除性能统计信息"""
         self.inference_times = []
         print("性能统计信息已清除")
+    
+    def close(self):
+        """关闭检测器"""
+        if hasattr(self, 'keypoint_detector') and self.keypoint_detector:
+            try:
+                self.keypoint_detector.close()
+                print("关键点检测器已关闭")
+            except Exception as e:
+                print(f"关闭关键点检测器失败: {e}")
 
 if __name__ == "__main__":
     # 测试代码
     try:
         infer = EfficientNetInference()
         print("模型初始化成功")
+        
+        # 测试预测功能（带关键点检测）
+        test_image = "test_image.jpg"
+        if os.path.exists(test_image):
+            print(f"测试预测: {test_image}")
+            best_role, best_score, results, keypoints = infer.predict(test_image, return_keypoints=True)
+            print(f"预测结果: {best_role} (相似度: {best_score:.4f})")
+            print(f"关键点检测: {keypoints is not None}")
+            if keypoints:
+                print(f"面部检测: {keypoints['face'] is not None}")
+                print(f"手部检测: {keypoints['hands'] is not None}")
+                print(f"姿态检测: {keypoints['pose'] is not None}")
+        else:
+            print(f"测试图像不存在: {test_image}")
+            
+        # 关闭检测器
+        infer.close()
+        
     except Exception as e:
         print(f"初始化失败: {e}")
+        import traceback
+        traceback.print_exc()
