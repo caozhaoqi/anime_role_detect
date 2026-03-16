@@ -124,22 +124,22 @@ class MediaPipeKeypointDetector:
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         
         # 调整Haar级联分类器的参数，提高面部检测的成功率
-        # 减小scaleFactor，增加minNeighbors，提高检测精度
+        # 使用多个scaleFactor进行检测
         faces = self.face_cascade.detectMultiScale(
             gray, 
-            scaleFactor=1.03,  # 更精细的缩放
+            scaleFactor=1.02,  # 更精细的缩放
             minNeighbors=2,     # 更少的邻居数，提高检测率
-            minSize=(20, 20),   # 最小面部大小
-            maxSize=(400, 400)  # 最大面部大小
+            minSize=(15, 15),   # 减小最小面部大小
+            maxSize=(500, 500)  # 增加最大面部大小
         )
         
         # 检测侧面脸
         profile_faces = self.profile_face_cascade.detectMultiScale(
             gray, 
-            scaleFactor=1.03, 
+            scaleFactor=1.02, 
             minNeighbors=2,
-            minSize=(20, 20),
-            maxSize=(400, 400)
+            minSize=(15, 15),
+            maxSize=(500, 500)
         )
         
         # 合并检测结果，避免重复
@@ -192,18 +192,54 @@ class MediaPipeKeypointDetector:
             roi_gray = gray[y:y+h, x:x+w]
             eyes = self.eye_cascade.detectMultiScale(
                 roi_gray, 
-                scaleFactor=1.1, 
+                scaleFactor=1.05, 
                 minNeighbors=2,
-                minSize=(5, 5)
+                minSize=(3, 3)
             )
             
             keypoints = []
             # 添加眼睛关键点
             for (ex, ey, ew, eh) in eyes:
-                keypoints.append({'x': x + ex + ew//2, 'y': y + ey + eh//2})
+                keypoints.append({
+                    'x': x + ex + ew//2, 
+                    'y': y + ey + eh//2,
+                    'type': 'eye'
+                })
             
             # 添加面部中心点
-            keypoints.append({'x': x + w//2, 'y': y + h//2})
+            keypoints.append({
+                'x': x + w//2, 
+                'y': y + h//2,
+                'type': 'face_center'
+            })
+            
+            # 添加耳朵关键点（基于面部位置估算）
+            # 左耳
+            keypoints.append({
+                'x': x - w//8,
+                'y': y + h//2,
+                'type': 'left_ear'
+            })
+            # 右耳
+            keypoints.append({
+                'x': x + w + w//8,
+                'y': y + h//2,
+                'type': 'right_ear'
+            })
+            
+            # 添加鼻子关键点
+            keypoints.append({
+                'x': x + w//2,
+                'y': y + h*2//3,
+                'type': 'nose'
+            })
+            
+            # 添加嘴巴关键点
+            keypoints.append({
+                'x': x + w//2,
+                'y': y + h*4//5,
+                'type': 'mouth'
+            })
             
             face_keypoints.append({
                 'keypoints': keypoints,
@@ -503,9 +539,40 @@ class MediaPipeKeypointDetector:
                 cv2.putText(img_rgb, 'Face', (bbox['x1'], bbox['y1'] - 10), 
                            cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 0), 2)
                 
-                # 绘制关键点
+                # 根据关键点类型使用不同的颜色
                 for point in face['keypoints']:
-                    cv2.circle(img_rgb, (point['x'], point['y']), 3, (0, 255, 0), -1)
+                    point_type = point.get('type', 'unknown')
+                    if point_type == 'eye':
+                        color = (0, 255, 255)  # 黄色眼睛
+                        cv2.circle(img_rgb, (point['x'], point['y']), 3, color, -1)
+                        cv2.putText(img_rgb, 'Eye', (point['x'] + 10, point['y']), 
+                                   cv2.FONT_HERSHEY_SIMPLEX, 0.4, color, 1)
+                    elif point_type == 'face_center':
+                        color = (0, 255, 0)  # 绿色面部中心
+                        cv2.circle(img_rgb, (point['x'], point['y']), 4, color, -1)
+                    elif point_type == 'left_ear':
+                        color = (255, 255, 0)  # 青色左耳
+                        cv2.circle(img_rgb, (point['x'], point['y']), 3, color, -1)
+                        cv2.putText(img_rgb, 'L.Ear', (point['x'] + 10, point['y']), 
+                                   cv2.FONT_HERSHEY_SIMPLEX, 0.4, color, 1)
+                    elif point_type == 'right_ear':
+                        color = (255, 0, 255)  # 紫色右耳
+                        cv2.circle(img_rgb, (point['x'], point['y']), 3, color, -1)
+                        cv2.putText(img_rgb, 'R.Ear', (point['x'] + 10, point['y']), 
+                                   cv2.FONT_HERSHEY_SIMPLEX, 0.4, color, 1)
+                    elif point_type == 'nose':
+                        color = (0, 165, 255)  # 橙色鼻子
+                        cv2.circle(img_rgb, (point['x'], point['y']), 3, color, -1)
+                        cv2.putText(img_rgb, 'Nose', (point['x'] + 10, point['y']), 
+                                   cv2.FONT_HERSHEY_SIMPLEX, 0.4, color, 1)
+                    elif point_type == 'mouth':
+                        color = (0, 0, 255)  # 红色嘴巴
+                        cv2.circle(img_rgb, (point['x'], point['y']), 3, color, -1)
+                        cv2.putText(img_rgb, 'Mouth', (point['x'] + 10, point['y']), 
+                                   cv2.FONT_HERSHEY_SIMPLEX, 0.4, color, 1)
+                    else:
+                        color = (0, 255, 0)
+                        cv2.circle(img_rgb, (point['x'], point['y']), 3, color, -1)
         
         # 绘制手部关键点
         if keypoints.get('hands'):
