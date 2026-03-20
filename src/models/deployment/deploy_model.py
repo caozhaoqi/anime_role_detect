@@ -27,8 +27,8 @@ logger = logging.getLogger('model_deployment')
 # 添加项目根目录到Python路径
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from models.training.train_simple import SimpleCharacterClassifier
-from models.training.train_resnet import ResNetCharacterClassifier
+from src.models.training.train_simple import SimpleCharacterClassifier
+from src.models.training.train_resnet import ResNetCharacterClassifier
 
 class ModelManager:
     """模型版本管理类"""

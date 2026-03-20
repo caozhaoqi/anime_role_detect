@@ -2,7 +2,7 @@ import os
 import traceback
 from datetime import datetime
 
-from core.logging.global_logger import get_logger
+from src.core.logging.global_logger import get_logger
 
 class ExceptionHandling:
     def __init__(self, log_dir="logs"):

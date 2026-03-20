@@ -8,8 +8,8 @@ from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 from functools import lru_cache
 
-from utils.cache_manager import cache_manager
-from core.logging.global_logger import get_logger, log_system, log_error
+from src.utils.cache_manager import cache_manager
+from src.core.logging.global_logger import get_logger, log_system, log_error
 
 logger = get_logger("http_utils")
 

@@ -6,7 +6,7 @@ import os
 import json
 from typing import Dict, Any
 
-from core.logging.global_logger import get_logger, log_system, log_error
+from src.core.logging.global_logger import get_logger, log_system, log_error
 
 logger = get_logger("config_manager")
 

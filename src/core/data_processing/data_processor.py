@@ -11,8 +11,8 @@ import json
 
 # 添加项目根目录到Python路径
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../../..')))
-from core.utils.utils import load_json, save_json, create_directory, list_files
-from core.logging.global_logger import get_logger
+from src.core.utils.utils import load_json, save_json, create_directory, list_files
+from src.core.logging.global_logger import get_logger
 
 logger = get_logger("data_processing")
 

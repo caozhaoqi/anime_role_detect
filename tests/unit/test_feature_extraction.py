@@ -45,7 +45,7 @@ class TestFeatureExtraction(unittest.TestCase):
         feature = self.extractor.extract_features(self.test_image)
         
         # 检查特征形状
-        self.assertEqual(feature.shape, (768,))  # CLIP特征维度
+        self.assertEqual(feature.shape, (512,))  # CLIP ViT-B/32特征维度
         
         # 检查特征值是否为数值
         self.assertTrue(np.issubdtype(feature.dtype, np.floating))

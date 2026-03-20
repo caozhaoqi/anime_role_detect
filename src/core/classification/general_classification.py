@@ -19,7 +19,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..',
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
 
 # 使用全局日志系统
-from core.logging.global_logger import get_logger, log_system, log_error
+from src.core.logging.global_logger import get_logger, log_system, log_error
 logger = get_logger("general_classification")
 
 # 导入日志记录模块

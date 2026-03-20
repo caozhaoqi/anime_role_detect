@@ -12,7 +12,7 @@ import json
 from tqdm import tqdm
 from transformers import CLIPProcessor, CLIPModel
 
-from core.logging.global_logger import get_logger
+from src.core.logging.global_logger import get_logger
 
 logger = get_logger("image_tagger")
 

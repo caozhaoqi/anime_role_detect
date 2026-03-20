@@ -9,7 +9,7 @@ import numpy as np
 import faiss
 from datetime import datetime
 
-from core.logging.global_logger import get_logger
+from src.core.logging.global_logger import get_logger
 
 logger = get_logger("log_fusion")
 

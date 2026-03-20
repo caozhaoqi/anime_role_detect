@@ -21,7 +21,7 @@ class TestClassification(unittest.TestCase):
         self.classifier = Classification(threshold=0.7)
         
         # 创建测试数据
-        self.dim = 768  # CLIP特征维度
+        self.dim = 512  # CLIP ViT-B/32特征维度
         self.num_roles = 2
         self.num_samples_per_role = 5
         

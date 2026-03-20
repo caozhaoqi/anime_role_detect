@@ -17,12 +17,12 @@ from fastapi import FastAPI, HTTPException, Query, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from utils.http_utils import HTTPUtils
-from utils.image_utils import ImageUtils
-from utils.monitoring_system import MonitoringSystem
-from utils.cache_manager import cache_manager
-from utils.distributed_manager import DistributedManager
-from core.logging.global_logger import get_logger
+from src.utils.http_utils import HTTPUtils
+from src.utils.image_utils import ImageUtils
+from src.utils.monitoring_system import MonitoringSystem
+from src.utils.cache_manager import cache_manager
+from src.utils.distributed_manager import DistributedManager
+from src.core.logging.global_logger import get_logger
 
 logger = get_logger("api_service")
 

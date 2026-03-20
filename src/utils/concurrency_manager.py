@@ -7,7 +7,7 @@ import psutil
 import time
 from concurrent.futures import ThreadPoolExecutor
 
-from core.logging.global_logger import get_logger, log_system, log_error
+from src.core.logging.global_logger import get_logger, log_system, log_error
 
 logger = get_logger("concurrency_manager")
 

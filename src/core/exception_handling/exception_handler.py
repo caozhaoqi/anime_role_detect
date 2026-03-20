@@ -5,7 +5,7 @@
 import traceback
 from typing import Callable, Any, Optional
 
-from core.logging.global_logger import get_logger
+from src.core.logging.global_logger import get_logger
 
 logger = get_logger(__name__)
 

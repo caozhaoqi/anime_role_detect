@@ -13,7 +13,7 @@ from tqdm import tqdm
 from transformers import AutoProcessor, AutoModelForImageClassification, CLIPProcessor, CLIPModel
 import requests
 
-from core.logging.global_logger import get_logger
+from src.core.logging.global_logger import get_logger
 
 logger = get_logger("wd_vit_v3_tagger")
 
