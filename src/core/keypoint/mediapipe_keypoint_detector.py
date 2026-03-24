@@ -180,6 +180,8 @@ class MediaPipeKeypointDetector:
         face_keypoints = []
         
         for (x, y, w, h) in all_faces:
+            # 转换为Python原生类型
+            x, y, w, h = int(x), int(y), int(w), int(h)
             # 计算面部边界框
             bbox = {
                 'x1': x,
@@ -200,44 +202,45 @@ class MediaPipeKeypointDetector:
             keypoints = []
             # 添加眼睛关键点
             for (ex, ey, ew, eh) in eyes:
+                ex, ey, ew, eh = int(ex), int(ey), int(ew), int(eh)
                 keypoints.append({
-                    'x': x + ex + ew//2, 
-                    'y': y + ey + eh//2,
+                    'x': int(x + ex + ew//2), 
+                    'y': int(y + ey + eh//2),
                     'type': 'eye'
                 })
             
             # 添加面部中心点
             keypoints.append({
-                'x': x + w//2, 
-                'y': y + h//2,
+                'x': int(x + w//2), 
+                'y': int(y + h//2),
                 'type': 'face_center'
             })
             
             # 添加耳朵关键点（基于面部位置估算）
             # 左耳
             keypoints.append({
-                'x': x - w//8,
-                'y': y + h//2,
+                'x': int(x - w//8),
+                'y': int(y + h//2),
                 'type': 'left_ear'
             })
             # 右耳
             keypoints.append({
-                'x': x + w + w//8,
-                'y': y + h//2,
+                'x': int(x + w + w//8),
+                'y': int(y + h//2),
                 'type': 'right_ear'
             })
             
             # 添加鼻子关键点
             keypoints.append({
-                'x': x + w//2,
-                'y': y + h*2//3,
+                'x': int(x + w//2),
+                'y': int(y + h*2//3),
                 'type': 'nose'
             })
             
             # 添加嘴巴关键点
             keypoints.append({
-                'x': x + w//2,
-                'y': y + h*4//5,
+                'x': int(x + w//2),
+                'y': int(y + h*4//5),
                 'type': 'mouth'
             })
             
@@ -287,6 +290,7 @@ class MediaPipeKeypointDetector:
             if area > 300:  # 进一步减小最小面积阈值，提高检测率
                 # 计算边界框
                 x, y, w, h = cv2.boundingRect(contour)
+                x, y, w, h = int(x), int(y), int(w), int(h)
                 
                 # 过滤掉过大或过小的轮廓，同时考虑宽高比
                 aspect_ratio = w / float(h)
@@ -329,8 +333,8 @@ class MediaPipeKeypointDetector:
                                                 if isinstance(far, tuple) and len(far) == 2:
                                                     # 计算指尖和手掌中心的距离
                                                     dist = ((end[0] - cx) ** 2 + (end[1] - cy) ** 2) ** 0.5
-                                                    if d > 1000 and dist > 20:
-                                                        keypoints.append({'x': end[0], 'y': end[1], 'type': 'finger'})
+                                                    if int(d) > 1000 and dist > 20:
+                                                        keypoints.append({'x': int(end[0]), 'y': int(end[1]), 'type': 'finger'})
                                             except Exception as e:
                                                 pass
                                 
@@ -343,8 +347,8 @@ class MediaPipeKeypointDetector:
                                     'keypoints': keypoints,
                                     'bbox': bbox,
                                     'handedness': handedness,
-                                    'area': area,
-                                    'circularity': circularity
+                                    'area': float(area),
+                                    'circularity': float(circularity)
                                 })
         
         # 过滤重叠的手部检测结果
@@ -431,13 +435,13 @@ class MediaPipeKeypointDetector:
             return None
         
         # 计算身体边界框
-        x_coords = [p[0] for p in points]
-        y_coords = [p[1] for p in points]
+        x_coords = [int(p[0]) for p in points]
+        y_coords = [int(p[1]) for p in points]
         bbox = {
-            'x1': min(x_coords),
-            'y1': min(y_coords),
-            'x2': max(x_coords),
-            'y2': max(y_coords)
+            'x1': int(min(x_coords)),
+            'y1': int(min(y_coords)),
+            'x2': int(max(x_coords)),
+            'y2': int(max(y_coords))
         }
         
         # 扩展边界框，使其更符合身体比例
@@ -449,8 +453,8 @@ class MediaPipeKeypointDetector:
             # 增加高度
             new_height = int(width * 2.0)  # 进一步增加高度，更符合人体比例
             center_y = (bbox['y1'] + bbox['y2']) // 2
-            bbox['y1'] = max(0, center_y - new_height // 2)
-            bbox['y2'] = bbox['y1'] + new_height
+            bbox['y1'] = max(0, int(center_y - new_height // 2))
+            bbox['y2'] = int(bbox['y1'] + new_height)
         
         # 重新计算宽高
         width = bbox['x2'] - bbox['x1']
@@ -461,53 +465,54 @@ class MediaPipeKeypointDetector:
         
         # 头部关键点（使用面部中心点）
         if face_center:
-            head_x, head_y = face_center
+            head_x, head_y = int(face_center[0]), int(face_center[1])
         else:
-            head_x, head_y = (bbox['x1'] + bbox['x2']) // 2, bbox['y1']
+            head_x, head_y = int((bbox['x1'] + bbox['x2']) // 2), int(bbox['y1'])
         keypoints.append({'x': head_x, 'y': head_y, 'visibility': 1.0, 'name': 'Head'})  # 头部
         
         # 颈部关键点
-        neck_x, neck_y = head_x, head_y + height // 6
+        neck_x, neck_y = int(head_x), int(head_y + height // 6)
         keypoints.append({'x': neck_x, 'y': neck_y, 'visibility': 1.0, 'name': 'Neck'})  # 颈部
         
         # 肩部关键点
-        left_shoulder_x, left_shoulder_y = bbox['x1'] + width // 4, neck_y
-        right_shoulder_x, right_shoulder_y = bbox['x2'] - width // 4, neck_y
+        left_shoulder_x, left_shoulder_y = int(bbox['x1'] + width // 4), int(neck_y)
+        right_shoulder_x, right_shoulder_y = int(bbox['x2'] - width // 4), int(neck_y)
         keypoints.append({'x': left_shoulder_x, 'y': left_shoulder_y, 'visibility': 1.0, 'name': 'Left Shoulder'})  # 左肩
         keypoints.append({'x': right_shoulder_x, 'y': right_shoulder_y, 'visibility': 1.0, 'name': 'Right Shoulder'})  # 右肩
         
         # 肘部关键点（使用手部位置）
-        left_elbow_x, left_elbow_y = left_shoulder_x, neck_y + height // 3
-        right_elbow_x, right_elbow_y = right_shoulder_x, neck_y + height // 3
+        left_elbow_x, left_elbow_y = int(left_shoulder_x), int(neck_y + height // 3)
+        right_elbow_x, right_elbow_y = int(right_shoulder_x), int(neck_y + height // 3)
         
         # 如果有手部点，调整肘部位置
         if hand_points:
             for (hx, hy) in hand_points:
+                hx, hy = int(hx), int(hy)
                 if hx < head_x:  # 左手
-                    left_elbow_x, left_elbow_y = (left_shoulder_x + hx) // 2, (left_shoulder_y + hy) // 2
+                    left_elbow_x, left_elbow_y = int((left_shoulder_x + hx) // 2), int((left_shoulder_y + hy) // 2)
                 else:  # 右手
-                    right_elbow_x, right_elbow_y = (right_shoulder_x + hx) // 2, (right_shoulder_y + hy) // 2
+                    right_elbow_x, right_elbow_y = int((right_shoulder_x + hx) // 2), int((right_shoulder_y + hy) // 2)
         
         keypoints.append({'x': left_elbow_x, 'y': left_elbow_y, 'visibility': 1.0, 'name': 'Left Elbow'})  # 左肘
         keypoints.append({'x': right_elbow_x, 'y': right_elbow_y, 'visibility': 1.0, 'name': 'Right Elbow'})  # 右肘
         
         # 腰部关键点
-        waist_x, waist_y = head_x, neck_y + height // 2
+        waist_x, waist_y = int(head_x), int(neck_y + height // 2)
         keypoints.append({'x': waist_x, 'y': waist_y, 'visibility': 1.0, 'name': 'Waist'})  # 腰部
         
         # 臀部关键点
-        hip_x, hip_y = head_x, bbox['y2'] - height // 4
+        hip_x, hip_y = int(head_x), int(bbox['y2'] - height // 4)
         keypoints.append({'x': hip_x, 'y': hip_y, 'visibility': 1.0, 'name': 'Hip'})  # 臀部
         
         # 膝盖关键点
-        left_knee_x, left_knee_y = bbox['x1'] + width // 4, bbox['y2'] - height // 6
-        right_knee_x, right_knee_y = bbox['x2'] - width // 4, bbox['y2'] - height // 6
+        left_knee_x, left_knee_y = int(bbox['x1'] + width // 4), int(bbox['y2'] - height // 6)
+        right_knee_x, right_knee_y = int(bbox['x2'] - width // 4), int(bbox['y2'] - height // 6)
         keypoints.append({'x': left_knee_x, 'y': left_knee_y, 'visibility': 1.0, 'name': 'Left Knee'})  # 左膝
         keypoints.append({'x': right_knee_x, 'y': right_knee_y, 'visibility': 1.0, 'name': 'Right Knee'})  # 右膝
         
         # 脚踝关键点
-        left_ankle_x, left_ankle_y = bbox['x1'] + width // 4, bbox['y2']
-        right_ankle_x, right_ankle_y = bbox['x2'] - width // 4, bbox['y2']
+        left_ankle_x, left_ankle_y = int(bbox['x1'] + width // 4), int(bbox['y2'])
+        right_ankle_x, right_ankle_y = int(bbox['x2'] - width // 4), int(bbox['y2'])
         keypoints.append({'x': left_ankle_x, 'y': left_ankle_y, 'visibility': 1.0, 'name': 'Left Ankle'})  # 左脚踝
         keypoints.append({'x': right_ankle_x, 'y': right_ankle_y, 'visibility': 1.0, 'name': 'Right Ankle'})  # 右脚踝
         

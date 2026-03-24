@@ -50,6 +50,8 @@ distributed_manager = DistributedManager()
 extractor = None
 classifier = None
 preprocessor = None
+tagger = None
+keypoint_detector = None
 
 
 @app.on_event("startup")
@@ -81,6 +83,23 @@ async def startup_event():
         # 初始化预处理器
         preprocessor = Preprocessing()
         logger.info("预处理器初始化完成")
+        
+        # 初始化标签生成器
+        try:
+            from src.core.tagging.wd_vit_v3_tagger import WDViTV3Tagger
+            tagger = WDViTV3Tagger()
+            tagger.load_model()
+            logger.info("标签生成器初始化完成")
+        except Exception as e:
+            logger.warning(f"标签生成器初始化失败: {e}")
+        
+        # 初始化关键点检测器
+        try:
+            from src.core.keypoint.mediapipe_keypoint_detector import MediaPipeKeypointDetector
+            keypoint_detector = MediaPipeKeypointDetector()
+            logger.info("关键点检测器初始化完成")
+        except Exception as e:
+            logger.warning(f"关键点检测器初始化失败: {e}")
         
         logger.info("所有模型初始化完成")
     except Exception as e:
@@ -263,14 +282,37 @@ async def get_models():
     try:
         # 这里可以从配置或数据库中获取模型列表
         # 暂时返回默认模型
-        models = [
-            {"name": "default", "path": "", "description": "默认分类模型", "available": True},
-            {"name": "augmented_training", "path": "models/augmented_training", "description": "增强训练模型", "available": False},
-            {"name": "arona_plana", "path": "models/arona_plana", "description": "阿罗娜普拉娜模型", "available": False},
-            {"name": "arona_plana_efficientnet", "path": "models/arona_plana_efficientnet", "description": "EfficientNet模型", "available": False},
-            {"name": "arona_plana_resnet18", "path": "models/arona_plana_resnet18", "description": "ResNet18模型", "available": False},
-            {"name": "optimized", "path": "models/optimized", "description": "优化模型", "available": False}
+        # 动态生成模型列表，根据本地目录存在性设置available
+        model_configs = [
+            {"name": "default", "path": "", "description": "默认分类模型"},
+            {"name": "augmented_training", "path": "models/augmented_training", "description": "增强训练模型"},
+            {"name": "arona_plana", "path": "models/arona_plana", "description": "阿罗娜普拉娜模型"},
+            {"name": "arona_plana_efficientnet", "path": "models/arona_plana_efficientnet", "description": "EfficientNet模型"},
+            {"name": "arona_plana_resnet18", "path": "models/arona_plana_resnet18", "description": "ResNet18模型"},
+            {"name": "optimized", "path": "models/optimized", "description": "优化模型"}
         ]
+        
+        models = []
+        for config in model_configs:
+            # 检查模型目录是否存在
+            if config["path"]:
+                # 检查模型目录是否存在且包含role_index.faiss文件
+                model_path = os.path.join(config["path"], "role_index")
+                index_file = os.path.join(model_path, "role_index.faiss")
+                mapping_file = os.path.join(model_path, "role_index_mapping.json")
+                available = os.path.exists(index_file) and os.path.exists(mapping_file)
+            else:
+                # 默认模型检查根目录的role_index
+                index_file = "role_index.faiss"
+                mapping_file = "role_index_mapping.json"
+                available = os.path.exists(index_file) and os.path.exists(mapping_file)
+            
+            models.append({
+                "name": config["name"],
+                "path": config["path"],
+                "description": config["description"],
+                "available": available
+            })
         
         return {"models": models}
     except Exception as e:
@@ -404,17 +446,51 @@ async def classify_image(file: UploadFile = File(...), use_model: bool = Form(Fa
             except Exception as e:
                 logger.warning(f"文本检测失败: {e}")
             
+            # 生成标签
+            logger.info("开始生成标签")
+            attributes = []
+            try:
+                # 使用全局标签生成器实例
+                global tagger
+                if tagger is None:
+                    from src.core.tagging.wd_vit_v3_tagger import WDViTV3Tagger
+                    tagger = WDViTV3Tagger()
+                    tagger.load_model()
+                attributes = tagger.generate_tags(temp_path)
+                logger.info(f"标签生成完成，生成 {len(attributes)} 个标签")
+            except Exception as e:
+                logger.warning(f"标签生成失败: {e}")
+            
+            # 检测关键点
+            logger.info("开始检测关键点")
+            keypoints = None
+            try:
+                # 使用全局关键点检测器实例
+                global keypoint_detector
+                if keypoint_detector is None:
+                    from src.core.keypoint.mediapipe_keypoint_detector import MediaPipeKeypointDetector
+                    keypoint_detector = MediaPipeKeypointDetector()
+                keypoints = keypoint_detector.detect_keypoints(temp_path)
+                logger.info(f"关键点检测完成")
+            except Exception as e:
+                logger.warning(f"关键点检测失败: {e}")
+            
             # 构建响应
             result = {
                 "role": role,
                 "similarity": float(similarity),
-                "attributes": []  # 暂时返回空属性列表
+                "attributes": attributes
             }
             
             # 添加文本检测结果（如果有）
             if text_detections:
                 result["text_detections"] = text_detections
                 logger.info(f"返回文本检测结果: {len(text_detections)} 个文本")
+            
+            # 添加关键点检测结果（如果有）
+            if keypoints:
+                result["keypoints"] = keypoints
+                logger.info("返回关键点检测结果")
             
             return result
         finally:

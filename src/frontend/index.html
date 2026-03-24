@@ -469,6 +469,42 @@
                 top5Results.appendChild(div);
             });
             
+            // 显示标签属性
+            if (result.attributes && result.attributes.length > 0) {
+                const attributesDiv = document.createElement('div');
+                attributesDiv.className = 'attributes';
+                attributesDiv.innerHTML = `
+                    <h3>标签属性</h3>
+                    <div class="attributes-list">${result.attributes.join(', ')}</div>
+                `;
+                top5Results.appendChild(attributesDiv);
+            }
+            
+            // 显示关键点信息
+            if (result.keypoints) {
+                const keypointsDiv = document.createElement('div');
+                keypointsDiv.className = 'keypoints';
+                
+                let keypointsInfo = '';
+                if (result.keypoints.face) {
+                    keypointsInfo += `<p><strong>面部关键点:</strong> 检测到 ${result.keypoints.face.length} 个面部</p>`;
+                }
+                if (result.keypoints.hands) {
+                    keypointsInfo += `<p><strong>手部关键点:</strong> 检测到 ${result.keypoints.hands.length} 只手</p>`;
+                }
+                if (result.keypoints.pose) {
+                    keypointsInfo += `<p><strong>姿态关键点:</strong> 检测到身体姿态</p>`;
+                }
+                
+                if (keypointsInfo) {
+                    keypointsDiv.innerHTML = `
+                        <h3>关键点检测</h3>
+                        ${keypointsInfo}
+                    `;
+                    top5Results.appendChild(keypointsDiv);
+                }
+            }
+            
             // 绘制置信度图表
             drawConfidenceChart(top5);
         }
