@@ -7,7 +7,7 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from src.scripts.data_preparation.data_preparation import DataPreparation
 from src.scripts.classification_script.classification_script import ClassificationScript
-from src.web.web_ui import WebUI
+from src.backend.web.web_ui import WebUI
 
 class AnimeRoleDetect:
     def __init__(self):

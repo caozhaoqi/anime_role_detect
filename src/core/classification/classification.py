@@ -316,8 +316,8 @@ class Classification:
     
     def incremental_learning(self, image_path, correct_role):
         """增量学习：根据用户提供的正确角色更新索引"""
-        from core.preprocessing.preprocessing import Preprocessing
-        from core.feature_extraction.feature_extraction import FeatureExtraction
+        from src.core.preprocessing.preprocessing import Preprocessing
+        from src.core.feature_extraction.feature_extraction import FeatureExtraction
         
         logger.info(f"开始增量学习，图像路径: {image_path}, 正确角色: {correct_role}")
         
@@ -348,7 +348,7 @@ if __name__ == "__main__":
     
     # 生成测试数据
     # 假设有2个角色，每个角色有5个特征向量
-    dim = 768  # CLIP特征维度
+    dim = 512  # CLIP ViT-B/32特征维度
     num_roles = 2
     num_samples_per_role = 5
     

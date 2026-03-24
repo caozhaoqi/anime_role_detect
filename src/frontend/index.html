@@ -282,7 +282,7 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script>
         // 全局变量
-        const API_BASE_URL = 'http://localhost:8000';
+        const API_BASE_URL = 'http://localhost:8000/api';
         
         // DOM元素
         const imageInput = document.getElementById('image');
@@ -333,12 +333,12 @@
                 data.models.forEach(model => {
                     const option1 = document.createElement('option');
                     option1.value = model.name;
-                    option1.textContent = `${model.name} (${model.type})`;
+                    option1.textContent = `${model.name}`;
                     modelSelect.appendChild(option1);
                     
                     const option2 = document.createElement('option');
                     option2.value = model.name;
-                    option2.textContent = `${model.name} (${model.type})`;
+                    option2.textContent = `${model.name}`;
                     batchModelSelect.appendChild(option2);
                 });
             } catch (error) {
@@ -372,10 +372,10 @@
                 // 构建FormData
                 const formData = new FormData();
                 formData.append('file', file);
-                formData.append('model', model);
+                formData.append('model_name', model);
                 
                 // 发送请求
-                const response = await fetch(`${API_BASE_URL}/predict`, {
+                const response = await fetch(`${API_BASE_URL}/classify`, {
                     method: 'POST',
                     body: formData
                 });
@@ -453,12 +453,13 @@
         function displayResult(result) {
             resultSection.style.display = 'block';
             
-            predictedClass.textContent = `预测结果: ${result.predicted_class}`;
-            confidence.textContent = `置信度: ${(result.confidence * 100).toFixed(2)}%`;
+            predictedClass.textContent = `预测结果: ${result.role}`;
+            confidence.textContent = `相似度: ${(result.similarity * 100).toFixed(2)}%`;
             
-            // 显示Top 5结果
+            // 显示Top 5结果 (使用当前结果作为唯一结果)
             top5Results.innerHTML = '';
-            result.top5.forEach(item => {
+            const top5 = [{"class": result.role, "confidence": result.similarity}];
+            top5.forEach(item => {
                 const div = document.createElement('div');
                 div.className = 'top5-item';
                 div.innerHTML = `
@@ -469,7 +470,7 @@
             });
             
             // 绘制置信度图表
-            drawConfidenceChart(result.top5);
+            drawConfidenceChart(top5);
         }
         
         // 显示批量结果

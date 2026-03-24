@@ -24,7 +24,7 @@ class WebUI:
         
         # 尝试初始化标签生成器
         try:
-            from core.tagging.tagging import Tagging
+            from src.core.tagging.tagging import Tagging
             self.tagger = Tagging()
         except ImportError:
             self.tagger = None
