@@ -297,7 +297,7 @@ async def get_models():
             # 检查模型目录是否存在
             if config["path"]:
                 # 检查模型目录是否存在且包含role_index.faiss文件
-                model_path = os.path.join(config["path"], "role_index")
+                model_path = config["path"]
                 index_file = os.path.join(model_path, "role_index.faiss")
                 mapping_file = os.path.join(model_path, "role_index_mapping.json")
                 available = os.path.exists(index_file) and os.path.exists(mapping_file)
