@@ -46,6 +46,11 @@ app.add_middleware(
 monitoring_system = MonitoringSystem()
 distributed_manager = DistributedManager()
 
+# 模型实例缓存
+extractor = None
+classifier = None
+preprocessor = None
+
 
 @app.on_event("startup")
 async def startup_event():
@@ -55,6 +60,31 @@ async def startup_event():
     logger.info("启动API服务")
     monitoring_system.start()
     distributed_manager.start()
+    
+    # 初始化模型实例，避免首次请求延迟
+    global extractor, classifier, preprocessor
+    try:
+        from src.core.feature_extraction.feature_extraction import FeatureExtraction
+        from src.core.classification.classification import Classification
+        from src.core.preprocessing.preprocessing import Preprocessing
+        
+        logger.info("开始初始化模型...")
+        
+        # 初始化特征提取器（不使用量化模型，因为当前环境可能不支持）
+        extractor = FeatureExtraction(quantize=False)
+        logger.info("特征提取器初始化完成")
+        
+        # 初始化分类器
+        classifier = Classification("role_index")
+        logger.info("分类器初始化完成")
+        
+        # 初始化预处理器
+        preprocessor = Preprocessing()
+        logger.info("预处理器初始化完成")
+        
+        logger.info("所有模型初始化完成")
+    except Exception as e:
+        logger.error(f"模型初始化失败: {e}")
 
 
 @app.on_event("shutdown")
@@ -296,9 +326,8 @@ async def classify_image(file: UploadFile = File(...), use_model: bool = Form(Fa
             raise ValueError(f"无效的图像文件: {str(e)}")
         
         try:
-            # 初始化特征提取和分类模块
-            from core.feature_extraction.feature_extraction import FeatureExtraction
-            from core.classification.classification import Classification
+            # 使用全局模型实例
+            global extractor, classifier, preprocessor
             
             # 根据模型名称选择索引路径
             index_mapping = {
@@ -314,8 +343,17 @@ async def classify_image(file: UploadFile = File(...), use_model: bool = Form(Fa
             index_path = index_mapping.get(model_name, "role_index")
             logger.info(f"使用模型: {model_name}, 索引路径: {index_path}")
             
-            extractor = FeatureExtraction()
-            classifier = Classification(index_path)
+            # 导入必要的模块
+            from src.core.classification.classification import Classification
+            
+            # 如果全局分类器不存在或使用的是不同的索引路径，重新初始化
+            if classifier is None or classifier.role_mapping == []:
+                logger.info("初始化分类器...")
+                classifier = Classification(index_path)
+            elif index_path != "role_index":
+                # 如果模型名称不是默认模型，重新加载对应索引
+                logger.info(f"切换模型到: {index_path}")
+                classifier = Classification(index_path)
             
             # 检查索引是否加载成功
             if classifier.index is None:
@@ -323,6 +361,12 @@ async def classify_image(file: UploadFile = File(...), use_model: bool = Form(Fa
                 return {"role": "unknown", "similarity": 0.0, "attributes": []}
             
             logger.info(f"索引已加载，角色数量: {len(classifier.role_mapping)}")
+            
+            # 确保提取器已初始化
+            if extractor is None:
+                from src.core.feature_extraction.feature_extraction import FeatureExtraction
+                extractor = FeatureExtraction(quantize=False)
+                logger.info("特征提取器初始化完成")
             
             # 打开图像
             with Image.open(temp_path) as img:
@@ -351,8 +395,10 @@ async def classify_image(file: UploadFile = File(...), use_model: bool = Form(Fa
             logger.info("开始检测图像中的文本")
             text_detections = []
             try:
-                from core.preprocessing.preprocessing import Preprocessing
-                preprocessor = Preprocessing()
+                # 使用全局预处理器实例
+                if preprocessor is None:
+                    from src.core.preprocessing.preprocessing import Preprocessing
+                    preprocessor = Preprocessing()
                 text_detections = preprocessor.detect_text(temp_path)
                 logger.info(f"文本检测完成，检测到 {len(text_detections)} 个文本")
             except Exception as e:

@@ -2,6 +2,7 @@ import faiss
 import numpy as np
 import json
 import os
+import hashlib
 
 # 使用全局日志系统
 from src.core.logging.global_logger import get_logger, log_system, log_error
@@ -10,6 +11,10 @@ logger = get_logger("classification")
 class Classification:
     # 全局索引缓存
     _index_cache = {}
+    # 结果缓存
+    _result_cache = {}
+    # 缓存大小限制
+    _cache_size = 1000
     
     def __init__(self, index_path=None, threshold=0.7):
         """初始化分类模块"""
@@ -89,6 +94,32 @@ class Classification:
         
         logger.info(f"索引加载完成，角色数量: {len(self.role_mapping)}")
     
+    def _get_feature_hash(self, feature):
+        """计算特征向量的哈希值作为缓存键"""
+        # 确保特征向量是一维的
+        if len(feature.shape) > 1:
+            feature = feature.flatten()
+        # 转换为字节并计算哈希
+        feature_bytes = feature.tobytes()
+        return hashlib.md5(feature_bytes).hexdigest()
+    
+    def _cache_result(self, feature, result):
+        """缓存分类结果"""
+        # 计算缓存键
+        cache_key = self._get_feature_hash(feature)
+        # 检查缓存大小
+        if len(self.__class__._result_cache) >= self.__class__._cache_size:
+            # 移除最早的缓存项
+            oldest_key = next(iter(self.__class__._result_cache))
+            del self.__class__._result_cache[oldest_key]
+        # 添加到缓存
+        self.__class__._result_cache[cache_key] = result
+    
+    def _get_cached_result(self, feature):
+        """获取缓存的分类结果"""
+        cache_key = self._get_feature_hash(feature)
+        return self.__class__._result_cache.get(cache_key)
+    
     def classify(self, feature, top_k=5):
         """分类单个特征向量
         
@@ -101,6 +132,12 @@ class Classification:
         """
         if self.index is None:
             raise ValueError("索引尚未构建")
+        
+        # 检查缓存
+        cached_result = self._get_cached_result(feature)
+        if cached_result:
+            logger.debug("从缓存获取分类结果")
+            return cached_result
         
         # 确保特征向量是二维的
         if len(feature.shape) == 1:
@@ -126,7 +163,9 @@ class Classification:
         # 如果没有结果，返回unknown
         if not results:
             logger.debug("分类结果为空，返回unknown")
-            return "unknown", 0.0
+            result = ("unknown", 0.0)
+            self._cache_result(feature, result)
+            return result
         
         # 1. 动态阈值调整
         # 计算相似度的平均值和标准差
@@ -171,15 +210,21 @@ class Classification:
             # 检查最佳角色的相似度是否足够高
             if best_similarity >= max(self.threshold - 0.1, 0.5):
                 logger.debug(f"分类结果: {best_role}, 相似度: {best_similarity:.4f}")
-                return best_role, best_similarity
+                result = (best_role, best_similarity)
+                self._cache_result(feature, result)
+                return result
         
         # 3. 如果投票机制失败，回退到原始的top-1结果
         if results[0]["similarity"] >= self.threshold - 0.1:
             logger.debug(f"回退到top-1结果: {results[0]['role']}, 相似度: {results[0]['similarity']:.4f}")
-            return results[0]["role"], results[0]["similarity"]
+            result = (results[0]["role"], results[0]["similarity"])
+            self._cache_result(feature, result)
+            return result
         else:
             logger.debug(f"相似度低于阈值，返回unknown: {results[0]['similarity']:.4f}")
-            return "unknown", results[0]["similarity"]
+            result = ("unknown", results[0]["similarity"])
+            self._cache_result(feature, result)
+            return result
     
     def batch_classify(self, features, top_k=5):
         """批量分类特征向量

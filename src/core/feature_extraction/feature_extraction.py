@@ -7,15 +7,31 @@ class FeatureExtraction:
     _model_instance = None
     _processor_instance = None
     _device = None
+    _quantized = False
     
-    def __init__(self, model_name="openai/clip-vit-base-patch32"):
-        """初始化特征提取模块"""
+    def __init__(self, model_name="openai/clip-vit-base-patch32", quantize=False):
+        """初始化特征提取模块
+        
+        Args:
+            model_name: 模型名称
+            quantize: 是否使用量化模型
+        """
         # 使用全局模型实例避免重复加载
         if not self.__class__._model_instance:
             self.__class__._model_instance = CLIPModel.from_pretrained(model_name)
             self.__class__._processor_instance = CLIPProcessor.from_pretrained(model_name)
             self.__class__._device = "cuda" if torch.cuda.is_available() else "cpu"
             self.__class__._model_instance.to(self.__class__._device)
+            
+            # 量化模型以减少内存使用和提高推理速度
+            if quantize:
+                self.__class__._model_instance = torch.quantization.quantize_dynamic(
+                    self.__class__._model_instance,
+                    {torch.nn.Linear},
+                    dtype=torch.qint8
+                )
+                self.__class__._quantized = True
+                print("模型量化完成")
         
         self.model = self.__class__._model_instance
         self.processor = self.__class__._processor_instance
