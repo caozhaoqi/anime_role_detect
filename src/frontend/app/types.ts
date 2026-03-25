@@ -17,6 +17,7 @@ export interface Message {
     confidence: number;
     bbox: number[];
   }>;
+  ai_predicted_role?: string;
   thoughts?: string[];
   isThinkingFinished?: boolean;
   timestamp: number;

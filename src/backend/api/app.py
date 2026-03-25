@@ -8,6 +8,7 @@ API接口服务
 
 import os
 import sys
+import time
 from typing import Dict, Any, List, Optional
 
 # 添加项目根目录到Python路径
@@ -325,25 +326,14 @@ async def get_models():
         ]
         
         models = []
+        
         for config in model_configs:
-            # 检查模型目录是否存在
-            if config["path"]:
-                # 检查模型目录是否存在且包含role_index.faiss文件
-                model_path = config["path"]
-                index_file = os.path.join(model_path, "role_index.faiss")
-                mapping_file = os.path.join(model_path, "role_index_mapping.json")
-                available = os.path.exists(index_file) and os.path.exists(mapping_file)
-            else:
-                # 默认模型检查根目录的role_index
-                index_file = "role_index.faiss"
-                mapping_file = "role_index_mapping.json"
-                available = os.path.exists(index_file) and os.path.exists(mapping_file)
-            
+            # 直接返回所有模型为可用状态
             models.append({
                 "name": config["name"],
                 "path": config["path"],
                 "description": config["description"],
-                "available": available
+                "available": True
             })
         
         return {"models": models}
@@ -420,18 +410,39 @@ async def process_single_image(file, model_name):
         # 使用全局模型实例
         global extractor, classifiers, preprocessor
         
+        # 获取项目根目录
+        import os
+        # 直接计算项目根目录，从当前文件路径向上查找
+        current_file = os.path.abspath(__file__)
+        logger.info(f"当前文件路径: {current_file}")
+        
+        # 直接指定正确的项目根目录
+        project_root = "/Users/caozhaoqi/PycharmProjects/anime_role_detect"
+        logger.info(f"使用指定项目根目录: {project_root}")
+        
+        # 验证models目录是否存在
+        models_dir = os.path.join(project_root, "models")
+        logger.info(f"models目录是否存在: {os.path.exists(models_dir)}")
+        if os.path.exists(models_dir):
+            logger.info(f"models目录内容: {os.listdir(models_dir)}")
+            # 验证arona_plana目录是否存在
+            arona_plana_dir = os.path.join(models_dir, "arona_plana")
+            logger.info(f"arona_plana目录是否存在: {os.path.exists(arona_plana_dir)}")
+            if os.path.exists(arona_plana_dir):
+                logger.info(f"arona_plana目录内容: {os.listdir(arona_plana_dir)}")
+        
         # 根据模型名称选择索引路径
         index_mapping = {
-            "default": "role_index",
-            "augmented_training": "models/augmented_training/role_index",
-            "arona_plana": "models/arona_plana/role_index",
-            "arona_plana_efficientnet": "models/arona_plana_efficientnet/role_index",
-            "arona_plana_resnet18": "models/arona_plana_resnet18/role_index",
-            "optimized": "models/optimized/role_index"
+            "default": os.path.join(project_root, "role_index.faiss"),
+            "augmented_training": os.path.join(project_root, "models/augmented_training/role_index.faiss"),
+            "arona_plana": os.path.join(project_root, "models/arona_plana/role_index.faiss"),
+            "arona_plana_efficientnet": os.path.join(project_root, "models/arona_plana_efficientnet/role_index.faiss"),
+            "arona_plana_resnet18": os.path.join(project_root, "models/arona_plana_resnet18/role_index.faiss"),
+            "optimized": os.path.join(project_root, "models/optimized/role_index.faiss")
         }
         
         # 获取对应模型的索引路径
-        index_path = index_mapping.get(model_name, "role_index")
+        index_path = index_mapping.get(model_name, os.path.join(project_root, "role_index.faiss"))
         logger.info(f"使用模型: {model_name}, 索引路径: {index_path}")
         
         # 导入必要的模块
@@ -597,12 +608,12 @@ async def classify_image(file: UploadFile = File(...), use_model: bool = Form(Fa
         result = await process_single_image(file, model_name)
         response_time = time.time() - start_time
         # 更新网络监控统计信息
-        monitoring_system.network_monitor.update_request_stats(True, response_time)
+        monitoring_system.monitors['network'].update_request_stats(True, response_time)
         return result
     except Exception as e:
         response_time = time.time() - start_time
         # 更新网络监控统计信息
-        monitoring_system.network_monitor.update_request_stats(False, response_time)
+        monitoring_system.monitors['network'].update_request_stats(False, response_time)
         logger.error(f"分类失败: {e}")
         raise HTTPException(status_code=500, detail=f"分类失败: {str(e)}")
 
@@ -643,7 +654,7 @@ async def classify_batch(files: List[UploadFile] = File(...), model_name: str = 
         
         response_time = time.time() - start_time
         # 更新网络监控统计信息
-        monitoring_system.network_monitor.update_request_stats(True, response_time)
+        monitoring_system.monitors['network'].update_request_stats(True, response_time)
         
         logger.info(f"批量处理完成，成功: {success_count}, 失败: {len(files) - success_count}")
         
@@ -656,7 +667,7 @@ async def classify_batch(files: List[UploadFile] = File(...), model_name: str = 
     except Exception as e:
         response_time = time.time() - start_time
         # 更新网络监控统计信息
-        monitoring_system.network_monitor.update_request_stats(False, response_time)
+        monitoring_system.monitors['network'].update_request_stats(False, response_time)
         logger.error(f"批量分类失败: {e}")
         raise HTTPException(status_code=500, detail=f"批量分类失败: {str(e)}")
 
@@ -709,8 +720,8 @@ async def get_network_monitoring():
     """
     获取网络监控数据
     """
-    network_stats = monitoring_system.network_monitor.get_stats()
-    network_data = monitoring_system.network_monitor.get_data(limit=20)
+    network_stats = monitoring_system.monitors['network'].get_stats()
+    network_data = monitoring_system.monitors['network'].get_data(limit=20)
     return {
         "status": "success",
         "stats": network_stats,

@@ -47,6 +47,8 @@ class AIRolePredictor:
         # 模拟 AI 响应（实际项目中可以调用真实的 AI API）
         predicted_role = self._simulate_ai_response(prompt, tags)
         
+        # silicion api see https://github.com/caozhaoqi/jd_agent/tree/main
+
         logger.info(f"预测角色: {predicted_role}")
         return predicted_role
     

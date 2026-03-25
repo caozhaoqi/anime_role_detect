@@ -122,3 +122,4 @@ config.json
 
 src/frontend/node_modules/
 
+src/frontend/.next/

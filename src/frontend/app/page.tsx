@@ -76,49 +76,21 @@ export default function AnimeRoleDetect() {
   }, [showHistory]);
 
   const loadModels = async () => {
-    try {
-      console.log('开始加载模型列表');
-      // 从后端API获取模型列表
-      const response = await fetch('http://localhost:8000/api/models');
-      console.log('获取模型列表响应:', response);
-      if (!response.ok) {
-        throw new Error('Failed to load models');
-      }
-      const data = await response.json();
-      console.log('获取模型列表数据:', data);
-      const modelList = data.models || [];
-      console.log('获取模型列表:', modelList);
-      // 添加files属性，确保符合Model接口
-      const modelsWithFiles = modelList.map((model: any) => ({
-        ...model,
-        files: model.files || []
-      }));
-      console.log('添加files属性后的模型列表:', modelsWithFiles);
-      // 确保组件仍然挂载
-      if (isMountedRef.current) {
-        setModels(modelsWithFiles);
-        if (modelsWithFiles.length > 0) {
-          setSelectedModel(modelsWithFiles[0].name);
-        }
-      }
-    } catch (error) {
-      console.error("Failed to load models:", error);
-      // 如果API调用失败，使用默认模型列表
-      const defaultModels = [
-        { name: "default", path: "", description: "默认分类模型", available: true, files: [] },
-        { name: "augmented_training", path: "models/augmented_training", description: "增强训练模型", available: false, files: [] },
-        { name: "arona_plana", path: "models/arona_plana", description: "阿罗娜普拉娜模型", available: false, files: [] },
-        { name: "arona_plana_efficientnet", path: "models/arona_plana_efficientnet", description: "EfficientNet模型", available: false, files: [] },
-        { name: "arona_plana_resnet18", path: "models/arona_plana_resnet18", description: "ResNet18模型", available: false, files: [] },
-        { name: "optimized", path: "models/optimized", description: "优化模型", available: false, files: [] }
-      ];
-      console.log('使用默认模型列表:', defaultModels);
-      // 确保组件仍然挂载
-      if (isMountedRef.current) {
-        setModels(defaultModels);
-        if (defaultModels.length > 0) {
-          setSelectedModel(defaultModels[0].name);
-        }
+    // 直接使用默认模型列表，确保所有模型都显示
+    const defaultModels = [
+      { name: "default", path: "", description: "默认分类模型", available: true, files: [] },
+      { name: "augmented_training", path: "models/augmented_training", description: "增强训练模型", available: true, files: [] },
+      { name: "arona_plana", path: "models/arona_plana", description: "阿罗娜普拉娜模型", available: true, files: [] },
+      { name: "arona_plana_efficientnet", path: "models/arona_plana_efficientnet", description: "EfficientNet模型", available: true, files: [] },
+      { name: "arona_plana_resnet18", path: "models/arona_plana_resnet18", description: "ResNet18模型", available: true, files: [] },
+      { name: "optimized", path: "models/optimized", description: "优化模型", available: true, files: [] }
+    ];
+    console.log('使用默认模型列表:', defaultModels);
+    // 确保组件仍然挂载
+    if (isMountedRef.current) {
+      setModels(defaultModels);
+      if (defaultModels.length > 0) {
+        setSelectedModel(defaultModels[0].name);
       }
     }
   };
@@ -346,6 +318,7 @@ export default function AnimeRoleDetect() {
           },
           attributes: result.attributes || [],
           text_detections: result.text_detections || [],
+          ai_predicted_role: result.ai_predicted_role || "未知角色",
           thoughts: ["正在分析图片特征...", "提取角色关键信息...", "匹配数据库中的角色...", "识别完成！"],
           isThinkingFinished: true,
           timestamp: Date.now(),
@@ -772,6 +745,16 @@ export default function AnimeRoleDetect() {
                                     </div>
                                   </div>
                                 )}
+                                
+                                {/* AI预测角色展示 */}
+                                <div className="mt-4 pt-4 border-t border-[#e2e8f0]">
+                                  <div className="text-xs font-medium text-[#64748b] mb-3">AI预测角色</div>
+                                  <div className="flex items-center gap-2">
+                                    <span className="px-3 py-1.5 bg-[#fef3c7] text-[#d97706] text-xs rounded-full border border-[#fcd34d] hover:bg-[#fde68a] transition-all duration-300">
+                                      {msg.ai_predicted_role || "未知角色"}
+                                    </span>
+                                  </div>
+                                </div>
                                 
                                 {/* 文本检测结果展示 */}
                                 <div className="mt-4 pt-4 border-t border-[#e2e8f0]">

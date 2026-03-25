@@ -26,14 +26,30 @@ class Classification:
         
         # 如果提供了索引路径，加载索引
         if index_path:
-            faiss_path = f"{index_path}.faiss"
-            mapping_path = f"{index_path}_mapping.json"
+            # 获取项目根目录
+            current_file = os.path.abspath(__file__)
+            project_root = os.path.dirname(os.path.dirname(os.path.dirname(current_file)))
+            # 再次向上一级，因为我们需要的是项目根目录，不是src目录
+            project_root = os.path.dirname(project_root)
+            logger.info(f"项目根目录: {project_root}")
+            
+            # 构建绝对路径
+            if index_path.startswith("/Users/caozhaoqi/PycharmProjects/anime_role_detect/src"):
+                # 如果路径包含src目录，移除它
+                relative_path = index_path.replace("/Users/caozhaoqi/PycharmProjects/anime_role_detect/src", "")
+                faiss_path = os.path.join(project_root, relative_path.lstrip("/"))
+            else:
+                # 否则直接使用相对路径
+                faiss_path = os.path.join(project_root, index_path)
+            
+            mapping_path = faiss_path.replace(".faiss", "_mapping.json")
+            
             logger.info(f"检查索引文件是否存在: {faiss_path} -> {os.path.exists(faiss_path)}")
             logger.info(f"检查映射文件是否存在: {mapping_path} -> {os.path.exists(mapping_path)}")
             
             if os.path.exists(faiss_path) and os.path.exists(mapping_path):
-                logger.info(f"加载索引: {index_path}")
-                self.load_index(index_path)
+                logger.info(f"加载索引: {faiss_path}")
+                self.load_index(faiss_path)
     
     def build_index(self, features, role_names):
         """构建向量索引"""
@@ -82,11 +98,15 @@ class Classification:
         
         logger.info(f"开始加载索引: {index_path}")
         
+        # 直接使用提供的路径
+        faiss_path = index_path
+        mapping_path = index_path.replace(".faiss", "_mapping.json")
+        
         # 加载Faiss索引
-        self.index = faiss.read_index(f"{index_path}.faiss")
+        self.index = faiss.read_index(faiss_path)
         
         # 加载角色映射
-        with open(f"{index_path}_mapping.json", "r", encoding="utf-8") as f:
+        with open(mapping_path, "r", encoding="utf-8") as f:
             self.role_mapping = json.load(f)
         
         # 缓存索引和映射
@@ -146,6 +166,10 @@ class Classification:
         # 搜索最相似的向量
         distances, indices = self.index.search(feature, top_k)
         
+        # 记录搜索结果
+        logger.info(f"搜索结果 - 距离: {distances[0]}, 索引: {indices[0]}")
+        logger.info(f"角色映射长度: {len(self.role_mapping)}")
+        
         # 处理结果
         results = []
         for i in range(top_k):
@@ -159,6 +183,9 @@ class Classification:
                     "role": role_name,
                     "similarity": float(distance)
                 })
+                logger.info(f"Top-{i+1}: 角色: {role_name}, 相似度: {distance:.4f}")
+            else:
+                logger.warning(f"索引 {idx} 超出角色映射范围 (最大索引: {len(self.role_mapping)-1})")
         
         # 如果没有结果，返回unknown
         if not results:
