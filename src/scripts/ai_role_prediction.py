@@ -7,6 +7,7 @@ AI 角色预测脚本
 import os
 import sys
 import json
+import requests
 
 # 添加项目根目录到Python路径
 sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
@@ -28,6 +29,32 @@ class AIRolePredictor:
     def __init__(self):
         """初始化 AI 角色预测器"""
         logger.info("初始化 AI 角色预测器")
+        # 从环境变量获取 API 配置
+        self.api_key = os.environ.get('OPENAI_API_KEY', '')
+        self.api_base = os.environ.get('OPENAI_API_BASE', 'https://api.siliconflow.cn/v1')
+        self.model_name = os.environ.get('MODEL_NAME', 'deepseek-ai/DeepSeek-R1-0528-Qwen3-8B')
+        
+        # 尝试从JD_agent的.env文件读取配置
+        jd_agent_env_path = '/Users/caozhaoqi/PycharmProjects/JD_agent/.env'
+        if os.path.exists(jd_agent_env_path):
+            logger.info(f"从 {jd_agent_env_path} 读取 API 配置")
+            with open(jd_agent_env_path, 'r') as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith('#'):
+                        key, value = line.split('=', 1)
+                        if key == 'OPENAI_API_KEY':
+                            self.api_key = value
+                        elif key == 'OPENAI_API_BASE':
+                            self.api_base = value
+                        elif key == 'MODEL_NAME':
+                            self.model_name = value
+        
+        if not self.api_key:
+            logger.warning("未设置 OPENAI_API_KEY 环境变量，将使用模拟响应")
+        
+        self.api_url = f"{self.api_base}/chat/completions"
+        logger.info(f"使用 API 配置 - 基础URL: {self.api_base}, 模型: {self.model_name}")
         
     def predict_role(self, tags):
         """
@@ -40,15 +67,19 @@ class AIRolePredictor:
             预测的角色名
         """
         logger.info(f"开始预测角色，标签数量: {len(tags)}")
+        logger.info(f"前10个标签: {tags[:10]}")
         
         # 构建提示
         prompt = self._build_prompt(tags)
         
-        # 模拟 AI 响应（实际项目中可以调用真实的 AI API）
-        predicted_role = self._simulate_ai_response(prompt, tags)
+        # 调用真实的 AI API
+        try:
+            predicted_role = self._call_openai_api(prompt)
+        except Exception as e:
+            logger.error(f"API 调用失败: {e}")
+            # 如果 API 调用失败，使用模拟响应
+            predicted_role = self._simulate_ai_response(prompt, tags)
         
-        # silicion api see https://github.com/caozhaoqi/jd_agent/tree/main
-
         logger.info(f"预测角色: {predicted_role}")
         return predicted_role
     
@@ -75,6 +106,47 @@ class AIRolePredictor:
 """
         return prompt
     
+    def _call_openai_api(self, prompt):
+        """
+        调用 AI API
+        
+        Args:
+            prompt: 提示字符串
+        
+        Returns:
+            AI 响应的角色名
+        """
+        if not self.api_key:
+            raise ValueError("未设置 OPENAI_API_KEY 环境变量")
+        
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {self.api_key}"
+        }
+        
+        data = {
+            "model": self.model_name,
+            "messages": [
+                {"role": "system", "content": "你是一个动漫角色识别专家"},
+                {"role": "user", "content": prompt}
+            ],
+            "max_tokens": 50,
+            "temperature": 0.7
+        }
+        
+        logger.info(f"调用 AI API - 模型: {self.model_name}")
+        response = requests.post(self.api_url, headers=headers, json=data)
+        response.raise_for_status()
+        
+        result = response.json()
+        predicted_role = result['choices'][0]['message']['content'].strip()
+        
+        # 确保返回的是有效的角色名
+        if not predicted_role or predicted_role == '未知角色':
+            return '未知角色'
+        
+        return predicted_role
+    
     def _simulate_ai_response(self, prompt, tags):
         """
         模拟 AI 响应
@@ -86,36 +158,51 @@ class AIRolePredictor:
         Returns:
             模拟的 AI 响应
         """
-        # 模拟 AI 响应
-        # 实际项目中可以调用真实的 AI API，如 OpenAI GPT、Anthropic Claude 等
-        
         # 基于标签的简单规则匹配
         tags_lower = [tag.lower() for tag in tags]
+        logger.info(f"处理后的标签: {tags_lower[:10]}")
         
         # 检查是否包含特定角色的特征标签
         if 'klee' in tags_lower or '可莉' in tags_lower:
+            logger.info("匹配到角色: 可莉")
             return '可莉'
         elif 'arataki itto' in tags_lower or '荒泷一斗' in tags_lower:
+            logger.info("匹配到角色: 荒泷一斗")
             return '荒泷一斗'
         elif 'raiden shogun' in tags_lower or '雷电将军' in tags_lower:
+            logger.info("匹配到角色: 雷电将军")
             return '雷电将军'
         elif 'hu tao' in tags_lower or '胡桃' in tags_lower:
+            logger.info("匹配到角色: 胡桃")
             return '胡桃'
+        elif any('hina' in tag for tag in tags_lower):
+            logger.info("匹配到角色: 日奈 (通过 hina 标签)")
+            return '日奈'
+        elif '日奈' in tags_lower:
+            logger.info("匹配到角色: 日奈 (通过 日奈 标签)")
+            return '日奈'
         elif 'genshin' in tags_lower or '原神' in tags_lower:
+            logger.info("匹配到角色类型: 原神角色")
             return '原神角色'
         elif 'honkai' in tags_lower or '崩坏' in tags_lower:
+            logger.info("匹配到角色类型: 崩坏角色")
             return '崩坏角色'
         elif 'anime' in tags_lower or '动漫' in tags_lower:
+            logger.info("匹配到角色类型: 动漫角色")
             return '动漫角色'
         else:
             # 根据一些常见标签组合推测
             if '1girl' in tags_lower and 'breasts' in tags_lower and 'swimsuit' in tags_lower:
+                logger.info("匹配到角色类型: 泳装女孩")
                 return '泳装女孩'
             elif '1boy' in tags_lower and 'sword' in tags_lower:
+                logger.info("匹配到角色类型: 剑士")
                 return '剑士'
             elif 'cat' in tags_lower and 'girl' in tags_lower:
+                logger.info("匹配到角色类型: 猫耳女孩")
                 return '猫耳女孩'
             else:
+                logger.info("未匹配到任何角色")
                 return '未知角色'
 
 def main():
