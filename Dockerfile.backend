@@ -1,0 +1,15 @@
+# Dockerfile for backend API
+FROM python:3.9-slim
+
+WORKDIR /app
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY src/backend/ ./backend/
+COPY src/core/ ./core/
+COPY src/utils/ ./utils/
+
+EXPOSE 8000
+
+CMD ["python", "backend/api/run_api.py"]
