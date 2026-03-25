@@ -17,7 +17,7 @@ from email.mime.multipart import MIMEMultipart
 from datetime import datetime
 from collections import defaultdict, deque
 
-from src.core.logging.global_logger import get_logger, log_system, log_error
+from core.logging.global_logger import get_logger, log_system, log_error
 
 logger = get_logger("monitoring_system")
 

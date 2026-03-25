@@ -89,7 +89,7 @@ def start_api_service(host: str = '0.0.0.0', port: int = 8000, reload: bool = Fa
     cmd = [
         sys.executable,
         '-m', 'uvicorn',
-        'src.backend.api.app:app',
+        'app:app',
         '--host', host,
         '--port', str(port)
     ]
@@ -97,9 +97,13 @@ def start_api_service(host: str = '0.0.0.0', port: int = 8000, reload: bool = Fa
     if reload:
         cmd.append('--reload')
     
+    # 设置PYTHONPATH环境变量
+    env = os.environ.copy()
+    env['PYTHONPATH'] = f"{project_root}:{env.get('PYTHONPATH', '')}"
+    
     # 启动服务
     try:
-        subprocess.run(cmd, check=True)
+        subprocess.run(cmd, check=True, env=env)
     except KeyboardInterrupt:
         logger.info("API服务已停止")
     except subprocess.CalledProcessError as e:

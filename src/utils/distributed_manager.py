@@ -16,7 +16,7 @@ from datetime import datetime
 from abc import ABC, abstractmethod
 from concurrent.futures import ThreadPoolExecutor
 
-from src.core.logging.global_logger import get_logger, log_system, log_error
+from core.logging.global_logger import get_logger, log_system, log_error
 
 logger = get_logger("distributed_manager")
 

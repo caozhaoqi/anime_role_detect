@@ -119,3 +119,6 @@ config.json
 *.tar.gz
 *.rar
 *.7z
+
+src/frontend/node_modules/
+

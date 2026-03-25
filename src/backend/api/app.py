@@ -11,18 +11,20 @@ import sys
 from typing import Dict, Any, List, Optional
 
 # 添加项目根目录到Python路径
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, project_root)
+print(f"添加到Python路径: {project_root}")
 
 from fastapi import FastAPI, HTTPException, Query, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from src.utils.http_utils import HTTPUtils
-from src.utils.image_utils import ImageUtils
-from src.utils.monitoring_system import MonitoringSystem
-from src.utils.cache_manager import cache_manager
-from src.utils.distributed_manager import DistributedManager
-from src.core.logging.global_logger import get_logger
+from utils.http_utils import HTTPUtils
+from utils.image_utils import ImageUtils
+from utils.monitoring_system import MonitoringSystem
+from utils.cache_manager import cache_manager
+from utils.distributed_manager import DistributedManager
+from core.logging.global_logger import get_logger
 
 logger = get_logger("api_service")
 
@@ -48,7 +50,7 @@ distributed_manager = DistributedManager()
 
 # 模型实例缓存
 extractor = None
-classifier = None
+classifiers = {}  # 缓存不同模型的分类器实例
 preprocessor = None
 tagger = None
 keypoint_detector = None
@@ -64,7 +66,7 @@ async def startup_event():
     distributed_manager.start()
     
     # 初始化模型实例，避免首次请求延迟
-    global extractor, classifier, preprocessor
+    global extractor, classifiers, preprocessor
     try:
         from src.core.feature_extraction.feature_extraction import FeatureExtraction
         from src.core.classification.classification import Classification
@@ -72,12 +74,13 @@ async def startup_event():
         
         logger.info("开始初始化模型...")
         
-        # 初始化特征提取器（不使用量化模型，因为当前环境可能不支持）
-        extractor = FeatureExtraction(quantize=False)
+        # 初始化特征提取器（使用量化模型以减少内存使用和提高推理速度）
+        extractor = FeatureExtraction(quantize=True)
         logger.info("特征提取器初始化完成")
         
-        # 初始化分类器
-        classifier = Classification("role_index")
+        # 初始化分类器，使用字典缓存不同模型
+        default_model = "role_index"
+        classifiers[default_model] = Classification(default_model)
         logger.info("分类器初始化完成")
         
         # 初始化预处理器
@@ -320,21 +323,29 @@ async def get_models():
         raise HTTPException(status_code=500, detail=f"获取模型列表失败: {str(e)}")
 
 
-@app.post("/api/classify", tags=["分类"])
-async def classify_image(file: UploadFile = File(...), use_model: bool = Form(False, description="是否使用专用模型"), use_attributes: bool = Form(True, description="是否使用属性预测"), model_name: str = Form("default", description="模型名称")):
+async def process_single_image(file, model_name):
     """
-    分类图片
+    处理单个图像
+    
+    Args:
+        file: 上传的文件
+        model_name: 模型名称
+    
+    Returns:
+        处理结果
     """
+    import asyncio
+    import tempfile
+    import os
+    from PIL import Image
+    
     try:
         # 读取文件内容
         content = await file.read()
-        logger.info(f"接收到文件，大小: {len(content)} 字节")
+        logger.info(f"处理文件，大小: {len(content)} 字节")
         logger.info(f"文件类型: {file.content_type}")
-        logger.info(f"使用模型: {model_name}, use_model: {use_model}, use_attributes: {use_attributes}")
         
         # 保存临时文件
-        import tempfile
-        import os
         # 根据文件类型确定后缀
         suffix = ".jpg"
         if file.content_type == "image/png":
@@ -358,7 +369,6 @@ async def classify_image(file: UploadFile = File(...), use_model: bool = Form(Fa
         logger.info(f"临时文件大小: {os.path.getsize(temp_path)} 字节")
         
         # 尝试使用 PIL 加载图像，验证文件是否是有效的图像
-        from PIL import Image
         try:
             pil_img = Image.open(temp_path)
             pil_img.verify()  # 验证图像文件的有效性
@@ -367,140 +377,218 @@ async def classify_image(file: UploadFile = File(...), use_model: bool = Form(Fa
             logger.error(f"PIL 加载图像失败: {e}")
             raise ValueError(f"无效的图像文件: {str(e)}")
         
+        # 使用全局模型实例
+        global extractor, classifiers, preprocessor
+        
+        # 根据模型名称选择索引路径
+        index_mapping = {
+            "default": "role_index",
+            "augmented_training": "models/augmented_training/role_index",
+            "arona_plana": "models/arona_plana/role_index",
+            "arona_plana_efficientnet": "models/arona_plana_efficientnet/role_index",
+            "arona_plana_resnet18": "models/arona_plana_resnet18/role_index",
+            "optimized": "models/optimized/role_index"
+        }
+        
+        # 获取对应模型的索引路径
+        index_path = index_mapping.get(model_name, "role_index")
+        logger.info(f"使用模型: {model_name}, 索引路径: {index_path}")
+        
+        # 导入必要的模块
+        from src.core.classification.classification import Classification
+        
+        # 检查分类器是否已缓存
+        if index_path not in classifiers or classifiers[index_path].role_mapping == []:
+            logger.info(f"初始化分类器: {index_path}...")
+            # 使用异步方式初始化分类器
+            classifier = await asyncio.to_thread(Classification, index_path)
+            classifiers[index_path] = classifier
+            logger.info(f"分类器 {index_path} 初始化完成")
+        
+        # 获取分类器实例
+        classifier = classifiers[index_path]
+        
+        # 检查索引是否加载成功
+        if classifier.index is None:
+            logger.warning("索引未加载，使用默认分类")
+            return {"role": "unknown", "similarity": 0.0, "attributes": []}
+        
+        logger.info(f"索引已加载，角色数量: {len(classifier.role_mapping)}")
+        
+        # 确保提取器已初始化
+        if extractor is None:
+            from src.core.feature_extraction.feature_extraction import FeatureExtraction
+            # 使用异步方式初始化特征提取器（使用量化模型）
+            extractor = await asyncio.to_thread(FeatureExtraction, quantize=True)
+            logger.info("特征提取器初始化完成")
+        
+        # 打开图像
+        with Image.open(temp_path) as img:
+            # 调整图像大小
+            img = img.resize((224, 224))
+            
+            # 提取特征
+            logger.info("开始提取特征")
+            # 使用异步方式提取特征
+            feature = await asyncio.to_thread(extractor.extract_features, img)
+            logger.info(f"特征提取完成，特征维度: {feature.shape}")
+            
+            # 分类图片
+            logger.info("开始分类图片")
+            try:
+                # 使用异步方式分类
+                role, similarity = await asyncio.to_thread(classifier.classify, feature)
+                logger.info(f"分类完成，角色: {role}, 相似度: {similarity}")
+            except ValueError as e:
+                if "索引尚未构建" in str(e):
+                    logger.warning("索引尚未构建，返回默认值")
+                    role = "unknown"
+                    similarity = 0.0
+                else:
+                    raise
+        
+        # 检测图像中的文本
+        logger.info("开始检测图像中的文本")
+        text_detections = []
         try:
-            # 使用全局模型实例
-            global extractor, classifier, preprocessor
-            
-            # 根据模型名称选择索引路径
-            index_mapping = {
-                "default": "role_index",
-                "augmented_training": "models/augmented_training/role_index",
-                "arona_plana": "models/arona_plana/role_index",
-                "arona_plana_efficientnet": "models/arona_plana_efficientnet/role_index",
-                "arona_plana_resnet18": "models/arona_plana_resnet18/role_index",
-                "optimized": "models/optimized/role_index"
-            }
-            
-            # 获取对应模型的索引路径
-            index_path = index_mapping.get(model_name, "role_index")
-            logger.info(f"使用模型: {model_name}, 索引路径: {index_path}")
-            
-            # 导入必要的模块
-            from src.core.classification.classification import Classification
-            
-            # 如果全局分类器不存在或使用的是不同的索引路径，重新初始化
-            if classifier is None or classifier.role_mapping == []:
-                logger.info("初始化分类器...")
-                classifier = Classification(index_path)
-            elif index_path != "role_index":
-                # 如果模型名称不是默认模型，重新加载对应索引
-                logger.info(f"切换模型到: {index_path}")
-                classifier = Classification(index_path)
-            
-            # 检查索引是否加载成功
-            if classifier.index is None:
-                logger.warning("索引未加载，使用默认分类")
-                return {"role": "unknown", "similarity": 0.0, "attributes": []}
-            
-            logger.info(f"索引已加载，角色数量: {len(classifier.role_mapping)}")
-            
-            # 确保提取器已初始化
-            if extractor is None:
-                from src.core.feature_extraction.feature_extraction import FeatureExtraction
-                extractor = FeatureExtraction(quantize=False)
-                logger.info("特征提取器初始化完成")
-            
-            # 打开图像
-            with Image.open(temp_path) as img:
-                # 调整图像大小
-                img = img.resize((224, 224))
-                
-                # 提取特征
-                logger.info("开始提取特征")
-                feature = extractor.extract_features(img)
-                logger.info(f"特征提取完成，特征维度: {feature.shape}")
-                
-                # 分类图片
-                logger.info("开始分类图片")
-                try:
-                    role, similarity = classifier.classify(feature)
-                    logger.info(f"分类完成，角色: {role}, 相似度: {similarity}")
-                except ValueError as e:
-                    if "索引尚未构建" in str(e):
-                        logger.warning("索引尚未构建，返回默认值")
-                        role = "unknown"
-                        similarity = 0.0
-                    else:
-                        raise
-            
-            # 检测图像中的文本
-            logger.info("开始检测图像中的文本")
-            text_detections = []
-            try:
-                # 使用全局预处理器实例
-                if preprocessor is None:
-                    from src.core.preprocessing.preprocessing import Preprocessing
-                    preprocessor = Preprocessing()
-                text_detections = preprocessor.detect_text(temp_path)
-                logger.info(f"文本检测完成，检测到 {len(text_detections)} 个文本")
-            except Exception as e:
-                logger.warning(f"文本检测失败: {e}")
-            
-            # 生成标签
-            logger.info("开始生成标签")
-            attributes = []
-            try:
-                # 使用全局标签生成器实例
-                global tagger
-                if tagger is None:
-                    from src.core.tagging.wd_vit_v3_tagger import WDViTV3Tagger
-                    tagger = WDViTV3Tagger()
-                    tagger.load_model()
-                attributes = tagger.generate_tags(temp_path)
-                logger.info(f"标签生成完成，生成 {len(attributes)} 个标签")
-            except Exception as e:
-                logger.warning(f"标签生成失败: {e}")
-            
-            # 检测关键点
-            logger.info("开始检测关键点")
-            keypoints = None
-            try:
-                # 使用全局关键点检测器实例
-                global keypoint_detector
-                if keypoint_detector is None:
-                    from src.core.keypoint.mediapipe_keypoint_detector import MediaPipeKeypointDetector
-                    keypoint_detector = MediaPipeKeypointDetector()
-                keypoints = keypoint_detector.detect_keypoints(temp_path)
-                logger.info(f"关键点检测完成")
-            except Exception as e:
-                logger.warning(f"关键点检测失败: {e}")
-            
-            # 构建响应
-            result = {
-                "role": role,
-                "similarity": float(similarity),
-                "attributes": attributes
-            }
-            
-            # 添加文本检测结果（如果有）
-            if text_detections:
-                result["text_detections"] = text_detections
-                logger.info(f"返回文本检测结果: {len(text_detections)} 个文本")
-            
-            # 添加关键点检测结果（如果有）
-            if keypoints:
-                result["keypoints"] = keypoints
-                logger.info("返回关键点检测结果")
-            
-            return result
-        finally:
-            # 清理临时文件
-            if os.path.exists(temp_path):
-                os.remove(temp_path)
-                logger.info(f"临时文件已删除: {temp_path}")
+            # 使用全局预处理器实例
+            if preprocessor is None:
+                from src.core.preprocessing.preprocessing import Preprocessing
+                # 使用异步方式初始化预处理器
+                preprocessor = await asyncio.to_thread(Preprocessing)
+            # 使用异步方式检测文本
+            text_detections = await asyncio.to_thread(preprocessor.detect_text, temp_path)
+            logger.info(f"文本检测完成，检测到 {len(text_detections)} 个文本")
+        except Exception as e:
+            logger.warning(f"文本检测失败: {e}")
+        
+        # 生成标签
+        logger.info("开始生成标签")
+        attributes = []
+        try:
+            # 使用全局标签生成器实例
+            global tagger
+            if tagger is None:
+                from src.core.tagging.wd_vit_v3_tagger import WDViTV3Tagger
+                tagger = WDViTV3Tagger()
+                # 使用异步方式加载模型
+                await asyncio.to_thread(tagger.load_model)
+            # 使用异步方式生成标签
+            attributes = await asyncio.to_thread(tagger.generate_tags, temp_path)
+            logger.info(f"标签生成完成，生成 {len(attributes)} 个标签")
+        except Exception as e:
+            logger.warning(f"标签生成失败: {e}")
+        
+        # 检测关键点
+        logger.info("开始检测关键点")
+        keypoints = None
+        try:
+            # 使用全局关键点检测器实例
+            global keypoint_detector
+            if keypoint_detector is None:
+                from src.core.keypoint.mediapipe_keypoint_detector import MediaPipeKeypointDetector
+                # 使用异步方式初始化关键点检测器
+                keypoint_detector = await asyncio.to_thread(MediaPipeKeypointDetector)
+            # 使用异步方式检测关键点
+            keypoints = await asyncio.to_thread(keypoint_detector.detect_keypoints, temp_path)
+            logger.info(f"关键点检测完成")
+        except Exception as e:
+            logger.warning(f"关键点检测失败: {e}")
+        
+        # AI 角色预测
+        logger.info("开始 AI 角色预测")
+        ai_predicted_role = None
+        try:
+            from src.scripts.ai_role_prediction import AIRolePredictor
+            predictor = AIRolePredictor()
+            # 使用异步方式预测角色
+            ai_predicted_role = await asyncio.to_thread(predictor.predict_role, attributes)
+            logger.info(f"AI 角色预测完成，预测角色: {ai_predicted_role}")
+        except Exception as e:
+            logger.warning(f"AI 角色预测失败: {e}")
+        
+        # 构建响应
+        result = {
+            "filename": file.filename,
+            "role": role,
+            "similarity": float(similarity),
+            "attributes": attributes,
+            "ai_predicted_role": ai_predicted_role
+        }
+        
+        # 添加文本检测结果（如果有）
+        if text_detections:
+            result["text_detections"] = text_detections
+            logger.info(f"返回文本检测结果: {len(text_detections)} 个文本")
+        
+        # 添加关键点检测结果（如果有）
+        if keypoints:
+            result["keypoints"] = keypoints
+            logger.info("返回关键点检测结果")
+        
+        return result
+    finally:
+        # 清理临时文件
+        if 'temp_path' in locals() and os.path.exists(temp_path):
+            os.remove(temp_path)
+            logger.info(f"临时文件已删除: {temp_path}")
+
+
+@app.post("/api/classify", tags=["分类"])
+async def classify_image(file: UploadFile = File(...), use_model: bool = Form(False, description="是否使用专用模型"), use_attributes: bool = Form(True, description="是否使用属性预测"), model_name: str = Form("default", description="模型名称")):
+    """
+    分类图片
+    """
+    try:
+        result = await process_single_image(file, model_name)
+        return result
     except Exception as e:
         logger.error(f"分类失败: {e}")
         raise HTTPException(status_code=500, detail=f"分类失败: {str(e)}")
+
+
+@app.post("/api/classify/batch", tags=["分类"])
+async def classify_batch(files: List[UploadFile] = File(...), model_name: str = Form("default", description="模型名称")):
+    """
+    批量分类图片
+    """
+    import asyncio
+    
+    try:
+        logger.info(f"接收到批量请求，文件数量: {len(files)}")
+        
+        # 限制批量处理的文件数量
+        if len(files) > 10:
+            raise HTTPException(status_code=400, detail="批量处理的文件数量不能超过10个")
+        
+        # 并行处理所有文件
+        tasks = [process_single_image(file, model_name) for file in files]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        # 处理结果
+        processed_results = []
+        for i, result in enumerate(results):
+            if isinstance(result, Exception):
+                # 处理错误
+                processed_results.append({
+                    "filename": files[i].filename,
+                    "error": str(result)
+                })
+                logger.error(f"处理文件 {files[i].filename} 时出错: {result}")
+            else:
+                processed_results.append(result)
+        
+        logger.info(f"批量处理完成，成功: {sum(1 for r in processed_results if 'error' not in r)}, 失败: {sum(1 for r in processed_results if 'error' in r)}")
+        
+        return {
+            "total": len(files),
+            "success": sum(1 for r in processed_results if 'error' not in r),
+            "failed": sum(1 for r in processed_results if 'error' in r),
+            "results": processed_results
+        }
+    except Exception as e:
+        logger.error(f"批量分类失败: {e}")
+        raise HTTPException(status_code=500, detail=f"批量分类失败: {str(e)}")
 
 
 # 错误处理
