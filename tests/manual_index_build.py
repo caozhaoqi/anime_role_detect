@@ -11,7 +11,7 @@ from src.core.classification.classification import Classification
 
 def main():
     # 数据目录
-    data_dir = 'data/downloaded_images'
+    data_dir = 'data/train'
     
     # 检查数据目录是否存在
     if not os.path.exists(data_dir):
@@ -28,12 +28,12 @@ def main():
         print(f"{i+1}. {role_dir}")
     
     # 检查是否包含主要角色目录
-    main_roles = ['日奈', '普拉娜', '阿罗娜', '伊织', '亚子']
+    main_roles = ['日奈', '普拉娜', '伊织', '亚子']
     print("\n检查主要角色目录:")
     for role in main_roles:
         if role in role_dirs:
             role_path = os.path.join(data_dir, role)
-            image_files = [f for f in os.listdir(role_path) if f.lower().endswith(('.jpg', '.jpeg', '.png', '.bmp'))]
+            image_files = [f for f in os.listdir(role_path) if f.lower().endswith(('.jpg', '.jpeg', '.png', '.bmp', '.webp', '.svg'))]
             print(f"✓ {role} 目录存在，包含 {len(image_files)} 张图片")
         else:
             print(f"✗ {role} 目录不存在")
@@ -52,8 +52,8 @@ def main():
     # 处理所有角色目录
     for role_name in role_dirs:
         role_dir = os.path.join(data_dir, role_name)
-        # 只处理.jpg, .jpeg, .png, .bmp, .webp格式的文件
-        image_files = [f for f in os.listdir(role_dir) if f.lower().endswith(('.jpg', '.jpeg', '.png', '.bmp', '.webp'))]
+        # 处理.jpg, .jpeg, .png, .bmp, .webp, .svg格式的文件
+        image_files = [f for f in os.listdir(role_dir) if f.lower().endswith(('.jpg', '.jpeg', '.png', '.bmp', '.webp', '.svg'))]
         
         # 跳过没有图片的目录
         if len(image_files) == 0:

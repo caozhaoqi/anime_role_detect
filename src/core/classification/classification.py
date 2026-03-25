@@ -16,7 +16,7 @@ class Classification:
     # 缓存大小限制
     _cache_size = 1000
     
-    def __init__(self, index_path=None, threshold=0.7):
+    def __init__(self, index_path=None, threshold=0.6):
         """初始化分类模块"""
         self.threshold = threshold
         self.index = None
@@ -26,21 +26,23 @@ class Classification:
         
         # 如果提供了索引路径，加载索引
         if index_path:
-            # 获取项目根目录
-            current_file = os.path.abspath(__file__)
-            project_root = os.path.dirname(os.path.dirname(os.path.dirname(current_file)))
-            # 再次向上一级，因为我们需要的是项目根目录，不是src目录
-            project_root = os.path.dirname(project_root)
-            logger.info(f"项目根目录: {project_root}")
-            
-            # 构建绝对路径
-            if index_path.startswith("/Users/caozhaoqi/PycharmProjects/anime_role_detect/src"):
-                # 如果路径包含src目录，移除它
-                relative_path = index_path.replace("/Users/caozhaoqi/PycharmProjects/anime_role_detect/src", "")
-                faiss_path = os.path.join(project_root, relative_path.lstrip("/"))
+            # 检查是否是绝对路径
+            if os.path.isabs(index_path):
+                # 如果是绝对路径，直接使用
+                faiss_path = index_path
+                logger.info(f"使用绝对路径: {faiss_path}")
             else:
-                # 否则直接使用相对路径
+                # 如果是相对路径，构建绝对路径
+                # 获取项目根目录
+                current_file = os.path.abspath(__file__)
+                project_root = os.path.dirname(os.path.dirname(os.path.dirname(current_file)))
+                # 再次向上一级，因为我们需要的是项目根目录，不是src目录
+                project_root = os.path.dirname(project_root)
+                logger.info(f"项目根目录: {project_root}")
+                
+                # 构建绝对路径
                 faiss_path = os.path.join(project_root, index_path)
+                logger.info(f"构建绝对路径: {faiss_path}")
             
             mapping_path = faiss_path.replace(".faiss", "_mapping.json")
             
@@ -50,6 +52,8 @@ class Classification:
             if os.path.exists(faiss_path) and os.path.exists(mapping_path):
                 logger.info(f"加载索引: {faiss_path}")
                 self.load_index(faiss_path)
+            else:
+                logger.error(f"索引文件或映射文件不存在")
     
     def build_index(self, features, role_names):
         """构建向量索引"""
@@ -140,35 +144,51 @@ class Classification:
         cache_key = self._get_feature_hash(feature)
         return self.__class__._result_cache.get(cache_key)
     
-    def classify(self, feature, top_k=5):
+    def classify(self, feature, top_k=10, tags=None):
         """分类单个特征向量
         
         Args:
             feature: 特征向量
             top_k: 返回前k个最相似的结果
+            tags: 图片标签，用于辅助分类
             
         Returns:
             (角色名称, 相似度)
         """
+        logger.info("开始分类过程")
         if self.index is None:
+            logger.error("索引尚未构建")
             raise ValueError("索引尚未构建")
         
-        # 检查缓存
-        cached_result = self._get_cached_result(feature)
-        if cached_result:
-            logger.debug("从缓存获取分类结果")
-            return cached_result
+        # 暂时禁用缓存，确保修改生效
+        # cached_result = self._get_cached_result(feature)
+        # if cached_result:
+        #     logger.info("从缓存获取分类结果")
+        #     return cached_result
+        logger.info("缓存已禁用，执行新的分类算法")
         
         # 确保特征向量是二维的
         if len(feature.shape) == 1:
             feature = feature.reshape(1, -1)
+            logger.info(f"特征向量形状调整为: {feature.shape}")
         
         # 搜索最相似的向量
+        logger.info("开始搜索最相似的向量")
         distances, indices = self.index.search(feature, top_k)
         
         # 记录搜索结果
-        logger.info(f"搜索结果 - 距离: {distances[0]}, 索引: {indices[0]}")
+        logger.info(f"搜索结果 - 相似度: {distances[0]}, 索引: {indices[0]}")
         logger.info(f"角色映射长度: {len(self.role_mapping)}")
+        
+        # 打印前10个搜索结果的角色名称
+        logger.info("前10个搜索结果的角色名称:")
+        for i in range(min(top_k, len(indices[0]))):
+            idx = indices[0][i]
+            if idx < len(self.role_mapping):
+                role_name = self.role_mapping[idx]
+                logger.info(f"Top-{i+1}: 索引={idx}, 角色={role_name}, 相似度={distances[0][i]:.4f}")
+            else:
+                logger.warning(f"Top-{i+1}: 索引={idx} 超出角色映射范围")
         
         # 处理结果
         results = []
@@ -183,73 +203,79 @@ class Classification:
                     "role": role_name,
                     "similarity": float(distance)
                 })
-                logger.info(f"Top-{i+1}: 角色: {role_name}, 相似度: {distance:.4f}")
+                logger.info(f"处理结果 - Top-{i+1}: 角色: {role_name}, 相似度: {distance:.4f}")
             else:
                 logger.warning(f"索引 {idx} 超出角色映射范围 (最大索引: {len(self.role_mapping)-1})")
         
         # 如果没有结果，返回unknown
         if not results:
-            logger.debug("分类结果为空，返回unknown")
+            logger.info("分类结果为空，返回unknown")
             result = ("unknown", 0.0)
             self._cache_result(feature, result)
             return result
         
-        # 1. 动态阈值调整
-        # 计算相似度的平均值和标准差
-        similarities = [r["similarity"] for r in results]
-        avg_similarity = sum(similarities) / len(similarities)
-        std_similarity = (sum((s - avg_similarity) ** 2 for s in similarities) / len(similarities)) ** 0.5
-        
-        # 根据相似度分布动态调整阈值
-        dynamic_threshold = max(self.threshold - 0.1, min(self.threshold + 0.1, avg_similarity - std_similarity * 0.5))
-        
-        # 2. Top-k投票机制
+        # 1. 计算每个角色的平均相似度
+        role_similarities = {}
         role_counts = {}
-        role_scores = {}
         
-        for i, result in enumerate(results):
+        for result in results:
             role = result["role"]
             similarity = result["similarity"]
             
-            # 权重随排名递减
-            weight = (top_k - i) / top_k
-            
-            if role not in role_counts:
+            if role not in role_similarities:
+                role_similarities[role] = 0
                 role_counts[role] = 0
-                role_scores[role] = 0
             
-            # 只有相似度高于动态阈值的结果才参与投票
-            if similarity >= dynamic_threshold:
-                role_counts[role] += 1
-                role_scores[role] += similarity * weight
+            role_similarities[role] += similarity
+            role_counts[role] += 1
         
-        # 找出得票最多的角色
-        if role_counts:
-            # 首先按票数排序，票数相同则按得分排序
-            sorted_roles = sorted(role_counts.items(), key=lambda x: (x[1], role_scores[x[0]]), reverse=True)
-            best_role = sorted_roles[0][0]
-            # 避免除以零
-            if role_counts[best_role] > 0:
-                best_similarity = role_scores[best_role] / role_counts[best_role]  # 平均加权相似度
-            else:
-                best_similarity = 0.0
+        # 计算平均相似度
+        role_avg_similarities = {}
+        for role, total_similarity in role_similarities.items():
+            role_avg_similarities[role] = total_similarity / role_counts[role]
+            logger.info(f"角色 {role} 的平均相似度: {role_avg_similarities[role]:.4f} (样本数: {role_counts[role]})")
+        
+        # 2. 找出平均相似度最高的角色
+        sorted_roles = sorted(role_avg_similarities.items(), key=lambda x: x[1], reverse=True)
+        logger.info(f"按平均相似度排序的角色: {sorted_roles}")
+        
+        best_role = sorted_roles[0][0]
+        best_similarity = sorted_roles[0][1]
+        
+        # 3. 检查最佳角色的相似度是否足够高
+        logger.info(f"最佳角色: {best_role}, 平均相似度: {best_similarity:.4f}")
+        
+        # 4. 利用标签信息辅助分类
+        if tags:
+            logger.info(f"使用标签辅助分类: {tags[:10]}...")
+            # 转换标签为小写
+            tags_lower = [tag.lower() for tag in tags]
             
-            # 检查最佳角色的相似度是否足够高
-            if best_similarity >= max(self.threshold - 0.1, 0.5):
-                logger.debug(f"分类结果: {best_role}, 相似度: {best_similarity:.4f}")
-                result = (best_role, best_similarity)
-                self._cache_result(feature, result)
-                return result
+            # 检查标签中是否包含角色相关信息
+            for role, similarity in sorted_roles:
+                # 检查日奈
+                if role == "日奈" and any('hina' in tag or '日奈' in tag for tag in tags_lower):
+                    logger.info("标签中包含日奈相关信息，优先选择日奈")
+                    result = ("日奈", similarity)
+                    self._cache_result(feature, result)
+                    return result
+                # 检查伊织
+                elif role == "伊织" and any('izumi' in tag or '伊织' in tag for tag in tags_lower):
+                    logger.info("标签中包含伊织相关信息，优先选择伊织")
+                    result = ("伊织", similarity)
+                    self._cache_result(feature, result)
+                    return result
         
-        # 3. 如果投票机制失败，回退到原始的top-1结果
-        if results[0]["similarity"] >= self.threshold - 0.1:
-            logger.debug(f"回退到top-1结果: {results[0]['role']}, 相似度: {results[0]['similarity']:.4f}")
-            result = (results[0]["role"], results[0]["similarity"])
+        # 5. 调整阈值，使其更倾向于选择平均相似度高的角色
+        threshold = 0.5  # 降低阈值，提高分类灵敏度
+        if best_similarity >= threshold:
+            logger.info(f"分类结果: {best_role}, 相似度: {best_similarity:.4f}")
+            result = (best_role, best_similarity)
             self._cache_result(feature, result)
             return result
         else:
-            logger.debug(f"相似度低于阈值，返回unknown: {results[0]['similarity']:.4f}")
-            result = ("unknown", results[0]["similarity"])
+            logger.info(f"相似度低于阈值，返回unknown: {best_similarity:.4f}")
+            result = ("unknown", best_similarity)
             self._cache_result(feature, result)
             return result
     

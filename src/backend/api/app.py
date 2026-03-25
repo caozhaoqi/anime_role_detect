@@ -448,20 +448,22 @@ async def process_single_image(file, model_name):
         # 导入必要的模块
         from core.classification.classification import Classification
         
-        # 检查分类器是否已缓存
-        if index_path not in classifiers or classifiers[index_path].role_mapping == []:
-            # 检查缓存大小，如果超过限制，删除最旧的分类器
-            if len(classifiers) >= classifiers_max_size:
-                # 获取最旧的分类器键（按插入顺序）
-                oldest_key = next(iter(classifiers))
-                logger.info(f"分类器缓存达到最大限制 ({classifiers_max_size})，删除最旧的分类器: {oldest_key}")
-                del classifiers[oldest_key]
-            
-            logger.info(f"初始化分类器: {index_path}...")
-            # 使用异步方式初始化分类器
-            classifier = await asyncio.to_thread(Classification, index_path)
-            classifiers[index_path] = classifier
-            logger.info(f"分类器 {index_path} 初始化完成")
+        # 强制重新初始化分类器，确保使用最新的索引文件
+        logger.info(f"强制初始化分类器: {index_path}...")
+        # 使用异步方式初始化分类器
+        classifier = await asyncio.to_thread(Classification, index_path)
+        # 更新缓存
+        classifiers[index_path] = classifier
+        logger.info(f"分类器 {index_path} 初始化完成")
+        
+        # 检查分类器是否成功初始化
+        if classifier.index is None:
+            logger.error("分类器初始化失败，索引为None")
+            return {"role": "unknown", "similarity": 0.0, "attributes": []}
+        
+        # 打印分类器的模块路径，确认使用的是修改后的版本
+        logger.info(f"分类器模块路径: {Classification.__module__}")
+        logger.info(f"分类器初始化成功，角色数量: {len(classifier.role_mapping)}")
         
         # 获取分类器实例
         classifier = classifiers[index_path]
@@ -491,26 +493,6 @@ async def process_single_image(file, model_name):
             feature = await asyncio.to_thread(extractor.extract_features, img)
             logger.info(f"特征提取完成，特征维度: {feature.shape}")
             
-            # 分类图片
-            logger.info("开始分类图片")
-            try:
-                # 使用异步方式分类
-                role, similarity = await asyncio.to_thread(classifier.classify, feature)
-                logger.info(f"分类完成，角色: {role}, 相似度: {similarity}")
-            except ValueError as e:
-                if "索引尚未构建" in str(e):
-                    logger.warning("索引尚未构建，返回默认值")
-                    role = "unknown"
-                    similarity = 0.0
-                else:
-                    logger.error(f"分类时发生值错误: {e}")
-                    raise
-            except Exception as e:
-                logger.error(f"分类时发生未知错误: {e}")
-                # 分类失败时返回默认值，避免整个请求失败
-                role = "unknown"
-                similarity = 0.0
-        
         # 检测图像中的文本
         logger.info("开始检测图像中的文本")
         text_detections = []
@@ -542,6 +524,26 @@ async def process_single_image(file, model_name):
             logger.info(f"标签生成完成，生成 {len(attributes)} 个标签")
         except Exception as e:
             logger.warning(f"标签生成失败: {e}")
+        
+        # 分类图片
+        logger.info("开始分类图片")
+        try:
+            # 使用异步方式分类，传入标签信息
+            role, similarity = await asyncio.to_thread(classifier.classify, feature, tags=attributes)
+            logger.info(f"分类完成，角色: {role}, 相似度: {similarity}")
+        except ValueError as e:
+            if "索引尚未构建" in str(e):
+                logger.warning("索引尚未构建，返回默认值")
+                role = "unknown"
+                similarity = 0.0
+            else:
+                logger.error(f"分类时发生值错误: {e}")
+                raise
+        except Exception as e:
+            logger.error(f"分类时发生未知错误: {e}")
+            # 分类失败时返回默认值，避免整个请求失败
+            role = "unknown"
+            similarity = 0.0
         
         # 检测关键点
         logger.info("开始检测关键点")
