@@ -106,8 +106,72 @@ class Task(ABC):
         task.result = task_dict['result']
         task.error = task_dict['error']
         task.retry_count = task_dict['retry_count']
-        task.max_retries = task_dict['max_retries']
         return task
+
+
+class ClassificationTask(Task):
+    """
+    分类任务
+    """
+    
+    def __init__(self, task_id, image_path, model_name):
+        """
+        初始化分类任务
+        
+        Args:
+            task_id: 任务ID
+            image_path: 图像路径
+            model_name: 模型名称
+        """
+        super().__init__(task_id, 'classification', image_path=image_path, model_name=model_name)
+    
+    def execute(self):
+        """
+        执行分类任务
+        
+        Returns:
+            分类结果
+        """
+        try:
+            from core.classification.classification import Classification
+            from core.feature_extraction.feature_extraction import FeatureExtraction
+            from core.preprocessing.preprocessing import Preprocessing
+            from PIL import Image
+            
+            logger.info(f"执行分类任务: {self.task_id}, 模型: {self.params['model_name']}")
+            
+            # 加载图像
+            with Image.open(self.params['image_path']) as img:
+                img = img.resize((224, 224))
+                
+                # 提取特征
+                extractor = FeatureExtraction(quantize=True)
+                feature = extractor.extract_features(img)
+                
+                # 分类
+                model_name = self.params['model_name']
+                index_mapping = {
+                    "default": "role_index",
+                    "augmented_training": "models/augmented_training/role_index",
+                    "arona_plana": "models/arona_plana/role_index",
+                    "arona_plana_efficientnet": "models/arona_plana_efficientnet/role_index",
+                    "arona_plana_resnet18": "models/arona_plana_resnet18/role_index",
+                    "optimized": "models/optimized/role_index"
+                }
+                index_path = index_mapping.get(model_name, "role_index")
+                
+                classifier = Classification(index_path)
+                role, similarity = classifier.classify(feature)
+                
+                logger.info(f"分类任务完成: {self.task_id}, 角色: {role}, 相似度: {similarity}")
+                
+                return {
+                    "role": role,
+                    "similarity": float(similarity)
+                }
+        except Exception as e:
+            logger.error(f"分类任务执行失败: {self.task_id}, 错误: {e}")
+            raise
 
 
 class ImageCollectionTask(Task):

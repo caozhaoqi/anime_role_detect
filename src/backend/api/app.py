@@ -13,7 +13,9 @@ from typing import Dict, Any, List, Optional
 # 添加项目根目录到Python路径
 project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, project_root)
+sys.path.insert(0, os.path.dirname(project_root))  # 添加父目录，确保能导入src模块
 print(f"添加到Python路径: {project_root}")
+print(f"Python路径: {sys.path[:3]}")
 
 from fastapi import FastAPI, HTTPException, Query, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
@@ -51,6 +53,7 @@ distributed_manager = DistributedManager()
 # 模型实例缓存
 extractor = None
 classifiers = {}  # 缓存不同模型的分类器实例
+classifiers_max_size = 10  # 分类器缓存的最大大小
 preprocessor = None
 tagger = None
 keypoint_detector = None
@@ -68,14 +71,14 @@ async def startup_event():
     # 初始化模型实例，避免首次请求延迟
     global extractor, classifiers, preprocessor
     try:
-        from src.core.feature_extraction.feature_extraction import FeatureExtraction
-        from src.core.classification.classification import Classification
-        from src.core.preprocessing.preprocessing import Preprocessing
+        from core.feature_extraction.feature_extraction import FeatureExtraction
+        from core.classification.classification import Classification
+        from core.preprocessing.preprocessing import Preprocessing
         
         logger.info("开始初始化模型...")
         
-        # 初始化特征提取器（使用量化模型以减少内存使用和提高推理速度）
-        extractor = FeatureExtraction(quantize=True)
+        # 初始化特征提取器
+        extractor = FeatureExtraction(quantize=False)
         logger.info("特征提取器初始化完成")
         
         # 初始化分类器，使用字典缓存不同模型
@@ -89,7 +92,7 @@ async def startup_event():
         
         # 初始化标签生成器
         try:
-            from src.core.tagging.wd_vit_v3_tagger import WDViTV3Tagger
+            from core.tagging.wd_vit_v3_tagger import WDViTV3Tagger
             tagger = WDViTV3Tagger()
             tagger.load_model()
             logger.info("标签生成器初始化完成")
@@ -98,7 +101,7 @@ async def startup_event():
         
         # 初始化关键点检测器
         try:
-            from src.core.keypoint.mediapipe_keypoint_detector import MediaPipeKeypointDetector
+            from core.keypoint.mediapipe_keypoint_detector import MediaPipeKeypointDetector
             keypoint_detector = MediaPipeKeypointDetector()
             logger.info("关键点检测器初始化完成")
         except Exception as e:
@@ -115,8 +118,34 @@ async def shutdown_event():
     关闭事件
     """
     logger.info("关闭API服务")
+    
+    # 清理模型实例，释放内存
+    global extractor, classifiers, preprocessor, tagger, keypoint_detector
+    
+    if extractor is not None:
+        logger.info("清理特征提取器...")
+        extractor = None
+    
+    if classifiers:
+        logger.info(f"清理分类器缓存，共 {len(classifiers)} 个实例...")
+        classifiers.clear()
+    
+    if preprocessor is not None:
+        logger.info("清理预处理器...")
+        preprocessor = None
+    
+    if tagger is not None:
+        logger.info("清理标签生成器...")
+        tagger = None
+    
+    if keypoint_detector is not None:
+        logger.info("清理关键点检测器...")
+        keypoint_detector = None
+    
     monitoring_system.stop()
     distributed_manager.stop()
+    
+    logger.info("所有模型实例已清理")
 
 
 @app.get("/api/health", tags=["系统"])
@@ -342,8 +371,19 @@ async def process_single_image(file, model_name):
     try:
         # 读取文件内容
         content = await file.read()
-        logger.info(f"处理文件，大小: {len(content)} 字节")
+        file_size = len(content)
+        logger.info(f"处理文件，大小: {file_size} 字节")
         logger.info(f"文件类型: {file.content_type}")
+        
+        # 检查文件大小
+        max_file_size = 10 * 1024 * 1024  # 10MB
+        if file_size > max_file_size:
+            raise ValueError(f"文件大小超过限制 (最大 {max_file_size / 1024 / 1024:.1f}MB)")
+        
+        # 检查文件类型
+        allowed_content_types = ["image/jpeg", "image/png", "image/gif", "image/bmp"]
+        if file.content_type not in allowed_content_types:
+            raise ValueError(f"不支持的文件类型: {file.content_type}，仅支持 {', '.join(allowed_content_types)}")
         
         # 保存临时文件
         # 根据文件类型确定后缀
@@ -395,10 +435,17 @@ async def process_single_image(file, model_name):
         logger.info(f"使用模型: {model_name}, 索引路径: {index_path}")
         
         # 导入必要的模块
-        from src.core.classification.classification import Classification
+        from core.classification.classification import Classification
         
         # 检查分类器是否已缓存
         if index_path not in classifiers or classifiers[index_path].role_mapping == []:
+            # 检查缓存大小，如果超过限制，删除最旧的分类器
+            if len(classifiers) >= classifiers_max_size:
+                # 获取最旧的分类器键（按插入顺序）
+                oldest_key = next(iter(classifiers))
+                logger.info(f"分类器缓存达到最大限制 ({classifiers_max_size})，删除最旧的分类器: {oldest_key}")
+                del classifiers[oldest_key]
+            
             logger.info(f"初始化分类器: {index_path}...")
             # 使用异步方式初始化分类器
             classifier = await asyncio.to_thread(Classification, index_path)
@@ -417,7 +464,7 @@ async def process_single_image(file, model_name):
         
         # 确保提取器已初始化
         if extractor is None:
-            from src.core.feature_extraction.feature_extraction import FeatureExtraction
+            from core.feature_extraction.feature_extraction import FeatureExtraction
             # 使用异步方式初始化特征提取器（使用量化模型）
             extractor = await asyncio.to_thread(FeatureExtraction, quantize=True)
             logger.info("特征提取器初始化完成")
@@ -445,7 +492,13 @@ async def process_single_image(file, model_name):
                     role = "unknown"
                     similarity = 0.0
                 else:
+                    logger.error(f"分类时发生值错误: {e}")
                     raise
+            except Exception as e:
+                logger.error(f"分类时发生未知错误: {e}")
+                # 分类失败时返回默认值，避免整个请求失败
+                role = "unknown"
+                similarity = 0.0
         
         # 检测图像中的文本
         logger.info("开始检测图像中的文本")
@@ -453,7 +506,7 @@ async def process_single_image(file, model_name):
         try:
             # 使用全局预处理器实例
             if preprocessor is None:
-                from src.core.preprocessing.preprocessing import Preprocessing
+                from core.preprocessing.preprocessing import Preprocessing
                 # 使用异步方式初始化预处理器
                 preprocessor = await asyncio.to_thread(Preprocessing)
             # 使用异步方式检测文本
@@ -469,7 +522,7 @@ async def process_single_image(file, model_name):
             # 使用全局标签生成器实例
             global tagger
             if tagger is None:
-                from src.core.tagging.wd_vit_v3_tagger import WDViTV3Tagger
+                from core.tagging.wd_vit_v3_tagger import WDViTV3Tagger
                 tagger = WDViTV3Tagger()
                 # 使用异步方式加载模型
                 await asyncio.to_thread(tagger.load_model)
@@ -486,7 +539,7 @@ async def process_single_image(file, model_name):
             # 使用全局关键点检测器实例
             global keypoint_detector
             if keypoint_detector is None:
-                from src.core.keypoint.mediapipe_keypoint_detector import MediaPipeKeypointDetector
+                from core.keypoint.mediapipe_keypoint_detector import MediaPipeKeypointDetector
                 # 使用异步方式初始化关键点检测器
                 keypoint_detector = await asyncio.to_thread(MediaPipeKeypointDetector)
             # 使用异步方式检测关键点
@@ -499,7 +552,7 @@ async def process_single_image(file, model_name):
         logger.info("开始 AI 角色预测")
         ai_predicted_role = None
         try:
-            from src.scripts.ai_role_prediction import AIRolePredictor
+            from scripts.ai_role_prediction import AIRolePredictor
             predictor = AIRolePredictor()
             # 使用异步方式预测角色
             ai_predicted_role = await asyncio.to_thread(predictor.predict_role, attributes)
@@ -539,10 +592,17 @@ async def classify_image(file: UploadFile = File(...), use_model: bool = Form(Fa
     """
     分类图片
     """
+    start_time = time.time()
     try:
         result = await process_single_image(file, model_name)
+        response_time = time.time() - start_time
+        # 更新网络监控统计信息
+        monitoring_system.network_monitor.update_request_stats(True, response_time)
         return result
     except Exception as e:
+        response_time = time.time() - start_time
+        # 更新网络监控统计信息
+        monitoring_system.network_monitor.update_request_stats(False, response_time)
         logger.error(f"分类失败: {e}")
         raise HTTPException(status_code=500, detail=f"分类失败: {str(e)}")
 
@@ -552,6 +612,7 @@ async def classify_batch(files: List[UploadFile] = File(...), model_name: str = 
     """
     批量分类图片
     """
+    start_time = time.time()
     import asyncio
     
     try:
@@ -567,6 +628,7 @@ async def classify_batch(files: List[UploadFile] = File(...), model_name: str = 
         
         # 处理结果
         processed_results = []
+        success_count = 0
         for i, result in enumerate(results):
             if isinstance(result, Exception):
                 # 处理错误
@@ -577,16 +639,24 @@ async def classify_batch(files: List[UploadFile] = File(...), model_name: str = 
                 logger.error(f"处理文件 {files[i].filename} 时出错: {result}")
             else:
                 processed_results.append(result)
+                success_count += 1
         
-        logger.info(f"批量处理完成，成功: {sum(1 for r in processed_results if 'error' not in r)}, 失败: {sum(1 for r in processed_results if 'error' in r)}")
+        response_time = time.time() - start_time
+        # 更新网络监控统计信息
+        monitoring_system.network_monitor.update_request_stats(True, response_time)
+        
+        logger.info(f"批量处理完成，成功: {success_count}, 失败: {len(files) - success_count}")
         
         return {
             "total": len(files),
-            "success": sum(1 for r in processed_results if 'error' not in r),
-            "failed": sum(1 for r in processed_results if 'error' in r),
+            "success": success_count,
+            "failed": len(files) - success_count,
             "results": processed_results
         }
     except Exception as e:
+        response_time = time.time() - start_time
+        # 更新网络监控统计信息
+        monitoring_system.network_monitor.update_request_stats(False, response_time)
         logger.error(f"批量分类失败: {e}")
         raise HTTPException(status_code=500, detail=f"批量分类失败: {str(e)}")
 
@@ -605,6 +675,61 @@ async def global_exception_handler(request, exc):
             "message": f"服务器内部错误: {str(exc)}"
         }
     )
+
+
+# 监控相关API
+@app.get("/api/monitoring", tags=["监控"])
+async def get_monitoring_data():
+    """
+    获取监控数据
+    """
+    stats = monitoring_system.get_all_stats()
+    return {
+        "status": "success",
+        "data": stats
+    }
+
+
+@app.get("/api/monitoring/system", tags=["监控"])
+async def get_system_monitoring():
+    """
+    获取系统监控数据
+    """
+    system_stats = monitoring_system.system_monitor.get_stats()
+    system_data = monitoring_system.system_monitor.get_data(limit=20)
+    return {
+        "status": "success",
+        "stats": system_stats,
+        "data": system_data
+    }
+
+
+@app.get("/api/monitoring/network", tags=["监控"])
+async def get_network_monitoring():
+    """
+    获取网络监控数据
+    """
+    network_stats = monitoring_system.network_monitor.get_stats()
+    network_data = monitoring_system.network_monitor.get_data(limit=20)
+    return {
+        "status": "success",
+        "stats": network_stats,
+        "data": network_data
+    }
+
+
+@app.get("/api/monitoring/task", tags=["监控"])
+async def get_task_monitoring():
+    """
+    获取任务监控数据
+    """
+    task_stats = monitoring_system.task_monitor.get_stats()
+    task_data = monitoring_system.task_monitor.get_data(limit=20)
+    return {
+        "status": "success",
+        "stats": task_stats,
+        "data": task_data
+    }
 
 
 if __name__ == "__main__":

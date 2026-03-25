@@ -5,7 +5,7 @@ import os
 import hashlib
 
 # 使用全局日志系统
-from src.core.logging.global_logger import get_logger, log_system, log_error
+from core.logging.global_logger import get_logger, log_system, log_error
 logger = get_logger("classification")
 
 class Classification:
