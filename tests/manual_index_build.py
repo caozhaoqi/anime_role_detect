@@ -4,10 +4,11 @@ import sys
 
 # 添加项目根目录到Python路径
 sys.path.append(os.path.abspath('.'))
+sys.path.append(os.path.abspath('src'))
 
-from src.core.preprocessing.preprocessing import Preprocessing
-from src.core.feature_extraction.feature_extraction import FeatureExtraction
-from src.core.classification.classification import Classification
+from core.preprocessing.preprocessing import Preprocessing
+from core.feature_extraction.feature_extraction import FeatureExtraction
+from core.classification.classification import Classification
 
 def main():
     # 数据目录

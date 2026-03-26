@@ -10,10 +10,14 @@ import json
 from PIL import Image
 
 # 添加项目根目录到Python路径
-sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 
 # 导入通用分类模块
-from src.core.classification.general_classification import GeneralClassification
+try:
+    from src.core.classification.general_classification import GeneralClassification
+except ImportError:
+    # 尝试另一种导入方式
+    from core.classification.general_classification import GeneralClassification
 
 # 配置日志
 import logging
@@ -112,7 +116,7 @@ def test_model_accuracy(data_dir, model_name=''):
 
 if __name__ == '__main__':
     # 测试数据目录
-    data_dir = 'data/sdv50_train'
+    data_dir = 'data/train'
     
     # 测试默认模型
     logger.info("测试默认模型...")
