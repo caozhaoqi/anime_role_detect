@@ -15,6 +15,8 @@ class Classification:
     _result_cache = {}
     # 缓存大小限制
     _cache_size = 1000
+    # 索引缓存大小限制
+    _index_cache_size = 5
     
     def __init__(self, index_path=None, threshold=0.6):
         """初始化分类模块"""
@@ -49,9 +51,23 @@ class Classification:
             logger.info(f"检查索引文件是否存在: {faiss_path} -> {os.path.exists(faiss_path)}")
             logger.info(f"检查映射文件是否存在: {mapping_path} -> {os.path.exists(mapping_path)}")
             
-            if os.path.exists(faiss_path) and os.path.exists(mapping_path):
-                logger.info(f"加载索引: {faiss_path}")
-                self.load_index(faiss_path)
+            # 检查文件是否存在，处理.faiss后缀
+            if not faiss_path.endswith(".faiss"):
+                faiss_path_with_ext = f"{faiss_path}.faiss"
+            else:
+                faiss_path_with_ext = faiss_path
+            
+            if not mapping_path.endswith("_mapping.json"):
+                mapping_path_with_ext = f"{mapping_path}_mapping.json"
+            else:
+                mapping_path_with_ext = mapping_path
+            
+            logger.info(f"检查索引文件是否存在: {faiss_path_with_ext} -> {os.path.exists(faiss_path_with_ext)}")
+            logger.info(f"检查映射文件是否存在: {mapping_path_with_ext} -> {os.path.exists(mapping_path_with_ext)}")
+            
+            if os.path.exists(faiss_path_with_ext) and os.path.exists(mapping_path_with_ext):
+                logger.info(f"加载索引: {faiss_path_with_ext}")
+                self.load_index(faiss_path_with_ext)
             else:
                 logger.error(f"索引文件或映射文件不存在")
     
@@ -99,6 +115,13 @@ class Classification:
             self.role_mapping = cached_mapping
             logger.info(f"缓存加载完成，角色数量: {len(cached_mapping)}")
             return
+        
+        # 检查索引缓存大小
+        if len(self.__class__._index_cache) >= self.__class__._index_cache_size:
+            # 移除最早的缓存项
+            oldest_key = next(iter(self.__class__._index_cache))
+            del self.__class__._index_cache[oldest_key]
+            logger.info(f"索引缓存已满，移除最早的索引: {oldest_key}")
         
         logger.info(f"开始加载索引: {index_path}")
         

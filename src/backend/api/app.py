@@ -746,6 +746,11 @@ async def process_single_image(file, model_name):
         if temp_path and os.path.exists(temp_path):
             os.remove(temp_path)
             logger.info(f"临时文件已删除: {temp_path}")
+        
+        # 强制垃圾回收
+        import gc
+        gc.collect()
+        logger.info("执行垃圾回收，释放内存")
 
 
 @app.post("/api/classify", tags=["分类"])
