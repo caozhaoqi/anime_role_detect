@@ -583,7 +583,7 @@ async def generate_image_tags(temp_path):
     
     return attributes
 
-async def classify_image(classifier, feature, attributes):
+async def classify_image_internal(classifier, feature, attributes):
     """
     分类图像
     
@@ -713,7 +713,7 @@ async def process_single_image(file, model_name):
         attributes = await generate_image_tags(temp_path)
         
         # 分类图像
-        role, similarity = await classify_image(classifier, feature, attributes)
+        role, similarity = await classify_image_internal(classifier, feature, attributes)
         
         # 检测关键点
         keypoints = await detect_keypoints(temp_path)

@@ -160,7 +160,13 @@ class ConfigManager:
         Returns:
             project_root: 项目根目录路径
         """
-        return self.get("project.root")
+        # 如果config已初始化，从配置中获取
+        if hasattr(self, 'config') and self.config:
+            return self.get("project.root")
+        # 否则，直接计算项目根目录
+        current_file = os.path.abspath(__file__)
+        project_root = os.path.dirname(os.path.dirname(os.path.dirname(current_file)))
+        return project_root
     
     def get_model_path(self, model_name):
         """

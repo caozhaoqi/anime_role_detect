@@ -89,7 +89,7 @@ def start_api_service(host: str = '0.0.0.0', port: int = 8000, reload: bool = Fa
     cmd = [
         sys.executable,
         '-m', 'uvicorn',
-        'app:app',
+        'src.backend.api.app:app',
         '--host', host,
         '--port', str(port)
     ]
