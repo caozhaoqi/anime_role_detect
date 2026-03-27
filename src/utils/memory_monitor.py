@@ -163,11 +163,13 @@ class MemoryMonitor:
             for proc in psutil.process_iter(['pid', 'name', 'memory_percent', 'cpu_percent']):
                 try:
                     proc_info = proc.info
-                    if proc_info['memory_percent'] > 1.0:  # 只保存内存使用超过1%的进程
+                    # 检查memory_percent是否为None
+                    memory_percent = proc_info.get('memory_percent')
+                    if memory_percent is not None and memory_percent > 1.0:  # 只保存内存使用超过1%的进程
                         processes.append({
                             'pid': proc_info['pid'],
                             'name': proc_info['name'],
-                            'memory_percent': proc_info['memory_percent'],
+                            'memory_percent': memory_percent,
                             'cpu_percent': proc_info['cpu_percent']
                         })
                 except (psutil.NoSuchProcess, psutil.AccessDenied):
@@ -192,8 +194,15 @@ class MemoryMonitor:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             coredump_file = os.path.join(self.save_dir, f"coredump_{current_pid}_{timestamp}.dump")
             
+            # 检查是否有gcore命令
+            import shutil
+            if not shutil.which('gcore'):
+                logger.warning("gcore命令不可用，使用备用方法")
+                self._generate_coredump_fallback()
+                return
+            
             # 使用gcore命令生成coredump
-            # 注意：需要安装gcore工具
+            # 注意：需要足够的权限
             result = subprocess.run(
                 ['gcore', '-o', coredump_file, str(current_pid)],
                 capture_output=True,
@@ -259,12 +268,14 @@ class MemoryMonitor:
             for proc in psutil.process_iter(['pid', 'name', 'memory_info', 'memory_percent']):
                 try:
                     proc_info = proc.info
-                    if proc_info['pid'] == current_pid or proc_info['memory_percent'] > 0.5:
+                    # 检查memory_percent是否为None
+                    memory_percent = proc_info.get('memory_percent')
+                    if proc_info['pid'] == current_pid or (memory_percent is not None and memory_percent > 0.5):
                         memory_info = proc_info['memory_info']
                         process_memory.append({
                             'pid': proc_info['pid'],
                             'name': proc_info['name'],
-                            'memory_percent': proc_info['memory_percent'],
+                            'memory_percent': memory_percent,
                             'rss': memory_info.rss / (1024 * 1024),  # MB
                             'vms': memory_info.vms / (1024 * 1024),  # MB
                             'shared': memory_info.shared / (1024 * 1024),  # MB
