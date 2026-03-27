@@ -56,6 +56,9 @@ class AIRolePredictor:
         self.api_url = f"{self.api_base}/chat/completions"
         logger.info(f"使用 API 配置 - 基础URL: {self.api_base}, 模型: {self.model_name}")
         
+        # 添加预测缓存
+        self.prediction_cache = {}
+    
     def predict_role(self, tags):
         """
         根据标签预测角色名
@@ -66,6 +69,14 @@ class AIRolePredictor:
         Returns:
             预测的角色名
         """
+        # 生成缓存键
+        cache_key = tuple(sorted(tags[:10]))  # 使用前10个标签作为缓存键
+        
+        # 检查缓存
+        if cache_key in self.prediction_cache:
+            logger.info("从缓存获取角色预测结果")
+            return self.prediction_cache[cache_key]
+        
         logger.info(f"开始预测角色，标签数量: {len(tags)}")
         logger.info(f"前10个标签: {tags[:10]}")
         
@@ -80,6 +91,8 @@ class AIRolePredictor:
             # 如果 API 调用失败，使用模拟响应
             predicted_role = self._simulate_ai_response(prompt, tags)
         
+        # 缓存结果
+        self.prediction_cache[cache_key] = predicted_role
         logger.info(f"预测角色: {predicted_role}")
         return predicted_role
     
@@ -136,7 +149,7 @@ class AIRolePredictor:
         
         logger.info(f"调用 AI API - 模型: {self.model_name}")
         # 添加超时时间，避免无限期等待
-        response = requests.post(self.api_url, headers=headers, json=data, timeout=10)
+        response = requests.post(self.api_url, headers=headers, json=data, timeout=5)  # 减少超时时间到5秒
         response.raise_for_status()
         
         result = response.json()

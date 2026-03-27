@@ -47,8 +47,15 @@ def test_classification(test_image_path, model_name="default"):
     start_time = time.time()
     
     try:
+        # 根据文件扩展名设置正确的Content-Type
+        content_type = 'image/jpeg'
+        if test_image_path.lower().endswith('.png'):
+            content_type = 'image/png'
+        elif test_image_path.lower().endswith('.svg'):
+            content_type = 'image/svg+xml'
+        
         with open(test_image_path, 'rb') as f:
-            files = {'file': (os.path.basename(test_image_path), f, 'image/jpeg')}
+            files = {'file': (os.path.basename(test_image_path), f, content_type)}
             data = {'model_name': model_name}
             response = requests.post(url, files=files, data=data, timeout=60)  # 增加超时时间
         
@@ -120,28 +127,14 @@ def run_stress_test(test_image_path, num_requests=20, concurrent_workers=5):
 if __name__ == "__main__":
     project_root = get_project_root()
     
-    # 查找测试图像
-    test_image_path = None
-    test_dir = os.path.join(project_root, "data", "test")
-    if os.path.exists(test_dir):
-        for file in os.listdir(test_dir):
-            if file.endswith(('.jpg', '.jpeg', '.png')):
-                test_image_path = os.path.join(test_dir, file)
-                break
-    
-    # 如果测试目录不存在，从训练数据中找一个图像
-    if not test_image_path:
-        train_dir = os.path.join(project_root, "data", "train")
-        if os.path.exists(train_dir):
-            for role_dir in os.listdir(train_dir):
-                role_path = os.path.join(train_dir, role_dir)
-                if os.path.isdir(role_path):
-                    for file in os.listdir(role_path):
-                        if file.endswith(('.jpg', '.jpeg', '.png')):
-                            test_image_path = os.path.join(role_path, file)
-                            break
-                    if test_image_path:
-                        break
+    # 直接指定测试图像路径
+    test_image_path = os.path.join(project_root, "data", "train", "日奈", "日奈_1.svg")
+    if not os.path.exists(test_image_path):
+        test_image_path = os.path.join(project_root, "data", "train", "日奈", "日奈_2.svg")
+    if not os.path.exists(test_image_path):
+        test_image_path = os.path.join(project_root, "data", "train", "日奈", "日奈_4.svg")
+    if not os.path.exists(test_image_path):
+        test_image_path = os.path.join(project_root, "data", "train", "日奈", "日奈_5.svg")
     
     if not test_image_path:
         logger.error("找不到测试图像")

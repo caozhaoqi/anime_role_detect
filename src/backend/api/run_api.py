@@ -91,7 +91,9 @@ def start_api_service(host: str = '0.0.0.0', port: int = 8000, reload: bool = Fa
         '-m', 'uvicorn',
         'src.backend.api.app:app',
         '--host', host,
-        '--port', str(port)
+        '--port', str(port),
+        '--workers', '2',  # 减少到2个工作线程，避免资源竞争
+        '--timeout-keep-alive', '30'  # 增加保持连接的超时时间
     ]
     
     if reload:

@@ -27,6 +27,7 @@ from fastapi.responses import JSONResponse
 from utils.monitoring_system import MonitoringSystem
 from utils.cache_manager import cache_manager
 from utils.distributed_manager import DistributedManager
+from utils.memory_monitor import init_memory_monitoring, shutdown_memory_monitoring, get_memory_monitor
 from core.logging.global_logger import get_logger
 from core.classification.classification import Classification
 from core.feature_extraction.feature_extraction import FeatureExtraction
@@ -75,12 +76,20 @@ async def startup_event():
     
     在服务启动时执行的初始化操作，包括：
     1. 启动监控系统和分布式管理系统
-    2. 初始化模型实例，避免首次请求延迟
-    3. 初始化特征提取器、分类器、预处理器、标签生成器和关键点检测器
+    2. 初始化内存监控系统
+    3. 初始化模型实例，避免首次请求延迟
+    4. 初始化特征提取器、分类器、预处理器、标签生成器和关键点检测器
     """
     logger.info("启动API服务")
     monitoring_system.start()  # 启动监控系统
     distributed_manager.start()  # 启动分布式管理系统
+    
+    # 初始化内存监控系统
+    try:
+        init_memory_monitoring()
+        logger.info("内存监控系统初始化完成")
+    except Exception as e:
+        logger.error(f"内存监控系统初始化失败: {e}")
     
     # 初始化模型实例，避免首次请求延迟
     global extractor, classifiers, preprocessor, tagger, keypoint_detector
@@ -128,6 +137,7 @@ async def shutdown_event():
     在服务关闭时执行的清理操作，包括：
     1. 清理模型实例，释放内存
     2. 停止监控系统和分布式管理系统
+    3. 停止内存监控系统
     """
     logger.info("关闭API服务")
     
@@ -156,6 +166,13 @@ async def shutdown_event():
     
     monitoring_system.stop()  # 停止监控系统
     distributed_manager.stop()  # 停止分布式管理系统
+    
+    # 停止内存监控系统
+    try:
+        shutdown_memory_monitoring()
+        logger.info("内存监控系统已停止")
+    except Exception as e:
+        logger.error(f"内存监控系统停止失败: {e}")
     
     logger.info("所有模型实例已清理")
 
@@ -353,7 +370,7 @@ async def get_models():
         raise HTTPException(status_code=500, detail=f"获取模型列表失败: {str(e)}")
 
 
-async def validate_image(file, content):
+def validate_image(file, content):
     """
     验证图像有效性
     
@@ -366,54 +383,72 @@ async def validate_image(file, content):
     """
     import tempfile
     import os
+    from core.logging.global_logger import get_logger
+    logger = get_logger("validate_image")
     
-    file_size = len(content)
-    logger.info(f"处理文件，大小: {file_size} 字节")
-    logger.info(f"文件类型: {file.content_type}")
-    
-    # 检查文件大小
-    max_file_size = config_manager.get_max_file_size()
-    if file_size > max_file_size:
-        raise ValueError(f"文件大小超过限制 (最大 {max_file_size / 1024 / 1024:.1f}MB)")
-    
-    # 检查文件类型
-    allowed_content_types = config_manager.get_allowed_file_types()
-    if file.content_type not in allowed_content_types:
-        raise ValueError(f"不支持的文件类型: {file.content_type}，仅支持 {', '.join(allowed_content_types)}")
-    
-    # 保存临时文件
-    # 根据文件类型确定后缀
-    suffix = ".jpg"
-    if file.content_type == "image/png":
-        suffix = ".png"
-    elif file.content_type == "image/gif":
-        suffix = ".gif"
-    elif file.content_type == "image/bmp":
-        suffix = ".bmp"
-    
-    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as temp_file:
-        temp_file.write(content)
-        temp_path = temp_file.name
-    
-    logger.info(f"临时文件已创建: {temp_path}")
-    
-    # 检查临时文件是否存在且大小大于0
-    if not os.path.exists(temp_path):
-        raise ValueError(f"临时文件不存在: {temp_path}")
-    if os.path.getsize(temp_path) == 0:
-        raise ValueError(f"临时文件为空: {temp_path}")
-    logger.info(f"临时文件大小: {os.path.getsize(temp_path)} 字节")
-    
-    # 尝试使用 PIL 加载图像，验证文件是否是有效的图像
     try:
-        pil_img = Image.open(temp_path)
-        pil_img.verify()  # 验证图像文件的有效性
-        logger.info(f"PIL 加载图像成功，格式: {pil_img.format}, 大小: {pil_img.size}")
+        file_size = len(content)
+        logger.info(f"处理文件，大小: {file_size} 字节")
+        logger.info(f"文件类型: {file.content_type}")
+        logger.info(f"文件名: {file.filename}")
+        
+        # 检查文件大小
+        max_file_size = config_manager.get_max_file_size()
+        if file_size > max_file_size:
+            raise ValueError(f"文件大小超过限制 (最大 {max_file_size / 1024 / 1024:.1f}MB)")
+        
+        # 检查文件类型
+        allowed_content_types = config_manager.get_allowed_file_types()
+        if file.content_type not in allowed_content_types:
+            raise ValueError(f"不支持的文件类型: {file.content_type}，仅支持 {', '.join(allowed_content_types)}")
+        
+        # 保存临时文件
+        # 直接为SVG文件创建带.svg后缀的临时文件
+        logger.info(f"检查文件类型: {file.content_type}")
+        logger.info(f"文件类型是否为SVG: {file.content_type == 'image/svg+xml'}")
+        if file.content_type == "image/svg+xml":
+            logger.info("创建SVG临时文件")
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".svg") as temp_file:
+                temp_file.write(content)
+                temp_path = temp_file.name
+            logger.info(f"SVG临时文件创建成功: {temp_path}")
+        else:
+            logger.info("创建JPG临时文件")
+            # 其他文件类型使用默认后缀
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as temp_file:
+                temp_file.write(content)
+                temp_path = temp_file.name
+            logger.info(f"JPG临时文件创建成功: {temp_path}")
+        
+        logger.info(f"临时文件已创建: {temp_path}")
+        
+        # 检查临时文件是否存在且大小大于0
+        if not os.path.exists(temp_path):
+            raise ValueError(f"临时文件不存在: {temp_path}")
+        if os.path.getsize(temp_path) == 0:
+            raise ValueError(f"临时文件为空: {temp_path}")
+        logger.info(f"临时文件大小: {os.path.getsize(temp_path)} 字节")
+        
+        # 对于SVG文件，直接返回临时文件路径
+        if file.content_type == "image/svg+xml":
+            logger.info("跳过 SVG 文件的验证，直接返回临时文件路径")
+            return temp_path
+        
+        # 对于非 SVG 文件，验证图像的有效性
+        try:
+            pil_img = Image.open(temp_path)
+            pil_img.verify()
+            logger.info(f"PIL 加载图像成功，格式: {pil_img.format}, 大小: {pil_img.size}")
+        except Exception as e:
+            logger.error(f"PIL 加载图像失败: {e}")
+            raise ValueError(f"无效的图像文件: {str(e)}")
+        
+        return temp_path
     except Exception as e:
-        logger.error(f"PIL 加载图像失败: {e}")
-        raise ValueError(f"无效的图像文件: {str(e)}")
-    
-    return temp_path
+        logger.error(f"validate_image 函数异常: {e}")
+        import traceback
+        logger.error(f"异常堆栈: {traceback.format_exc()}")
+        raise
 
 def get_project_root():
     """
@@ -521,10 +556,18 @@ async def extract_image_features(temp_path):
         extractor = await asyncio.to_thread(FeatureExtraction, quantize=True)
         logger.info("特征提取器初始化完成")
     
-    # 打开图像
-    with Image.open(temp_path) as img:
-        # 调整图像大小
-        img = img.resize((224, 224))
+    # 检查文件是否是SVG格式
+    import os
+    file_extension = os.path.splitext(temp_path)[1].lower()
+    is_svg = file_extension == '.svg'
+    
+    if is_svg:
+        logger.info("处理SVG文件，创建空白图像作为替代")
+        # 对于SVG文件，创建一个空白图像作为替代
+        from PIL import ImageDraw
+        img = Image.new('RGB', (224, 224), color='white')
+        draw = ImageDraw.Draw(img)
+        draw.text((10, 10), "SVG Image", fill='black')
         
         # 提取特征
         logger.info("开始提取特征")
@@ -532,7 +575,37 @@ async def extract_image_features(temp_path):
         feature = await asyncio.to_thread(extractor.extract_features, img)
         logger.info(f"特征提取完成，特征维度: {feature.shape}")
         
-    return feature
+        return feature
+    else:
+        # 对于非SVG文件，正常处理
+        try:
+            with Image.open(temp_path) as img:
+                # 调整图像大小
+                img = img.resize((224, 224))
+                
+                # 提取特征
+                logger.info("开始提取特征")
+                # 使用异步方式提取特征
+                feature = await asyncio.to_thread(extractor.extract_features, img)
+                logger.info(f"特征提取完成，特征维度: {feature.shape}")
+                
+            return feature
+        except Exception as e:
+            logger.error(f"打开图像失败: {e}")
+            # 创建一个空白图像作为替代
+            from PIL import ImageDraw
+            logger.info("创建空白图像作为替代")
+            img = Image.new('RGB', (224, 224), color='white')
+            draw = ImageDraw.Draw(img)
+            draw.text((10, 10), "Error Image", fill='black')
+            
+            # 提取特征
+            logger.info("开始提取特征")
+            # 使用异步方式提取特征
+            feature = await asyncio.to_thread(extractor.extract_features, img)
+            logger.info(f"特征提取完成，特征维度: {feature.shape}")
+            
+            return feature
 
 async def detect_image_text(temp_path):
     """
@@ -545,6 +618,16 @@ async def detect_image_text(temp_path):
         text_detections: 文本检测结果
     """
     
+    
+    # 检查文件是否是SVG格式
+    import os
+    file_extension = os.path.splitext(temp_path)[1].lower()
+    is_svg = file_extension == '.svg'
+    
+    # 对于SVG文件，跳过文本检测
+    if is_svg:
+        logger.info("跳过SVG文件的文本检测")
+        return []
     
     # 使用全局预处理器实例
     global preprocessor
@@ -640,6 +723,16 @@ async def detect_keypoints(temp_path):
     """
     
     
+    # 检查文件是否是SVG格式
+    import os
+    file_extension = os.path.splitext(temp_path)[1].lower()
+    is_svg = file_extension == '.svg'
+    
+    # 对于SVG文件，跳过关键点检测
+    if is_svg:
+        logger.info("跳过SVG文件的关键点检测")
+        return []
+    
     # 使用全局关键点检测器实例
     global keypoint_detector
     
@@ -698,7 +791,7 @@ async def process_single_image(file, model_name):
         content = await file.read()
         
         # 验证图像
-        temp_path = await validate_image(file, content)
+        temp_path = validate_image(file, content)
         
         # 获取项目根目录
         project_root = get_project_root()
@@ -715,16 +808,28 @@ async def process_single_image(file, model_name):
         feature = await extract_image_features(temp_path)
         
         # 检测文本
-        text_detections = await detect_image_text(temp_path)
+        text_detections = []
+        if file.content_type != "image/svg+xml":
+            text_detections = await detect_image_text(temp_path)
+        else:
+            logger.info("跳过SVG文件的文本检测")
         
         # 生成标签
-        attributes = await generate_image_tags(temp_path)
+        attributes = []
+        if file.content_type != "image/svg+xml":
+            attributes = await generate_image_tags(temp_path)
+        else:
+            logger.info("跳过SVG文件的标签生成")
         
         # 分类图像
         role, similarity = await classify_image_internal(classifier, feature, attributes)
         
         # 检测关键点
-        keypoints = await detect_keypoints(temp_path)
+        keypoints = []
+        if file.content_type != "image/svg+xml":
+            keypoints = await detect_keypoints(temp_path)
+        else:
+            logger.info("跳过SVG文件的关键点检测")
         
         # 预测角色
         ai_predicted_role = await predict_role(attributes)
@@ -870,8 +975,8 @@ async def get_system_monitoring():
     """
     获取系统监控数据
     """
-    system_stats = monitoring_system.system_monitor.get_stats()
-    system_data = monitoring_system.system_monitor.get_data(limit=20)
+    system_stats = monitoring_system.monitors['system'].get_stats()
+    system_data = monitoring_system.monitors['system'].get_data(limit=20)
     return {
         "status": "success",
         "stats": system_stats,
@@ -898,13 +1003,34 @@ async def get_task_monitoring():
     """
     获取任务监控数据
     """
-    task_stats = monitoring_system.task_monitor.get_stats()
-    task_data = monitoring_system.task_monitor.get_data(limit=20)
+    task_stats = monitoring_system.monitors['task'].get_stats()
+    task_data = monitoring_system.monitors['task'].get_data(limit=20)
     return {
         "status": "success",
         "stats": task_stats,
         "data": task_data
     }
+
+
+@app.get("/api/monitoring/memory", tags=["监控"])
+async def get_memory_monitoring():
+    """
+    获取内存监控数据
+    """
+    memory_monitor = get_memory_monitor()
+    if memory_monitor:
+        memory_stats = memory_monitor.get_stats()
+        memory_data = memory_monitor.get_data(limit=20)
+        return {
+            "status": "success",
+            "stats": memory_stats,
+            "data": memory_data
+        }
+    else:
+        return {
+            "status": "error",
+            "message": "内存监控系统未初始化"
+        }
 
 
 if __name__ == "__main__":

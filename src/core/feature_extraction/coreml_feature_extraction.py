@@ -53,6 +53,9 @@ class CoreMLFeatureExtraction:
             # 预处理图像
             # 调整图像大小为224x224
             img = img.resize((224, 224))
+            # 确保图像为RGB格式 (处理RGBA等其他格式)
+            if img.mode != 'RGB':
+                img = img.convert('RGB')
             # 转换为numpy数组
             img_array = np.array(img).astype(np.float32)
             # 调整通道顺序 (H, W, C) -> (C, H, W)

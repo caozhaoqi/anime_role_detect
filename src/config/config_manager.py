@@ -88,7 +88,7 @@ class ConfigManager:
             },
             "file": {
                 "max_size": 10 * 1024 * 1024,  # 10MB，最大文件大小
-                "allowed_types": ["image/jpeg", "image/png", "image/gif", "image/bmp"]  # 允许的文件类型
+                "allowed_types": ["image/jpeg", "image/png", "image/gif", "image/bmp", "image/svg+xml"]  # 允许的文件类型
             },
             "batch": {
                 "max_files": 10  # 批量处理的最大文件数量
@@ -213,7 +213,7 @@ class ConfigManager:
         Returns:
             allowed_types: 允许的文件类型列表
         """
-        return self.get("file.allowed_types", ["image/jpeg", "image/png", "image/gif", "image/bmp"])
+        return self.get("file.allowed_types", ["image/jpeg", "image/png", "image/gif", "image/bmp", "image/svg+xml"])
     
     def get_max_batch_files(self):
         """

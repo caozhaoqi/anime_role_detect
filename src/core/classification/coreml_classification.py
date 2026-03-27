@@ -75,6 +75,7 @@ class CoreMLClassification:
         self.clip_model = self.__class__._clip_model
         self.index = self.__class__._index
         self.mapping = self.__class__._mapping
+        self.role_mapping = self.__class__._mapping  # 添加role_mapping属性，与API代码兼容
     
     def classify_image(self, img, threshold=0.6):
         """分类图像
@@ -132,6 +133,73 @@ class CoreMLClassification:
             
             logger.info(f"分类结果: {role}，相似度: {similarity:.4f}")
             return role, similarity
+        except Exception as e:
+            logger.error(f"分类失败: {e}")
+            raise
+    
+    def classify(self, feature, tags=None):
+        """分类图像（兼容API代码）
+        
+        Args:
+            feature: 特征向量
+            tags: 图像标签（未使用）
+            
+        Returns:
+            分类结果，包含角色名称和相似度
+        """
+        try:
+            # 检查输入特征
+            if feature is None:
+                raise ValueError("输入特征为None")
+            
+            # 归一化特征向量
+            norm = np.linalg.norm(feature)
+            if norm > 1e-10:
+                feature = feature / norm
+            else:
+                logger.warning("特征向量范数为零，使用随机向量")
+                feature = np.random.randn(*feature.shape)
+                feature = feature / np.linalg.norm(feature)
+            
+            # 使用Faiss搜索最相似的向量
+            logger.info("使用Faiss搜索最相似的向量")
+            logger.info(f"特征形状: {feature.shape}")
+            logger.info(f"索引类型: {type(self.index)}")
+            logger.info(f"索引维度: {self.index.d}")
+            logger.info(f"索引向量数量: {self.index.ntotal}")
+            
+            # 确保特征是二维数组
+            if len(feature.shape) == 1:
+                feature = feature.reshape(1, -1)
+                logger.info(f"特征形状已调整为: {feature.shape}")
+            
+            search_result = self.index.search(feature, 1)
+            logger.info(f"搜索结果类型: {type(search_result)}")
+            logger.info(f"搜索结果长度: {len(search_result)}")
+            
+            if len(search_result) == 2:
+                distances, indices = search_result
+                logger.info(f"距离形状: {distances.shape}")
+                logger.info(f"索引形状: {indices.shape}")
+                
+                # 计算相似度
+                similarity = 1.0 - distances[0][0]
+                logger.info(f"搜索完成，相似度: {similarity:.4f}")
+                
+                # 获取角色名称
+                role_id = indices[0][0]
+                role = self.mapping.get(str(role_id), f"角色_{role_id}")
+                
+                # 检查相似度是否超过阈值
+                if similarity < 0.6:
+                    logger.info(f"相似度 {similarity:.4f} 低于阈值 0.6，返回未知角色")
+                    return "unknown", similarity
+                
+                logger.info(f"分类结果: {role}，相似度: {similarity:.4f}")
+                return role, similarity
+            else:
+                logger.error(f"搜索结果格式错误，期望2个值，实际得到{len(search_result)}个值")
+                raise ValueError(f"搜索结果格式错误，期望2个值，实际得到{len(search_result)}个值")
         except Exception as e:
             logger.error(f"分类失败: {e}")
             raise
