@@ -1,154 +1,187 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
-性能测试脚本：测试不同加速方法的性能差异
+模型推理性能测试脚本
+测试API接口的响应时间和吞吐量
 """
 
-import os
-import sys
 import time
-import numpy as np
+import requests
+import json
+import concurrent.futures
+import argparse
 from PIL import Image
+import io
 
-# 添加src目录到Python路径
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
-
-# 使用全局日志系统
-from core.logging.global_logger import get_logger
-logger = get_logger("performance_test")
-
-
-def test_feature_extraction():
-    """测试特征提取性能"""
-    from core.feature_extraction.feature_extraction import FeatureExtraction
+class PerformanceTester:
+    def __init__(self, api_url, test_image_path, concurrent_users=10, total_requests=100):
+        """初始化性能测试器
+        
+        Args:
+            api_url: API接口地址
+            test_image_path: 测试图片路径
+            concurrent_users: 并发用户数
+            total_requests: 总请求数
+        """
+        self.api_url = api_url
+        self.test_image_path = test_image_path
+        self.concurrent_users = concurrent_users
+        self.total_requests = total_requests
+        self.results = []
     
-    # 加载测试图像
-    test_image_path = os.path.join(os.path.dirname(__file__), '..', 'data', 'train', '日奈', '日奈_49.jpg')
-    if not os.path.exists(test_image_path):
-        logger.error(f"测试图像不存在: {test_image_path}")
-        return
+    def load_test_image(self):
+        """加载测试图片"""
+        try:
+            with open(self.test_image_path, 'rb') as f:
+                return f.read()
+        except Exception as e:
+            print(f"加载图片失败: {e}")
+            return None
     
-    img = Image.open(test_image_path)
-    logger.info(f"加载测试图像: {test_image_path}")
-    
-    # 测试特征提取
-    logger.info("开始测试特征提取性能...")
-    
-    # 创建特征提取器
-    extractor = FeatureExtraction()
-    
-    # 预热
-    logger.info("预热模型...")
-    for _ in range(3):
-        extractor.extract_features(img)
-    
-    # 测试多次推理
-    num_tests = 10
-    times = []
-    
-    for i in range(num_tests):
+    def test_request(self, image_data, request_id):
+        """发送单个测试请求"""
         start_time = time.time()
-        features = extractor.extract_features(img)
-        end_time = time.time()
-        elapsed = end_time - start_time
-        times.append(elapsed)
-        logger.info(f"测试 {i+1}/{num_tests}: {elapsed:.4f} 秒")
+        try:
+            files = {'file': ('test_image.jpg', image_data, 'image/jpeg')}
+            response = requests.post(self.api_url, files=files, timeout=30)
+            end_time = time.time()
+            response_time = end_time - start_time
+            
+            if response.status_code == 200:
+                result = response.json()
+                self.results.append({
+                    'request_id': request_id,
+                    'status': 'success',
+                    'response_time': response_time,
+                    'status_code': response.status_code,
+                    'predictions': result.get('predictions', [])
+                })
+            else:
+                self.results.append({
+                    'request_id': request_id,
+                    'status': 'error',
+                    'response_time': response_time,
+                    'status_code': response.status_code,
+                    'error': response.text
+                })
+        except Exception as e:
+            end_time = time.time()
+            response_time = end_time - start_time
+            self.results.append({
+                'request_id': request_id,
+                'status': 'exception',
+                'response_time': response_time,
+                'error': str(e)
+            })
     
-    # 计算统计信息
-    mean_time = np.mean(times)
-    std_time = np.std(times)
-    min_time = np.min(times)
-    max_time = np.max(times)
-    
-    logger.info("特征提取性能测试结果:")
-    logger.info(f"平均时间: {mean_time:.4f} 秒")
-    logger.info(f"标准差: {std_time:.4f} 秒")
-    logger.info(f"最小时间: {min_time:.4f} 秒")
-    logger.info(f"最大时间: {max_time:.4f} 秒")
-    
-    return mean_time
-
-def test_tag_generation():
-    """测试标签生成性能"""
-    from core.tagging.wd_vit_v3_tagger import WDViTV3Tagger
-    
-    # 加载测试图像
-    test_image_path = os.path.join(os.path.dirname(__file__), '..', 'data', 'train', '日奈', '日奈_49.jpg')
-    if not os.path.exists(test_image_path):
-        logger.error(f"测试图像不存在: {test_image_path}")
-        return
-    
-    logger.info(f"加载测试图像: {test_image_path}")
-    
-    # 测试标签生成
-    logger.info("开始测试标签生成性能...")
-    
-    # 创建标签生成器
-    tagger = WDViTV3Tagger()
-    # 非Core ML模式需要加载模型
-    if not hasattr(tagger, 'coreml_mode') or not tagger.coreml_mode:
-        tagger.load_model()
-    
-    # 预热
-    logger.info("预热模型...")
-    for _ in range(3):
-        tagger.generate_tags(test_image_path)
-    
-    # 测试多次推理
-    num_tests = 10
-    times = []
-    
-    for i in range(num_tests):
+    def run_test(self):
+        """运行性能测试"""
+        print(f"开始性能测试")
+        print(f"测试配置: 并发用户数={self.concurrent_users}, 总请求数={self.total_requests}")
+        print(f"API地址: {self.api_url}")
+        
+        # 加载测试图片
+        image_data = self.load_test_image()
+        if not image_data:
+            print("测试图片加载失败，退出测试")
+            return
+        
+        # 开始测试
         start_time = time.time()
-        tags = tagger.generate_tags(test_image_path)
+        
+        # 使用线程池进行并发测试
+        with concurrent.futures.ThreadPoolExecutor(max_workers=self.concurrent_users) as executor:
+            futures = []
+            for i in range(self.total_requests):
+                future = executor.submit(self.test_request, image_data, i+1)
+                futures.append(future)
+            
+            # 等待所有请求完成
+            concurrent.futures.wait(futures)
+        
         end_time = time.time()
-        elapsed = end_time - start_time
-        times.append(elapsed)
-        logger.info(f"测试 {i+1}/{num_tests}: {elapsed:.4f} 秒, 生成标签数: {len(tags)}")
+        total_time = end_time - start_time
+        
+        # 分析结果
+        self.analyze_results(total_time)
     
-    # 计算统计信息
-    mean_time = np.mean(times)
-    std_time = np.std(times)
-    min_time = np.min(times)
-    max_time = np.max(times)
-    
-    logger.info("标签生成性能测试结果:")
-    logger.info(f"平均时间: {mean_time:.4f} 秒")
-    logger.info(f"标准差: {std_time:.4f} 秒")
-    logger.info(f"最小时间: {min_time:.4f} 秒")
-    logger.info(f"最大时间: {max_time:.4f} 秒")
-    
-    return mean_time
-
-def main():
-    """主函数"""
-    try:
-        logger.info("开始性能测试...")
+    def analyze_results(self, total_time):
+        """分析测试结果"""
+        if not self.results:
+            print("没有测试结果")
+            return
         
-        # 测试特征提取
-        logger.info("=" * 60)
-        logger.info("测试特征提取性能")
-        logger.info("=" * 60)
-        feature_extraction_time = test_feature_extraction()
+        # 统计成功和失败的请求
+        success_count = sum(1 for r in self.results if r['status'] == 'success')
+        error_count = sum(1 for r in self.results if r['status'] == 'error')
+        exception_count = sum(1 for r in self.results if r['status'] == 'exception')
         
-        # 测试标签生成
-        logger.info("=" * 60)
-        logger.info("测试标签生成性能")
-        logger.info("=" * 60)
-        tag_generation_time = test_tag_generation()
+        # 计算响应时间
+        response_times = [r['response_time'] for r in self.results if r['status'] == 'success']
+        if response_times:
+            avg_response_time = sum(response_times) / len(response_times)
+            min_response_time = min(response_times)
+            max_response_time = max(response_times)
+        else:
+            avg_response_time = 0
+            min_response_time = 0
+            max_response_time = 0
         
-        # 汇总结果
-        logger.info("=" * 60)
-        logger.info("性能测试汇总")
-        logger.info("=" * 60)
-        logger.info(f"特征提取平均时间: {feature_extraction_time:.4f} 秒")
-        logger.info(f"标签生成平均时间: {tag_generation_time:.4f} 秒")
-        logger.info(f"总时间: {feature_extraction_time + tag_generation_time:.4f} 秒")
+        # 计算吞吐量
+        throughput = len(self.results) / total_time
+        success_throughput = success_count / total_time
         
-        logger.info("性能测试完成!")
-    except Exception as e:
-        logger.error(f"性能测试失败: {e}")
-
+        # 打印结果
+        print("\n===== 性能测试结果 =====")
+        print(f"总请求数: {len(self.results)}")
+        print(f"成功请求: {success_count} ({success_count/len(self.results)*100:.1f}%)")
+        print(f"失败请求: {error_count} ({error_count/len(self.results)*100:.1f}%)")
+        print(f"异常请求: {exception_count} ({exception_count/len(self.results)*100:.1f}%)")
+        print(f"总测试时间: {total_time:.2f} 秒")
+        print(f"平均响应时间: {avg_response_time:.3f} 秒")
+        print(f"最小响应时间: {min_response_time:.3f} 秒")
+        print(f"最大响应时间: {max_response_time:.3f} 秒")
+        print(f"总吞吐量: {throughput:.2f} 请求/秒")
+        print(f"成功吞吐量: {success_throughput:.2f} 请求/秒")
+        
+        # 保存详细结果
+        with open('performance_test_results.json', 'w', encoding='utf-8') as f:
+            json.dump({
+                'test_config': {
+                    'api_url': self.api_url,
+                    'concurrent_users': self.concurrent_users,
+                    'total_requests': self.total_requests
+                },
+                'summary': {
+                    'total_requests': len(self.results),
+                    'success_count': success_count,
+                    'error_count': error_count,
+                    'exception_count': exception_count,
+                    'total_time': total_time,
+                    'avg_response_time': avg_response_time,
+                    'min_response_time': min_response_time,
+                    'max_response_time': max_response_time,
+                    'throughput': throughput,
+                    'success_throughput': success_throughput
+                },
+                'details': self.results
+            }, f, ensure_ascii=False, indent=2)
+        
+        print("\n详细测试结果已保存到 performance_test_results.json")
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description='模型推理性能测试脚本')
+    parser.add_argument('--api-url', default='http://localhost:8000/api/classify', help='API接口地址')
+    parser.add_argument('--image', default='test_images/sample.jpg', help='测试图片路径')
+    parser.add_argument('--concurrent', type=int, default=10, help='并发用户数')
+    parser.add_argument('--requests', type=int, default=100, help='总请求数')
+    
+    args = parser.parse_args()
+    
+    tester = PerformanceTester(
+        api_url=args.api_url,
+        test_image_path=args.image,
+        concurrent_users=args.concurrent,
+        total_requests=args.requests
+    )
+    
+    tester.run_test()
