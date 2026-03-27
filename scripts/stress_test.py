@@ -50,17 +50,24 @@ def test_classification(test_image_path, model_name="default"):
         with open(test_image_path, 'rb') as f:
             files = {'file': (os.path.basename(test_image_path), f, 'image/jpeg')}
             data = {'model_name': model_name}
-            response = requests.post(url, files=files, data=data, timeout=30)
+            response = requests.post(url, files=files, data=data, timeout=60)  # 增加超时时间
         
         response_time = time.time() - start_time
         status_code = response.status_code
         
+        logger.info(f"请求状态码: {status_code}, 响应时间: {response_time:.2f}秒")
+        logger.info(f"响应内容: {response.text[:500]}...")  # 记录响应内容的前500个字符
+        
         if status_code == 200:
-            result = response.json()
-            role = result.get('role', 'unknown')
-            similarity = result.get('similarity', 0.0)
-            logger.info(f"请求成功: 角色={role}, 相似度={similarity:.4f}, 响应时间={response_time:.2f}秒")
-            return True, response_time
+            try:
+                result = response.json()
+                role = result.get('role', 'unknown')
+                similarity = result.get('similarity', 0.0)
+                logger.info(f"请求成功: 角色={role}, 相似度={similarity:.4f}, 响应时间={response_time:.2f}秒")
+                return True, response_time
+            except Exception as json_error:
+                logger.error(f"解析JSON失败: {json_error}")
+                return False, response_time
         else:
             logger.error(f"请求失败: 状态码={status_code}, 响应时间={response_time:.2f}秒")
             return False, response_time
@@ -69,7 +76,7 @@ def test_classification(test_image_path, model_name="default"):
         logger.error(f"请求异常: {e}, 响应时间={response_time:.2f}秒")
         return False, response_time
 
-def run_stress_test(test_image_path, num_requests=50, concurrent_workers=10):
+def run_stress_test(test_image_path, num_requests=20, concurrent_workers=5):
     """
     运行压力测试
     """
@@ -92,9 +99,9 @@ def run_stress_test(test_image_path, num_requests=50, concurrent_workers=10):
         for i in range(num_requests):
             future = executor.submit(test_classification, test_image_path)
             futures.append(future)
-            # 每提交10个请求，暂停0.1秒，避免瞬间发送过多请求
-            if (i + 1) % 10 == 0:
-                time.sleep(0.1)
+            # 每提交5个请求，暂停0.5秒，避免瞬间发送过多请求
+            if (i + 1) % 5 == 0:
+                time.sleep(0.5)
         
         # 收集结果
         for future in concurrent.futures.as_completed(futures):

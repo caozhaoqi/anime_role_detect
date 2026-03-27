@@ -2,6 +2,7 @@ import torch
 from transformers import CLIPProcessor, CLIPModel
 from PIL import Image
 import numpy as np
+import os
 
 # 使用全局日志系统
 from core.logging.global_logger import get_logger, log_system, log_error
@@ -14,25 +15,42 @@ class FeatureExtraction:
     _device = None
     _quantized = False
     _model_name = None
+    _coreml_extractor = None
     
-    def __init__(self, model_name="openai/clip-vit-base-patch32", quantize=False):
+    def __init__(self, model_name="openai/clip-vit-base-patch32", quantize=True):
         """初始化特征提取模块
         
         Args:
             model_name: 模型名称
             quantize: 是否使用量化模型
         """
+        # 检查是否有Core ML模型可用
+        coreml_model_path = os.path.join(os.path.dirname(__file__), "..", "..", "..", "coreml_models", "clip_model.mlpackage")
+        if os.path.exists(coreml_model_path):
+            logger.info("Core ML模型可用，使用Core ML进行特征提取")
+            # 动态导入Core ML特征提取模块
+            from core.feature_extraction.coreml_feature_extraction import CoreMLFeatureExtraction
+            self.__class__._coreml_extractor = CoreMLFeatureExtraction(coreml_model_path)
+            self.coreml_mode = True
+            return
+        
         # 检查是否需要重新加载模型
         if not self.__class__._model_instance or self.__class__._model_name != model_name:
             logger.info(f"加载特征提取模型: {model_name}")
             self.__class__._model_instance = CLIPModel.from_pretrained(model_name)
             self.__class__._processor_instance = CLIPProcessor.from_pretrained(model_name)
-            self.__class__._device = "cuda" if torch.cuda.is_available() else "cpu"
+            # 检测设备，优先使用cuda，然后是mps，最后是cpu
+            if torch.cuda.is_available():
+                self.__class__._device = "cuda"
+            elif torch.backends.mps.is_available():
+                self.__class__._device = "mps"
+            else:
+                self.__class__._device = "cpu"
             self.__class__._model_instance.to(self.__class__._device)
             self.__class__._model_name = model_name
             
-            # 量化模型以减少内存使用和提高推理速度
-            if quantize:
+            # 只有在非MPS设备上才进行量化
+            if quantize and 'mps' not in str(self.__class__._device):
                 logger.info("开始模型量化...")
                 self.__class__._model_instance = torch.quantization.quantize_dynamic(
                     self.__class__._model_instance,
@@ -41,10 +59,13 @@ class FeatureExtraction:
                 )
                 self.__class__._quantized = True
                 logger.info("模型量化完成")
+            elif 'mps' in str(self.__class__._device):
+                logger.info("MPS设备不支持量化，跳过量化步骤")
         
         self.model = self.__class__._model_instance
         self.processor = self.__class__._processor_instance
         self.device = self.__class__._device
+        self.coreml_mode = False
         
         # 设置模型为评估模式
         self.model.eval()
@@ -55,6 +76,11 @@ class FeatureExtraction:
             # 检查输入图像
             if img is None:
                 raise ValueError("输入图像为None")
+            
+            # 如果使用Core ML模式
+            if self.coreml_mode:
+                logger.info("使用Core ML提取特征")
+                return self.__class__._coreml_extractor.extract_features(img)
             
             # 预处理图像
             inputs = self.processor(images=img, return_tensors="pt").to(self.device)
@@ -77,9 +103,24 @@ class FeatureExtraction:
             # 转换为numpy数组
             features_np = features.cpu().numpy().squeeze()
             
+            # 清理内存
+            del inputs, features, norm
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+            
             return features_np
         except Exception as e:
             logger.error(f"特征提取失败: {e}")
+            # 发生异常时也清理内存
+            if not self.coreml_mode:
+                if 'inputs' in locals():
+                    del inputs
+                if 'features' in locals():
+                    del features
+                if 'norm' in locals():
+                    del norm
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
             raise
     
     def batch_extract_features(self, imgs, batch_size=8):
@@ -96,6 +137,11 @@ class FeatureExtraction:
             # 检查输入图像列表
             if not imgs:
                 return []
+            
+            # 如果使用Core ML模式
+            if self.coreml_mode:
+                logger.info("使用Core ML批量提取特征")
+                return self.__class__._coreml_extractor.batch_extract_features(imgs, batch_size)
             
             # 分批处理
             all_features = []

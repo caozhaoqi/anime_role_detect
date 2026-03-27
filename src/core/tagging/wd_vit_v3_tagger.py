@@ -13,14 +13,29 @@ from tqdm import tqdm
 from transformers import AutoProcessor, AutoModelForImageClassification, CLIPProcessor, CLIPModel
 import requests
 
-from src.core.logging.global_logger import get_logger
+from core.logging.global_logger import get_logger
 
 logger = get_logger("wd_vit_v3_tagger")
 
 
 class WDViTV3Tagger:
     """WD Vit Tagger v3 标签生成器"""
+    # 全局Core ML标签生成器实例缓存
+    _coreml_tagger = None
+    
     def __init__(self, device=None):
+        # 检查是否有Core ML模型可用
+        coreml_model_path = os.path.join(os.path.dirname(__file__), "..", "..", "..", "coreml_models", "wd_tagger.mlpackage")
+        coreml_labels_path = os.path.join(os.path.dirname(__file__), "..", "..", "..", "coreml_models", "wd_tagger_labels.json")
+        if os.path.exists(coreml_model_path) and os.path.exists(coreml_labels_path):
+            self.logger = get_logger("wd_vit_v3_tagger")
+            self.logger.info("Core ML WD Vit Tagger 模型可用，使用 Core ML 进行标签生成")
+            # 动态导入 Core ML 标签生成模块
+            from core.tagging.coreml_wd_vit_v3_tagger import CoreMLWDVitV3Tagger
+            self.__class__._coreml_tagger = CoreMLWDVitV3Tagger(coreml_model_path, coreml_labels_path)
+            self.coreml_mode = True
+            return
+        
         self.device = device or torch.device('mps' if torch.backends.mps.is_available() else 'cpu')
         self.wd_model = None
         self.wd_processor = None
@@ -29,6 +44,7 @@ class WDViTV3Tagger:
         self.id2label = {}
         self.num_id2label = {}
         self.logger = get_logger("wd_vit_v3_tagger")
+        self.coreml_mode = False
         self.tags = [
             '1girl', 'solo', 'blue hair', 'blue eyes', 'school uniform',
             'halo', 'ribbon', 'twintails', 'smile', 'looking at viewer',
@@ -78,12 +94,38 @@ class WDViTV3Tagger:
             self.wd_model.to(self.device)
             self.wd_model.eval()
             
+            # 只有在非MPS设备上才进行量化
+            if 'mps' not in str(self.device):
+                # 量化模型以减少内存使用
+                self.logger.info("开始WD模型量化...")
+                self.wd_model = torch.quantization.quantize_dynamic(
+                    self.wd_model,
+                    {torch.nn.Linear},
+                    dtype=torch.qint8
+                )
+                self.logger.info("WD模型量化完成")
+            else:
+                self.logger.info("MPS设备不支持量化，跳过量化步骤")
+            
             # 加载CLIP模型作为替代
             self.logger.info("加载CLIP模型作为标签生成的替代方案...")
             self.clip_model = CLIPModel.from_pretrained("openai/clip-vit-base-patch32")
             self.clip_processor = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32")
             self.clip_model.to(self.device)
             self.clip_model.eval()
+            
+            # 只有在非MPS设备上才进行量化
+            if 'mps' not in str(self.device):
+                # 量化CLIP模型以减少内存使用
+                self.logger.info("开始CLIP模型量化...")
+                self.clip_model = torch.quantization.quantize_dynamic(
+                    self.clip_model,
+                    {torch.nn.Linear},
+                    dtype=torch.qint8
+                )
+                self.logger.info("CLIP模型量化完成")
+            else:
+                self.logger.info("MPS设备不支持量化，跳过量化步骤")
             
             # 获取标签映射
             self.id2label = self.wd_model.config.id2label
@@ -143,6 +185,24 @@ class WDViTV3Tagger:
         Returns:
             list: 标签列表
         """
+        # 如果使用Core ML模式
+        if self.coreml_mode:
+            try:
+                # 加载图像
+                image = Image.open(image_path).convert('RGB')
+                self.logger.info(f"加载图像成功: {image_path}")
+                
+                # 使用Core ML标签生成器
+                tags = self.__class__._coreml_tagger.generate_tags(image, threshold)
+                
+                # 打印前10个标签
+                self.logger.info(f"Core ML WD Vit Tagger 前10个标签: {tags[:10]}")
+                
+                return tags
+            except Exception as e:
+                self.logger.error(f"Core ML 标签生成失败: {e}")
+                return []
+        
         if not self.wd_model:
             raise ValueError("模型未加载，请先调用load_model()")
         
@@ -188,6 +248,11 @@ class WDViTV3Tagger:
                 # 打印前10个标签
                 self.logger.info(f"WD Vit Tagger v3 前10个标签: {[(tag, prob) for tag, prob in tag_probs[:10]]}")
                 
+                # 清理内存
+                del inputs, outputs, logits, probs
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+                
                 # 如果有有意义的标签，返回
                 if tag_probs:
                     return [tag for tag, prob in tag_probs]
@@ -195,6 +260,17 @@ class WDViTV3Tagger:
                     self.logger.info("WD Vit Tagger v3未生成有意义的标签，使用CLIP模型作为替代")
             except Exception as e:
                 self.logger.warning(f"WD Vit Tagger v3推理失败: {e}，使用CLIP模型作为替代")
+                # 清理内存
+                if 'inputs' in locals():
+                    del inputs
+                if 'outputs' in locals():
+                    del outputs
+                if 'logits' in locals():
+                    del logits
+                if 'probs' in locals():
+                    del probs
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
             
             # 使用CLIP模型作为替代
             if self.clip_model:
@@ -224,12 +300,25 @@ class WDViTV3Tagger:
                 # 打印前10个标签
                 self.logger.info(f"CLIP模型 前10个标签: {[(tag, prob) for tag, prob in tag_probs[:10]]}")
                 
+                # 清理内存
+                del inputs, outputs, logits_per_image, probs
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+                
                 # 返回标签
                 return [tag for tag, prob in tag_probs]
             else:
                 return []
         except Exception as e:
             self.logger.error(f"生成标签失败: {e}")
+            # 清理内存
+            if not self.coreml_mode:
+                if 'inputs' in locals():
+                    del inputs
+                if 'outputs' in locals():
+                    del outputs
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
             return []
     
     def batch_generate_tags(self, image_dir, output_file, threshold=0.05):

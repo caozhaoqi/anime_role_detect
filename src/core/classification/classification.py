@@ -462,6 +462,26 @@ class Classification:
         except Exception as e:
             logger.error(f"增量学习失败: {e}")
             return False
+    
+    @classmethod
+    def use_coreml(cls, config_path="./coreml_models/end_to_end_config.json"):
+        """使用Core ML分类器
+        
+        Args:
+            config_path: 配置文件路径
+            
+        Returns:
+            Core ML分类器实例
+        """
+        try:
+            # 动态导入Core ML分类器
+            from .coreml_classification import CoreMLClassification
+            logger.info("使用Core ML分类器")
+            return CoreMLClassification(config_path)
+        except ImportError as e:
+            logger.warning(f"Core ML分类器导入失败: {e}")
+            logger.info("回退到默认分类器")
+            return cls()
 
 if __name__ == "__main__":
     # 测试分类模块

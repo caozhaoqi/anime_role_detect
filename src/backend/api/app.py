@@ -474,8 +474,16 @@ async def get_or_create_classifier(index_path):
     else:
         # 初始化分类器
         logger.info(f"初始化分类器: {index_path}...")
-        # 使用异步方式初始化分类器
-        classifier = await asyncio.to_thread(Classification, index_path)
+        # 尝试使用Core ML分类器
+        try:
+            # 使用异步方式初始化Core ML分类器
+            classifier = await asyncio.to_thread(Classification.use_coreml)
+            logger.info("使用Core ML分类器成功")
+        except Exception as e:
+            logger.warning(f"Core ML分类器初始化失败: {e}")
+            logger.info("回退到默认分类器")
+            # 使用异步方式初始化默认分类器
+            classifier = await asyncio.to_thread(Classification, index_path)
         # 更新缓存
         classifiers[index_path] = classifier
         classifiers_usage[index_path] = time.time()  # 更新使用时间

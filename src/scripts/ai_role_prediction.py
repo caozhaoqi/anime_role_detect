@@ -135,7 +135,8 @@ class AIRolePredictor:
         }
         
         logger.info(f"调用 AI API - 模型: {self.model_name}")
-        response = requests.post(self.api_url, headers=headers, json=data)
+        # 添加超时时间，避免无限期等待
+        response = requests.post(self.api_url, headers=headers, json=data, timeout=10)
         response.raise_for_status()
         
         result = response.json()
