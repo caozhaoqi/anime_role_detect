@@ -27,7 +27,7 @@ class MemoryMonitor:
     内存监控器
     """
     
-    def __init__(self, memory_threshold=80, critical_threshold=90, interval=5):
+    def __init__(self, memory_threshold=80, critical_threshold=90, interval=5, max_coredump_files=10, max_state_files=20):
         """
         初始化内存监控器
         
@@ -35,6 +35,8 @@ class MemoryMonitor:
             memory_threshold: 内存使用阈值（百分比），超过此值开始预警
             critical_threshold: 临界内存使用阈值（百分比），超过此值准备保存状态
             interval: 监控间隔（秒）
+            max_coredump_files: 最大coredump文件数量
+            max_state_files: 最大状态文件数量
         """
         self.memory_threshold = memory_threshold
         self.critical_threshold = critical_threshold
@@ -46,6 +48,9 @@ class MemoryMonitor:
         self.cooldown_period = 300  # 告警冷却期（秒）
         self.save_dir = os.path.join(os.path.dirname(__file__), '..', '..', 'logs')
         os.makedirs(self.save_dir, exist_ok=True)
+        self.max_coredump_files = max_coredump_files
+        self.max_state_files = max_state_files
+        self.memory_trend = deque(maxlen=20)  # 内存趋势数据
     
     def start(self):
         """
@@ -85,9 +90,16 @@ class MemoryMonitor:
                     'memory_total': memory_total
                 }
                 self.data.append(data_point)
+                self.memory_trend.append(memory_percent)
                 
                 # 检查内存使用情况
                 self._check_memory_usage(memory_percent, memory_used, memory_total)
+                
+                # 检查内存泄漏
+                self._check_memory_leak()
+                
+                # 清理旧文件
+                self._cleanup_old_files()
                 
                 time.sleep(self.interval)
             except Exception as e:
@@ -115,6 +127,63 @@ class MemoryMonitor:
             logger.critical(f"临界内存使用: {memory_percent:.2f}%，准备保存系统状态")
             self._save_system_state()
     
+    def _check_memory_leak(self):
+        """
+        检查内存泄漏
+        """
+        if len(self.memory_trend) < 10:
+            return
+        
+        # 计算内存趋势
+        recent_values = list(self.memory_trend)[-10:]
+        older_values = list(self.memory_trend)[:-10]
+        
+        if older_values and recent_values:
+            avg_recent = sum(recent_values) / len(recent_values)
+            avg_older = sum(older_values) / len(older_values)
+            
+            # 如果内存使用持续增长超过5%，可能存在内存泄漏
+            if avg_recent > avg_older + 5:
+                logger.warning(f"检测到内存泄漏迹象: 内存使用从 {avg_older:.2f}% 增长到 {avg_recent:.2f}%")
+    
+    def _cleanup_old_files(self):
+        """
+        清理旧的coredump和状态文件
+        """
+        try:
+            # 清理coredump文件
+            coredump_files = sorted(
+                [f for f in os.listdir(self.save_dir) if f.startswith('coredump_')],
+                key=lambda x: os.path.getmtime(os.path.join(self.save_dir, x))
+            )
+            
+            while len(coredump_files) > self.max_coredump_files:
+                file_to_delete = coredump_files.pop(0)
+                file_path = os.path.join(self.save_dir, file_to_delete)
+                try:
+                    os.remove(file_path)
+                    logger.info(f"已清理旧coredump文件: {file_to_delete}")
+                except Exception as e:
+                    logger.error(f"清理coredump文件失败: {e}")
+            
+            # 清理状态文件
+            state_files = sorted(
+                [f for f in os.listdir(self.save_dir) if f.startswith('system_state_')],
+                key=lambda x: os.path.getmtime(os.path.join(self.save_dir, x))
+            )
+            
+            while len(state_files) > self.max_state_files:
+                file_to_delete = state_files.pop(0)
+                file_path = os.path.join(self.save_dir, file_to_delete)
+                try:
+                    os.remove(file_path)
+                    logger.info(f"已清理旧状态文件: {file_to_delete}")
+                except Exception as e:
+                    logger.error(f"清理状态文件失败: {e}")
+                    
+        except Exception as e:
+            logger.error(f"清理旧文件失败: {e}")
+    
     def _save_system_state(self):
         """
         保存系统状态，包括内存使用情况、进程信息等
@@ -136,7 +205,8 @@ class MemoryMonitor:
                     'count': psutil.cpu_count()
                 },
                 'processes': self._get_process_info(),
-                'memory_data': list(self.data)
+                'memory_data': list(self.data),
+                'memory_trend': list(self.memory_trend)
             }
             
             # 保存状态文件
@@ -193,6 +263,12 @@ class MemoryMonitor:
             current_pid = os.getpid()
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             coredump_file = os.path.join(self.save_dir, f"coredump_{current_pid}_{timestamp}.dump")
+            
+            # 检查磁盘空间
+            disk_usage = psutil.disk_usage(self.save_dir)
+            if disk_usage.percent > 90:
+                logger.warning("磁盘空间不足，跳过coredump生成")
+                return
             
             # 检查是否有gcore命令
             import shutil
@@ -421,8 +497,23 @@ class MemoryEmergencyHandler:
             gc.collect()
             logger.info("已执行垃圾回收")
             
+            # 尝试清理系统缓存
+            self._clear_system_cache()
+            
         except Exception as e:
             logger.error(f"释放内存失败: {e}")
+    
+    def _clear_system_cache(self):
+        """
+        尝试清理系统缓存
+        """
+        try:
+            # 尝试清理页面缓存、 dentries 和 inodes
+            with open('/proc/sys/vm/drop_caches', 'w') as f:
+                f.write('3')
+            logger.info("已尝试清理系统缓存")
+        except Exception as e:
+            logger.warning(f"清理系统缓存失败: {e} (可能需要root权限)")
     
     def _log_emergency(self):
         """

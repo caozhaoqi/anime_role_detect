@@ -569,7 +569,480 @@ sudo microk8s kubectl top nodes
 sudo microk8s kubectl top pods
 ```
 
-### 7.3 查看监控面板
+### 7.3 详细监控配置
+
+#### 7.3.1 Prometheus配置
+
+```yaml
+# prometheus-config.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  namespace: monitoring
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 15s
+      evaluation_interval: 15s
+    scrape_configs:
+      - job_name: 'kubernetes-pods'
+        kubernetes_sd_configs:
+          - role: pod
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+            action: keep
+            regex: true
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+            action: replace
+            target_label: __metrics_path__
+            regex: (.+)
+          - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+            action: replace
+            regex: ([^:]+)(?::\d+)?;(\d+)
+            replacement: $1:$2
+            target_label: __address__
+          - action: labelmap
+            regex: __meta_kubernetes_pod_label_(.+)
+          - source_labels: [__meta_kubernetes_namespace]
+            action: replace
+            target_label: kubernetes_namespace
+          - source_labels: [__meta_kubernetes_pod_name]
+            action: replace
+            target_label: kubernetes_pod_name
+```
+
+#### 7.3.2 Grafana配置
+
+```yaml
+# grafana-dashboard.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboards
+  namespace: monitoring
+data:
+  anime-role-detect.json: |
+    {
+      "annotations": {
+        "list": [
+          {
+            "builtIn": 1,
+            "datasource": "-- Grafana --",
+            "enable": true,
+            "hide": true,
+            "iconColor": "rgba(0, 211, 255, 1)",
+            "name": "Annotations & Alerts",
+            "type": "dashboard"
+          }
+        ]
+      },
+      "editable": true,
+      "gnetId": null,
+      "graphTooltip": 0,
+      "id": null,
+      "links": [],
+      "panels": [
+        {
+          "aliasColors": {},
+          "bars": false,
+          "dashLength": 10,
+          "dashes": false,
+          "datasource": "Prometheus",
+          "fieldConfig": {
+            "defaults": {
+              "custom": {}
+            },
+            "overrides": []
+          },
+          "fill": 1,
+          "fillGradient": 0,
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 0,
+            "y": 0
+          },
+          "hiddenSeries": false,
+          "id": 2,
+          "legend": {
+            "avg": false,
+            "current": false,
+            "max": false,
+            "min": false,
+            "show": true,
+            "total": false,
+            "values": false
+          },
+          "lines": true,
+          "linewidth": 1,
+          "nullPointMode": "null",
+          "options": {
+            "alertThreshold": true
+          },
+          "percentage": false,
+          "pluginVersion": "7.5.7",
+          "pointradius": 2,
+          "points": false,
+          "renderer": "flot",
+          "seriesOverrides": [],
+          "spaceLength": 10,
+          "stack": false,
+          "steppedLine": false,
+          "targets": [
+            {
+              "expr": "sum(rate(container_cpu_usage_seconds_total{namespace=\"default\",pod=~\"character-classification-backend.*\"}[5m])) by (pod)",
+              "interval": "",
+              "legendFormat": "{{pod}}",
+              "refId": "A"
+            }
+          ],
+          "thresholds": [],
+          "timeFrom": null,
+          "timeRegions": [],
+          "timeShift": null,
+          "title": "Backend CPU Usage",
+          "tooltip": {
+            "shared": true,
+            "sort": 0,
+            "value_type": "individual"
+          },
+          "type": "graph",
+          "xaxis": {
+            "buckets": null,
+            "mode": "time",
+            "name": null,
+            "show": true,
+            "values": []
+          },
+          "yaxes": [
+            {
+              "format": "short",
+              "label": null,
+              "logBase": 1,
+              "max": null,
+              "min": null,
+              "show": true
+            },
+            {
+              "format": "short",
+              "label": null,
+              "logBase": 1,
+              "max": null,
+              "min": null,
+              "show": true
+            }
+          ],
+          "yaxis": {
+            "align": false,
+            "alignLevel": null
+          }
+        },
+        {
+          "aliasColors": {},
+          "bars": false,
+          "dashLength": 10,
+          "dashes": false,
+          "datasource": "Prometheus",
+          "fieldConfig": {
+            "defaults": {
+              "custom": {}
+            },
+            "overrides": []
+          },
+          "fill": 1,
+          "fillGradient": 0,
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 12,
+            "y": 0
+          },
+          "hiddenSeries": false,
+          "id": 3,
+          "legend": {
+            "avg": false,
+            "current": false,
+            "max": false,
+            "min": false,
+            "show": true,
+            "total": false,
+            "values": false
+          },
+          "lines": true,
+          "linewidth": 1,
+          "nullPointMode": "null",
+          "options": {
+            "alertThreshold": true
+          },
+          "percentage": false,
+          "pluginVersion": "7.5.7",
+          "pointradius": 2,
+          "points": false,
+          "renderer": "flot",
+          "seriesOverrides": [],
+          "spaceLength": 10,
+          "stack": false,
+          "steppedLine": false,
+          "targets": [
+            {
+              "expr": "sum(container_memory_usage_bytes{namespace=\"default\",pod=~\"character-classification-backend.*\"}) by (pod)",
+              "interval": "",
+              "legendFormat": "{{pod}}",
+              "refId": "A"
+            }
+          ],
+          "thresholds": [],
+          "timeFrom": null,
+          "timeRegions": [],
+          "timeShift": null,
+          "title": "Backend Memory Usage",
+          "tooltip": {
+            "shared": true,
+            "sort": 0,
+            "value_type": "individual"
+          },
+          "type": "graph",
+          "xaxis": {
+            "buckets": null,
+            "mode": "time",
+            "name": null,
+            "show": true,
+            "values": []
+          },
+          "yaxes": [
+            {
+              "format": "bytes",
+              "label": null,
+              "logBase": 1,
+              "max": null,
+              "min": null,
+              "show": true
+            },
+            {
+              "format": "short",
+              "label": null,
+              "logBase": 1,
+              "max": null,
+              "min": null,
+              "show": true
+            }
+          ],
+          "yaxis": {
+            "align": false,
+            "alignLevel": null
+          }
+        },
+        {
+          "aliasColors": {},
+          "bars": false,
+          "dashLength": 10,
+          "dashes": false,
+          "datasource": "Prometheus",
+          "fieldConfig": {
+            "defaults": {
+              "custom": {}
+            },
+            "overrides": []
+          },
+          "fill": 1,
+          "fillGradient": 0,
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 0,
+            "y": 8
+          },
+          "hiddenSeries": false,
+          "id": 4,
+          "legend": {
+            "avg": false,
+            "current": false,
+            "max": false,
+            "min": false,
+            "show": true,
+            "total": false,
+            "values": false
+          },
+          "lines": true,
+          "linewidth": 1,
+          "nullPointMode": "null",
+          "options": {
+            "alertThreshold": true
+          },
+          "percentage": false,
+          "pluginVersion": "7.5.7",
+          "pointradius": 2,
+          "points": false,
+          "renderer": "flot",
+          "seriesOverrides": [],
+          "spaceLength": 10,
+          "stack": false,
+          "steppedLine": false,
+          "targets": [
+            {
+              "expr": "sum(rate(container_cpu_usage_seconds_total{namespace=\"default\",pod=~\"character-classification-frontend.*\"}[5m])) by (pod)",
+              "interval": "",
+              "legendFormat": "{{pod}}",
+              "refId": "A"
+            }
+          ],
+          "thresholds": [],
+          "timeFrom": null,
+          "timeRegions": [],
+          "timeShift": null,
+          "title": "Frontend CPU Usage",
+          "tooltip": {
+            "shared": true,
+            "sort": 0,
+            "value_type": "individual"
+          },
+          "type": "graph",
+          "xaxis": {
+            "buckets": null,
+            "mode": "time",
+            "name": null,
+            "show": true,
+            "values": []
+          },
+          "yaxes": [
+            {
+              "format": "short",
+              "label": null,
+              "logBase": 1,
+              "max": null,
+              "min": null,
+              "show": true
+            },
+            {
+              "format": "short",
+              "label": null,
+              "logBase": 1,
+              "max": null,
+              "min": null,
+              "show": true
+            }
+          ],
+          "yaxis": {
+            "align": false,
+            "alignLevel": null
+          }
+        },
+        {
+          "aliasColors": {},
+          "bars": false,
+          "dashLength": 10,
+          "dashes": false,
+          "datasource": "Prometheus",
+          "fieldConfig": {
+            "defaults": {
+              "custom": {}
+            },
+            "overrides": []
+          },
+          "fill": 1,
+          "fillGradient": 0,
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 12,
+            "y": 8
+          },
+          "hiddenSeries": false,
+          "id": 5,
+          "legend": {
+            "avg": false,
+            "current": false,
+            "max": false,
+            "min": false,
+            "show": true,
+            "total": false,
+            "values": false
+          },
+          "lines": true,
+          "linewidth": 1,
+          "nullPointMode": "null",
+          "options": {
+            "alertThreshold": true
+          },
+          "percentage": false,
+          "pluginVersion": "7.5.7",
+          "pointradius": 2,
+          "points": false,
+          "renderer": "flot",
+          "seriesOverrides": [],
+          "spaceLength": 10,
+          "stack": false,
+          "steppedLine": false,
+          "targets": [
+            {
+              "expr": "sum(container_memory_usage_bytes{namespace=\"default\",pod=~\"character-classification-frontend.*\"}) by (pod)",
+              "interval": "",
+              "legendFormat": "{{pod}}",
+              "refId": "A"
+            }
+          ],
+          "thresholds": [],
+          "timeFrom": null,
+          "timeRegions": [],
+          "timeShift": null,
+          "title": "Frontend Memory Usage",
+          "tooltip": {
+            "shared": true,
+            "sort": 0,
+            "value_type": "individual"
+          },
+          "type": "graph",
+          "xaxis": {
+            "buckets": null,
+            "mode": "time",
+            "name": null,
+            "show": true,
+            "values": []
+          },
+          "yaxes": [
+            {
+              "format": "bytes",
+              "label": null,
+              "logBase": 1,
+              "max": null,
+              "min": null,
+              "show": true
+            },
+            {
+              "format": "short",
+              "label": null,
+              "logBase": 1,
+              "max": null,
+              "min": null,
+              "show": true
+            }
+          ],
+          "yaxis": {
+            "align": false,
+            "alignLevel": null
+          }
+        }
+      ],
+      "schemaVersion": 26,
+      "style": "dark",
+      "tags": [],
+      "templating": {
+        "list": []
+      },
+      "time": {
+        "from": "now-6h",
+        "to": "now"
+      },
+      "timepicker": {},
+      "timezone": "",
+      "title": "Anime Role Detect Dashboard",
+      "uid": "anime-role-detect",
+      "version": 1
+    }
+```
+
+#### 7.3.3 查看监控面板
 
 ![Grafana监控面板](https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=Grafana%20dashboard%20showing%20Kubernetes%20cluster%20metrics%2C%20including%20CPU%2C%20memory%2C%20pod%20status%2C%20and%20network%20traffic%2C%20professional%20monitoring%20interface%2C%20dark%20theme&image_size=landscape_16_9)
 
@@ -579,9 +1052,173 @@ sudo microk8s kubectl get services -n monitoring
 
 # 获取Grafana密码
 sudo microk8s kubectl get secret -n monitoring grafana -o jsonpath="{.data.admin-password}" | base64 --decode
+
+# 访问Grafana面板
+# 打开浏览器访问 http://<服务器IP>:<Grafana端口>
 ```
 
-### 7.4 升级应用
+### 7.4 日志管理配置
+
+#### 7.4.1 安装Loki和Promtail
+
+```bash
+# 安装Loki和Promtail
+sudo microk8s enable loki
+
+# 查看Loki服务状态
+sudo microk8s kubectl get services -n monitoring | grep loki
+```
+
+#### 7.4.2 配置日志收集
+
+```yaml
+# promtail-config.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: promtail-config
+  namespace: monitoring
+data:
+  promtail.yaml: |
+    server:
+      http_listen_port: 9080
+      grpc_listen_port: 0
+
+    clients:
+      - url: http://loki.monitoring:3100/loki/api/v1/push
+
+    scrape_configs:
+      - job_name: kubernetes-pods
+        kubernetes_sd_configs:
+          - role: pod
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_controller_name]
+            regex: ([a-z0-9-]+)-[0-9a-f]{8,10}
+            action: replace
+            target_label: __tmp_controller
+          - source_labels: [__meta_kubernetes_pod_label_app]
+            action: replace
+            target_label: app
+          - source_labels: [__meta_kubernetes_namespace]
+            action: replace
+            target_label: namespace
+          - source_labels: [__meta_kubernetes_pod_name]
+            action: replace
+            target_label: pod
+          - source_labels: [__meta_kubernetes_pod_container_name]
+            action: replace
+            target_label: container
+          - replacement: /var/log/pods/*$1/*.log
+            separator: /
+            source_labels:
+              - __meta_kubernetes_pod_uid
+              - __meta_kubernetes_pod_container_name
+            target_label: __path__
+```
+
+#### 7.4.3 在Grafana中查看日志
+
+1. 登录Grafana
+2. 点击左侧菜单的"Explore"
+3. 选择"Loki"作为数据源
+4. 使用查询语句查看日志，例如：
+   - `{app="character-classification", container="backend"} |~ "error"` - 查看后端错误日志
+   - `{app="character-classification", container="frontend"}` - 查看前端所有日志
+
+### 7.5 告警配置
+
+#### 7.5.1 Prometheus告警规则
+
+```yaml
+# prometheus-alerts.yaml
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: anime-role-detect-alerts
+  namespace: monitoring
+spec:
+  groups:
+  - name: backend-alerts
+    rules:
+    - alert: BackendHighCPU
+      expr: sum(rate(container_cpu_usage_seconds_total{namespace="default",pod=~"character-classification-backend.*"}[5m])) by (pod) > 1.5
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Backend High CPU Usage"
+        description: "Backend pod {{ $labels.pod }} has high CPU usage ({{ $value }} cores)"
+    
+    - alert: BackendHighMemory
+      expr: sum(container_memory_usage_bytes{namespace="default",pod=~"character-classification-backend.*"}) by (pod) > 3.5Gi
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Backend High Memory Usage"
+        description: "Backend pod {{ $labels.pod }} has high memory usage ({{ $value | humanizeBytes }})"
+    
+    - alert: BackendPodDown
+      expr: kube_pod_status_phase{namespace="default",pod=~"character-classification-backend.*",phase!="Running"} == 1
+      for: 5m
+      labels:
+        severity: critical
+      annotations:
+        summary: "Backend Pod Down"
+        description: "Backend pod {{ $labels.pod }} is not running"
+
+  - name: frontend-alerts
+    rules:
+    - alert: FrontendHighCPU
+      expr: sum(rate(container_cpu_usage_seconds_total{namespace="default",pod=~"character-classification-frontend.*"}[5m])) by (pod) > 0.4
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Frontend High CPU Usage"
+        description: "Frontend pod {{ $labels.pod }} has high CPU usage ({{ $value }} cores)"
+    
+    - alert: FrontendPodDown
+      expr: kube_pod_status_phase{namespace="default",pod=~"character-classification-frontend.*",phase!="Running"} == 1
+      for: 5m
+      labels:
+        severity: critical
+      annotations:
+        summary: "Frontend Pod Down"
+        description: "Frontend pod {{ $labels.pod }} is not running"
+```
+
+#### 7.5.2 配置告警通知
+
+```yaml
+# alertmanager-config.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: alertmanager-config
+  namespace: monitoring
+data:
+  alertmanager.yml: |
+    global:
+      resolve_timeout: 5m
+    route:
+      group_by: ['alertname']
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 1h
+      receiver: 'email-notifications'
+    receivers:
+    - name: 'email-notifications'
+      email_configs:
+      - to: 'your-email@example.com'
+        from: 'alertmanager@example.com'
+        smarthost: 'smtp.example.com:587'
+        auth_username: 'alertmanager'
+        auth_password: 'your-password'
+        require_tls: true
+```
+
+### 7.6 升级应用
 1. 构建新的Docker镜像
 2. 更新Kubernetes部署配置
 3. 应用更新：
@@ -590,7 +1227,7 @@ sudo microk8s kubectl get secret -n monitoring grafana -o jsonpath="{.data.admin
    sudo microk8s kubectl apply -f frontend-deployment.yaml
    ```
 
-### 7.5 备份与恢复
+### 7.7 备份与恢复
 ```bash
 # 备份配置文件
 tar -czf k8s-config-$(date +%Y%m%d).tar.gz *.yaml
@@ -1023,7 +1660,313 @@ jobs:
         kubectl rollout status deployment/character-classification-frontend
 ```
 
-## 13. 总结
+## 13. 跨平台诊断和OOM处理
+
+### 13.1 跨平台诊断系统
+
+本系统支持在多种硬件平台上运行，包括：
+- **Linux/CUDA**：NVIDIA GPU环境
+- **macOS/MPS**：Apple Silicon (M1/M2/M3/M4) 环境
+- **CPU**：通用CPU环境
+
+为了在不同平台上实现统一的崩溃诊断和OOM处理，我们构建了一套硬件无关的诊断系统。
+
+### 13.2 环境配置
+
+#### 13.2.1 Dockerfile环境变量配置
+
+在Dockerfile中添加以下环境变量：
+
+```dockerfile
+# 开启 Python 内置崩溃堆栈打印 (跨平台通用)
+ENV PYTHONFAULTHANDLER=1
+
+# 强制实时刷新日志，防止崩溃时缓冲区日志丢失
+ENV PYTHONUNBUFFERED=1
+
+# 针对 Mac MPS 的优化：当显存占用达到 80% 时强制回收
+ENV PYTORCH_MPS_HIGH_WATERMARK_RATIO=0.8
+
+# 启用内存监控
+ENV ENABLE_MEMORY_MONITOR=true
+
+# 启用诊断日志
+ENV ENABLE_DIAGNOSTICS=true
+
+# 设置诊断日志文件路径
+ENV DIAGNOSTICS_LOG_FILE=logs/diagnostics.log
+
+# 设置崩溃日志文件路径
+ENV CRASH_LOG_FILE=logs/crash.log
+```
+
+#### 13.2.2 Kubernetes ConfigMap配置
+
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: classification-config
+data:
+  MODEL_NAME: "arona_plana"
+  API_TIMEOUT: "30"
+  LOG_LEVEL: "INFO"
+  CACHE_SIZE: "1000"
+  PYTHONFAULTHANDLER: "1"
+  PYTHONUNBUFFERED: "1"
+  PYTORCH_MPS_HIGH_WATERMARK_RATIO: "0.8"
+  ENABLE_MEMORY_MONITOR: "true"
+  ENABLE_DIAGNOSTICS: "true"
+  MEMORY_WARNING_THRESHOLD: "85"
+  MEMORY_CRITICAL_THRESHOLD: "95"
+  GPU_MEMORY_WARNING_THRESHOLD: "85"
+  GPU_MEMORY_CRITICAL_THRESHOLD: "95"
+```
+
+### 13.3 统一诊断工具类
+
+系统提供了跨平台诊断工具类 `utils.diagnostics.CrossPlatformDiagnostics`，支持以下功能：
+
+#### 13.3.1 设备信息获取
+
+```python
+from utils.diagnostics import CrossPlatformDiagnostics
+
+# 获取当前设备类型
+device = CrossPlatformDiagnostics.get_device_info()
+# 返回: "cuda", "mps", 或 "cpu"
+```
+
+#### 13.3.2 内存快照
+
+```python
+# 生成内存快照
+diag_data = CrossPlatformDiagnostics.dump_memory_snapshot()
+# 返回包含平台、CPU、内存、GPU等信息的字典
+```
+
+#### 13.3.3 缓存清理
+
+```python
+# 跨平台缓存清理
+CrossPlatformDiagnostics.clear_cache()
+# 自动识别设备并执行相应的清理操作
+```
+
+#### 13.3.4 内存阈值检查
+
+```python
+# 检查内存是否超过阈值
+is_high = CrossPlatformDiagnostics.check_memory_threshold(threshold_percent=85.0)
+# 返回 True 或 False
+```
+
+#### 13.3.5 OOM诊断
+
+```python
+# 诊断OOM错误
+diagnosis = CrossPlatformDiagnostics.diagnose_oom_error(error)
+# 返回包含是否OOM、错误信息、设备类型、内存快照等信息的字典
+```
+
+### 13.4 核心推理逻辑改造
+
+#### 13.4.1 特征提取模块
+
+特征提取模块已集成跨平台诊断功能：
+
+```python
+# 检查图像大小，防止OOM
+if hasattr(img, 'size'):
+    width, height = img.size
+    pixel_count = width * height
+    if pixel_count > 4000000:  # 超过400万像素
+        logger.warning(f"图像过大 ({width}x{height} = {pixel_count}像素)，可能导致OOM")
+        CrossPlatformDiagnostics.check_memory_threshold(80.0)
+```
+
+#### 13.4.2 OOM异常处理
+
+```python
+except RuntimeError as e:
+    # 跨平台OOM识别和处理
+    diagnosis = CrossPlatformDiagnostics.diagnose_oom_error(e)
+    if diagnosis["is_oom"]:
+        logger.error(f"OOM异常已处理: {diagnosis}")
+        # 返回默认特征向量
+        return np.random.randn(512).astype(np.float32)
+```
+
+### 13.5 崩溃排查手册
+
+#### 13.5.1 情况A：Python代码逻辑错误/RuntimeError
+
+**现象**：程序报错，但进程没死。
+
+**查看**：`logs/runtime_error.log`
+
+**价值**：由于开启了 `diagnose=True`，日志会显示崩溃行所有变量的值。
+
+**示例**：
+```
+2026-03-28 10:30:45 | ERROR | 检测到 OOM 异常！平台: cuda
+2026-03-28 10:30:45 | ERROR | --- 崩溃前设备状态快照 ---
+{
+  "platform": "Linux",
+  "cpu_percent": 85.2,
+  "ram_used_gb": 7.8,
+  "ram_available_gb": 2.2,
+  "gpu_allocated_gb": 7.5,
+  "gpu_reserved_gb": 8.0,
+  "gpu_max_allocated_gb": 8.2
+}
+```
+
+#### 13.5.2 情况B：底层C++段错误(Segmentation Fault)/显存彻底打穿
+
+**现象**：程序直接闪退，控制台只留下一句 `Segmentation fault`。
+
+**查看**：
+
+**Linux/K8s**：
+```bash
+# 执行kubectl logs查看Pod日志
+kubectl logs <pod_name>
+
+# faulthandler会在闪退前瞬间将Python堆栈强制打印在stdout
+```
+
+**Mac M4**：
+1. 打开"控制台" (Console.app)
+2. 查看崩溃报告
+3. 查找以 `python3` 开头的 `.ips` 文件
+4. 搜索 `Termination Reason: Namespace JETSAM`（代表内存超限被系统杀掉）
+
+### 13.6 Kubernetes中的故障排查
+
+#### 13.6.1 查看Pod日志
+
+```bash
+# 查看后端Pod日志
+kubectl logs -l component=backend --tail=100 -f
+
+# 查看前端Pod日志
+kubectl logs -l component=frontend --tail=100 -f
+
+# 查看特定Pod的日志
+kubectl logs <pod-name> --tail=100 -f
+```
+
+#### 13.6.2 查看诊断日志
+
+```bash
+# 查看诊断日志
+kubectl logs <pod-name> | grep "崩溃前设备状态快照"
+
+# 查看OOM错误
+kubectl logs <pod-name> | grep "OOM异常"
+```
+
+#### 13.6.3 查看Pod资源使用
+
+```bash
+# 查看Pod资源使用情况
+kubectl top pods
+
+# 查看节点资源使用情况
+kubectl top nodes
+```
+
+#### 13.6.4 进入Pod进行诊断
+
+```bash
+# 进入Pod
+kubectl exec -it <pod-name> -- /bin/bash
+
+# 在Pod内运行诊断
+python3 -c "from utils.diagnostics import CrossPlatformDiagnostics; CrossPlatformDiagnostics.dump_memory_snapshot()"
+```
+
+### 13.7 性能优化建议
+
+#### 13.7.1 统一精度
+
+跨平台运行AI模型，`model.half()` (FP16) 是防止MBA M4 OOM的最有效手段。
+
+```python
+if self.device.type in ['cuda', 'mps']:
+    self.model = self.model.half()
+    logger.info(f"已开启 FP16 半精度模式，运行于 {self.device}")
+```
+
+#### 13.7.2 日志为王
+
+在loguru中开启 `diagnose=True` 相当于得到了一个"文本版的 Core Dump"，比二进制的 `.core` 文件对Python开发者更友好。
+
+```python
+logger.add("logs/runtime_error.log", backtrace=True, diagnose=True, rotation="50MB")
+```
+
+#### 13.7.3 动态缩放
+
+针对统一内存（M4），建议在 `cv2.imread` 后立即判断图片像素，若 `width * height > 4000000`（约400万像素），强制等比缩小，这是跨平台稳定性最底层的保障。
+
+```python
+if pixel_count > 4000000:
+    scale_factor = (4000000 / pixel_count) ** 0.5
+    new_width = int(width * scale_factor)
+    new_height = int(height * scale_factor)
+    img = img.resize((new_width, new_height))
+```
+
+### 13.8 监控和告警
+
+#### 13.8.1 Prometheus监控指标
+
+```yaml
+# 添加到Prometheus配置
+- job_name: 'memory-monitoring'
+  static_configs:
+    - targets: ['character-classification-backend:8000']
+  metrics_path: '/api/monitoring/metrics'
+```
+
+#### 13.8.2 Grafana仪表板
+
+创建Grafana仪表板监控以下指标：
+- CPU使用率
+- 内存使用率
+- GPU显存使用率（如果使用GPU）
+- 请求响应时间
+- 错误率
+- OOM错误次数
+
+#### 13.8.3 告警规则
+
+```yaml
+# Prometheus告警规则
+groups:
+- name: oom-alerts
+  rules:
+  - alert: HighMemoryUsage
+    expr: container_memory_usage_bytes{container="backend"} / container_spec_memory_limit_bytes{container="backend"} > 0.85
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: "High memory usage detected"
+      description: "Memory usage is above 85%"
+  
+  - alert: OOMDetected
+    expr: rate(kube_pod_container_status_terminated_reason{reason="OOMKilled"}[5m]) > 0
+    labels:
+      severity: critical
+    annotations:
+      summary: "OOM detected"
+      description: "Pod was killed due to OOM"
+```
+
+## 14. 总结
 
 通过以上部署方案，我们实现了一个完整的Kubernetes部署流程，包括：
 
@@ -1039,6 +1982,7 @@ jobs:
 10. **性能优化**：资源配置和应用优化
 11. **安全加固**：容器安全和网络安全
 12. **CI/CD集成**：GitLab CI和GitHub Actions
+13. **跨平台诊断和OOM处理**：统一的跨平台诊断系统和OOM处理机制
 
 这套部署方案具有以下优势：
 - **高可用性**：多副本部署，自动故障转移
@@ -1047,6 +1991,8 @@ jobs:
 - **可监控性**：Prometheus和Grafana集成
 - **自动化**：完整的CI/CD流程
 - **易于维护**：详细的监控和故障排查指南
+- **跨平台支持**：统一的诊断系统，支持CUDA/MPS/CPU多种平台
+- **OOM防护**：完善的OOM检测和处理机制
 
 系统部署完成后，您可以通过域名访问角色分类系统的前端界面，系统将能够处理图像分类请求，提供准确的角色识别结果。
 

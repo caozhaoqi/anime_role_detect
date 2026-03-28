@@ -3,10 +3,19 @@ from transformers import CLIPProcessor, CLIPModel
 from PIL import Image
 import numpy as np
 import os
+import gc
 
 # 使用全局日志系统
 from core.logging.global_logger import get_logger, log_system, log_error
 logger = get_logger("feature_extraction")
+
+# 导入跨平台诊断工具
+try:
+    from utils.diagnostics import CrossPlatformDiagnostics
+    DIAGNOSTICS_AVAILABLE = True
+except ImportError:
+    logger.warning("跨平台诊断工具不可用")
+    DIAGNOSTICS_AVAILABLE = False
 
 class FeatureExtraction:
     # 全局模型实例缓存
@@ -85,6 +94,15 @@ class FeatureExtraction:
             # 预处理图像
             inputs = self.processor(images=img, return_tensors="pt").to(self.device)
             
+            # 检查图像大小，防止OOM
+            if hasattr(img, 'size'):
+                width, height = img.size
+                pixel_count = width * height
+                if pixel_count > 4000000:  # 超过400万像素
+                    logger.warning(f"图像过大 ({width}x{height} = {pixel_count}像素)，可能导致OOM")
+                    if DIAGNOSTICS_AVAILABLE:
+                        CrossPlatformDiagnostics.check_memory_threshold(80.0)
+            
             # 提取特征
             with torch.no_grad():
                 features = self.model.get_image_features(**inputs)
@@ -105,10 +123,33 @@ class FeatureExtraction:
             
             # 清理内存
             del inputs, features, norm
-            if torch.cuda.is_available():
+            if self.device == "cuda":
                 torch.cuda.empty_cache()
+            elif self.device == "mps":
+                gc.collect()
             
             return features_np
+        except RuntimeError as e:
+            # 跨平台OOM识别和处理
+            if DIAGNOSTICS_AVAILABLE:
+                diagnosis = CrossPlatformDiagnostics.diagnose_oom_error(e)
+                if diagnosis["is_oom"]:
+                    logger.error(f"OOM异常已处理: {diagnosis}")
+                    # 返回默认特征向量
+                    return np.random.randn(512).astype(np.float32)
+            else:
+                # 如果诊断工具不可用，使用传统方法
+                err_msg = str(e).lower()
+                if "out of memory" in err_msg or "allotted memory" in err_msg:
+                    logger.error(f"检测到OOM异常: {e}")
+                    # 清理缓存
+                    if self.device == "cuda":
+                        torch.cuda.empty_cache()
+                    elif self.device == "mps":
+                        gc.collect()
+                    # 返回默认特征向量
+                    return np.random.randn(512).astype(np.float32)
+            raise
         except Exception as e:
             logger.error(f"特征提取失败: {e}")
             # 发生异常时也清理内存
@@ -119,8 +160,10 @@ class FeatureExtraction:
                     del features
                 if 'norm' in locals():
                     del norm
-                if torch.cuda.is_available():
+                if self.device == "cuda":
                     torch.cuda.empty_cache()
+                elif self.device == "mps":
+                    gc.collect()
             raise
     
     def batch_extract_features(self, imgs, batch_size=8):

@@ -25,7 +25,7 @@ class CacheManager:
     缓存管理器
     """
     
-    def __init__(self, cache_dir='./cache', max_memory_size=1000, max_file_size=10000, default_ttl=3600):
+    def __init__(self, cache_dir='./cache', max_memory_size=2000, max_file_size=20000, default_ttl=3600):
         """
         初始化缓存管理器
         
@@ -60,6 +60,9 @@ class CacheManager:
         
         # 加载文件缓存索引
         self._load_file_cache_index()
+        
+        # 启动定期清理任务
+        self._start_cleanup_task()
         
         logger.info(f"初始化缓存管理器，内存缓存大小: {max_memory_size}, 文件缓存大小: {max_file_size}")
     
@@ -454,6 +457,29 @@ class CacheManager:
                 return value
             return wrapper
         return decorator
+    
+    def _start_cleanup_task(self):
+        """
+        启动定期清理任务
+        """
+        import threading
+        import time
+        
+        def cleanup_task():
+            while True:
+                try:
+                    self.cleanup()
+                    # 每5分钟清理一次
+                    time.sleep(300)
+                except Exception as e:
+                    logger.error(f"清理任务出错: {e}")
+                    # 出错后暂停1分钟再继续
+                    time.sleep(60)
+        
+        # 启动后台线程
+        thread = threading.Thread(target=cleanup_task, daemon=True)
+        thread.start()
+        logger.info("定期清理任务已启动")
     
     def cleanup(self):
         """

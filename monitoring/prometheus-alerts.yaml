@@ -1,0 +1,161 @@
+groups:
+- name: anime-role-detect-alerts
+  rules:
+  - alert: BackendHighCPU
+    expr: sum(rate(container_cpu_usage_seconds_total{namespace="default",pod=~"character-classification-backend.*"}[5m])) by (pod) > 1.5
+    for: 5m
+    labels:
+      severity: warning
+      app: anime-role-detect
+      component: backend
+    annotations:
+      summary: "Backend High CPU Usage"
+      description: "Backend pod {{ $labels.pod }} has high CPU usage ({{ $value }} cores)"
+  
+  - alert: BackendHighMemory
+    expr: sum(container_memory_usage_bytes{namespace="default",pod=~"character-classification-backend.*"}) by (pod) > 3.5Gi
+    for: 5m
+    labels:
+      severity: warning
+      app: anime-role-detect
+      component: backend
+    annotations:
+      summary: "Backend High Memory Usage"
+      description: "Backend pod {{ $labels.pod }} has high memory usage ({{ $value | humanizeBytes }})"
+  
+  - alert: BackendPodDown
+    expr: kube_pod_status_phase{namespace="default",pod=~"character-classification-backend.*",phase!="Running"} == 1
+    for: 5m
+    labels:
+      severity: critical
+      app: anime-role-detect
+      component: backend
+    annotations:
+      summary: "Backend Pod Down"
+      description: "Backend pod {{ $labels.pod }} is not running"
+  
+  - alert: FrontendHighCPU
+    expr: sum(rate(container_cpu_usage_seconds_total{namespace="default",pod=~"character-classification-frontend.*"}[5m])) by (pod) > 0.4
+    for: 5m
+    labels:
+      severity: warning
+      app: anime-role-detect
+      component: frontend
+    annotations:
+      summary: "Frontend High CPU Usage"
+      description: "Frontend pod {{ $labels.pod }} has high CPU usage ({{ $value }} cores)"
+  
+  - alert: FrontendPodDown
+    expr: kube_pod_status_phase{namespace="default",pod=~"character-classification-frontend.*",phase!="Running"} == 1
+    for: 5m
+    labels:
+      severity: critical
+      app: anime-role-detect
+      component: frontend
+    annotations:
+      summary: "Frontend Pod Down"
+      description: "Frontend pod {{ $labels.pod }} is not running"
+
+- name: oom-alerts
+  rules:
+  - alert: HighMemoryUsage
+    expr: container_memory_usage_bytes{namespace="default",container="backend"} / container_spec_memory_limit_bytes{namespace="default",container="backend"} > 0.85
+    for: 5m
+    labels:
+      severity: warning
+      app: anime-role-detect
+      type: oom-risk
+    annotations:
+      summary: "High memory usage detected"
+      description: "Memory usage is above 85% (current: {{ $value | humanizePercentage }})"
+  
+  - alert: OOMDetected
+    expr: rate(kube_pod_container_status_terminated_reason{namespace="default",reason="OOMKilled"}[5m]) > 0
+    labels:
+      severity: critical
+      app: anime-role-detect
+      type: oom-killed
+    annotations:
+      summary: "OOM detected"
+      description: "Pod {{ $labels.pod }} was killed due to OOM"
+  
+  - alert: MemoryLeakSuspected
+    expr: deriv(container_memory_usage_bytes{namespace="default",container="backend"}[1h]) > 0
+    for: 30m
+    labels:
+      severity: warning
+      app: anime-role-detect
+      type: memory-leak
+    annotations:
+      summary: "Memory leak suspected"
+      description: "Memory usage is continuously increasing over time"
+
+- name: performance-alerts
+  rules:
+  - alert: HighResponseTime
+    expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{namespace="default",service="character-classification-backend"}[5m])) > 5
+    for: 5m
+    labels:
+      severity: warning
+      app: anime-role-detect
+      type: performance
+    annotations:
+      summary: "High response time detected"
+      description: "95th percentile response time is above 5 seconds"
+  
+  - alert: HighErrorRate
+    expr: rate(http_requests_total{namespace="default",service="character-classification-backend",status=~"5.."}[5m]) / rate(http_requests_total{namespace="default",service="character-classification-backend"}[5m]) > 0.05
+    for: 5m
+    labels:
+      severity: critical
+      app: anime-role-detect
+      type: error-rate
+    annotations:
+      summary: "High error rate detected"
+      description: "Error rate is above 5%"
+  
+  - alert: LowThroughput
+    expr: rate(http_requests_total{namespace="default",service="character-classification-backend"}[5m]) < 1
+    for: 10m
+    labels:
+      severity: warning
+      app: anime-role-detect
+      type: throughput
+    annotations:
+      summary: "Low throughput detected"
+      description: "Request rate is below 1 request per second"
+
+- name: availability-alerts
+  rules:
+  - alert: ServiceUnavailable
+    expr: up{namespace="default",service="character-classification-backend"} == 0
+    for: 1m
+    labels:
+      severity: critical
+      app: anime-role-detect
+      type: availability
+    annotations:
+      summary: "Service unavailable"
+      description: "Service {{ $labels.service }} is down"
+  
+  - alert: PodRestartingFrequently
+    expr: increase(kube_pod_container_status_restarts_total{namespace="default"}[1h]) > 5
+    for: 5m
+    labels:
+      severity: warning
+      app: anime-role-detect
+      type: availability
+    annotations:
+      summary: "Pod restarting frequently"
+      description: "Pod {{ $labels.pod }} has restarted {{ $value }} times in the last hour"
+  
+  - alert: PodNotReady
+    expr: kube_pod_container_status_ready{namespace="default"} == 0
+    for: 10m
+    labels:
+      severity: warning
+      app: anime-role-detect
+      type: availability
+    annotations:
+      summary: "Pod not ready"
+      description: "Pod {{ $labels.pod }} has been not ready for more than 10 minutes"

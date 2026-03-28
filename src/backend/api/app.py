@@ -784,14 +784,36 @@ async def process_single_image(file, model_name):
         处理结果
     """
     import os
+    import hashlib
+    import time
     
     temp_path = None
+    start_time = time.time()
+    
     try:
         # 读取文件内容
         content = await file.read()
+        process_time = time.time() - start_time
+        logger.debug(f"读取文件耗时: {process_time:.4f}秒")
+        
+        # 生成文件哈希作为缓存键
+        file_hash = hashlib.md5(content).hexdigest()
+        cache_key = f"image_processing_{file_hash}_{model_name}"
+        
+        # 尝试从缓存获取结果
+        cached_result = cache_manager.get(cache_key)
+        if cached_result:
+            logger.info(f"缓存命中，直接返回结果: {file.filename}")
+            # 添加文件名
+            cached_result["filename"] = file.filename
+            cached_result["processing_time"] = time.time() - start_time
+            return cached_result
         
         # 验证图像
+        validate_start = time.time()
         temp_path = validate_image(file, content)
+        validate_time = time.time() - validate_start
+        logger.debug(f"验证图像耗时: {validate_time:.4f}秒")
         
         # 获取项目根目录
         project_root = get_project_root()
@@ -800,39 +822,65 @@ async def process_single_image(file, model_name):
         index_path = get_model_path(model_name, project_root)
         
         # 获取或创建分类器
+        classifier_start = time.time()
         classifier = await get_or_create_classifier(index_path)
+        classifier_time = time.time() - classifier_start
+        logger.debug(f"获取分类器耗时: {classifier_time:.4f}秒")
+        
         if classifier is None:
-            return {"role": "unknown", "similarity": 0.0, "attributes": []}
+            result = {"role": "unknown", "similarity": 0.0, "attributes": []}
+            # 缓存结果
+            cache_manager.set(result, cache_key, ttl=3600)
+            result["processing_time"] = time.time() - start_time
+            return result
+        
+        # 并行处理特征提取、文本检测、标签生成
+        tasks = []
         
         # 提取特征
-        feature = await extract_image_features(temp_path)
+        tasks.append(extract_image_features(temp_path))
         
-        # 检测文本
-        text_detections = []
+        # 检测文本（非SVG文件）
         if file.content_type != "image/svg+xml":
-            text_detections = await detect_image_text(temp_path)
+            tasks.append(detect_image_text(temp_path))
         else:
             logger.info("跳过SVG文件的文本检测")
         
-        # 生成标签
-        attributes = []
+        # 生成标签（非SVG文件）
         if file.content_type != "image/svg+xml":
-            attributes = await generate_image_tags(temp_path)
+            tasks.append(generate_image_tags(temp_path))
         else:
             logger.info("跳过SVG文件的标签生成")
         
-        # 分类图像
-        role, similarity = await classify_image_internal(classifier, feature, attributes)
+        # 并行执行
+        parallel_start = time.time()
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        parallel_time = time.time() - parallel_start
+        logger.debug(f"并行处理耗时: {parallel_time:.4f}秒")
         
-        # 检测关键点
+        # 处理结果
+        feature = results[0]
+        text_detections = results[1] if len(results) > 1 and not isinstance(results[1], Exception) else []
+        attributes = results[2] if len(results) > 2 and not isinstance(results[2], Exception) else []
+        
+        # 分类图像
+        classify_start = time.time()
+        role, similarity = await classify_image_internal(classifier, feature, attributes)
+        classify_time = time.time() - classify_start
+        logger.debug(f"分类图像耗时: {classify_time:.4f}秒")
+        
+        # 并行处理关键点检测和角色预测
         keypoints = []
+        ai_predicted_role = None
+        
         if file.content_type != "image/svg+xml":
-            keypoints = await detect_keypoints(temp_path)
+            tasks = [detect_keypoints(temp_path), predict_role(attributes)]
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            keypoints = results[0] if not isinstance(results[0], Exception) else []
+            ai_predicted_role = results[1] if not isinstance(results[1], Exception) else None
         else:
             logger.info("跳过SVG文件的关键点检测")
-        
-        # 预测角色
-        ai_predicted_role = await predict_role(attributes)
+            ai_predicted_role = await predict_role(attributes)
         
         # 构建响应
         result = {
@@ -840,7 +888,8 @@ async def process_single_image(file, model_name):
             "role": role,
             "similarity": float(similarity),
             "attributes": attributes,
-            "ai_predicted_role": ai_predicted_role
+            "ai_predicted_role": ai_predicted_role,
+            "processing_time": time.time() - start_time
         }
         
         # 添加文本检测结果（如果有）
@@ -853,17 +902,25 @@ async def process_single_image(file, model_name):
             result["keypoints"] = keypoints
             logger.info("返回关键点检测结果")
         
+        # 缓存结果，根据相似度调整TTL
+        ttl = 3600 if similarity > 0.8 else 1800
+        cache_manager.set(result, cache_key, ttl=ttl)
+        logger.info(f"结果已缓存: {cache_key}, TTL: {ttl}秒")
+        
         return result
     finally:
         # 清理临时文件
         if temp_path and os.path.exists(temp_path):
-            os.remove(temp_path)
-            logger.info(f"临时文件已删除: {temp_path}")
+            try:
+                os.remove(temp_path)
+                logger.debug(f"临时文件已删除: {temp_path}")
+            except Exception as e:
+                logger.error(f"删除临时文件失败: {e}")
         
         # 强制垃圾回收
         import gc
         gc.collect()
-        logger.info("执行垃圾回收，释放内存")
+        logger.debug("执行垃圾回收，释放内存")
 
 
 @app.post("/api/classify", tags=["分类"])
