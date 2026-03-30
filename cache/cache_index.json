@@ -28,5 +28,17 @@
     "last_accessed": "2026-03-30T10:33:23.705811",
     "ttl": 3600,
     "file": "5dafbc00a022323aa7354c330446f6a0.pkl"
+  },
+  "image_processing_b18f58bf502fa68fe6344cdabb0d147d_default": {
+    "created": "2026-03-30T10:54:22.656119",
+    "last_accessed": "2026-03-30T10:54:22.656119",
+    "ttl": 3600,
+    "file": "baefa85a653da9cf4add25c3faac3af3.pkl"
+  },
+  "image_processing_43d9f93a4d5eed869c6af0e73587e6cf_default": {
+    "created": "2026-03-30T10:54:59.172461",
+    "last_accessed": "2026-03-30T10:54:59.172461",
+    "ttl": 3600,
+    "file": "03abfe2a86b5c89c169e460c61ee71ac.pkl"
   }
 }
