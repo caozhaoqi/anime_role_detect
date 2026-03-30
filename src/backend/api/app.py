@@ -401,14 +401,31 @@ def validate_image(file, content):
         
         # 检查文件类型
         allowed_content_types = config_manager.get_allowed_file_types()
-        if file.content_type not in allowed_content_types:
-            raise ValueError(f"不支持的文件类型: {file.content_type}，仅支持 {', '.join(allowed_content_types)}")
+        
+        # 当content_type为None时，根据文件扩展名推断
+        content_type = file.content_type
+        if content_type is None:
+            import os
+            ext = os.path.splitext(file.filename)[1].lower()
+            ext_to_content_type = {
+                '.jpg': 'image/jpeg',
+                '.jpeg': 'image/jpeg',
+                '.png': 'image/png',
+                '.gif': 'image/gif',
+                '.bmp': 'image/bmp',
+                '.svg': 'image/svg+xml'
+            }
+            content_type = ext_to_content_type.get(ext, 'application/octet-stream')
+            logger.info(f"根据文件扩展名推断文件类型: {content_type}")
+        
+        if content_type not in allowed_content_types:
+            raise ValueError(f"不支持的文件类型: {content_type}，仅支持 {', '.join(allowed_content_types)}")
         
         # 保存临时文件
         # 直接为SVG文件创建带.svg后缀的临时文件
-        logger.info(f"检查文件类型: {file.content_type}")
-        logger.info(f"文件类型是否为SVG: {file.content_type == 'image/svg+xml'}")
-        if file.content_type == "image/svg+xml":
+        logger.info(f"检查文件类型: {content_type}")
+        logger.info(f"文件类型是否为SVG: {content_type == 'image/svg+xml'}")
+        if content_type == "image/svg+xml":
             logger.info("创建SVG临时文件")
             with tempfile.NamedTemporaryFile(delete=False, suffix=".svg") as temp_file:
                 temp_file.write(content)
@@ -432,7 +449,7 @@ def validate_image(file, content):
         logger.info(f"临时文件大小: {os.path.getsize(temp_path)} 字节")
         
         # 对于SVG文件，直接返回临时文件路径
-        if file.content_type == "image/svg+xml":
+        if content_type == "image/svg+xml":
             logger.info("跳过 SVG 文件的验证，直接返回临时文件路径")
             return temp_path
         
@@ -751,12 +768,13 @@ async def detect_keypoints(temp_path):
     
     return keypoints
 
-async def predict_role(attributes):
+async def predict_role(attributes, classification_result=None):
     """
     AI 角色预测
     
     Args:
         attributes: 图像标签
+        classification_result: 分类器的结果，格式为(角色名称, 相似度)
     
     Returns:
         ai_predicted_role: 预测的角色名称
@@ -771,6 +789,12 @@ async def predict_role(attributes):
         logger.info(f"AI 角色预测完成，预测角色: {ai_predicted_role}")
     except Exception as e:
         logger.warning(f"AI 角色预测失败: {e}")
+        ai_predicted_role = "未知角色"
+    
+    # 如果AI预测结果为"未知角色"，使用分类器的结果
+    if ai_predicted_role == "未知角色" and classification_result and classification_result[0] != "unknown":
+        ai_predicted_role = classification_result[0]
+        logger.info(f"使用分类器结果作为AI预测结果: {ai_predicted_role}")
     
     return ai_predicted_role
 
@@ -876,13 +900,13 @@ async def process_single_image(file, model_name):
         ai_predicted_role = None
         
         if file.content_type != "image/svg+xml":
-            tasks = [detect_keypoints(temp_path), predict_role(attributes)]
+            tasks = [detect_keypoints(temp_path), predict_role(attributes, (role, similarity))]
             results = await asyncio.gather(*tasks, return_exceptions=True)
             keypoints = results[0] if not isinstance(results[0], Exception) else []
             ai_predicted_role = results[1] if not isinstance(results[1], Exception) else None
         else:
             logger.info("跳过SVG文件的关键点检测")
-            ai_predicted_role = await predict_role(attributes)
+            ai_predicted_role = await predict_role(attributes, (role, similarity))
         
         # 构建响应
         result = {
@@ -932,6 +956,11 @@ async def classify_image(file: UploadFile = File(...), use_model: bool = Form(Fa
     """
     start_time = time.time()
     try:
+        # 增加请求限流
+        active_tasks = monitoring_system.monitors['task'].get_active_tasks()
+        if active_tasks > 5:
+            raise HTTPException(status_code=429, detail="请求过多，请稍后再试")
+        
         result = await process_single_image(file, model_name)
         response_time = time.time() - start_time
         # 更新网络监控统计信息
@@ -954,6 +983,11 @@ async def classify_batch(files: List[UploadFile] = File(...), model_name: str = 
     import asyncio
     
     try:
+        # 增加请求限流
+        active_tasks = monitoring_system.monitors['task'].get_active_tasks()
+        if active_tasks > 5:
+            raise HTTPException(status_code=429, detail="请求过多，请稍后再试")
+        
         logger.info(f"接收到批量请求，文件数量: {len(files)}")
         
         # 限制批量处理的文件数量

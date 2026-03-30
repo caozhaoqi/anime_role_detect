@@ -271,8 +271,13 @@ class Classification:
         # 4. 利用标签信息辅助分类
         if tags:
             logger.info(f"使用标签辅助分类: {tags[:10]}...")
-            # 转换标签为小写
-            tags_lower = [tag.lower() for tag in tags]
+            # 转换标签为小写（处理字典格式的标签）
+            tags_lower = []
+            for tag_item in tags:
+                if isinstance(tag_item, dict) and 'tag' in tag_item:
+                    tags_lower.append(tag_item['tag'].lower())
+                elif isinstance(tag_item, str):
+                    tags_lower.append(tag_item.lower())
             
             # 检查标签中是否包含角色相关信息
             for role, similarity in sorted_roles:
@@ -290,7 +295,7 @@ class Classification:
                     return result
         
         # 5. 调整阈值，使其更倾向于选择平均相似度高的角色
-        threshold = 0.5  # 降低阈值，提高分类灵敏度
+        threshold = 0.7  # 提高阈值，减少错误识别
         if best_similarity >= threshold:
             logger.info(f"分类结果: {best_role}, 相似度: {best_similarity:.4f}")
             result = (best_role, best_similarity)

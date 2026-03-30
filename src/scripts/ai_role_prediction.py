@@ -64,24 +64,32 @@ class AIRolePredictor:
         根据标签预测角色名
         
         Args:
-            tags: 标签列表
+            tags: 标签列表（可以是字符串列表或字典列表）
         
         Returns:
             预测的角色名
         """
+        # 处理标签格式
+        processed_tags = []
+        for tag_item in tags:
+            if isinstance(tag_item, dict) and 'tag' in tag_item:
+                processed_tags.append(tag_item['tag'])
+            elif isinstance(tag_item, str):
+                processed_tags.append(tag_item)
+        
         # 生成缓存键
-        cache_key = tuple(sorted(tags[:10]))  # 使用前10个标签作为缓存键
+        cache_key = tuple(sorted(processed_tags[:10]))  # 使用前10个标签作为缓存键
         
         # 检查缓存
         if cache_key in self.prediction_cache:
             logger.info("从缓存获取角色预测结果")
             return self.prediction_cache[cache_key]
         
-        logger.info(f"开始预测角色，标签数量: {len(tags)}")
-        logger.info(f"前10个标签: {tags[:10]}")
+        logger.info(f"开始预测角色，标签数量: {len(processed_tags)}")
+        logger.info(f"前10个标签: {processed_tags[:10]}")
         
         # 构建提示
-        prompt = self._build_prompt(tags)
+        prompt = self._build_prompt(processed_tags)
         
         # 调用真实的 AI API
         try:
@@ -89,7 +97,7 @@ class AIRolePredictor:
         except Exception as e:
             logger.error(f"API 调用失败: {e}")
             # 如果 API 调用失败，使用模拟响应
-            predicted_role = self._simulate_ai_response(prompt, tags)
+            predicted_role = self._simulate_ai_response(prompt, processed_tags)
         
         # 缓存结果
         self.prediction_cache[cache_key] = predicted_role

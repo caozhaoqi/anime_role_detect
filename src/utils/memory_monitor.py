@@ -27,7 +27,7 @@ class MemoryMonitor:
     内存监控器
     """
     
-    def __init__(self, memory_threshold=80, critical_threshold=90, interval=5, max_coredump_files=10, max_state_files=20):
+    def __init__(self, memory_threshold=70, critical_threshold=85, interval=10, max_coredump_files=5, max_state_files=10):
         """
         初始化内存监控器
         
@@ -50,7 +50,7 @@ class MemoryMonitor:
         os.makedirs(self.save_dir, exist_ok=True)
         self.max_coredump_files = max_coredump_files
         self.max_state_files = max_state_files
-        self.memory_trend = deque(maxlen=20)  # 内存趋势数据
+        self.memory_trend = deque(maxlen=10)  # 内存趋势数据
     
     def start(self):
         """
@@ -131,12 +131,12 @@ class MemoryMonitor:
         """
         检查内存泄漏
         """
-        if len(self.memory_trend) < 10:
+        if len(self.memory_trend) < 8:
             return
         
         # 计算内存趋势
-        recent_values = list(self.memory_trend)[-10:]
-        older_values = list(self.memory_trend)[:-10]
+        recent_values = list(self.memory_trend)[-5:]
+        older_values = list(self.memory_trend)[:-5]
         
         if older_values and recent_values:
             avg_recent = sum(recent_values) / len(recent_values)

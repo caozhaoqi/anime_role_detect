@@ -30,6 +30,7 @@ class WDViTV3Tagger:
         if os.path.exists(coreml_model_path) and os.path.exists(coreml_labels_path):
             self.device = device or torch.device('mps' if torch.backends.mps.is_available() else 'cpu')
             self.logger = get_logger("wd_vit_v3_tagger")
+            self.num_id2label = {}  # 初始化num_id2label属性
             self.logger.info("Core ML WD Vit Tagger 模型可用，使用 Core ML 进行标签生成")
             # 动态导入 Core ML 标签生成模块
             from core.tagging.coreml_wd_vit_v3_tagger import CoreMLWDVitV3Tagger

@@ -25,7 +25,7 @@ class CacheManager:
     缓存管理器
     """
     
-    def __init__(self, cache_dir='./cache', max_memory_size=2000, max_file_size=20000, default_ttl=3600):
+    def __init__(self, cache_dir='./cache', max_memory_size=500, max_file_size=5000, default_ttl=3600):
         """
         初始化缓存管理器
         
@@ -469,8 +469,8 @@ class CacheManager:
             while True:
                 try:
                     self.cleanup()
-                    # 每5分钟清理一次
-                    time.sleep(300)
+                    # 每2分钟清理一次
+                    time.sleep(120)
                 except Exception as e:
                     logger.error(f"清理任务出错: {e}")
                     # 出错后暂停1分钟再继续

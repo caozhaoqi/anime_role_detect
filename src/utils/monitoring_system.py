@@ -402,6 +402,15 @@ class TaskMonitor(Monitor):
             'average_task_time': avg_task_time,
             'data_points': len(self.data)
         }
+    
+    def get_active_tasks(self):
+        """
+        获取当前活跃任务数
+        
+        Returns:
+            当前活跃任务数
+        """
+        return self.task_stats['running_tasks'] + self.task_stats['pending_tasks']
 
 
 class AlertManager:
