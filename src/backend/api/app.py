@@ -101,8 +101,10 @@ async def startup_event():
         logger.info("特征提取器初始化完成")
         
         # 初始化分类器，使用字典缓存不同模型
-        default_model = "role_index"
-        classifiers[default_model] = Classification(default_model)
+        # 使用ConfigManager获取完整的模型路径
+        default_model_name = "default"
+        default_index_path = config_manager.get_model_path(default_model_name)
+        classifiers[default_index_path] = Classification(default_index_path)
         logger.info("分类器初始化完成")
         
         # 初始化预处理器
@@ -552,9 +554,9 @@ async def extract_image_features(temp_path):
     
     # 确保提取器已初始化
     if extractor is None:
-        # 使用异步方式初始化特征提取器（使用量化模型）
-        extractor = await asyncio.to_thread(FeatureExtraction, quantize=True)
-        logger.info("特征提取器初始化完成")
+        # 使用异步方式初始化特征提取器（不使用量化，提高识别准确率）
+        extractor = await asyncio.to_thread(FeatureExtraction, quantize=False)
+        logger.info("特征提取器初始化完成（非量化模式）")
     
     # 检查文件是否是SVG格式
     import os

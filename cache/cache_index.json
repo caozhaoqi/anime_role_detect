@@ -1,1 +1,32 @@
-{}
+{
+  "image_processing_2ec0b8e66d31a62c06e046cc5608bee7_default": {
+    "created": "2026-03-30T10:32:59.667750",
+    "last_accessed": "2026-03-30T10:32:59.667750",
+    "ttl": 3600,
+    "file": "7bd66e2a46599b9cdd33bfd7b52a1b15.pkl"
+  },
+  "image_processing_f20e78a4c7a5bb96300d3fe1b633f39a_default": {
+    "created": "2026-03-30T10:33:05.558464",
+    "last_accessed": "2026-03-30T10:33:05.558464",
+    "ttl": 3600,
+    "file": "a11c8d1f58c8b43b3719846e3763ef0a.pkl"
+  },
+  "image_processing_bd90e986777a7a843058674850cd25a7_default": {
+    "created": "2026-03-30T10:33:11.225935",
+    "last_accessed": "2026-03-30T10:33:11.225935",
+    "ttl": 3600,
+    "file": "12b96132593312e2bcb15b46dd959239.pkl"
+  },
+  "image_processing_ba7f119db10dd89b92a4675ded8dafba_default": {
+    "created": "2026-03-30T10:33:17.017313",
+    "last_accessed": "2026-03-30T10:33:17.017313",
+    "ttl": 3600,
+    "file": "7017c86774f3a876ae23b934eda6e069.pkl"
+  },
+  "image_processing_2717513db7c37224efec5017c6dec7b6_default": {
+    "created": "2026-03-30T10:33:23.705811",
+    "last_accessed": "2026-03-30T10:33:23.705811",
+    "ttl": 3600,
+    "file": "5dafbc00a022323aa7354c330446f6a0.pkl"
+  }
+}
