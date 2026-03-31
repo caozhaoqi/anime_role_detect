@@ -20,7 +20,7 @@ from core.feature_extraction.feature_extraction import FeatureExtraction
 from core.classification.classification import Classification
 from core.tagging.wd_vit_v3_tagger import WDViTV3Tagger
 
-def test_inference_accuracy(train_dir="data/train", index_path="role_index_augmented"):
+def test_inference_accuracy(train_dir="data/train", index_path="role_index"):
     """
     测试推理准确性
     

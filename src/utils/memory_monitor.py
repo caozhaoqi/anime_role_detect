@@ -358,9 +358,9 @@ class MemoryMonitor:
                             'memory_percent': memory_percent,
                             'rss': memory_info.rss / (1024 * 1024),  # MB
                             'vms': memory_info.vms / (1024 * 1024),  # MB
-                            'shared': memory_info.shared / (1024 * 1024),  # MB
-                            'text': memory_info.text / (1024 * 1024),  # MB
-                            'data': memory_info.data / (1024 * 1024)  # MB
+                            'shared': getattr(memory_info, 'shared', 0) / (1024 * 1024),  # MB
+                            'text': getattr(memory_info, 'text', 0) / (1024 * 1024),  # MB
+                            'data': getattr(memory_info, 'data', 0) / (1024 * 1024)  # MB
                         })
                 except (psutil.NoSuchProcess, psutil.AccessDenied):
                     pass

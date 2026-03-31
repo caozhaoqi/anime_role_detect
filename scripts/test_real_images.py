@@ -53,7 +53,8 @@ def test_real_images():
         data = {
             'use_model': 'false',
             'use_attributes': 'true',
-            'model_name': 'default'
+            'model_name': 'default',
+            'cache_bypass': 'true'
         }
         
         # 发送请求

@@ -35,7 +35,7 @@ def load_training_data():
     加载训练数据
     """
     project_root = get_project_root()
-    train_dir = os.path.join(project_root, "data", "train")
+    train_dir = os.path.join(project_root, "data", "downloaded_images")
     
     if not os.path.exists(train_dir):
         logger.error(f"训练数据目录不存在: {train_dir}")
@@ -46,7 +46,7 @@ def load_training_data():
         role_dir = os.path.join(train_dir, role_name)
         if os.path.isdir(role_dir):
             for image_file in os.listdir(role_dir):
-                if image_file.endswith(('.jpg', '.jpeg', '.png', '.bmp')):
+                if image_file.endswith(('.jpg', '.jpeg', '.png', '.bmp', '.svg')):
                     image_path = os.path.join(role_dir, image_file)
                     training_data.append((image_path, role_name))
     

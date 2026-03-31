@@ -7,13 +7,16 @@
 import os
 import sys
 
-# 添加项目根目录到Python路径
-sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
+# 添加项目根目录和src目录到Python路径
+src_dir = os.path.abspath(os.path.dirname(__file__))
+project_root = os.path.abspath(os.path.dirname(src_dir))
+sys.path.insert(0, project_root)
+sys.path.insert(0, src_dir)
 
 # 导入必要的模块
-from src.core.classification.classification import Classification
-from src.core.preprocessing.preprocessing import Preprocessing
-from src.core.feature_extraction.feature_extraction import FeatureExtraction
+from core.classification.classification import Classification
+from core.preprocessing.preprocessing import Preprocessing
+from core.feature_extraction.feature_extraction import FeatureExtraction
 
 # 配置日志
 import logging

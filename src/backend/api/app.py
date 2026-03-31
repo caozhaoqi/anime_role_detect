@@ -96,14 +96,14 @@ async def startup_event():
     try:
         logger.info("开始初始化模型...")
         
-        # 初始化特征提取器
-        extractor = FeatureExtraction(quantize=False)
-        logger.info("特征提取器初始化完成")
+        # 初始化特征提取器，强制使用PyTorch模式，与构建索引时一致
+        extractor = FeatureExtraction(quantize=False, use_coreml=False)
+        logger.info("特征提取器初始化完成（PyTorch模式）")
         
         # 初始化分类器，使用字典缓存不同模型
-        # 使用增强后的特征库
-        default_index_path = "role_index_augmented"
-        classifiers[default_index_path] = Classification(default_index_path)
+        # 使用默认特征库，降低阈值以提高识别率
+        default_index_path = "role_index"
+        classifiers[default_index_path] = Classification(default_index_path, threshold=0.3)
         logger.info("分类器初始化完成")
         
         # 初始化预处理器
@@ -535,8 +535,8 @@ async def get_or_create_classifier(index_path):
         except Exception as e:
             logger.warning(f"Core ML分类器初始化失败: {e}")
             logger.info("回退到默认分类器")
-            # 使用异步方式初始化默认分类器
-            classifier = await asyncio.to_thread(Classification, index_path)
+            # 使用异步方式初始化默认分类器，降低阈值以提高识别率
+            classifier = await asyncio.to_thread(Classification, index_path, threshold=0.3)
         # 更新缓存
         classifiers[index_path] = classifier
         classifiers_usage[index_path] = time.time()  # 更新使用时间
@@ -564,6 +564,7 @@ async def extract_image_features(temp_path):
         feature: 提取的特征向量
     """
     import asyncio
+    from PIL import Image
     
     # 使用全局模型实例
     global extractor
@@ -571,8 +572,9 @@ async def extract_image_features(temp_path):
     # 确保提取器已初始化
     if extractor is None:
         # 使用异步方式初始化特征提取器（不使用量化，提高识别准确率）
-        extractor = await asyncio.to_thread(FeatureExtraction, quantize=False)
-        logger.info("特征提取器初始化完成（非量化模式）")
+        # 强制使用PyTorch模式，与构建索引时一致
+        extractor = await asyncio.to_thread(FeatureExtraction, quantize=False, use_coreml=False)
+        logger.info("特征提取器初始化完成（PyTorch模式）")
     
     # 检查文件是否是SVG格式
     import os
@@ -580,20 +582,37 @@ async def extract_image_features(temp_path):
     is_svg = file_extension == '.svg'
     
     if is_svg:
-        logger.info("处理SVG文件，创建空白图像作为替代")
-        # 对于SVG文件，创建一个空白图像作为替代
-        from PIL import ImageDraw
-        img = Image.new('RGB', (224, 224), color='white')
-        draw = ImageDraw.Draw(img)
-        draw.text((10, 10), "SVG Image", fill='black')
-        
-        # 提取特征
-        logger.info("开始提取特征")
-        # 使用异步方式提取特征
-        feature = await asyncio.to_thread(extractor.extract_features, img)
-        logger.info(f"特征提取完成，特征维度: {feature.shape}")
-        
-        return feature
+        logger.info("处理SVG文件，使用实际SVG内容")
+        # 对于SVG文件，使用PIL直接加载
+        try:
+            img = Image.open(temp_path)
+            img = img.convert('RGB')
+            # 调整图像大小
+            img = img.resize((224, 224))
+            
+            # 提取特征
+            logger.info("开始提取特征")
+            # 使用异步方式提取特征
+            feature = await asyncio.to_thread(extractor.extract_features, img)
+            logger.info(f"特征提取完成，特征维度: {feature.shape}")
+            
+            return feature
+        except Exception as e:
+            logger.error(f"处理SVG文件失败: {e}")
+            # 创建一个空白图像作为替代
+            from PIL import ImageDraw
+            logger.info("创建空白图像作为替代")
+            img = Image.new('RGB', (224, 224), color='white')
+            draw = ImageDraw.Draw(img)
+            draw.text((10, 10), "Error SVG", fill='black')
+            
+            # 提取特征
+            logger.info("开始提取特征")
+            # 使用异步方式提取特征
+            feature = await asyncio.to_thread(extractor.extract_features, img)
+            logger.info(f"特征提取完成，特征维度: {feature.shape}")
+            
+            return feature
     else:
         # 对于非SVG文件，正常处理
         try:
@@ -706,6 +725,8 @@ async def classify_image_internal(classifier, feature, attributes):
         similarity: 相似度
     """
     
+    role = "unknown"
+    similarity = 0.0
     
     # 分类图片
     logger.info("开始分类图片")
@@ -797,13 +818,14 @@ async def predict_role(attributes, classification_result=None):
     
     return ai_predicted_role
 
-async def process_single_image(file, model_name):
+async def process_single_image(file, model_name, cache_bypass=False):
     """
     处理单个图像
     
     Args:
         file: 上传的文件
         model_name: 模型名称
+        cache_bypass: 是否绕过缓存
     
     Returns:
         处理结果
@@ -826,13 +848,16 @@ async def process_single_image(file, model_name):
         cache_key = f"image_processing_{file_hash}_{model_name}"
         
         # 尝试从缓存获取结果
-        cached_result = cache_manager.get(cache_key)
-        if cached_result:
-            logger.info(f"缓存命中，直接返回结果: {file.filename}")
-            # 添加文件名
-            cached_result["filename"] = file.filename
-            cached_result["processing_time"] = time.time() - start_time
-            return cached_result
+        if not cache_bypass:
+            cached_result = cache_manager.get(cache_key)
+            if cached_result:
+                logger.info(f"缓存命中，直接返回结果: {file.filename}")
+                # 添加文件名
+                cached_result["filename"] = file.filename
+                cached_result["processing_time"] = time.time() - start_time
+                return cached_result
+        else:
+            logger.info(f"缓存绕过，重新处理: {file.filename}")
         
         # 验证图像
         validate_start = time.time()
@@ -948,8 +973,13 @@ async def process_single_image(file, model_name):
         logger.debug("执行垃圾回收，释放内存")
 
 
+@app.get("/api/health")
+async def health_check():
+    """健康检查端点"""
+    return {"status": "ok", "message": "API服务运行正常"}
+
 @app.post("/api/classify", tags=["分类"])
-async def classify_image(file: UploadFile = File(...), use_model: bool = Form(False, description="是否使用专用模型"), use_attributes: bool = Form(True, description="是否使用属性预测"), model_name: str = Form("default", description="模型名称")):
+async def classify_image(file: UploadFile = File(...), use_model: bool = Form(False, description="是否使用专用模型"), use_attributes: bool = Form(True, description="是否使用属性预测"), model_name: str = Form("default", description="模型名称"), cache_bypass: bool = Form(False, description="是否绕过缓存")):
     """
     分类图片
     """
@@ -960,7 +990,7 @@ async def classify_image(file: UploadFile = File(...), use_model: bool = Form(Fa
         if active_tasks > 5:
             raise HTTPException(status_code=429, detail="请求过多，请稍后再试")
         
-        result = await process_single_image(file, model_name)
+        result = await process_single_image(file, model_name, cache_bypass)
         response_time = time.time() - start_time
         # 更新网络监控统计信息
         monitoring_system.monitors['network'].update_request_stats(True, response_time)

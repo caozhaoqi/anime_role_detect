@@ -26,16 +26,17 @@ class FeatureExtraction:
     _model_name = None
     _coreml_extractor = None
     
-    def __init__(self, model_name="openai/clip-vit-base-patch32", quantize=True):
+    def __init__(self, model_name="openai/clip-vit-base-patch32", quantize=True, use_coreml=False):
         """初始化特征提取模块
         
         Args:
             model_name: 模型名称
             quantize: 是否使用量化模型
+            use_coreml: 是否使用Core ML模式
         """
         # 检查是否有Core ML模型可用
         coreml_model_path = os.path.join(os.path.dirname(__file__), "..", "..", "..", "coreml_models", "clip_model.mlpackage")
-        if os.path.exists(coreml_model_path):
+        if use_coreml and os.path.exists(coreml_model_path):
             logger.info("Core ML模型可用，使用Core ML进行特征提取")
             # 动态导入Core ML特征提取模块
             from core.feature_extraction.coreml_feature_extraction import CoreMLFeatureExtraction

@@ -7,7 +7,7 @@ The Character Classification System is an AI-based image recognition tool specif
 ## ✨ Key Features
 
 - **Image/Video Recognition**: Supports multiple formats for upload
-- **High Accuracy**: Uses CLIP model and Faiss indexing
+- **High Accuracy**: Uses MobileNetV2 model with 94.00% test accuracy
 - **DeepDanbooru Integration**: Improves classification with anime tag recognition
 - **Attribute Prediction**: Predicts character attributes (hair color, eye color, clothing)
 - **Real-time Feedback**: Provides recognition confidence and detailed results
@@ -15,6 +15,43 @@ The Character Classification System is an AI-based image recognition tool specif
 - **API Support**: RESTful API for batch processing
 - **Log Fusion**: Builds new models from classification logs
 - **End-to-End Workflow**: Complete process from data collection to model training
+
+## 📊 Model Information
+
+### Model Architecture
+- **Model**: MobileNetV2
+- **Input Size**: 224x224
+- **Training Epochs**: 50 (early stopping)
+- **Batch Size**: 32
+- **Learning Rate**: 0.001
+
+### Training Data
+- **Total Samples**: 2,629 images
+- **Classes**: 11 characters
+- **Training Set**: 2,103 images
+- **Validation Set**: 526 images
+
+### Supported Characters
+| Character | Samples | Test Precision | Test Recall |
+|-----------|---------|----------------|-------------|
+| 阿罗娜 (Arona) | 398 | 96.18% | 99.60% |
+| 日奈 (Hina) | 55 | 86.44% | 92.73% |
+| 普拉娜 (Plana) | 486 | 97.50% | 82.98% |
+| 千夏 (Chinatsu) | 25 | 89.47% | 68.00% |
+| 亚子 (Ako) | 28 | 89.29% | 89.29% |
+| 枫香 (Kaede) | 6 | 100.00% | 83.33% |
+| 伊织 (Iori) | 3 | 75.00% | 100.00% |
+| 可莉 (Klee) | 226 | - | - |
+| 提宝 (Tibao) | 283 | - | - |
+| 火花 (Spark) | 412 | - | - |
+| 纳西妲 (Nahida) | 707 | - | - |
+
+### Performance
+- **Test Accuracy**: 94.00%
+- **Precision**: 90.55%
+- **Recall**: 87.99%
+- **F1-Score**: 88.60%
+- **Inference Speed**: 379.34 FPS
 
 ## 🚀 Quick Start
 

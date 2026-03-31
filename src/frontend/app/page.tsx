@@ -33,7 +33,7 @@ export default function AnimeRoleDetect() {
   const [showHistory, setShowHistory] = useState(false);
   const [showSidebar, setShowSidebar] = useState(false); // 默认隐藏侧边栏
   const [showModelSelect, setShowModelSelect] = useState(false); // 移动端模型选择
-  const [darkMode, setDarkMode] = useState(true);
+  const [darkMode, setDarkMode] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const isMountedRef = useRef(false);
@@ -50,6 +50,63 @@ export default function AnimeRoleDetect() {
     })();
     loadHistory();
   }, [loadHistory]);
+
+  // 主题切换效果
+  useEffect(() => {
+    if (darkMode) {
+      document.documentElement.classList.add('dark');
+      document.body.style.setProperty('--background', '#1a1a2e');
+      document.body.style.setProperty('--foreground', '#f5f5f5');
+      document.body.style.setProperty('--primary', '#ff6b9d');
+      document.body.style.setProperty('--primary-hover', '#ff4785');
+      document.body.style.setProperty('--secondary', '#4ecdc4');
+      document.body.style.setProperty('--accent', '#45b7d1');
+      document.body.style.setProperty('--danger', '#ff5252');
+      document.body.style.setProperty('--warning', '#ffb74d');
+      document.body.style.setProperty('--info', '#64b5f6');
+      document.body.style.setProperty('--success', '#66bb6a');
+      document.body.style.setProperty('--border', '#2c3e50');
+      document.body.style.setProperty('--border-light', '#34495e');
+      document.body.style.setProperty('--border-dark', '#1e293b');
+      document.body.style.setProperty('--text-primary', '#f5f5f5');
+      document.body.style.setProperty('--text-secondary', '#e0e0e0');
+      document.body.style.setProperty('--text-light', '#bdbdbd');
+      document.body.style.setProperty('--text-placeholder', '#9e9e9e');
+      document.body.style.setProperty('--card-bg', '#2c3e50');
+      document.body.style.setProperty('--card-hover', '#34495e');
+      document.body.style.setProperty('--gradient-start', '#ff6b9d');
+      document.body.style.setProperty('--gradient-end', '#4ecdc4');
+      document.body.style.setProperty('--glass-bg', 'rgba(44, 62, 80, 0.85)');
+      document.body.style.setProperty('--glass-border', 'rgba(255, 107, 157, 0.2)');
+      document.body.style.backgroundImage = 'radial-gradient(circle at 15% 50%, rgba(255, 107, 157, 0.08) 0%, transparent 25%), radial-gradient(circle at 85% 30%, rgba(78, 205, 196, 0.08) 0%, transparent 25%)';
+    } else {
+      document.documentElement.classList.remove('dark');
+      document.body.style.setProperty('--background', '#fef7ff');
+      document.body.style.setProperty('--foreground', '#1a1a2e');
+      document.body.style.setProperty('--primary', '#ff6b9d');
+      document.body.style.setProperty('--primary-hover', '#ff4785');
+      document.body.style.setProperty('--secondary', '#4ecdc4');
+      document.body.style.setProperty('--accent', '#45b7d1');
+      document.body.style.setProperty('--danger', '#ff5252');
+      document.body.style.setProperty('--warning', '#ffb74d');
+      document.body.style.setProperty('--info', '#64b5f6');
+      document.body.style.setProperty('--success', '#66bb6a');
+      document.body.style.setProperty('--border', '#e8eaf6');
+      document.body.style.setProperty('--border-light', '#c5cae9');
+      document.body.style.setProperty('--border-dark', '#9fa8da');
+      document.body.style.setProperty('--text-primary', '#1a1a2e');
+      document.body.style.setProperty('--text-secondary', '#2c3e50');
+      document.body.style.setProperty('--text-light', '#4a5568');
+      document.body.style.setProperty('--text-placeholder', '#78909c');
+      document.body.style.setProperty('--card-bg', '#ffffff');
+      document.body.style.setProperty('--card-hover', '#f5f5f5');
+      document.body.style.setProperty('--gradient-start', '#ff6b9d');
+      document.body.style.setProperty('--gradient-end', '#4ecdc4');
+      document.body.style.setProperty('--glass-bg', 'rgba(255, 255, 255, 0.85)');
+      document.body.style.setProperty('--glass-border', 'rgba(255, 107, 157, 0.2)');
+      document.body.style.backgroundImage = 'radial-gradient(circle at 15% 50%, rgba(255, 107, 157, 0.08) 0%, transparent 25%), radial-gradient(circle at 85% 30%, rgba(78, 205, 196, 0.08) 0%, transparent 25%)';
+    }
+  }, [darkMode]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -239,39 +296,88 @@ export default function AnimeRoleDetect() {
 
   const classifyImage = async (imageData: string): Promise<any> => {
     try {
-      // 将base64编码的图像数据转换为Blob对象
-      const response = await fetch(imageData);
-      if (!response.ok) {
-        throw new Error(`Failed to fetch image data: ${response.statusText}`);
+      console.log("开始classifyImage函数");
+      console.log("imageData长度:", imageData.length);
+      console.log("imageData前100个字符:", imageData.substring(0, 100));
+
+      // 直接从base64字符串创建Blob对象
+      const base64Data = imageData.split(',')[1];
+      console.log("base64Data长度:", base64Data.length);
+      console.log("base64Data前100个字符:", base64Data.substring(0, 100));
+
+      const byteCharacters = atob(base64Data);
+      console.log("byteCharacters长度:", byteCharacters.length);
+      console.log("byteCharacters前100个字符:", byteCharacters.substring(0, 100));
+
+      const byteNumbers = new Array(byteCharacters.length);
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
       }
-      const blob = await response.blob();
+      console.log("byteNumbers长度:", byteNumbers.length);
+      console.log("byteNumbers前10个元素:", byteNumbers.slice(0, 10));
+
+      const byteArray = new Uint8Array(byteNumbers);
+      console.log("byteArray长度:", byteArray.length);
+      console.log("byteArray前10个元素:", byteArray.slice(0, 10));
+
+      const blob = new Blob([byteArray], { type: 'image/jpeg' });
+      console.log("blob大小:", blob.size);
+      console.log("blob类型:", blob.type);
+
       const file = new File([blob], "uploaded_image.jpg", { type: "image/jpeg" });
+      console.log("file名称:", file.name);
+      console.log("file大小:", file.size);
+      console.log("file类型:", file.type);
 
       const formData = new FormData();
       formData.append("file", file);
       formData.append("use_model", "true");
       formData.append("use_attributes", "true");
       formData.append("model_name", selectedModel);
+      formData.append("cache_bypass", "false");
 
-      const apiResponse = await fetch("http://localhost:8000/api/classify", {
-        method: "POST",
-        body: formData,
-      });
+      console.log("FormData创建完成");
+      console.log("selectedModel:", selectedModel);
 
-      if (!apiResponse.ok) {
-        const errorData = await apiResponse.json().catch(() => ({}));
-        throw new Error(errorData.error || `API request failed: ${apiResponse.statusText}`);
+      console.log("准备发送API请求到 http://localhost:8000/api/classify");
+
+      try {
+        console.log("开始发送API请求");
+        const apiResponse = await fetch("http://localhost:8000/api/classify", {
+          method: "POST",
+          body: formData,
+        });
+
+        console.log("API响应状态:", apiResponse.status);
+        console.log("API响应状态文本:", apiResponse.statusText);
+        console.log("API响应头部:", Object.fromEntries(apiResponse.headers));
+
+        if (!apiResponse.ok) {
+          const errorData = await apiResponse.json().catch(() => ({}));
+          console.log("API错误数据:", errorData);
+          throw new Error(errorData.error || `API请求失败: ${apiResponse.statusText}`);
+        }
+
+        const responseData = await apiResponse.json();
+        console.log("API响应数据:", responseData);
+        return responseData;
+      } catch (error) {
+        console.error("API请求失败:", error);
+        throw error;
       }
-
-      return await apiResponse.json();
     } catch (error) {
-      console.error("Classification error details:", error);
-      throw new Error(error instanceof Error ? error.message : "Unknown error during classification");
+      console.error("分类错误详情:", error);
+      console.error("错误堆栈:", error instanceof Error ? error.stack : null);
+      throw new Error(error instanceof Error ? error.message : "分类过程中发生未知错误");
     }
   };
 
   const handleSend = useCallback(async () => {
     if ((!inputText.trim() && !selectedImage) || isProcessing) return;
+
+    console.log("开始处理图片");
+    console.log("selectedImage:", selectedImage);
+    console.log("imagePreview:", imagePreview);
 
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -288,6 +394,7 @@ export default function AnimeRoleDetect() {
     removeImage();
 
     if (currentImage && currentImagePreview) {
+      console.log("有图片需要处理");
       setIsProcessing(true);
 
       const processingMessage: Message = {
@@ -301,6 +408,7 @@ export default function AnimeRoleDetect() {
       setMessages((prev) => [...prev, processingMessage]);
 
       try {
+        console.log("调用classifyImage函数");
         const result = await classifyImage(currentImagePreview);
         console.log('API返回的完整结果:', result);
         console.log('text_detections字段:', result.text_detections);
@@ -519,7 +627,7 @@ export default function AnimeRoleDetect() {
                 <select
                   value={selectedModel}
                   onChange={(e) => setSelectedModel(e.target.value)}
-                  className="appearance-none pl-4 pr-10 py-2 border border-[#cbd5e1] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] focus:border-transparent bg-white text-[#1e293b] text-sm transition-all duration-300 hover:border-[#3b82f6]/50 shadow-sm min-w-[180px]"
+                  className="appearance-none pl-4 pr-10 py-3 border border-[#cbd5e1] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] focus:border-transparent bg-white text-[#1e293b] text-sm transition-all duration-300 hover:border-[#3b82f6]/50 shadow-sm min-w-[180px]"
                 >
                   {models.map((model) => (
                     <option key={model.name} value={model.name}>
@@ -538,13 +646,13 @@ export default function AnimeRoleDetect() {
               <div className="sm:hidden">
                 <button
                   onClick={() => setShowModelSelect(!showModelSelect)}
-                  className="flex items-center gap-2 px-4 py-2 border border-[#cbd5e1] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] focus:border-transparent bg-white text-[#1e293b] text-sm transition-all duration-300 hover:border-[#3b82f6]/50 shadow-sm"
+                  className="flex items-center gap-2 px-4 py-3 border border-[#cbd5e1] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] focus:border-transparent bg-white text-[#1e293b] text-sm transition-all duration-300 hover:border-[#3b82f6]/50 shadow-sm"
                 >
                   <Settings className="h-4 w-4 text-[#3b82f6]" />
                   <span>模型</span>
                 </button>
                 {showModelSelect && (
-                  <div className="absolute top-16 right-6 glass rounded-2xl shadow-2xl border border-[#e2e8f0] p-2 z-50 transform transition-all duration-300 animate-slide-up w-48">
+                  <div className="absolute top-16 right-6 glass rounded-2xl shadow-2xl border border-border-light p-2 z-50 transform transition-all duration-300 animate-slide-up w-48">
                     {models.map((model) => (
                       <button
                         key={model.name}
@@ -552,7 +660,7 @@ export default function AnimeRoleDetect() {
                           setSelectedModel(model.name);
                           setShowModelSelect(false);
                         }}
-                        className={`w-full text-left px-4 py-2 rounded-lg transition-all duration-300 ${selectedModel === model.name ? "bg-[#3b82f6]/10 text-[#3b82f6]" : "hover:bg-[#f1f5f9]"}`}
+                        className={`w-full text-left px-4 py-3 rounded-lg transition-all duration-300 ${selectedModel === model.name ? "bg-primary/10 text-primary" : "hover:bg-card-hover"}`}
                       >
                         {model.description || (model.name === "default" ? "默认模型" : model.name)}
                       </button>
@@ -564,28 +672,28 @@ export default function AnimeRoleDetect() {
               {/* 主题切换 */}
               <button 
                 onClick={() => setDarkMode(!darkMode)}
-                className="p-2 rounded-lg hover:bg-[#f1f5f9] transition-all duration-300 transform hover:scale-105"
+                className="p-3 rounded-lg hover:bg-card-hover transition-all duration-300 transform hover:scale-105"
                 title={darkMode ? "切换到浅色模式" : "切换到深色模式"}
               >
-                {darkMode ? <Sun className="h-5 w-5 text-[#f59e0b]" /> : <Moon className="h-5 w-5 text-[#3b82f6]" />}
+                {darkMode ? <Sun className="h-5 w-5 text-warning" /> : <Moon className="h-5 w-5 text-primary" />}
               </button>
               
               {/* 历史记录按钮 */}
               <button 
                 onClick={() => setShowHistory(!showHistory)}
-                className="p-2 rounded-lg hover:bg-[#f1f5f9] transition-all duration-300 transform hover:scale-105"
+                className="p-3 rounded-lg hover:bg-card-hover transition-all duration-300 transform hover:scale-105"
                 title="查看历史记录"
               >
-                <Layers className="h-5 w-5 text-[#3b82f6]" />
+                <Layers className="h-5 w-5 text-primary" />
               </button>
               
               {showHistory && (
                 <button 
                   onClick={clearHistory}
-                  className="p-2 rounded-lg hover:bg-[#f1f5f9] transition-all duration-300 transform hover:scale-105"
+                  className="p-3 rounded-lg hover:bg-card-hover transition-all duration-300 transform hover:scale-105"
                   title="清空历史记录"
                 >
-                  <Trash2 className="h-5 w-5 text-[#ef4444]" />
+                  <Trash2 className="h-5 w-5 text-danger" />
                 </button>
               )}
             </div>
@@ -604,28 +712,28 @@ export default function AnimeRoleDetect() {
               <div className="max-w-3xl mx-auto space-y-8 pb-16">
                 {history.length === 0 ? (
                   <div className="glass p-10 rounded-xl text-center shadow-lg transform transition-all duration-300 hover:scale-[1.02]">
-                    <Layers className="h-16 w-16 mx-auto mb-6 text-[#94a3b8] animate-float" />
-                    <h3 className="text-xl font-semibold text-[#1e293b] mb-3 animate-fade-in">暂无历史记录</h3>
-                    <p className="text-[#64748b] animate-fade-in">上传图片进行识别后，结果将显示在这里</p>
+                    <Layers className="h-16 w-16 mx-auto mb-6 text-text-light animate-float" />
+                    <h3 className="text-xl font-semibold text-text-primary mb-3 animate-fade-in">暂无历史记录</h3>
+                    <p className="text-text-light animate-fade-in">上传图片进行识别后，结果将显示在这里</p>
                   </div>
                 ) : (
                   history.map((record, idx) => (
-                    <div key={idx} className="glass border border-[#e2e8f0] rounded-xl p-6 shadow-lg animate-slide-up transition-all duration-300 hover:shadow-xl hover:border-[#3b82f6]/30">
+                    <div key={idx} className="glass border border-border-light rounded-xl p-6 shadow-lg animate-slide-up transition-all duration-300 hover:shadow-xl hover:border-primary/30">
                       <div className="flex items-center justify-between mb-6">
-                        <span className="text-sm text-[#94a3b8]">
+                        <span className="text-sm text-text-light">
                           {new Date(record.timestamp).toLocaleString()}
                         </span>
-                        <span className={`text-sm px-3 py-1.5 rounded-full border ${record.classification?.confidence === "high" ? "bg-[#10b981]/10 text-[#10b981] border-[#10b981]/30" : record.classification?.confidence === "medium" ? "bg-[#f59e0b]/10 text-[#f59e0b] border-[#f59e0b]/30" : "bg-[#ef4444]/10 text-[#ef4444] border-[#ef4444]/30"}`}>
+                        <span className={`text-sm px-3 py-1.5 rounded-full border ${record.classification?.confidence === "high" ? "bg-success/10 text-success border-success/30" : record.classification?.confidence === "medium" ? "bg-warning/10 text-warning border-warning/30" : "bg-danger/10 text-danger border-danger/30"}`}>
                           {record.classification && getConfidenceText(record.classification.confidence)}
                         </span>
                       </div>
                       {record.classification && (
                         <div className="mb-6">
-                          <div className="text-xl font-bold text-[#1e293b] mb-3 animate-fade-in">{record.classification.role}</div>
-                          <div className="text-sm text-[#64748b] mb-4">相似度: {(record.classification.similarity * 100).toFixed(1)}%</div>
-                          <div className="progress-bar h-3 mb-6 bg-[#cbd5e1] rounded-full overflow-hidden">
+                          <div className="text-xl font-bold text-text-primary mb-3 animate-fade-in">{record.classification.role}</div>
+                          <div className="text-sm text-text-light mb-4">相似度: {(record.classification.similarity * 100).toFixed(1)}%</div>
+                          <div className="progress-bar h-3 mb-6 bg-border-light rounded-full overflow-hidden">
                             <div
-                              className={`progress-bar-fill h-3 rounded-full transition-all duration-1000 ease-out ${record.classification.confidence === "high" ? "bg-[#10b981]" : record.classification.confidence === "medium" ? "bg-[#f59e0b]" : "bg-[#ef4444]"}`}
+                              className={`progress-bar-fill h-3 rounded-full transition-all duration-1000 ease-out ${record.classification.confidence === "high" ? "bg-success" : record.classification.confidence === "medium" ? "bg-warning" : "bg-danger"}`}
                               style={{ width: `${record.classification.similarity * 100}%` }}
                             ></div>
                           </div>
@@ -637,7 +745,7 @@ export default function AnimeRoleDetect() {
                             setShowHistory(false);
                             // 可以选择将历史记录重新添加到消息列表中
                           }}
-                          className="px-4 py-2 bg-[#3b82f6]/10 text-[#3b82f6] rounded-lg text-sm hover:bg-[#3b82f6]/20 transition-all duration-300 transform hover:scale-105"
+                          className="px-4 py-2 bg-primary/10 text-primary rounded-lg text-sm hover:bg-primary/20 transition-all duration-300 transform hover:scale-105"
                         >
                           查看详情
                         </button>
@@ -652,24 +760,24 @@ export default function AnimeRoleDetect() {
                 {messages.map((msg, idx) => (
                   <div key={idx} className={`flex gap-4 ${msg.role === "user" ? "justify-end" : "justify-start"} animate-slide-up`}>
                     {msg.role === "assistant" && (
-                      <div className="w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center shadow-lg gradient-bg animate-float">
-                        <Bot size={20} className="text-white" />
+                      <div className="w-12 h-12 rounded-full flex-shrink-0 flex items-center justify-center shadow-lg gradient-bg animate-float">
+                        <Bot size={24} className="text-white" />
                       </div>
                     )}
 
-                    <div className={`max-w-[85%] sm:max-w-[80%] md:max-w-[75%] rounded-2xl px-5 py-4 text-sm leading-6 shadow-lg message-bubble transition-all duration-300 ${msg.role === "user" ? "gradient-bg text-white" : "glass border border-[#e2e8f0] text-[#1e293b] shadow-inner"} hover:shadow-xl transform hover:scale-[1.01]`}>
+                    <div className={`max-w-[85%] sm:max-w-[80%] md:max-w-[75%] rounded-2xl px-6 py-5 text-sm leading-6 shadow-lg message-bubble transition-all duration-300 ${msg.role === "user" ? "gradient-bg text-white" : "glass border border-border-light text-text-primary shadow-inner"} hover:shadow-xl transform hover:scale-[1.01] hover:-translate-y-1`}>
                       {msg.role === "assistant" ? (
                         <div className="flex flex-col gap-3">
                           {/* 思考过程展示 */}
                           {msg.thoughts && msg.thoughts.length > 0 && (
                             <div className="mb-3">
-                              <div className="flex items-center gap-2 text-xs px-3 py-1.5 rounded-full transition-all cursor-pointer w-fit select-none border border-[#3b82f6]/30 bg-[#3b82f6]/10 text-[#3b82f6] shadow-sm hover:bg-[#3b82f6]/20 transform hover:scale-105">
+                              <div className="flex items-center gap-2 text-xs px-3 py-1.5 rounded-full transition-all cursor-pointer w-fit select-none border border-primary/30 bg-primary/10 text-primary shadow-sm hover:bg-primary/20 transform hover:scale-105">
                                 <div className="relative">
-                                  <Sparkles size={14} className="text-[#3b82f6]" />
+                                  <Sparkles size={14} className="text-primary" />
                                   {!msg.isThinkingFinished && (
                                     <span className="absolute -top-1 -right-1 flex h-2 w-2">
-                                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#3b82f6] opacity-75"></span>
-                                      <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-[#3b82f6]"></span>
+                                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+                                      <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-primary"></span>
                                     </span>
                                   )}
                                 </div>
@@ -677,14 +785,14 @@ export default function AnimeRoleDetect() {
                                   {msg.isThinkingFinished ? "思考完成" : "正在思考..."}
                                 </span>
                               </div>
-                              <div className="relative pl-3 border-l-2 border-[#cbd5e1] py-2">
-                                <div className="text-sm text-[#64748b] leading-relaxed font-serif italic whitespace-pre-wrap">
+                              <div className="relative pl-3 border-l-2 border-border-light py-2">
+                                <div className="text-sm text-text-light leading-relaxed font-serif italic whitespace-pre-wrap">
                                   {msg.thoughts.join("\n")}
                                   {!msg.isThinkingFinished && (
                                     <span className="inline-flex items-center gap-1 ml-1">
-                                      <span className="w-1.5 h-1.5 bg-[#3b82f6] rounded-full animate-bounce" style={{ animationDelay: '0s' }}></span>
-                                      <span className="w-1.5 h-1.5 bg-[#3b82f6] rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></span>
-                                      <span className="w-1.5 h-1.5 bg-[#3b82f6] rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></span>
+                                      <span className="w-1.5 h-1.5 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0s' }}></span>
+                                      <span className="w-1.5 h-1.5 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></span>
+                                      <span className="w-1.5 h-1.5 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></span>
                                     </span>
                                   )}
                                 </div>
@@ -701,43 +809,43 @@ export default function AnimeRoleDetect() {
 
                           {/* 识别结果 */}
                           {msg.classification && (
-                            <div className="mt-3 pt-3 border-t border-[#e2e8f0]">
+                            <div className="mt-3 pt-3 border-t border-border-light">
                               <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
-                                <span className="text-xs font-medium text-[#64748b]">识别结果</span>
-                                <span className={`text-xs px-3 py-1.5 rounded-full border ${msg.classification.confidence === "high" ? "bg-[#10b981]/10 text-[#10b981] border-[#10b981]/30" : msg.classification.confidence === "medium" ? "bg-[#f59e0b]/10 text-[#f59e0b] border-[#f59e0b]/30" : "bg-[#ef4444]/10 text-[#ef4444] border-[#ef4444]/30"}`}>
+                                <span className="text-xs font-medium text-text-light">识别结果</span>
+                                <span className={`text-xs px-3 py-1.5 rounded-full border ${msg.classification.confidence === "high" ? "bg-success/10 text-success border-success/30" : msg.classification.confidence === "medium" ? "bg-warning/10 text-warning border-warning/30" : "bg-danger/10 text-danger border-danger/30"}`}>
                                   {getConfidenceText(msg.classification.confidence)}
                                 </span>
                               </div>
-                              <div className="glass p-5 rounded-xl shadow-lg transition-all duration-300 hover:shadow-xl border border-[#e2e8f0]">
+                              <div className="glass p-5 rounded-xl shadow-lg transition-all duration-300 hover:shadow-xl border border-border-light">
                                 <div className="flex flex-col sm:flex-row items-center space-x-4">
                                   <div className="flex-1 w-full sm:w-auto">
-                                    <div className="text-lg font-bold text-[#1e293b] animate-fade-in">{msg.classification.role}</div>
-                                    <div className="text-sm text-[#64748b] mt-2 animate-fade-in">相似度: {(msg.classification.similarity * 100).toFixed(1)}%</div>
+                                    <div className="text-lg font-bold text-text-primary animate-fade-in">{msg.classification.role}</div>
+                                    <div className="text-sm text-text-light mt-2 animate-fade-in">相似度: {(msg.classification.similarity * 100).toFixed(1)}%</div>
                                     <div className="mt-3">
-                                      <div className="progress-bar h-2.5 bg-[#cbd5e1] rounded-full overflow-hidden">
+                                      <div className="progress-bar h-2.5 bg-border-light rounded-full overflow-hidden">
                                         <div
-                                          className={`progress-bar-fill h-2.5 rounded-full transition-all duration-1000 ease-out ${msg.classification.confidence === "high" ? "bg-[#10b981]" : msg.classification.confidence === "medium" ? "bg-[#f59e0b]" : "bg-[#ef4444]"}`}
+                                          className={`progress-bar-fill h-2.5 rounded-full transition-all duration-1000 ease-out ${msg.classification.confidence === "high" ? "bg-success" : msg.classification.confidence === "medium" ? "bg-warning" : "bg-danger"}`}
                                           style={{ width: `${msg.classification.similarity * 100}%` }}
                                         ></div>
                                       </div>
                                     </div>
                                   </div>
-                                  <div className="w-20 h-20 rounded-full bg-[#3b82f6]/10 flex items-center justify-center shadow-md mt-4 sm:mt-0 animate-float">
+                                  <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center shadow-md mt-4 sm:mt-0 animate-float">
                                     <CheckCircle
-                                      className={`w-10 h-10 ${msg.classification.confidence === "high" ? "text-[#10b981]" : msg.classification.confidence === "medium" ? "text-[#f59e0b]" : "text-[#ef4444]"}`}
+                                      className={`w-10 h-10 ${msg.classification.confidence === "high" ? "text-success" : msg.classification.confidence === "medium" ? "text-warning" : "text-danger"}`}
                                     />
                                   </div>
                                 </div>
                                 
                                 {/* 属性标签展示 */}
                                 {msg.attributes && msg.attributes.length > 0 && (
-                                  <div className="mt-4 pt-4 border-t border-[#e2e8f0]">
-                                    <div className="text-xs font-medium text-[#64748b] mb-3">属性标签</div>
+                                  <div className="mt-4 pt-4 border-t border-border-light">
+                                    <div className="text-xs font-medium text-text-light mb-3">属性标签</div>
                                     <div className="flex flex-wrap gap-2">
                                       {msg.attributes.slice(0, 10).map((attr, idx) => (
                                         <span
                                           key={idx}
-                                          className="px-3 py-1.5 bg-[#f1f5f9] text-[#64748b] text-xs rounded-full border border-[#e2e8f0] hover:bg-[#e2e8f0] transition-all duration-300"
+                                          className="px-3 py-1.5 bg-card-hover text-text-light text-xs rounded-full border border-border-light hover:bg-border-light transition-all duration-300"
                                         >
                                           {attr.tag} ({(attr.confidence * 100).toFixed(0)}%)
                                         </span>
@@ -747,37 +855,37 @@ export default function AnimeRoleDetect() {
                                 )}
                                 
                                 {/* AI预测角色展示 */}
-                                <div className="mt-4 pt-4 border-t border-[#e2e8f0]">
-                                  <div className="text-xs font-medium text-[#64748b] mb-3">AI预测角色</div>
+                                <div className="mt-4 pt-4 border-t border-border-light">
+                                  <div className="text-xs font-medium text-text-light mb-3">AI预测角色</div>
                                   <div className="flex items-center gap-2">
-                                    <span className="px-3 py-1.5 bg-[#fef3c7] text-[#d97706] text-xs rounded-full border border-[#fcd34d] hover:bg-[#fde68a] transition-all duration-300">
+                                    <span className="px-3 py-1.5 bg-warning/10 text-warning text-xs rounded-full border border-warning/30 hover:bg-warning/20 transition-all duration-300">
                                       {msg.ai_predicted_role || "未知角色"}
                                     </span>
                                   </div>
                                 </div>
                                 
                                 {/* 文本检测结果展示 */}
-                                <div className="mt-4 pt-4 border-t border-[#e2e8f0]">
-                                  <div className="text-xs font-medium text-[#64748b] mb-3">文本检测</div>
+                                <div className="mt-4 pt-4 border-t border-border-light">
+                                  <div className="text-xs font-medium text-text-light mb-3">文本检测</div>
                                   <div className="flex flex-wrap gap-2">
                                     {msg.text_detections && msg.text_detections.length > 0 ? (
                                       msg.text_detections.slice(0, 10).map((text, idx) => (
                                         <span
                                           key={idx}
-                                          className="px-3 py-1.5 bg-[#f0f9ff] text-[#3b82f6] text-xs rounded-full border border-[#93c5fd] hover:bg-[#e0f2fe] transition-all duration-300"
+                                          className="px-3 py-1.5 bg-primary/10 text-primary text-xs rounded-full border border-primary/30 hover:bg-primary/20 transition-all duration-300"
                                         >
                                           {text.text} ({(text.confidence * 100).toFixed(0)}%)
                                         </span>
                                       ))
                                     ) : (
-                                      <span className="text-xs text-[#94a3b8]">未检测到文本</span>
+                                      <span className="text-xs text-text-light">未检测到文本</span>
                                     )}
                                   </div>
                                 </div>
                               </div>
                               
                               {/* 识别时间 */}
-                              <div className="mt-3 text-xs text-[#94a3b8] flex items-center gap-2 justify-end">
+                              <div className="mt-3 text-xs text-text-light flex items-center gap-2 justify-end">
                                 <Clock className="h-3 w-3" />
                                 <span>{msg.timestamp}</span>
                               </div>
@@ -828,8 +936,8 @@ export default function AnimeRoleDetect() {
                     </div>
 
                     {msg.role === "user" && (
-                      <div className="w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center shadow-lg gradient-bg animate-float">
-                        <User size={20} className="text-white" />
+                      <div className="w-12 h-12 rounded-full flex-shrink-0 flex items-center justify-center shadow-lg bg-gradient-to-br from-secondary to-accent animate-float">
+                        <User size={24} className="text-white" />
                       </div>
                     )}
                   </div>
@@ -840,7 +948,7 @@ export default function AnimeRoleDetect() {
           </div>
 
           {/* 输入区域 */}
-          <div className="border-t border-[#e2e8f0] glass shadow-2xl">
+          <div className="border-t border-border-light glass shadow-2xl">
             <div className="max-w-3xl mx-auto px-6 sm:px-8 lg:px-10 py-6">
               {/* 移除重复的模型选择下拉框，因为已经在顶部导航栏中添加了 */}
               
@@ -850,19 +958,19 @@ export default function AnimeRoleDetect() {
                 <div className="flex-shrink-0 relative">
                   <button
                     onClick={() => setShowUploadOptions(!showUploadOptions)}
-                    className="p-3 rounded-full hover:bg-[#f1f5f9] transition-all duration-300 transform hover:scale-110 hover:text-[#60a5fa] shadow-md"
+                    className="p-4 rounded-full hover:bg-card-hover transition-all duration-300 transform hover:scale-110 hover:text-secondary shadow-md bg-gradient-to-br from-primary/10 to-secondary/10"
                     title="上传图片"
                   >
-                    <Upload className="h-6 w-6 text-[#3b82f6] transition-colors duration-300 hover:text-[#60a5fa]" />
+                    <Upload className="h-6 w-6 text-primary transition-colors duration-300 hover:text-secondary" />
                   </button>
                   {showUploadOptions && (
-                    <div className="absolute bottom-full left-0 right-0 mb-4 glass rounded-2xl shadow-2xl border border-[#e2e8f0] p-4 z-50 transform transition-all duration-300 animate-slide-up">
+                    <div className="absolute bottom-full left-0 right-0 mb-4 glass rounded-2xl shadow-2xl border border-border-light p-4 z-50 transform transition-all duration-300 animate-slide-up">
                       <button
-                        className="flex items-center px-6 py-3 hover:bg-[#f1f5f9] rounded-xl w-full transition-all duration-300 transform hover:translate-x-1 shadow-sm"
+                        className="flex items-center px-6 py-3 hover:bg-card-hover rounded-xl w-full transition-all duration-300 transform hover:translate-x-1 shadow-sm"
                         onClick={() => fileInputRef.current?.click()}
                       >
-                        <ImageIcon className="h-5 w-5 mr-4 text-[#64748b] transition-colors duration-300 hover:text-[#3b82f6]" />
-                        <span className="text-sm text-[#1e293b] transition-colors duration-300 hover:text-[#3b82f6]">上传图片</span>
+                        <ImageIcon className="h-5 w-5 mr-4 text-text-light transition-colors duration-300 hover:text-primary" />
+                        <span className="text-sm text-text-primary transition-colors duration-300 hover:text-primary">上传图片</span>
                       </button>
                       <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageSelect} className="hidden" />
                     </div>
@@ -875,23 +983,31 @@ export default function AnimeRoleDetect() {
                     onChange={(e) => setInputText(e.target.value)}
                     onKeyPress={handleKeyPress}
                     placeholder="输入消息或上传图片..."
-                    className="w-full px-6 py-4 pr-14 glass border border-[#cbd5e1] rounded-xl focus:outline-none focus:ring-2 focus:ring-[#3b82f6] focus:border-transparent text-[#1e293b] placeholder-[#94a3b8] input-glow transition-all duration-300 hover:border-[#3b82f6]/50 shadow-md text-sm"
+                    className="w-full px-6 py-4 pr-16 glass border border-border-light rounded-xl focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-text-primary placeholder-text-placeholder input-glow transition-all duration-300 hover:border-primary/50 shadow-md text-sm"
                     disabled={isProcessing}
                   />
                   <button
+                    onClick={() => setInputText("")}
+                    className="absolute right-12 top-1/2 transform -translate-y-1/2 p-1.5 hover:bg-card-hover rounded-lg transition-colors duration-300 hover:scale-105 shadow-sm"
+                    title="清空输入"
+                    disabled={!inputText.trim() || isProcessing}
+                  >
+                    <X className={`h-5 w-5 transition-colors duration-300 ${inputText.trim() && !isProcessing ? "text-text-light hover:text-danger" : "text-text-light/50 cursor-not-allowed"}`} />
+                  </button>
+                  <button
                     onClick={() => fileInputRef.current?.click()}
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2 p-2 hover:bg-[#f1f5f9] rounded-lg transition-colors duration-300 hover:scale-110 shadow-sm"
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 p-2 hover:bg-card-hover rounded-lg transition-colors duration-300 hover:scale-110 shadow-sm"
                     disabled={isProcessing}
                     title="上传图片"
                   >
-                    <ImageIcon className="h-5 w-5 text-[#64748b] transition-colors duration-300 hover:text-[#3b82f6]" />
+                    <ImageIcon className="h-5 w-5 text-text-light transition-colors duration-300 hover:text-primary" />
                   </button>
                 </div>
                 <div className="flex-shrink-0">
                   <button
                     onClick={handleSend}
                     disabled={(!inputText.trim() && !selectedImage) || isProcessing}
-                    className={`btn-primary px-8 py-4 rounded-xl font-medium transition-all duration-300 flex items-center space-x-2 shadow-lg ${(!inputText.trim() && !selectedImage) || isProcessing ? "opacity-50 cursor-not-allowed" : "hover:shadow-xl hover:scale-105"}`}
+                    className={`btn-primary px-8 py-4 rounded-xl font-medium transition-all duration-300 flex items-center space-x-2 shadow-lg ${(!inputText.trim() && !selectedImage) || isProcessing ? "opacity-50 cursor-not-allowed" : "hover:shadow-xl hover:scale-105 hover:-translate-y-1"}`}
                   >
                     {isProcessing ? (
                       <>
@@ -910,7 +1026,7 @@ export default function AnimeRoleDetect() {
                   </button>
                 </div>
               </div>
-              <div className="mt-4 text-xs text-[#64748b] text-center transition-all duration-300 hover:text-[#475569]">按 Enter 发送，Shift + Enter 换行</div>
+              <div className="mt-4 text-xs text-text-light text-center transition-all duration-300 hover:text-text-secondary">按 Enter 发送，Shift + Enter 换行</div>
             </div>
           </div>
         </div>
