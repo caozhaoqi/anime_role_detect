@@ -18,7 +18,7 @@ class Classification:
     # 索引缓存大小限制
     _index_cache_size = 5
     
-    def __init__(self, index_path=None, threshold=0.6):
+    def __init__(self, index_path=None, threshold=0.4):
         """初始化分类模块"""
         self.threshold = threshold
         self.index = None
@@ -307,7 +307,7 @@ class Classification:
                     return result
         
         # 5. 调整阈值，使其更倾向于选择平均相似度高的角色
-        threshold = 0.7  # 提高阈值，减少错误识别
+        threshold = self.threshold  # 使用构造函数中设置的阈值
         if best_similarity >= threshold:
             logger.info(f"分类结果: {best_role}, 相似度: {best_similarity:.4f}")
             result = (best_role, best_similarity)

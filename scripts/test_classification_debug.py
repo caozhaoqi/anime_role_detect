@@ -31,14 +31,14 @@ def test_classification():
     
     # 加载分类器
     logger.info("\n2. 加载分类器...")
-    index_path = project_root / "role_index.faiss"
+    index_path = project_root / "role_index_augmented.faiss"
     logger.info(f"索引路径: {index_path}")
     logger.info(f"索引文件存在: {index_path.exists()}")
     
-    mapping_path = project_root / "role_index_mapping.json"
+    mapping_path = project_root / "role_index_augmented_mapping.json"
     logger.info(f"映射文件存在: {mapping_path.exists()}")
     
-    classifier = Classification(index_path=str(index_path), threshold=0.5)
+    classifier = Classification(index_path=str(index_path), threshold=0.4)
     
     if classifier.index is None:
         logger.error("分类器索引加载失败！")
@@ -47,9 +47,9 @@ def test_classification():
     logger.info(f"索引加载成功，包含 {len(classifier.role_mapping)} 个角色映射")
     logger.info(f"唯一角色: {set(classifier.role_mapping)}")
     
-    # 测试1: 使用训练集中的真实图像
-    logger.info("\n3. 测试1: 使用训练集中的真实图像")
-    test_image_path = project_root / "data" / "train" / "日奈" / "日奈_000.jpg"
+    # 测试1: 使用新创建的测试图像
+    logger.info("\n3. 测试1: 使用新创建的测试图像")
+    test_image_path = project_root / "scripts" / "test_images" / "sample.jpg"
     if test_image_path.exists():
         logger.info(f"测试图像: {test_image_path}")
         image = Image.open(test_image_path).convert('RGB')
@@ -66,8 +66,8 @@ def test_classification():
     else:
         logger.warning(f"测试图像不存在: {test_image_path}")
     
-    # 测试2: 使用纯色图像（模拟API测试中的情况）
-    logger.info("\n4. 测试2: 使用纯色图像")
+    # 测试3: 使用纯色图像（模拟API测试中的情况）
+    logger.info("\n5. 测试3: 使用纯色图像")
     test_image = Image.new('RGB', (224, 224), color='red')
     logger.info(f"测试图像: 224x224 红色纯色图像")
     
