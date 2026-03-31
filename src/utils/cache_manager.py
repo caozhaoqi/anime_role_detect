@@ -469,12 +469,12 @@ class CacheManager:
             while True:
                 try:
                     self.cleanup()
-                    # 每2分钟清理一次
-                    time.sleep(120)
+                    # 每1分钟清理一次
+                    time.sleep(60)
                 except Exception as e:
                     logger.error(f"清理任务出错: {e}")
-                    # 出错后暂停1分钟再继续
-                    time.sleep(60)
+                    # 出错后暂停30秒再继续
+                    time.sleep(30)
         
         # 启动后台线程
         thread = threading.Thread(target=cleanup_task, daemon=True)

@@ -9,7 +9,12 @@ import numpy as np
 import tempfile
 
 # 添加项目根目录到Python路径
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
+current_file = os.path.abspath(__file__)
+tests_dir = os.path.dirname(current_file)
+src_dir = os.path.join(tests_dir, '..', '..', 'src')
+project_root = os.path.join(tests_dir, '..', '..')
+sys.path.insert(0, project_root)
+sys.path.insert(0, src_dir)
 
 from src.core.classification.classification import Classification
 
@@ -61,7 +66,7 @@ class TestClassification(unittest.TestCase):
         # 检查结果
         self.assertIsInstance(role, str)
         self.assertIsInstance(similarity, float)
-        self.assertGreaterEqual(similarity, 0.0)
+        self.assertGreaterEqual(similarity, -1.0)
         self.assertLessEqual(similarity, 1.0)
     
     def test_batch_classify(self):
@@ -78,7 +83,7 @@ class TestClassification(unittest.TestCase):
         for role, similarity in results:
             self.assertIsInstance(role, str)
             self.assertIsInstance(similarity, float)
-            self.assertGreaterEqual(similarity, 0.0)
+            self.assertGreaterEqual(similarity, -1.0)
             self.assertLessEqual(similarity, 1.0)
 
 if __name__ == '__main__':

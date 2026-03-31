@@ -293,6 +293,18 @@ class Classification:
                     result = ("伊织", similarity)
                     self._cache_result(feature, result)
                     return result
+                # 检查阿罗娜
+                elif role == "阿罗娜" and any('arona' in tag or '阿罗娜' in tag for tag in tags_lower):
+                    logger.info("标签中包含阿罗娜相关信息，优先选择阿罗娜")
+                    result = ("阿罗娜", similarity)
+                    self._cache_result(feature, result)
+                    return result
+                # 检查普拉娜
+                elif role == "普拉娜" and any('prana' in tag or '普拉娜' in tag for tag in tags_lower):
+                    logger.info("标签中包含普拉娜相关信息，优先选择普拉娜")
+                    result = ("普拉娜", similarity)
+                    self._cache_result(feature, result)
+                    return result
         
         # 5. 调整阈值，使其更倾向于选择平均相似度高的角色
         threshold = 0.7  # 提高阈值，减少错误识别

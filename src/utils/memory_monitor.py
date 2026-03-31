@@ -131,7 +131,7 @@ class MemoryMonitor:
         """
         检查内存泄漏
         """
-        if len(self.memory_trend) < 8:
+        if len(self.memory_trend) < 10:
             return
         
         # 计算内存趋势
@@ -142,9 +142,13 @@ class MemoryMonitor:
             avg_recent = sum(recent_values) / len(recent_values)
             avg_older = sum(older_values) / len(older_values)
             
-            # 如果内存使用持续增长超过5%，可能存在内存泄漏
-            if avg_recent > avg_older + 5:
+            # 如果内存使用持续增长超过3%，可能存在内存泄漏
+            if avg_recent > avg_older + 3:
                 logger.warning(f"检测到内存泄漏迹象: 内存使用从 {avg_older:.2f}% 增长到 {avg_recent:.2f}%")
+                # 执行垃圾回收
+                import gc
+                gc.collect()
+                logger.info("已执行垃圾回收，尝试释放内存")
     
     def _cleanup_old_files(self):
         """

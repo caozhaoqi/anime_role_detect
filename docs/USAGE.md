@@ -210,36 +210,75 @@ python -m src.inference.infer_batch --model models/onnx/model.onnx --input-dir t
 
 ```bash
 # 启动 API 服务器
-python src/backend/web/web_app.py
+python src/backend/api/app.py
 ```
 
 **API 端点**:
-- `POST /api/classify`: 分类图像或视频
+- `POST /api/classify`: 分类单张图像
+- `POST /api/classify/batch`: 批量分类图像
 
-**请求参数**:
-- `file`: 媒体文件（必填，支持图片和视频）
+**请求参数** (单张图像):
+- `file`: 图像文件（必填，支持 jpg、png、gif、bmp 格式）
 - `use_model`: 是否使用专用模型 (true/false, 默认false)
 - `use_attributes`: 是否使用属性预测 (true/false, 默认true)
-- `model_name`: 模型名称（可选）
+- `model_name`: 模型名称（可选，默认"default"）
 
-**示例请求**:
+**请求参数** (批量分类):
+- `files`: 多个图像文件（必填）
+- `model_name`: 模型名称（可选，默认"default"）
+
+**示例请求** (单张图像):
 ```bash
 # 使用 curl 发送请求
-curl -X POST -F "file=@image.jpg" -F "use_model=true" http://localhost:5001/api/classify
+curl -X POST -F "file=@image.jpg" -F "model_name=default" http://localhost:8000/api/classify
 ```
 
-**响应格式**:
+**示例请求** (批量分类):
+```bash
+# 使用 curl 发送批量请求
+curl -X POST -F "files=@image1.jpg" -F "files=@image2.jpg" -F "model_name=default" http://localhost:8000/api/classify/batch
+```
+
+**响应格式** (单张图像):
 ```json
 {
   "filename": "image.jpg",
-  "role": "one_piece_索隆",
-  "similarity": 0.7187,
-  "boxes": [[...]],
-  "fileType": "image",
-  "mode": "EfficientNet",
+  "role": "日奈",
+  "similarity": 0.9543,
   "attributes": [
-    {"tag": "sword", "confidence": 0.95},
-    {"tag": "green_hair", "confidence": 0.87}
+    {"tag": "1girl", "confidence": 0.9793},
+    {"tag": "solo", "confidence": 0.9215},
+    {"tag": "blue hair", "confidence": 0.8976}
+  ],
+  "ai_predicted_role": "日奈",
+  "processing_time": 1.2345,
+  "keypoints": {
+    "face": [...],
+    "hands": null,
+    "pose": [...]
+  }
+}
+```
+
+**响应格式** (批量分类):
+```json
+{
+  "total": 2,
+  "success": 2,
+  "failed": 0,
+  "results": [
+    {
+      "filename": "image1.jpg",
+      "role": "日奈",
+      "similarity": 0.9543,
+      "attributes": [...]
+    },
+    {
+      "filename": "image2.jpg",
+      "role": "伊织",
+      "similarity": 0.9321,
+      "attributes": [...]
+    }
   ]
 }
 ```

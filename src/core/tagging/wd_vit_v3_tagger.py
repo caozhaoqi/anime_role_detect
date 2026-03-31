@@ -89,6 +89,11 @@ class WDViTV3Tagger:
         Args:
             model_name: 模型名称
         """
+        # 在Core ML模式下，直接返回，不需要加载PyTorch模型
+        if self.coreml_mode:
+            self.logger.info("Core ML模式下，跳过PyTorch模型加载")
+            return
+        
         try:
             self.logger.info(f"加载模型: {model_name}")
             self.wd_processor = AutoProcessor.from_pretrained(model_name)

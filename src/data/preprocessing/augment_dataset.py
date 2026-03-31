@@ -7,7 +7,7 @@ import os
 import sys
 import argparse
 import logging
-from PIL import Image, ImageEnhance, ImageOps
+from PIL import Image, ImageEnhance, ImageOps, ImageFilter
 import numpy as np
 import random
 from tqdm import tqdm
@@ -209,6 +209,4 @@ def main():
 
 
 if __name__ == "__main__":
-    # 添加缺失的导入
-    from PIL import ImageFilter
     main()

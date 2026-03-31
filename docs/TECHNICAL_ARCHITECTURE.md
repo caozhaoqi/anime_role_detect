@@ -150,31 +150,63 @@
     *   提供视频播放和结果可视化界面。
 
 ### 2.11 API 服务模块 (API Service Module)
-*   **实现文件**: `src/backend/web/web_app.py`
+*   **实现文件**: `src/backend/api/app.py`
 *   **核心功能**:
-    *   **RESTful API**: 提供图像和视频分类的 RESTful 接口。
-    *   **文件处理**: 处理上传的图像和视频文件。
+    *   **RESTful API**: 提供图像分类的 RESTful 接口，支持单张和批量分类。
+    *   **文件处理**: 处理上传的图像文件，支持多种格式。
     *   **模型选择**: 支持选择不同的模型进行推理。
     *   **属性预测**: 支持角色属性的预测和返回。
     *   **错误处理**: 提供详细的错误信息和回退机制。
+    *   **请求限流**: 限制并发请求数量，避免系统过载。
+    *   **缓存机制**: 缓存处理结果，提高响应速度。
 *   **技术实现**:
-    *   使用 `Flask` 框架构建 API 服务。
-    *   实现文件上传和处理功能。
+    *   使用 `FastAPI` 框架构建 API 服务，提供自动 API 文档。
+    *   实现文件上传和处理功能，支持多种图像格式。
     *   集成多个分类模型，支持模型选择。
     *   实现错误处理和回退机制，确保服务稳定性。
     *   提供详细的 API 文档和示例。
+    *   使用异步处理提高并发性能。
 
-### 2.12 属性预测模块 (Attribute Prediction Module)
-*   **实现文件**: 集成到分类模块中
+### 2.12 标签生成模块 (Tag Generation Module)
+*   **实现文件**: 
+    *   `src/core/tagging/wd_vit_v3_tagger.py`
+    *   `src/core/tagging/coreml_wd_vit_v3_tagger.py`
 *   **核心功能**:
     *   **属性提取**: 从角色图像中提取属性信息。
     *   **标签预测**: 预测角色的各种属性标签。
     *   **置信度计算**: 为每个预测的属性计算置信度。
+    *   **跨平台支持**: 支持 PyTorch 和 Core ML 模式。
 *   **技术实现**:
-    *   使用预训练的属性分类模型。
+    *   使用 `WD Vit Tagger v3` 模型进行标签生成。
+    *   支持 Core ML 模式，提高推理速度。
     *   集成到分类流程中，与角色识别同时进行。
     *   支持多种属性类型，包括发型、服装、配饰等。
     *   提供属性置信度排序和过滤功能。
+
+### 2.13 内存监控模块 (Memory Monitoring Module)
+*   **实现文件**: `src/utils/memory_monitor.py`
+*   **核心功能**:
+    *   **内存监控**: 监控系统内存使用情况。
+    *   **内存泄漏检测**: 检测系统内存泄漏。
+    *   **状态保存**: 在内存不足时保存系统状态。
+    *   **预警机制**: 在内存达到阈值时发出预警。
+*   **技术实现**:
+    *   使用 `psutil` 库监控系统内存。
+    *   实现内存趋势分析，检测内存泄漏。
+    *   在内存不足时生成系统状态快照。
+    *   提供详细的内存使用报告。
+
+### 2.14 缓存管理模块 (Cache Management Module)
+*   **实现文件**: `src/utils/cache_manager.py`
+*   **核心功能**:
+    *   **内存缓存**: 缓存处理结果，提高响应速度。
+    *   **文件缓存**: 缓存频繁使用的文件。
+    *   **缓存清理**: 定期清理过期缓存，释放内存。
+*   **技术实现**:
+    *   实现 LRU 缓存策略。
+    *   支持设置缓存过期时间。
+    *   定期清理过期缓存，释放内存。
+    *   提供缓存命中统计，优化缓存策略。
 
 ---
 
@@ -190,6 +222,11 @@ graph TD
     Vectors -->|Build Index| FAISS[FAISS 向量索引库]
     NewImg[新图片] -->|Query| FAISS
     FAISS --> Result[识别结果: 角色名]
+    end
+    
+    subgraph 标签生成路径
+    NewImg -->|WD Vit Tagger| Tags[属性标签]
+    Tags -->|Confidence| SortedTags[排序后的标签]
     end
     
     subgraph 视频处理路径
@@ -212,12 +249,23 @@ graph TD
     subgraph API服务路径
     Client[客户端] -->|HTTP请求| API[API服务]
     API -->|文件处理| FileProcess[文件处理模块]
-    FileProcess -->|图像/视频| Preprocessing[预处理模块]
-    Preprocessing -->|处理后数据| Classification[分类模块]
-    Classification -->|角色识别| AttrPred[属性预测模块]
-    Classification -->|识别结果| API
-    AttrPred -->|属性结果| API
+    FileProcess -->|图像| Preprocessing[预处理模块]
+    Preprocessing -->|处理后数据| FeatureExtraction[特征提取模块]
+    Preprocessing -->|处理后数据| TagGeneration[标签生成模块]
+    FeatureExtraction -->|特征向量| Classification[分类模块]
+    TagGeneration -->|属性标签| Classification
+    TagGeneration -->|属性标签| AI prediction[AI 角色预测]
+    Classification -->|角色识别| API
+    AI prediction -->|预测结果| API
     API -->|JSON响应| Client
+    end
+    
+    subgraph 监控与缓存路径
+    API -->|缓存查询| CacheManager[缓存管理模块]
+    CacheManager -->|缓存命中| API
+    API -->|处理请求| MemoryMonitor[内存监控模块]
+    MemoryMonitor -->|内存预警| API
+    MemoryMonitor -->|状态保存| SystemState[系统状态文件]
     end
 ```
 

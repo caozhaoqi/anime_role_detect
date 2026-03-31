@@ -11,7 +11,7 @@ from core.classification.classification import Classification
 from PIL import Image
 
 class DataPreparation:
-    def __init__(self, data_dir="data/downloaded_images", index_path="role_index"):
+    def __init__(self, data_dir="data/augmented_train", index_path="role_index_augmented"):
         """初始化数据准备模块"""
         self.data_dir = data_dir
         self.index_path = index_path

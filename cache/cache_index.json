@@ -1,44 +1,14 @@
 {
-  "image_processing_2ec0b8e66d31a62c06e046cc5608bee7_default": {
-    "created": "2026-03-30T10:32:59.667750",
-    "last_accessed": "2026-03-30T10:32:59.667750",
-    "ttl": 3600,
-    "file": "7bd66e2a46599b9cdd33bfd7b52a1b15.pkl"
+  "image_processing_d9fdaa65321ec1c36e7265f1bf8aef82_default": {
+    "created": "2026-03-31T10:48:06.162499",
+    "last_accessed": "2026-03-31T10:48:06.162499",
+    "ttl": 1800,
+    "file": "423874e548ccb33abdfccf91780bd5e6.pkl"
   },
-  "image_processing_f20e78a4c7a5bb96300d3fe1b633f39a_default": {
-    "created": "2026-03-30T10:33:05.558464",
-    "last_accessed": "2026-03-30T10:33:05.558464",
-    "ttl": 3600,
-    "file": "a11c8d1f58c8b43b3719846e3763ef0a.pkl"
-  },
-  "image_processing_bd90e986777a7a843058674850cd25a7_default": {
-    "created": "2026-03-30T10:33:11.225935",
-    "last_accessed": "2026-03-30T10:33:11.225935",
-    "ttl": 3600,
-    "file": "12b96132593312e2bcb15b46dd959239.pkl"
-  },
-  "image_processing_ba7f119db10dd89b92a4675ded8dafba_default": {
-    "created": "2026-03-30T10:33:17.017313",
-    "last_accessed": "2026-03-30T10:33:17.017313",
-    "ttl": 3600,
-    "file": "7017c86774f3a876ae23b934eda6e069.pkl"
-  },
-  "image_processing_2717513db7c37224efec5017c6dec7b6_default": {
-    "created": "2026-03-30T10:33:23.705811",
-    "last_accessed": "2026-03-30T10:33:23.705811",
-    "ttl": 3600,
-    "file": "5dafbc00a022323aa7354c330446f6a0.pkl"
-  },
-  "image_processing_b18f58bf502fa68fe6344cdabb0d147d_default": {
-    "created": "2026-03-30T10:54:22.656119",
-    "last_accessed": "2026-03-30T10:54:22.656119",
-    "ttl": 3600,
-    "file": "baefa85a653da9cf4add25c3faac3af3.pkl"
-  },
-  "image_processing_43d9f93a4d5eed869c6af0e73587e6cf_default": {
-    "created": "2026-03-30T10:54:59.172461",
-    "last_accessed": "2026-03-30T10:54:59.172461",
-    "ttl": 3600,
-    "file": "03abfe2a86b5c89c169e460c61ee71ac.pkl"
+  "image_processing_ac6b7dc52f444fa2f2ed5d2f1eea8fd7_default": {
+    "created": "2026-03-31T11:08:52.639057",
+    "last_accessed": "2026-03-31T11:08:52.639057",
+    "ttl": 1800,
+    "file": "4bb83c1c0f0952c2052d436b84c540a1.pkl"
   }
 }

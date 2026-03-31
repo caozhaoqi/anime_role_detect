@@ -101,9 +101,8 @@ async def startup_event():
         logger.info("特征提取器初始化完成")
         
         # 初始化分类器，使用字典缓存不同模型
-        # 使用ConfigManager获取完整的模型路径
-        default_model_name = "default"
-        default_index_path = config_manager.get_model_path(default_model_name)
+        # 使用增强后的特征库
+        default_index_path = "role_index_augmented"
         classifiers[default_index_path] = Classification(default_index_path)
         logger.info("分类器初始化完成")
         
@@ -995,24 +994,38 @@ async def classify_batch(files: List[UploadFile] = File(...), model_name: str = 
         if len(files) > max_batch_files:
             raise HTTPException(status_code=400, detail=f"批量处理的文件数量不能超过{max_batch_files}个")
         
-        # 并行处理所有文件
-        tasks = [process_single_image(file, model_name) for file in files]
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-        
-        # 处理结果
+        # 分批处理文件，每批最多4个文件，提高并发处理能力
+        batch_size = 4
+        batches = [files[i:i+batch_size] for i in range(0, len(files), batch_size)]
         processed_results = []
         success_count = 0
-        for i, result in enumerate(results):
-            if isinstance(result, Exception):
-                # 处理错误
-                processed_results.append({
-                    "filename": files[i].filename,
-                    "error": str(result)
-                })
-                logger.error(f"处理文件 {files[i].filename} 时出错: {result}")
-            else:
-                processed_results.append(result)
-                success_count += 1
+        
+        for batch in batches:
+            # 并行处理当前批次的文件
+            tasks = [process_single_image(file, model_name) for file in batch]
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            
+            # 处理结果
+            for i, result in enumerate(results):
+                if isinstance(result, Exception):
+                    # 处理错误，提供更详细的错误信息
+                    error_message = str(result)
+                    if isinstance(result, HTTPException):
+                        error_message = f"HTTP错误: {result.detail}"
+                    elif isinstance(result, FileTypeError):
+                        error_message = f"文件类型错误: {str(result)}"
+                    
+                    processed_results.append({
+                        "filename": batch[i].filename,
+                        "error": error_message
+                    })
+                    logger.error(f"处理文件 {batch[i].filename} 时出错: {error_message}")
+                else:
+                    processed_results.append(result)
+                    success_count += 1
+            
+            # 每批处理完成后，暂停一下，避免系统过载
+            await asyncio.sleep(0.3)
         
         response_time = time.time() - start_time
         # 更新网络监控统计信息
