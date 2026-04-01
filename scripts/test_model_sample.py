@@ -144,11 +144,11 @@ def load_model(model_path):
                 # 修改分类器为我们训练时使用的结构
                 model.classifier = nn.Sequential(
                     nn.Dropout(p=0.3),
-                    nn.Linear(model.classifier[1].in_features, 512),
+                    nn.Linear(model.classifier[1].in_features, 768),
                     nn.ReLU(inplace=True),
-                    nn.BatchNorm1d(512),
+                    nn.BatchNorm1d(768),
                     nn.Dropout(p=0.15),
-                    nn.Linear(512, num_classes)
+                    nn.Linear(768, num_classes)
                 )
             elif 'resnet50' in model_type:
                 from torchvision.models import resnet50

@@ -564,6 +564,17 @@ def load_trained_model(model_name):
                     nn.Dropout(p=0.15),
                     nn.Linear(512, len(class_to_idx))
                 )
+            elif model_name == 'efficientnet_b3':
+                model = models.efficientnet_b3(pretrained=False)
+                # 修改分类器，添加与训练时一致的层
+                model.classifier = nn.Sequential(
+                    nn.Dropout(p=0.3),
+                    nn.Linear(model.classifier[1].in_features, 768),
+                    nn.ReLU(inplace=True),
+                    nn.BatchNorm1d(768),
+                    nn.Dropout(p=0.15),
+                    nn.Linear(768, len(class_to_idx))
+                )
             elif model_name == 'resnet50':
                 model = models.resnet50(pretrained=False)
                 model.fc = nn.Linear(model.fc.in_features, len(class_to_idx))

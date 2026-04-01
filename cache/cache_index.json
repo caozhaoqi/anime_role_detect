@@ -1,26 +1,14 @@
 {
-  "image_processing_32507f84afd71ab32b8dd0ae177d678a_mobilenet_v2": {
-    "created": "2026-04-01T13:31:59.774066",
-    "last_accessed": "2026-04-01T13:31:59.774066",
-    "ttl": 3600,
-    "file": "e6c65d9c5c81fb78cd221d26774dc9b2.pkl"
-  },
-  "image_processing_c1afe2468471408eed8074b10d0f140d_mobilenet_v2": {
-    "created": "2026-04-01T13:47:04.509379",
-    "last_accessed": "2026-04-01T13:47:04.509379",
-    "ttl": 3600,
-    "file": "5692eae071b4cf3d11ae29ae3e11d9da.pkl"
-  },
-  "image_processing_c1afe2468471408eed8074b10d0f140d_efficientnet_b0": {
-    "created": "2026-04-01T13:47:25.239884",
-    "last_accessed": "2026-04-01T13:47:25.239884",
-    "ttl": 3600,
-    "file": "dc1edb6234679e1a4b49600c80c76de3.pkl"
+  "image_processing_62304aad9f0e08fdf6f5726415554c6a_efficientnet_b0": {
+    "created": "2026-04-01T16:56:54.586559",
+    "last_accessed": "2026-04-01T16:56:54.586559",
+    "ttl": 1800,
+    "file": "4fd822e572837237fa37fb47b1eb98f8.pkl"
   },
   "image_processing_95b1ec2a02e3c3d05c6abdb9bfc3d4a5_efficientnet_b0": {
-    "created": "2026-04-01T13:47:47.668934",
-    "last_accessed": "2026-04-01T13:47:47.668934",
-    "ttl": 3600,
+    "created": "2026-04-01T16:57:21.103532",
+    "last_accessed": "2026-04-01T16:57:21.103532",
+    "ttl": 1800,
     "file": "71bae3132305dcad8bed76f97c06ed96.pkl"
   }
 }

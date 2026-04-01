@@ -24,11 +24,11 @@ export default function AnimeRoleDetect() {
     { name: "mobilenet_v2", path: "models/incremental", files: [], available: true, description: "MobileNetV2模型 (准确率: 81.13%)" },
     { name: "efficientnet_b0", path: "models/incremental_efficientnet_b0", files: [], available: true, description: "EfficientNet-B0模型 (准确率: 64.15%)" },
     { name: "resnet50", path: "models/incremental_resnet50", files: [], available: true, description: "ResNet50模型 (准确率: 52.83%)" },
-    { name: "augmented_training", path: "models/augmented_training", files: [], available: false, description: "增强训练模型" },
-    { name: "arona_plana", path: "models/arona_plana", files: [], available: false, description: "阿罗娜普拉娜模型" },
-    { name: "arona_plana_efficientnet", path: "models/arona_plana_efficientnet", files: [], available: false, description: "EfficientNet模型" },
-    { name: "arona_plana_resnet18", path: "models/arona_plana_resnet18", files: [], available: false, description: "ResNet18模型" },
-    { name: "optimized", path: "models/optimized", files: [], available: false, description: "优化模型" }
+    // { name: "augmented_training", path: "models/augmented_training", files: [], available: false, description: "增强训练模型" },
+    // { name: "arona_plana", path: "models/arona_plana", files: [], available: false, description: "阿罗娜普拉娜模型" },
+    // { name: "arona_plana_efficientnet", path: "models/arona_plana_efficientnet", files: [], available: false, description: "EfficientNet模型" },
+    // { name: "arona_plana_resnet18", path: "models/arona_plana_resnet18", files: [], available: false, description: "ResNet18模型" },
+    // { name: "optimized", path: "models/optimized", files: [], available: false, description: "优化模型" }
   ]);
   const [inputText, setInputText] = useState<string>("");
   const [showUploadOptions, setShowUploadOptions] = useState(false);
@@ -139,9 +139,10 @@ export default function AnimeRoleDetect() {
   const loadModels = async () => {
     // 直接使用默认模型列表，确保所有模型都显示
     const defaultModels = [
+      { name: "efficientnet_b0", path: "models/incremental_efficientnet_b0", description: "EfficientNet-B0模型 (准确率: 88.68%)", available: true, files: [] },
+      { name: "efficientnet_b3", path: "models/incremental_efficientnet_b3", description: "EfficientNet-B3模型 (准确率: 88.68%)", available: true, files: [] },
       { name: "mobilenet_v2", path: "models/incremental", description: "MobileNetV2模型 (准确率: 81.13%)", available: true, files: [] },
-      { name: "efficientnet_b0", path: "models/incremental_efficientnet_b0", description: "EfficientNet-B0模型 (准确率: 64.15%)", available: true, files: [] },
-      { name: "resnet50", path: "models/incremental_resnet50", description: "ResNet50模型 (准确率: 52.83%)", available: true, files: [] },
+      { name: "resnet50", path: "models/incremental_resnet50", description: "ResNet50模型 (准确率: 47.17%)", available: true, files: [] },
       { name: "default", path: "", description: "默认分类模型", available: true, files: [] }
     ];
     console.log('使用默认模型列表:', defaultModels);
