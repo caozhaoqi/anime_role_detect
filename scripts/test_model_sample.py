@@ -13,7 +13,7 @@ from pathlib import Path
 from loguru import logger
 
 # 配置日志
-logger.add("test_model_performance.log", rotation="500 MB")
+logger.add("test_model_sample.log", rotation="500 MB")
 
 # 模型路径
 MODEL_DIR = Path("/Users/caozhaoqi/PycharmProjects/anime_role_detect/models")
@@ -44,24 +44,31 @@ transform = transforms.Compose([
 ])
 
 class CharacterDataset(Dataset):
-    """自定义数据集"""
-    def __init__(self, root_dir, transform=None):
+    """自定义数据集，支持抽样"""
+    def __init__(self, root_dir, transform=None, sample_per_class=5):
         self.root_dir = root_dir
         self.transform = transform
         self.image_paths = []
         self.labels = []
         
-        # 加载数据
+        # 加载数据，每个类别抽样
         for class_name in os.listdir(root_dir):
             class_path = os.path.join(root_dir, class_name)
             if os.path.isdir(class_path):
                 # 转换类别名
                 mapped_class = CLASS_MAPPING.get(class_name, class_name)
+                # 获取该类别的所有图像
+                class_images = []
                 for img_name in os.listdir(class_path):
                     # 跳过SVG文件
                     if img_name.endswith(".svg"):
                         continue
                     img_path = os.path.join(class_path, img_name)
+                    class_images.append(img_path)
+                
+                # 抽样
+                sampled_images = class_images[:sample_per_class]
+                for img_path in sampled_images:
                     self.image_paths.append(img_path)
                     self.labels.append(mapped_class)
     
@@ -191,33 +198,34 @@ def get_model_classes(model):
         logger.warning("无法获取模型类别，使用默认类别")
         return list(CLASS_MAPPING.values())
 
-def test_model(model, test_loader, model_name):
+def test_model(model, test_loader, model_name, class_to_idx):
     """测试模型"""
     logger.info(f"测试模型: {model_name}")
     
-    # 获取模型类别
-    model_classes = get_model_classes(model)
+    # 从class_to_idx构建idx_to_class
+    idx_to_class = {v: k for k, v in class_to_idx.items()}
+    model_classes = list(class_to_idx.keys())
     logger.info(f"模型类别: {model_classes}")
+    logger.info(f"类别映射: {class_to_idx}")
     
     # 预测结果
     all_preds = []
     all_labels = []
+    all_image_paths = []
+    all_pred_labels = []
+    all_true_labels = []
     
     with torch.no_grad():
-        for images, labels in test_loader:
+        for i, (images, labels) in enumerate(test_loader):
             # 转换标签为索引
             label_indices = []
             for label in labels:
-                # 查找最匹配的类别
-                matched = False
-                for i, cls in enumerate(model_classes):
-                    if label in cls or cls in label:
-                        label_indices.append(i)
-                        matched = True
-                        break
-                if not matched:
+                # 直接使用class_to_idx查找
+                if label in class_to_idx:
+                    label_indices.append(class_to_idx[label])
+                else:
                     # 如果没有匹配的类别，添加为未知类别
-                    label_indices.append(len(model_classes))
+                    label_indices.append(len(class_to_idx))
             
             # 预测
             outputs = model(images)
@@ -226,12 +234,26 @@ def test_model(model, test_loader, model_name):
             # 保存结果
             all_preds.extend(preds.cpu().numpy())
             all_labels.extend(label_indices)
+            
+            # 保存预测和真实标签的字符串形式
+            for pred_idx, true_idx, true_label in zip(preds.cpu().numpy(), label_indices, labels):
+                if pred_idx in idx_to_class:
+                    pred_label = idx_to_class[pred_idx]
+                else:
+                    pred_label = "未知"
+                all_pred_labels.append(pred_label)
+                all_true_labels.append(true_label)
     
     # 计算准确率
     correct = sum(1 for p, l in zip(all_preds, all_labels) if p == l)
     total = len(all_labels)
     accuracy = correct / total
     logger.info(f"准确率: {accuracy:.4f} ({correct}/{total})")
+    
+    # 打印预测结果
+    logger.info("\n预测结果示例:")
+    for i in range(min(10, len(all_true_labels))):
+        logger.info(f"真实: {all_true_labels[i]} | 预测: {all_pred_labels[i]}")
     
     # 生成分类报告
     # 获取所有唯一的预测类别
@@ -250,7 +272,7 @@ def test_model(model, test_loader, model_name):
     
     # 生成混淆矩阵
     cm = confusion_matrix(all_labels, all_preds)
-    plt.figure(figsize=(10, 8))
+    plt.figure(figsize=(12, 10))
     sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', 
                 xticklabels=target_names, 
                 yticklabels=target_names)
@@ -258,15 +280,15 @@ def test_model(model, test_loader, model_name):
     plt.ylabel('真实标签')
     plt.title(f'{model_name} 混淆矩阵')
     plt.tight_layout()
-    plt.savefig(f"{model_name}_confusion_matrix.png")
-    logger.info(f"混淆矩阵已保存为 {model_name}_confusion_matrix.png")
+    plt.savefig(f"{model_name}_sample_confusion_matrix.png")
+    logger.info(f"混淆矩阵已保存为 {model_name}_sample_confusion_matrix.png")
     
     return accuracy, report
 
 def main():
     """主函数"""
-    # 创建测试数据集
-    test_dataset = CharacterDataset(TEST_DATA_DIR, transform=transform)
+    # 创建测试数据集（抽样）
+    test_dataset = CharacterDataset(TEST_DATA_DIR, transform=transform, sample_per_class=5)
     test_loader = DataLoader(test_dataset, batch_size=32, shuffle=False)
     
     logger.info(f"测试数据集大小: {len(test_dataset)}")
@@ -289,13 +311,22 @@ def main():
         logger.info(f"测试模型: {model_name}")
         logger.info(f"模型路径: {model_file}")
         
+        # 加载模型数据，获取class_to_idx
+        try:
+            model_data = torch.load(model_file, map_location=torch.device('cpu'))
+            class_to_idx = model_data.get('class_to_idx', {})
+            logger.info(f"从模型文件加载类别映射: {class_to_idx}")
+        except Exception as e:
+            logger.error(f"加载模型数据失败: {e}")
+            continue
+        
         # 加载模型
         model = load_model(model_file)
         if model is None:
             continue
         
         # 测试模型
-        accuracy, report = test_model(model, test_loader, model_name)
+        accuracy, report = test_model(model, test_loader, model_name, class_to_idx)
         results.append((model_name, accuracy))
     
     # 输出结果

@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { Bot, User, Image as ImageIcon, X, Sparkles, Upload, Copy, Download, CheckCircle, Menu, Search, Settings, HelpCircle, Moon, Sun, Zap, Layers, Trash2, Clock } from "lucide-react";
 import { Message, Model } from "./types";
 import { useHistory } from "./hooks/useHistory";
+import axios from 'axios';
 
 export default function AnimeRoleDetect() {
   const [messages, setMessages] = useState<Message[]>([
@@ -20,6 +21,9 @@ export default function AnimeRoleDetect() {
   const [selectedModel, setSelectedModel] = useState<string>("default");
   const [models, setModels] = useState<Model[]>([
     { name: "default", path: "", files: [], available: true, description: "默认分类模型" },
+    { name: "mobilenet_v2", path: "models/incremental", files: [], available: true, description: "MobileNetV2模型 (准确率: 81.13%)" },
+    { name: "efficientnet_b0", path: "models/incremental_efficientnet_b0", files: [], available: true, description: "EfficientNet-B0模型 (准确率: 64.15%)" },
+    { name: "resnet50", path: "models/incremental_resnet50", files: [], available: true, description: "ResNet50模型 (准确率: 52.83%)" },
     { name: "augmented_training", path: "models/augmented_training", files: [], available: false, description: "增强训练模型" },
     { name: "arona_plana", path: "models/arona_plana", files: [], available: false, description: "阿罗娜普拉娜模型" },
     { name: "arona_plana_efficientnet", path: "models/arona_plana_efficientnet", files: [], available: false, description: "EfficientNet模型" },
@@ -135,12 +139,10 @@ export default function AnimeRoleDetect() {
   const loadModels = async () => {
     // 直接使用默认模型列表，确保所有模型都显示
     const defaultModels = [
-      { name: "default", path: "", description: "默认分类模型", available: true, files: [] },
-      { name: "augmented_training", path: "models/augmented_training", description: "增强训练模型", available: true, files: [] },
-      { name: "arona_plana", path: "models/arona_plana", description: "阿罗娜普拉娜模型", available: true, files: [] },
-      { name: "arona_plana_efficientnet", path: "models/arona_plana_efficientnet", description: "EfficientNet模型", available: true, files: [] },
-      { name: "arona_plana_resnet18", path: "models/arona_plana_resnet18", description: "ResNet18模型", available: true, files: [] },
-      { name: "optimized", path: "models/optimized", description: "优化模型", available: true, files: [] }
+      { name: "mobilenet_v2", path: "models/incremental", description: "MobileNetV2模型 (准确率: 81.13%)", available: true, files: [] },
+      { name: "efficientnet_b0", path: "models/incremental_efficientnet_b0", description: "EfficientNet-B0模型 (准确率: 64.15%)", available: true, files: [] },
+      { name: "resnet50", path: "models/incremental_resnet50", description: "ResNet50模型 (准确率: 52.83%)", available: true, files: [] },
+      { name: "default", path: "", description: "默认分类模型", available: true, files: [] }
     ];
     console.log('使用默认模型列表:', defaultModels);
     // 确保组件仍然挂载
@@ -343,26 +345,32 @@ export default function AnimeRoleDetect() {
 
       try {
         console.log("开始发送API请求");
-        const apiResponse = await fetch("http://localhost:8000/api/classify", {
-          method: "POST",
-          body: formData,
+        
+        // 使用axios发送请求
+        const response = await axios.post("http://localhost:8000/api/classify", formData, {
+          headers: {
+            'Content-Type': 'multipart/form-data'
+          },
+          timeout: 30000 // 30秒超时
         });
 
-        console.log("API响应状态:", apiResponse.status);
-        console.log("API响应状态文本:", apiResponse.statusText);
-        console.log("API响应头部:", Object.fromEntries(apiResponse.headers));
-
-        if (!apiResponse.ok) {
-          const errorData = await apiResponse.json().catch(() => ({}));
-          console.log("API错误数据:", errorData);
-          throw new Error(errorData.error || `API请求失败: ${apiResponse.statusText}`);
-        }
-
-        const responseData = await apiResponse.json();
-        console.log("API响应数据:", responseData);
-        return responseData;
+        console.log("API响应状态:", response.status);
+        console.log("API响应数据:", response.data);
+        return response.data;
       } catch (error) {
         console.error("API请求失败:", error);
+        if (axios.isAxiosError(error)) {
+          console.error("Axios错误详情:", {
+            message: error.message,
+            code: error.code,
+            status: error.response?.status,
+            data: error.response?.data,
+            config: error.config
+          });
+          throw new Error(error.response?.data?.error || error.message || "API请求失败");
+        } else if (error === 'AbortError') {
+          throw new Error('API请求超时，请检查服务器是否正常运行');
+        }
         throw error;
       }
     } catch (error) {
