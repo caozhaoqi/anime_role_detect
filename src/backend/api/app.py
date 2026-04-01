@@ -34,6 +34,7 @@ from core.feature_extraction.feature_extraction import FeatureExtraction
 from core.preprocessing.preprocessing import Preprocessing
 from core.tagging.wd_vit_v3_tagger import WDViTV3Tagger
 from core.keypoint.mediapipe_keypoint_detector import MediaPipeKeypointDetector
+from core.detection.multi_role_detection import MultiRoleDetector
 from scripts.ai_role_prediction import AIRolePredictor
 from config.config_manager import config_manager
 
@@ -71,6 +72,10 @@ keypoint_detector = None  # 关键点检测器实例
 # 新训练的模型缓存
 trained_models = {}  # 缓存训练好的分类模型
 
+# 多角色检测器实例
+multi_role_detector = None  # 多角色检测器实例
+current_model_name = None  # 当前使用的模型名称
+
 
 @app.on_event("startup")
 async def startup_event():
@@ -95,7 +100,7 @@ async def startup_event():
         logger.error(f"内存监控系统初始化失败: {e}")
     
     # 初始化模型实例，避免首次请求延迟
-    global extractor, classifiers, preprocessor, tagger, keypoint_detector
+    global extractor, classifiers, preprocessor, tagger, keypoint_detector, multi_role_detector
     try:
         logger.info("开始初始化模型...")
         
@@ -121,6 +126,10 @@ async def startup_event():
         keypoint_detector = None
         logger.info("关键点检测器将在需要时初始化")
         
+        # 延迟加载多角色检测器
+        multi_role_detector = None
+        logger.info("多角色检测器将在需要时初始化")
+        
         logger.info("所有模型初始化完成")
     except Exception as e:
         logger.error(f"模型初始化失败: {e}")
@@ -139,7 +148,7 @@ async def shutdown_event():
     logger.info("关闭API服务")
     
     # 清理模型实例，释放内存
-    global extractor, classifiers, preprocessor, tagger, keypoint_detector
+    global extractor, classifiers, preprocessor, tagger, keypoint_detector, multi_role_detector
     
     if extractor is not None:
         logger.info("清理特征提取器...")
@@ -160,6 +169,10 @@ async def shutdown_event():
     if keypoint_detector is not None:
         logger.info("清理关键点检测器...")
         keypoint_detector = None
+    
+    if multi_role_detector is not None:
+        logger.info("清理多角色检测器...")
+        multi_role_detector = None
     
     monitoring_system.stop()  # 停止监控系统
     distributed_manager.stop()  # 停止分布式管理系统
@@ -1187,6 +1200,67 @@ async def classify_image(file: UploadFile = File(...), use_model: bool = Form(Fa
         monitoring_system.monitors['network'].update_request_stats(False, response_time)
         logger.error(f"分类失败: {e}")
         raise HTTPException(status_code=500, detail=f"分类失败: {str(e)}")
+
+
+@app.post("/api/classify/multi-role", tags=["分类"])
+async def classify_multi_role(file: UploadFile = File(...), cache_bypass: bool = Form(False, description="是否绕过缓存"), model_name: str = Form("efficientnet_b0", description="模型名称")):
+    """
+    多角色识别
+    
+    检测图像中的多个角色，并对每个角色进行分类
+    """
+    start_time = time.time()
+    try:
+        # 增加请求限流
+        active_tasks = monitoring_system.monitors['task'].get_active_tasks()
+        if active_tasks > 5:
+            raise HTTPException(status_code=429, detail="请求过多，请稍后再试")
+        
+        # 读取文件内容
+        content = await file.read()
+        
+        # 验证图像
+        temp_path = validate_image(file, content)
+        
+        # 初始化多角色检测器（根据模型名称）
+        global multi_role_detector
+        global current_model_name
+        
+        if multi_role_detector is None or current_model_name != model_name:
+            multi_role_detector = MultiRoleDetector(model_name=model_name)
+            current_model_name = model_name
+            logger.info(f"多角色检测器初始化完成，使用模型: {model_name}")
+        
+        # 检测多个角色
+        results = multi_role_detector.detect_roles(temp_path)
+        
+        # 构建响应
+        response = {
+            "filename": file.filename,
+            "roles": results,
+            "processing_time": time.time() - start_time
+        }
+        
+        # 清理临时文件
+        if temp_path and os.path.exists(temp_path):
+            try:
+                os.remove(temp_path)
+                logger.debug(f"临时文件已删除: {temp_path}")
+            except Exception as e:
+                logger.error(f"删除临时文件失败: {e}")
+        
+        # 强制垃圾回收
+        import gc
+        gc.collect()
+        logger.debug("执行垃圾回收，释放内存")
+        
+        return response
+    except Exception as e:
+        response_time = time.time() - start_time
+        # 更新网络监控统计信息
+        monitoring_system.monitors['network'].update_request_stats(False, response_time)
+        logger.error(f"多角色识别失败: {e}")
+        raise HTTPException(status_code=500, detail=f"多角色识别失败: {str(e)}")
 
 
 @app.post("/api/classify/batch", tags=["分类"])

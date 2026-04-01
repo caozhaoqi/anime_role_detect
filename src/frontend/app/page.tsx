@@ -19,6 +19,7 @@ export default function AnimeRoleDetect() {
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [selectedModel, setSelectedModel] = useState<string>("default");
+  const [useMultiRole, setUseMultiRole] = useState<boolean>(false);
   const [models, setModels] = useState<Model[]>([
     { name: "default", path: "", files: [], available: true, description: "默认分类模型" },
     { name: "mobilenet_v2", path: "models/incremental", files: [], available: true, description: "MobileNetV2模型 (准确率: 81.13%)" },
@@ -297,7 +298,7 @@ export default function AnimeRoleDetect() {
     }
   }, []);
 
-  const classifyImage = async (imageData: string): Promise<any> => {
+  const classifyImage = async (imageData: string, multiRole: boolean = false): Promise<any> => {
     try {
       console.log("开始classifyImage函数");
       console.log("imageData长度:", imageData.length);
@@ -333,26 +334,35 @@ export default function AnimeRoleDetect() {
       console.log("file类型:", file.type);
 
       const formData = new FormData();
-      formData.append("file", file);
-      formData.append("use_model", "true");
-      formData.append("use_attributes", "true");
-      formData.append("model_name", selectedModel);
-      formData.append("cache_bypass", "false");
+            formData.append("file", file);
+            
+            if (!multiRole) {
+              formData.append("use_model", "true");
+              formData.append("use_attributes", "true");
+              formData.append("model_name", selectedModel);
+              formData.append("cache_bypass", "false");
+            } else {
+              formData.append("model_name", selectedModel);
+              formData.append("cache_bypass", "false");
+            }
 
       console.log("FormData创建完成");
       console.log("selectedModel:", selectedModel);
 
-      console.log("准备发送API请求到 http://localhost:8000/api/classify");
+      const apiUrl = multiRole 
+        ? "http://localhost:8000/api/classify/multi-role" 
+        : "http://localhost:8000/api/classify";
+      console.log(`准备发送API请求到 ${apiUrl}`);
 
       try {
         console.log("开始发送API请求");
         
         // 使用axios发送请求
-        const response = await axios.post("http://localhost:8000/api/classify", formData, {
+        const response = await axios.post(apiUrl, formData, {
           headers: {
             'Content-Type': 'multipart/form-data'
           },
-          timeout: 30000 // 30秒超时
+          timeout: 60000 // 60秒超时（多角色识别可能需要更长时间）
         });
 
         console.log("API响应状态:", response.status);
@@ -418,28 +428,55 @@ export default function AnimeRoleDetect() {
 
       try {
         console.log("调用classifyImage函数");
-        const result = await classifyImage(currentImagePreview);
+        const result = await classifyImage(currentImagePreview, useMultiRole);
         console.log('API返回的完整结果:', result);
         console.log('text_detections字段:', result.text_detections);
         console.log('text_detections类型:', typeof result.text_detections);
         console.log('text_detections长度:', result.text_detections ? result.text_detections.length : 0);
 
-        const assistantMessage: Message = {
-          id: (Date.now() + 2).toString(),
-          role: "assistant",
-          content: `识别完成！识别结果：${result.role || "未知角色"}，相似度：${(result.similarity * 100).toFixed(1)}%`,
-          classification: {
-            role: result.role || "未知角色",
-            similarity: result.similarity || 0,
-            confidence: (result.similarity || 0) >= 0.8 ? "high" : (result.similarity || 0) >= 0.5 ? "medium" : "low",
-          },
-          attributes: result.attributes || [],
-          text_detections: result.text_detections || [],
-          ai_predicted_role: result.ai_predicted_role || "未知角色",
-          thoughts: ["正在分析图片特征...", "提取角色关键信息...", "匹配数据库中的角色...", "识别完成！"],
-          isThinkingFinished: true,
-          timestamp: Date.now(),
-        };
+        let assistantMessage: Message;
+        
+        if (useMultiRole && result.roles && result.roles.length > 0) {
+          // 多角色识别结果
+          const rolesList = result.roles.map((role: any) => {
+            return `${role.role} (相似度: ${(role.similarity * 100).toFixed(1)}%)`;
+          }).join('、');
+          
+          assistantMessage = {
+            id: (Date.now() + 2).toString(),
+            role: "assistant",
+            content: `识别完成！共检测到 ${result.roles.length} 个角色：${rolesList}`,
+            classification: {
+              role: "multiple_roles",
+              similarity: 1.0,
+              confidence: "high",
+            },
+            attributes: [],
+            text_detections: result.text_detections || [],
+            multi_roles: result.roles,
+            thoughts: ["正在分析图片特征...", "检测多个角色...", "对每个角色进行分类...", "识别完成！"],
+            isThinkingFinished: true,
+            timestamp: Date.now(),
+          };
+        } else {
+          // 单角色识别结果
+          assistantMessage = {
+            id: (Date.now() + 2).toString(),
+            role: "assistant",
+            content: `识别完成！识别结果：${result.role || "未知角色"}，相似度：${(result.similarity * 100).toFixed(1)}%`,
+            classification: {
+              role: result.role || "未知角色",
+              similarity: result.similarity || 0,
+              confidence: (result.similarity || 0) >= 0.8 ? "high" : (result.similarity || 0) >= 0.5 ? "medium" : "low",
+            },
+            attributes: result.attributes || [],
+            text_detections: result.text_detections || [],
+            ai_predicted_role: result.ai_predicted_role || "未知角色",
+            thoughts: ["正在分析图片特征...", "提取角色关键信息...", "匹配数据库中的角色...", "识别完成！"],
+            isThinkingFinished: true,
+            timestamp: Date.now(),
+          };
+        }
 
         setMessages((prev) => prev.filter((m) => m.id !== processingMessage.id).concat(assistantMessage));
         addToHistory(assistantMessage);
@@ -632,22 +669,36 @@ export default function AnimeRoleDetect() {
             </div>
             <div className="flex items-center gap-4">
               {/* 模型选择下拉框（仅在中等及以上屏幕显示） */}
-              <div className="relative hidden sm:block">
-                <select
-                  value={selectedModel}
-                  onChange={(e) => setSelectedModel(e.target.value)}
-                  className="appearance-none pl-4 pr-10 py-3 border border-[#cbd5e1] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] focus:border-transparent bg-white text-[#1e293b] text-sm transition-all duration-300 hover:border-[#3b82f6]/50 shadow-sm min-w-[180px]"
-                >
-                  {models.map((model) => (
-                    <option key={model.name} value={model.name}>
-                      {model.description || (model.name === "default" ? "默认模型" : model.name)}
-                    </option>
-                  ))}
-                </select>
-                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-[#64748b]">
-                  <svg className="h-4 w-4 transition-transform duration-300 hover:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                  </svg>
+              <div className="hidden sm:flex items-center space-x-4">
+                <div className="relative">
+                  <select
+                    value={selectedModel}
+                    onChange={(e) => setSelectedModel(e.target.value)}
+                    className="appearance-none pl-4 pr-10 py-3 border border-[#cbd5e1] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3b82f6] focus:border-transparent bg-white text-[#1e293b] text-sm transition-all duration-300 hover:border-[#3b82f6]/50 shadow-sm min-w-[180px]"
+                  >
+                    {models.map((model) => (
+                      <option key={model.name} value={model.name}>
+                        {model.description || (model.name === "default" ? "默认模型" : model.name)}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-[#64748b]">
+                    <svg className="h-4 w-4 transition-transform duration-300 hover:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </div>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    id="multi-role"
+                    checked={useMultiRole}
+                    onChange={(e) => setUseMultiRole(e.target.checked)}
+                    className="w-4 h-4 rounded border-[#cbd5e1] text-[#3b82f6] focus:ring-[#3b82f6]/50"
+                  />
+                  <label htmlFor="multi-role" className="text-sm font-medium text-[#1e293b]">
+                    多角色识别
+                  </label>
                 </div>
               </div>
               
@@ -674,6 +725,19 @@ export default function AnimeRoleDetect() {
                         {model.description || (model.name === "default" ? "默认模型" : model.name)}
                       </button>
                     ))}
+                    <div className="border-t border-border-light my-2"></div>
+                    <div className="flex items-center px-4 py-3">
+                      <input
+                        type="checkbox"
+                        id="mobile-multi-role"
+                        checked={useMultiRole}
+                        onChange={(e) => setUseMultiRole(e.target.checked)}
+                        className="w-4 h-4 rounded border-border text-primary focus:ring-primary/50"
+                      />
+                      <label htmlFor="mobile-multi-role" className="ml-2 text-sm font-medium">
+                        多角色识别
+                      </label>
+                    </div>
                   </div>
                 )}
               </div>

@@ -1,14 +1,8 @@
 {
   "image_processing_62304aad9f0e08fdf6f5726415554c6a_efficientnet_b0": {
-    "created": "2026-04-01T16:56:54.586559",
-    "last_accessed": "2026-04-01T16:56:54.586559",
+    "created": "2026-04-01T17:18:39.179795",
+    "last_accessed": "2026-04-01T17:18:39.179795",
     "ttl": 1800,
     "file": "4fd822e572837237fa37fb47b1eb98f8.pkl"
-  },
-  "image_processing_95b1ec2a02e3c3d05c6abdb9bfc3d4a5_efficientnet_b0": {
-    "created": "2026-04-01T16:57:21.103532",
-    "last_accessed": "2026-04-01T16:57:21.103532",
-    "ttl": 1800,
-    "file": "71bae3132305dcad8bed76f97c06ed96.pkl"
   }
 }

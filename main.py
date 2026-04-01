@@ -2,6 +2,11 @@ import argparse
 import os
 import sys
 
+# 多角色分类
+# 目标检测 分类  
+# 人脸检测 分类
+
+
 # 添加项目根目录到Python路径
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 

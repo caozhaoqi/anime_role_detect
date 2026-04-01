@@ -18,6 +18,21 @@ export interface Message {
     bbox: number[];
   }>;
   ai_predicted_role?: string;
+  multi_roles?: Array<{
+    role: string;
+    similarity: number;
+    attributes?: Array<{
+      tag: string;
+      confidence: number;
+    }>;
+    bbox: {
+      x1: number;
+      y1: number;
+      x2: number;
+      y2: number;
+    };
+    confidence: number;
+  }>;
   thoughts?: string[];
   isThinkingFinished?: boolean;
   timestamp: number;
