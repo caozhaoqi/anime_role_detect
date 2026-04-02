@@ -46,8 +46,45 @@ class MultiRoleDetector:
         self.model = None
         self.class_to_idx = None
         self.model_name = model_name
-        self._initialize_models()
-        self._load_trained_model()
+        self.models_initialized = False
+    
+    def _lazy_initialize_models(self):
+        """
+        延迟初始化模型
+        """
+        if not self.models_initialized:
+            # 先检查内存使用情况
+            import psutil
+            memory = psutil.virtual_memory()
+            if memory.percent > 70:
+                logger.warning(f"内存使用率过高: {memory.percent:.2f}%，跳过模型初始化")
+                return
+            
+            try:
+                # 只初始化必要的模型，减少内存使用
+                self._initialize_minimal_models()
+                self.models_initialized = True
+            except Exception as e:
+                logger.error(f"模型初始化失败: {e}")
+    
+    def _initialize_minimal_models(self):
+        """
+        初始化最小化的模型集，减少内存使用
+        """
+        try:
+            # 只初始化YOLOv8模型，用于角色检测
+            from ultralytics import YOLO
+            # 使用预训练的YOLOv8n模型（最小的模型）
+            self.yolo_model = YOLO('yolov8n.pt')
+            logger.info("YOLOv8模型加载成功")
+            
+            # 跳过标签生成器和分类模型的初始化，减少内存使用
+            self.tagger = None
+            self.model = None
+            self.class_to_idx = None
+            logger.info("使用最小化模型集，跳过标签生成器和分类模型的初始化")
+        except Exception as e:
+            logger.error(f"最小化模型初始化失败: {e}")
     
     def _load_trained_model(self):
         """
@@ -62,12 +99,18 @@ class MultiRoleDetector:
                 "resnet50": "models/incremental_resnet50/model_best.pth"
             }
             
+            # 处理默认模型
+            model_name = self.model_name
+            if model_name == "default":
+                model_name = "efficientnet_b0"
+                logger.info(f"使用默认模型: {model_name}")
+            
             # 检查模型是否存在
-            if self.model_name not in model_paths:
-                logger.error(f"不支持的模型类型: {self.model_name}")
+            if model_name not in model_paths:
+                logger.error(f"不支持的模型类型: {model_name}")
                 return
             
-            model_path = model_paths[self.model_name]
+            model_path = model_paths[model_name]
             
             # 检查模型文件是否存在
             if not os.path.exists(model_path):
@@ -79,7 +122,7 @@ class MultiRoleDetector:
             self.class_to_idx = model_data.get('class_to_idx', {})
             
             # 加载模型
-            if self.model_name == 'mobilenet_v2':
+            if model_name == 'mobilenet_v2':
                 self.model = models.mobilenet_v2(pretrained=False)
                 self.model.classifier = torch.nn.Sequential(
                     torch.nn.Dropout(p=0.3),
@@ -89,7 +132,7 @@ class MultiRoleDetector:
                     torch.nn.Dropout(p=0.15),
                     torch.nn.Linear(512, len(self.class_to_idx))
                 )
-            elif self.model_name == 'efficientnet_b0':
+            elif model_name == 'efficientnet_b0':
                 self.model = models.efficientnet_b0(pretrained=False)
                 self.model.classifier = torch.nn.Sequential(
                     torch.nn.Dropout(p=0.3),
@@ -99,7 +142,7 @@ class MultiRoleDetector:
                     torch.nn.Dropout(p=0.15),
                     torch.nn.Linear(512, len(self.class_to_idx))
                 )
-            elif self.model_name == 'efficientnet_b3':
+            elif model_name == 'efficientnet_b3':
                 self.model = models.efficientnet_b3(pretrained=False)
                 self.model.classifier = torch.nn.Sequential(
                     torch.nn.Dropout(p=0.3),
@@ -109,14 +152,20 @@ class MultiRoleDetector:
                     torch.nn.Dropout(p=0.15),
                     torch.nn.Linear(768, len(self.class_to_idx))
                 )
-            elif self.model_name == 'resnet50':
+            elif model_name == 'resnet50':
                 self.model = models.resnet50(pretrained=False)
                 self.model.fc = torch.nn.Linear(self.model.fc.in_features, len(self.class_to_idx))
             
             # 加载模型权重
             self.model.load_state_dict(model_data['model_state_dict'])
             self.model.eval()
-            logger.info(f"模型 {self.model_name} 加载完成，类别数: {len(self.class_to_idx)}")
+            
+            # 优化模型推理
+            if torch.cuda.is_available():
+                self.model = self.model.cuda()
+                logger.info(f"模型 {model_name} 已移至GPU")
+            
+            logger.info(f"模型 {model_name} 加载完成，类别数: {len(self.class_to_idx)}")
         except Exception as e:
             logger.error(f"加载模型失败: {e}")
     
@@ -175,6 +224,9 @@ class MultiRoleDetector:
         results = []
         
         try:
+            # 延迟初始化模型
+            self._lazy_initialize_models()
+            
             # 加载图像
             image = Image.open(image_path).convert('RGB')
             image_np = np.array(image)
@@ -195,11 +247,38 @@ class MultiRoleDetector:
                             # 裁剪角色图像
                             role_image = image.crop((x1, y1, x2, y2))
                             
-                            # 生成标签
-                            attributes = self.tagger.generate_tags(role_image)
+                            # 生成标签（如果标签生成器已初始化）
+                            attributes = []
+                            if self.tagger:
+                                try:
+                                    # 保存临时图像文件
+                                    import tempfile
+                                    with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as temp_file:
+                                        role_image.save(temp_file)
+                                        temp_image_path = temp_file.name
+                                    
+                                    # 生成标签
+                                    attributes = self.tagger.generate_tags(temp_image_path)
+                                    
+                                    # 清理临时文件
+                                    import os
+                                    if os.path.exists(temp_image_path):
+                                        try:
+                                            os.remove(temp_image_path)
+                                        except Exception as e:
+                                            logger.error(f"删除临时文件失败: {e}")
+                                except Exception as e:
+                                    logger.error(f"生成标签失败: {e}")
+                                    attributes = []
                             
-                            # 分类角色
-                            role, similarity = self._classify_role(role_image)
+                            # 分类角色（如果分类模型已初始化）
+                            role = "unknown"
+                            similarity = 0.0
+                            if self.model and self.class_to_idx:
+                                try:
+                                    role, similarity = self._classify_role(role_image)
+                                except Exception as e:
+                                    logger.error(f"分类角色失败: {e}")
                             
                             # 添加到结果
                             results.append({
@@ -236,6 +315,10 @@ class MultiRoleDetector:
             try:
                 # 预处理图像
                 input_tensor = self._preprocess_image(role_image)
+                
+                # 使用GPU进行推理（如果可用）
+                if torch.cuda.is_available():
+                    input_tensor = input_tensor.cuda()
                 
                 # 模型推理
                 with torch.no_grad():

@@ -334,17 +334,17 @@ export default function AnimeRoleDetect() {
       console.log("file类型:", file.type);
 
       const formData = new FormData();
-            formData.append("file", file);
-            
-            if (!multiRole) {
-              formData.append("use_model", "true");
-              formData.append("use_attributes", "true");
-              formData.append("model_name", selectedModel);
-              formData.append("cache_bypass", "false");
-            } else {
-              formData.append("model_name", selectedModel);
-              formData.append("cache_bypass", "false");
-            }
+      formData.append("file", file);
+      
+      if (!multiRole) {
+        formData.append("use_model", "true");
+        formData.append("use_attributes", "true");
+        formData.append("model_name", selectedModel);
+        formData.append("cache_bypass", "false");
+      } else {
+        formData.append("model_name", selectedModel);
+        formData.append("cache_bypass", "false");
+      }
 
       console.log("FormData创建完成");
       console.log("selectedModel:", selectedModel);
@@ -362,7 +362,7 @@ export default function AnimeRoleDetect() {
           headers: {
             'Content-Type': 'multipart/form-data'
           },
-          timeout: 60000 // 60秒超时（多角色识别可能需要更长时间）
+          timeout: multiRole ? 300000 : 180000 // 多角色识别300秒超时，单角色识别180秒超时
         });
 
         console.log("API响应状态:", response.status);
@@ -378,9 +378,10 @@ export default function AnimeRoleDetect() {
             data: error.response?.data,
             config: error.config
           });
+          if (error.code === 'ECONNABORTED') {
+            throw new Error('API请求超时，请检查服务器是否正常运行');
+          }
           throw new Error(error.response?.data?.error || error.message || "API请求失败");
-        } else if (error === 'AbortError') {
-          throw new Error('API请求超时，请检查服务器是否正常运行');
         }
         throw error;
       }
@@ -416,34 +417,58 @@ export default function AnimeRoleDetect() {
       console.log("有图片需要处理");
       setIsProcessing(true);
 
+      const processingMessageId = `processing_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
       const processingMessage: Message = {
-        id: (Date.now() + 1).toString(),
+        id: processingMessageId,
         role: "assistant",
         content: "",
         thoughts: ["正在分析图片特征...", "提取角色关键信息...", "匹配数据库中的角色..."],
         isThinkingFinished: false,
         timestamp: Date.now(),
       };
-      setMessages((prev) => [...prev, processingMessage]);
+      console.log("创建processingMessage，ID:", processingMessageId);
+      setMessages((prev) => {
+        const updatedMessages = [...prev, processingMessage];
+        console.log("添加processingMessage后的消息数量:", updatedMessages.length);
+        console.log("消息列表中的最后一个消息ID:", updatedMessages[updatedMessages.length - 1].id);
+        return updatedMessages;
+      });
 
       try {
         console.log("调用classifyImage函数");
+        console.log("useMultiRole:", useMultiRole);
+        console.log("selectedModel:", selectedModel);
+        
+        const startTime = Date.now();
+        console.log("开始API请求，时间:", startTime);
+        
         const result = await classifyImage(currentImagePreview, useMultiRole);
+        
+        const endTime = Date.now();
+        console.log("API请求完成，耗时:", endTime - startTime, "ms");
         console.log('API返回的完整结果:', result);
+        console.log('result类型:', typeof result);
+        
+        // 检查result是否为有效对象
+        if (!result || typeof result !== 'object') {
+          throw new Error('API返回的数据格式不正确');
+        }
+        
         console.log('text_detections字段:', result.text_detections);
         console.log('text_detections类型:', typeof result.text_detections);
         console.log('text_detections长度:', result.text_detections ? result.text_detections.length : 0);
 
         let assistantMessage: Message;
         
-        if (useMultiRole && result.roles && result.roles.length > 0) {
+        if ((useMultiRole || result.detection_mode === 'multi_role') && result.roles && result.roles.length > 0) {
           // 多角色识别结果
+          console.log('使用多角色识别结果');
           const rolesList = result.roles.map((role: any) => {
             return `${role.role} (相似度: ${(role.similarity * 100).toFixed(1)}%)`;
           }).join('、');
           
           assistantMessage = {
-            id: (Date.now() + 2).toString(),
+            id: `assistant_${Date.now()}_${Math.floor(Math.random() * 10000)}`,
             role: "assistant",
             content: `识别完成！共检测到 ${result.roles.length} 个角色：${rolesList}`,
             classification: {
@@ -460,8 +485,9 @@ export default function AnimeRoleDetect() {
           };
         } else {
           // 单角色识别结果
+          console.log('使用单角色识别结果');
           assistantMessage = {
-            id: (Date.now() + 2).toString(),
+            id: `assistant_${Date.now()}_${Math.floor(Math.random() * 10000)}`,
             role: "assistant",
             content: `识别完成！识别结果：${result.role || "未知角色"}，相似度：${(result.similarity * 100).toFixed(1)}%`,
             classification: {
@@ -478,18 +504,79 @@ export default function AnimeRoleDetect() {
           };
         }
 
-        setMessages((prev) => prev.filter((m) => m.id !== processingMessage.id).concat(assistantMessage));
+        console.log("更新消息列表，替换processingMessage为assistantMessage");
+        console.log("processingMessageId:", processingMessageId);
+        console.log("assistantMessage:", assistantMessage);
+        
+        // 直接创建新的消息列表，确保processingMessage被替换
+        setMessages((prev) => {
+          console.log("当前消息列表长度:", prev.length);
+          console.log("当前消息列表ID:", prev.map(m => m.id));
+          
+          const newMessages = [];
+          let processingMessageFound = false;
+          
+          for (let i = 0; i < prev.length; i++) {
+            if (prev[i].id !== processingMessageId) {
+              newMessages.push(prev[i]);
+            } else {
+              processingMessageFound = true;
+              console.log("找到processingMessage，ID:", prev[i].id);
+            }
+          }
+          
+          if (!processingMessageFound) {
+            console.warn("未找到processingMessage，ID:", processingMessageId);
+          }
+          
+          newMessages.push(assistantMessage);
+          console.log("新消息列表长度:", newMessages.length);
+          console.log("新消息列表ID:", newMessages.map(m => m.id));
+          return newMessages;
+        });
         addToHistory(assistantMessage);
       } catch (error) {
         console.error("Classification error:", error);
+        console.error("错误堆栈:", error instanceof Error ? error.stack : null);
+        
         const errorMessage: Message = {
-          id: (Date.now() + 2).toString(),
+          id: `error_${Date.now()}_${Math.floor(Math.random() * 10000)}`,
           role: "assistant",
           content: `抱歉，识别过程中出现错误：${error instanceof Error ? error.message : "未知错误"}，请重试。`,
           timestamp: Date.now(),
         };
-        setMessages((prev) => prev.filter((m) => m.id !== processingMessage.id).concat(errorMessage));
+        console.log("更新消息列表，替换processingMessage为errorMessage");
+        console.log("processingMessageId:", processingMessageId);
+        console.log("errorMessage:", errorMessage);
+        
+        // 直接创建新的消息列表，确保processingMessage被替换
+        setMessages((prev) => {
+          console.log("当前消息列表长度:", prev.length);
+          console.log("当前消息列表ID:", prev.map(m => m.id));
+          
+          const newMessages = [];
+          let processingMessageFound = false;
+          
+          for (let i = 0; i < prev.length; i++) {
+            if (prev[i].id !== processingMessageId) {
+              newMessages.push(prev[i]);
+            } else {
+              processingMessageFound = true;
+              console.log("找到processingMessage，ID:", prev[i].id);
+            }
+          }
+          
+          if (!processingMessageFound) {
+            console.warn("未找到processingMessage，ID:", processingMessageId);
+          }
+          
+          newMessages.push(errorMessage);
+          console.log("新消息列表长度:", newMessages.length);
+          console.log("新消息列表ID:", newMessages.map(m => m.id));
+          return newMessages;
+        });
       } finally {
+        console.log("设置isProcessing为false");
         setIsProcessing(false);
       }
     } else if (inputText.trim()) {

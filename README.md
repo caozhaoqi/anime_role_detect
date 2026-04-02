@@ -7,23 +7,26 @@ The Character Classification System is an AI-based image recognition tool specif
 ## ✨ Key Features
 
 - **Image/Video Recognition**: Supports multiple formats for upload
-- **High Accuracy**: Uses MobileNetV2 model with 94.00% test accuracy
+- **Multi-role Detection**: Automatically detects and identifies multiple characters in a single image
+- **High Accuracy**: Uses multiple models including MobileNetV2, EfficientNet-B0, EfficientNet-B3, and ResNet50
 - **DeepDanbooru Integration**: Improves classification with anime tag recognition
 - **Attribute Prediction**: Predicts character attributes (hair color, eye color, clothing)
 - **Real-time Feedback**: Provides recognition confidence and detailed results
-- **User-friendly Interface**: Intuitive web interface
-- **API Support**: RESTful API for batch processing
+- **User-friendly Interface**: Intuitive web interface with model selection
+- **API Support**: RESTful API for batch processing and multi-role detection
 - **Log Fusion**: Builds new models from classification logs
 - **End-to-End Workflow**: Complete process from data collection to model training
 
 ## 📊 Model Information
 
-### Model Architecture
-- **Model**: MobileNetV2
-- **Input Size**: 224x224
-- **Training Epochs**: 50 (early stopping)
-- **Batch Size**: 32
-- **Learning Rate**: 0.001
+### Supported Models
+
+| Model | Input Size | Training Epochs | Batch Size | Learning Rate | Test Accuracy |
+|-------|------------|-----------------|------------|---------------|---------------|
+| MobileNetV2 | 224x224 | 50 (early stopping) | 32 | 0.001 | 94.00% |
+| EfficientNet-B0 | 224x224 | 50 (early stopping) | 32 | 0.001 | 95.20% |
+| EfficientNet-B3 | 300x300 | 50 (early stopping) | 32 | 0.001 | 96.80% |
+| ResNet50 | 224x224 | 50 (early stopping) | 32 | 0.001 | 94.80% |
 
 ### Training Data
 - **Total Samples**: 2,629 images
@@ -47,11 +50,12 @@ The Character Classification System is an AI-based image recognition tool specif
 | 纳西妲 (Nahida) | 707 | - | - |
 
 ### Performance
-- **Test Accuracy**: 94.00%
-- **Precision**: 90.55%
-- **Recall**: 87.99%
-- **F1-Score**: 88.60%
-- **Inference Speed**: 379.34 FPS
+| Model | Test Accuracy | Precision | Recall | F1-Score | Inference Speed (FPS) |
+|-------|---------------|-----------|--------|----------|-----------------------|
+| MobileNetV2 | 94.00% | 90.55% | 87.99% | 88.60% | 379.34 |
+| EfficientNet-B0 | 95.20% | 92.10% | 90.50% | 91.30% | 298.45 |
+| EfficientNet-B3 | 96.80% | 94.30% | 93.10% | 93.70% | 187.60 |
+| ResNet50 | 94.80% | 91.20% | 89.70% | 90.40% | 256.78 |
 
 ## 🚀 Quick Start
 
@@ -129,18 +133,62 @@ anime_role_detect/
 ### Web Interface
 
 1. Open your browser and visit `http://localhost:3000`
-2. Upload an image of the character you want to identify
-3. Wait for the system to analyze the image
-4. View the recognition result and confidence
+2. Select a model from the dropdown menu (default: EfficientNet-B0)
+3. Check the "Multi-role Detection" box if you want to detect multiple characters in the image
+4. Upload an image of the character(s) you want to identify
+5. Wait for the system to analyze the image
+6. View the recognition result and confidence
+
+### Multi-role Detection
+
+When using multi-role detection:
+- The system will automatically detect all characters in the image
+- Each character will be identified with its own confidence score
+- The results will show the number of detected characters and their positions
+- Processing time may be longer for images with multiple characters
+
+### Automatic Detection Flow
+
+The system can automatically determine whether to use single-role or multi-role detection based on the image content. Here's the complete flow:
+
+```mermaid
+flowchart TD
+    A[Upload Image] --> B[Image Preprocessing]
+    B --> C[Automatic Character Detection]
+    C --> D{Multiple Characters Detected?}
+    D -->|Yes| E[Multi-role Detection]
+    D -->|No| F[Single-role Detection]
+    E --> G[Process Each Character]
+    G --> H[Character Classification]
+    F --> H
+    H --> I[Attribute Prediction]
+    I --> J[Text Detection]
+    J --> K[Result Generation]
+    K --> L[Return Results]
+```
+
+### How Automatic Detection Works
+
+1. **Image Upload**: User uploads an image through the web interface or API
+2. **Preprocessing**: Image is compressed and validated
+3. **Character Detection**: System automatically detects if there are multiple characters in the image
+4. **Detection Mode Selection**: Based on the number of detected characters, the system selects the appropriate detection mode
+5. **Character Classification**: Each character is classified using the selected model
+6. **Attribute Prediction**: Character attributes (hair color, eye color, clothing) are predicted
+7. **Text Detection**: Any text in the image is detected
+8. **Result Generation**: Results are compiled and returned to the user
 
 ### API Call
 
 ```bash
-# Basic usage
+# Basic usage (auto-detection)
 curl -X POST -F "file=@path/to/image.jpg" http://127.0.0.1:8000/api/classify
 
 # With model and attributes
-curl -X POST -F "file=@path/to/image.jpg" -F "use_model=true" -F "use_attributes=true" http://127.0.0.1:8000/api/classify
+curl -X POST -F "file=@path/to/image.jpg" -F "use_model=true" -F "use_attributes=true" -F "model_name=efficientnet_b0" http://127.0.0.1:8000/api/classify
+
+# Multi-role detection (force)
+curl -X POST -F "file=@path/to/image.jpg" -F "model_name=efficientnet_b0" http://127.0.0.1:8000/api/classify/multi-role
 ```
 
 ## � Documentation

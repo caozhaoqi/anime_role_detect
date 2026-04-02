@@ -92,7 +92,7 @@ def start_api_service(host: str = '0.0.0.0', port: int = 8000, reload: bool = Fa
         'src.backend.api.app:app',
         '--host', host,
         '--port', str(port),
-        '--workers', '2',  # 减少到2个工作线程，避免资源竞争
+        '--workers', '1',  # 减少到1个工作线程，减少内存使用
         '--timeout-keep-alive', '30'  # 增加保持连接的超时时间
     ]
     

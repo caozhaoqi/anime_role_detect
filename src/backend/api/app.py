@@ -99,38 +99,31 @@ async def startup_event():
     except Exception as e:
         logger.error(f"内存监控系统初始化失败: {e}")
     
-    # 初始化模型实例，避免首次请求延迟
+    # 延迟初始化模型实例，减少内存使用
     global extractor, classifiers, preprocessor, tagger, keypoint_detector, multi_role_detector
     try:
         logger.info("开始初始化模型...")
         
-        # 初始化特征提取器，强制使用PyTorch模式，与构建索引时一致
-        extractor = FeatureExtraction(quantize=False, use_coreml=False)
-        logger.info("特征提取器初始化完成（PyTorch模式）")
+        # 延迟加载所有模型，只在需要时初始化
+        extractor = None
+        logger.info("特征提取器将在需要时初始化")
         
-        # 初始化分类器，使用字典缓存不同模型
-        # 使用默认特征库，降低阈值以提高识别率
-        default_index_path = "role_index"
-        classifiers[default_index_path] = Classification(default_index_path, threshold=0.3)
-        logger.info("分类器初始化完成")
+        classifiers = {}
+        logger.info("分类器将在需要时初始化")
         
-        # 初始化预处理器（最小化配置）
-        preprocessor = Preprocessing()
-        logger.info("预处理器初始化完成")
+        preprocessor = None
+        logger.info("预处理器将在需要时初始化")
         
-        # 延迟加载标签生成器
         tagger = None
         logger.info("标签生成器将在需要时初始化")
         
-        # 延迟加载关键点检测器
         keypoint_detector = None
         logger.info("关键点检测器将在需要时初始化")
         
-        # 延迟加载多角色检测器
         multi_role_detector = None
         logger.info("多角色检测器将在需要时初始化")
         
-        logger.info("所有模型初始化完成")
+        logger.info("所有模型初始化完成（延迟加载模式）")
     except Exception as e:
         logger.error(f"模型初始化失败: {e}")
 
@@ -1181,6 +1174,8 @@ async def health_check():
 async def classify_image(file: UploadFile = File(...), use_model: bool = Form(False, description="是否使用专用模型"), use_attributes: bool = Form(True, description="是否使用属性预测"), model_name: str = Form("default", description="模型名称"), cache_bypass: bool = Form(False, description="是否绕过缓存")):
     """
     分类图片
+    
+    自动检测图像中的角色数量，根据角色数量选择单角色或多角色检测
     """
     start_time = time.time()
     try:
@@ -1189,11 +1184,71 @@ async def classify_image(file: UploadFile = File(...), use_model: bool = Form(Fa
         if active_tasks > 5:
             raise HTTPException(status_code=429, detail="请求过多，请稍后再试")
         
-        result = await process_single_image(file, model_name, cache_bypass)
+        # 读取文件内容
+        content = await file.read()
+        
+        # 验证图像
+        temp_path = validate_image(file, content)
+        
+        # 初始化多角色检测器（根据模型名称）
+        global multi_role_detector
+        global current_model_name
+        
+        if multi_role_detector is None or current_model_name != model_name:
+            from core.detection.multi_role_detection import MultiRoleDetector
+            multi_role_detector = MultiRoleDetector(model_name=model_name)
+            current_model_name = model_name
+            logger.info(f"多角色检测器初始化完成，使用模型: {model_name}")
+        
+        # 检测多个角色
+        detected_roles = multi_role_detector.detect_roles(temp_path)
+        logger.info(f"自动检测到 {len(detected_roles)} 个角色")
+        
+        # 检测文本
+        text_detections = []
+        if file.content_type != "image/svg+xml":
+            text_detections = await detect_image_text(temp_path)
+            logger.info(f"文本检测完成，检测到 {len(text_detections)} 个文本")
+        else:
+            logger.info("跳过SVG文件的文本检测")
+        
+        # 根据角色数量选择检测模式
+        if len(detected_roles) > 1:
+            logger.info("检测到多个角色，使用多角色检测")
+            # 构建多角色响应
+            response = {
+                "filename": file.filename,
+                "roles": detected_roles,
+                "text_detections": text_detections,
+                "processing_time": time.time() - start_time,
+                "detection_mode": "multi_role"
+            }
+        else:
+            logger.info("检测到单个角色或未检测到角色，使用单角色检测")
+            # 重置文件指针
+            await file.seek(0)
+            # 使用单角色检测
+            result = await process_single_image(file, model_name, cache_bypass)
+            result["detection_mode"] = "single_role"
+            response = result
+        
+        # 清理临时文件
+        if temp_path and os.path.exists(temp_path):
+            try:
+                os.remove(temp_path)
+                logger.debug(f"临时文件已删除: {temp_path}")
+            except Exception as e:
+                logger.error(f"删除临时文件失败: {e}")
+        
+        # 强制垃圾回收
+        import gc
+        gc.collect()
+        logger.debug("执行垃圾回收，释放内存")
+        
         response_time = time.time() - start_time
         # 更新网络监控统计信息
         monitoring_system.monitors['network'].update_request_stats(True, response_time)
-        return result
+        return response
     except Exception as e:
         response_time = time.time() - start_time
         # 更新网络监控统计信息
