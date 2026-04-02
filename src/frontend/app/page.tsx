@@ -642,7 +642,7 @@ export default function AnimeRoleDetect() {
     >
       {/* 拖拽上传覆盖层 */}
       {isDragging && (
-        <div className="fixed inset-0 bg-white/80 backdrop-blur-sm flex items-center justify-center z-50 border-2 border-dashed border-[#3b82f6] rounded-lg animate-pulse-glow">
+        <div className="fixed inset-0 bg-white/80 backdrop-blur-sm flex items-center justify-center z-[9999] border-2 border-dashed border-[#3b82f6] rounded-lg animate-pulse-glow">
           <div className="text-center p-8 glass rounded-xl shadow-2xl transform transition-transform hover:scale-105">
             <Upload className="h-16 w-16 mx-auto mb-4 text-[#3b82f6] animate-bounce" />
             <h3 className="text-xl font-semibold mb-2 text-[#1e293b] animate-fade-in">拖拽图片到这里</h3>
@@ -799,7 +799,7 @@ export default function AnimeRoleDetect() {
                   <span>模型</span>
                 </button>
                 {showModelSelect && (
-                  <div className="absolute top-16 right-6 glass rounded-2xl shadow-2xl border border-border-light p-2 z-50 transform transition-all duration-300 animate-slide-up w-48">
+                  <div className="fixed top-24 right-6 glass rounded-2xl shadow-2xl border border-border-light p-2 z-[9999] transform transition-all duration-300 animate-slide-up w-48">
                     {models.map((model) => (
                       <button
                         key={model.name}
@@ -862,7 +862,7 @@ export default function AnimeRoleDetect() {
           {/* 消息列表或历史记录 */}
           <div className="flex-1 overflow-y-auto p-6 md:p-8 scroll-smooth">
             {copySuccess && (
-              <div className="fixed top-24 right-6 left-6 md:left-auto md:right-6 bg-[#10b981] text-white px-6 py-4 rounded-xl shadow-lg animate-slide-up z-50 transform transition-all duration-300 hover:scale-105">
+              <div className="fixed top-24 right-6 left-6 md:left-auto md:right-6 bg-[#10b981] text-white px-6 py-4 rounded-xl shadow-lg animate-slide-up z-[9999] transform transition-all duration-300 hover:scale-105">
                 {copySuccess}
               </div>
             )}
@@ -1124,10 +1124,13 @@ export default function AnimeRoleDetect() {
                     <Upload className="h-6 w-6 text-primary transition-colors duration-300 hover:text-secondary" />
                   </button>
                   {showUploadOptions && (
-                    <div className="absolute bottom-full left-0 right-0 mb-4 glass rounded-2xl shadow-2xl border border-border-light p-4 z-50 transform transition-all duration-300 animate-slide-up">
+                    <div className="fixed bottom-32 left-6 right-6 md:left-auto md:right-6 md:w-64 glass rounded-2xl shadow-2xl border border-border-light p-4 z-[9999] transform transition-all duration-300 animate-slide-up">
                       <button
                         className="flex items-center px-6 py-3 hover:bg-card-hover rounded-xl w-full transition-all duration-300 transform hover:translate-x-1 shadow-sm"
-                        onClick={() => fileInputRef.current?.click()}
+                        onClick={() => {
+                          fileInputRef.current?.click();
+                          setShowUploadOptions(false);
+                        }}
                       >
                         <ImageIcon className="h-5 w-5 mr-4 text-text-light transition-colors duration-300 hover:text-primary" />
                         <span className="text-sm text-text-primary transition-colors duration-300 hover:text-primary">上传图片</span>
