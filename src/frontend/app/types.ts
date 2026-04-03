@@ -2,7 +2,7 @@ export interface Message {
   id: string;
   role: "user" | "assistant";
   content: string;
-  image?: string;
+  image?: string | null;
   classification?: {
     role: string;
     similarity: number;
@@ -34,7 +34,9 @@ export interface Message {
     confidence: number;
   }>;
   thoughts?: string[];
+  isThinking?: boolean;
   isThinkingFinished?: boolean;
+  error?: string;
   timestamp: number;
 }
 
