@@ -307,25 +307,21 @@ export default function AnimeRoleDetect() {
       {/* 顶部导航栏 */}
       <header className={`sticky top-0 z-50 ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border-b`}>
         <div className="container mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <button
-              onClick={() => setShowSidebar(!showSidebar)}
-              className={`p-2.5 rounded-full ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'} transition-colors`}
-              title="显示侧边栏"
-            >
-              <Menu className="h-6 w-6" />
-            </button>
-            <h1 className="text-2xl font-semibold">动漫角色识别</h1>
-          </div>
-          <div className="flex items-center space-x-5">
-            <button
-              onClick={() => setDarkMode(!darkMode)}
-              className={`p-2.5 rounded-full ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'} transition-colors`}
-              title={darkMode ? "切换到浅色模式" : "切换到深色模式"}
-            >
-              {darkMode ? <Sun className="h-6 w-6" /> : <Moon className="h-6 w-6" />}
-            </button>
-          </div>
+          <button
+            onClick={() => setShowSidebar(!showSidebar)}
+            className={`p-2.5 rounded-full ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'} transition-colors`}
+            title="显示侧边栏"
+          >
+            <Menu className="h-6 w-6" />
+          </button>
+          <h1 className="text-2xl font-semibold">动漫角色识别</h1>
+          <button
+            onClick={() => setDarkMode(!darkMode)}
+            className={`p-2.5 rounded-full ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'} transition-colors`}
+            title={darkMode ? "切换到浅色模式" : "切换到深色模式"}
+          >
+            {darkMode ? <Sun className="h-6 w-6" /> : <Moon className="h-6 w-6" />}
+          </button>
         </div>
       </header>
       
@@ -402,7 +398,18 @@ export default function AnimeRoleDetect() {
                         className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
                       >
                         <div
-                          className={`max-w-[80%] ${message.role === "user" ? "order-2" : "order-1"}`}
+                          className={`flex-shrink-0 mr-2 ml-2 ${message.role === "user" ? "order-2" : "order-1"}`}
+                        >
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center ${message.role === "user" ? 'bg-blue-500 text-white' : (darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700')}`}>
+                            {message.role === "user" ? (
+                              <User className="h-4 w-4" />
+                            ) : (
+                              <Bot className="h-4 w-4" />
+                            )}
+                          </div>
+                        </div>
+                        <div
+                          className={`max-w-[80%] ${message.role === "user" ? "order-1" : "order-2"}`}
                         >
                           <div
                             className={`rounded-lg p-4 ${message.role === "user" ? 'bg-blue-500 text-white' : (darkMode ? 'bg-gray-700 text-gray-100' : 'bg-gray-100 text-gray-900')}`}
@@ -555,17 +562,6 @@ export default function AnimeRoleDetect() {
                                 </button>
                               </div>
                             </div>
-                          </div>
-                        </div>
-                        <div
-                          className={`flex-shrink-0 mr-2 ml-2 ${message.role === "user" ? "order-1" : "order-2"}`}
-                        >
-                          <div className={`w-8 h-8 rounded-full flex items-center justify-center ${message.role === "user" ? 'bg-blue-500 text-white' : (darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700')}`}>
-                            {message.role === "user" ? (
-                              <User className="h-4 w-4" />
-                            ) : (
-                              <Bot className="h-4 w-4" />
-                            )}
                           </div>
                         </div>
                       </div>
