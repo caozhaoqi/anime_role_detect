@@ -1,1 +1,8 @@
-{}
+{
+  "image_processing_3c17b69f9147f05073ab20365d6493e1_efficientnet_b0": {
+    "created": "2026-04-03T18:00:00.244722",
+    "last_accessed": "2026-04-03T18:00:00.244722",
+    "ttl": 1800,
+    "file": "7f8531e60cceed658c246c2e949f3eeb.pkl"
+  }
+}

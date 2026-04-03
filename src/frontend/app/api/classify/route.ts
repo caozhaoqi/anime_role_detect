@@ -1,15 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function POST(request: NextRequest) {
+  console.log('前端API路由接收到POST请求');
   try {
+    console.log('开始处理请求...');
     const formData = await request.formData();
+    console.log('FormData解析完成');
     const file = formData.get('file') as File;
     const useModel = formData.get('use_model') as string;
     const useAttributes = formData.get('use_attributes') as string;
     const modelName = formData.get('model_name') as string;
     const cacheBypass = formData.get('cache_bypass') as string;
 
+    console.log('请求参数:', {
+      hasFile: !!file,
+      useModel: useModel,
+      useAttributes: useAttributes,
+      modelName: modelName,
+      cacheBypass: cacheBypass
+    });
+
     if (!file) {
+      console.error('没有提供文件');
       return NextResponse.json({ error: 'No file provided' }, { status: 400 });
     }
 
@@ -23,6 +35,7 @@ export async function POST(request: NextRequest) {
     });
 
     const backendUrl = 'http://127.0.0.1:8000/api/classify';
+    console.log('准备转发请求到后端API:', backendUrl);
     const backendFormData = new FormData();
     backendFormData.append('file', file);
 
@@ -42,23 +55,29 @@ export async function POST(request: NextRequest) {
       backendFormData.append('cache_bypass', 'true');
     }
 
-    console.log('转发请求到后端API:', backendUrl);
+    console.log('开始发送请求到后端API...');
+    try {
+      const response = await fetch(backendUrl, {
+        method: 'POST',
+        body: backendFormData,
+        // timeout: 30000 // 30秒超时
+      });
+      console.log('后端API响应状态:', response.status);
 
-    const response = await fetch(backendUrl, {
-      method: 'POST',
-      body: backendFormData,
-    });
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('后端API返回错误:', response.status, errorText);
+        return NextResponse.json({ error: 'Backend API error' }, { status: response.status });
+      }
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('后端API返回错误:', response.status, errorText);
-      return NextResponse.json({ error: 'Backend API error' }, { status: response.status });
+      const result = await response.json();
+      console.log('后端API返回结果:', result);
+
+      return NextResponse.json(result, { status: 200 });
+    } catch (fetchError) {
+      console.error('发送请求到后端API失败:', fetchError);
+      return NextResponse.json({ error: 'Failed to connect to backend API' }, { status: 500 });
     }
-
-    const result = await response.json();
-    console.log('后端API返回结果:', result);
-
-    return NextResponse.json(result, { status: 200 });
   } catch (error) {
     console.error('分类失败:', error);
     return NextResponse.json({ error: 'Classification failed' }, { status: 500 });
