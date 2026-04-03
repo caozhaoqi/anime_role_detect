@@ -224,81 +224,21 @@ class MultiRoleDetector:
         results = []
         
         try:
-            # 延迟初始化模型
-            self._lazy_initialize_models()
+            logger.info(f"开始检测角色，图像路径: {image_path}")
             
             # 加载图像
+            logger.info("加载图像")
             image = Image.open(image_path).convert('RGB')
             image_np = np.array(image)
+            logger.info(f"图像加载成功，大小: {image.size}")
             
-            # 使用YOLOv8进行目标检测
-            if self.yolo_model:
-                yolo_results = self.yolo_model(image_path)
-                
-                # 处理检测结果
-                for result in yolo_results:
-                    boxes = result.boxes
-                    for box in boxes:
-                        # 只处理人物类别（COCO数据集的类别0是person）
-                        if int(box.cls[0]) == 0:
-                            x1, y1, x2, y2 = map(int, box.xyxy[0])
-                            confidence = float(box.conf[0])
-                            
-                            # 裁剪角色图像
-                            role_image = image.crop((x1, y1, x2, y2))
-                            
-                            # 生成标签（如果标签生成器已初始化）
-                            attributes = []
-                            if self.tagger:
-                                try:
-                                    # 保存临时图像文件
-                                    import tempfile
-                                    with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as temp_file:
-                                        role_image.save(temp_file)
-                                        temp_image_path = temp_file.name
-                                    
-                                    # 生成标签
-                                    attributes = self.tagger.generate_tags(temp_image_path)
-                                    
-                                    # 清理临时文件
-                                    import os
-                                    if os.path.exists(temp_image_path):
-                                        try:
-                                            os.remove(temp_image_path)
-                                        except Exception as e:
-                                            logger.error(f"删除临时文件失败: {e}")
-                                except Exception as e:
-                                    logger.error(f"生成标签失败: {e}")
-                                    attributes = []
-                            
-                            # 分类角色（如果分类模型已初始化）
-                            role = "unknown"
-                            similarity = 0.0
-                            if self.model and self.class_to_idx:
-                                try:
-                                    role, similarity = self._classify_role(role_image)
-                                except Exception as e:
-                                    logger.error(f"分类角色失败: {e}")
-                            
-                            # 添加到结果
-                            results.append({
-                                "role": role,
-                                "similarity": float(similarity),
-                                "attributes": attributes,
-                                "bbox": {
-                                    "x1": x1,
-                                    "y1": y1,
-                                    "x2": x2,
-                                    "y2": y2
-                                },
-                                "confidence": confidence
-                            })
-            else:
-                # 如果YOLO模型加载失败，使用人脸检测
-                results = self._detect_roles_with_face_detection(image_path, image_np)
+            # 直接使用人脸检测，避免YOLOv8模型的段错误问题
+            logger.info("使用人脸检测")
+            results = self._detect_roles_with_face_detection(image_path, image_np)
         except Exception as e:
             logger.error(f"检测角色失败: {e}")
         
+        logger.info(f"角色检测完成，检测到 {len(results)} 个角色")
         return results
     
     def _classify_role(self, role_image):
@@ -374,10 +314,17 @@ class MultiRoleDetector:
                 role_image = Image.fromarray(image_np[y1:y2, x1:x2])
                 
                 # 生成标签
-                attributes = self.tagger.generate_tags(role_image)
+                if self.tagger is not None:
+                    attributes = self.tagger.generate_tags(role_image)
+                else:
+                    attributes = []
                 
                 # 分类角色
-                role, similarity = self._classify_role(role_image)
+                if self.model is not None and self.extractor is not None:
+                    role, similarity = self._classify_role(role_image)
+                else:
+                    role = "Unknown"
+                    similarity = 0.0
                 
                 # 添加到结果
                 results.append({

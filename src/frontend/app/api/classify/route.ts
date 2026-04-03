@@ -5,7 +5,9 @@ export async function POST(request: NextRequest) {
     const formData = await request.formData();
     const file = formData.get('file') as File;
     const useModel = formData.get('use_model') as string;
-    const useDeepdanbooru = formData.get('use_deepdanbooru') as string;
+    const useAttributes = formData.get('use_attributes') as string;
+    const modelName = formData.get('model_name') as string;
+    const cacheBypass = formData.get('cache_bypass') as string;
 
     if (!file) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 });
@@ -15,7 +17,9 @@ export async function POST(request: NextRequest) {
       fileName: file.name,
       fileSize: file.size,
       useModel: useModel,
-      useDeepdanbooru: useDeepdanbooru
+      useAttributes: useAttributes,
+      modelName: modelName,
+      cacheBypass: cacheBypass
     });
 
     const backendUrl = 'http://127.0.0.1:8000/api/classify';
@@ -26,8 +30,16 @@ export async function POST(request: NextRequest) {
       backendFormData.append('use_model', 'true');
     }
 
-    if (useDeepdanbooru === 'true') {
-      backendFormData.append('use_deepdanbooru', 'true');
+    if (useAttributes === 'true') {
+      backendFormData.append('use_attributes', 'true');
+    }
+
+    if (modelName) {
+      backendFormData.append('model_name', modelName);
+    }
+
+    if (cacheBypass === 'true') {
+      backendFormData.append('cache_bypass', 'true');
     }
 
     console.log('转发请求到后端API:', backendUrl);
