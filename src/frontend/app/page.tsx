@@ -295,9 +295,9 @@ export default function AnimeRoleDetect() {
     >
       {/* 拖拽上传覆盖层 */}
       {isDragging && (
-        <div className="fixed inset-0 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm flex items-center justify-center z-[9999] border-2 border-dashed border-blue-500 rounded-lg">
-          <div className="text-center p-8 bg-white dark:bg-gray-800 rounded-xl shadow-2xl">
-            <Upload className="h-16 w-16 mx-auto mb-4 text-blue-500" />
+        <div className="fixed inset-0 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm flex items-center justify-center z-[9999] border-2 border-dashed border-blue-500 rounded-lg animate-pulse">
+          <div className="text-center p-8 bg-white dark:bg-gray-800 rounded-xl shadow-2xl transform transition-transform hover:scale-105">
+            <Upload className="h-16 w-16 mx-auto mb-4 text-blue-500 animate-bounce" />
             <h3 className="text-xl font-semibold mb-2">拖拽图片到这里</h3>
             <p className="text-gray-600 dark:text-gray-400">松开鼠标即可上传图片进行识别</p>
           </div>
@@ -305,19 +305,19 @@ export default function AnimeRoleDetect() {
       )}
       
       {/* 顶部导航栏 */}
-      <header className={`sticky top-0 z-50 ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border-b`}>
+      <header className={`sticky top-0 z-50 ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border-b transition-all duration-300`}>
         <div className="container mx-auto px-6 py-4 flex items-center justify-between">
           <button
             onClick={() => setShowSidebar(!showSidebar)}
-            className={`p-2.5 rounded-full ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'} transition-colors`}
+            className={`p-2.5 rounded-full ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'} transition-colors transform hover:scale-105`}
             title="显示侧边栏"
           >
             <Menu className="h-6 w-6" />
           </button>
-          <h1 className="text-2xl font-semibold">动漫角色识别</h1>
+          <h1 className="text-2xl font-semibold bg-gradient-to-r from-blue-500 to-purple-600 bg-clip-text text-transparent">动漫角色识别</h1>
           <button
             onClick={() => setDarkMode(!darkMode)}
-            className={`p-2.5 rounded-full ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'} transition-colors`}
+            className={`p-2.5 rounded-full ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'} transition-colors transform hover:scale-105`}
             title={darkMode ? "切换到浅色模式" : "切换到深色模式"}
           >
             {darkMode ? <Sun className="h-6 w-6" /> : <Moon className="h-6 w-6" />}
@@ -327,14 +327,17 @@ export default function AnimeRoleDetect() {
       
       <div className="flex-1 flex overflow-hidden">
         {/* 左侧边栏 */}
-        <aside className={`fixed top-16 left-0 z-40 w-72 h-[calc(100vh-4rem)] ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border-r transform transition-transform duration-300 ${showSidebar ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0`}>
+        <aside className={`fixed top-16 left-0 z-40 w-72 h-[calc(100vh-4rem)] ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border-r transform transition-transform duration-300 ease-in-out ${showSidebar ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0`}>
           <div className="p-4 md:p-6">
-            <h2 className="text-lg font-semibold mb-4">模型选择</h2>
+            <h2 className="text-lg font-semibold mb-4 flex items-center space-x-2">
+              <Sparkles className="h-5 w-5 text-blue-500" />
+              <span>模型选择</span>
+            </h2>
             <div className="space-y-2">
               {models.map((model) => (
                 <div
                   key={model.name}
-                  className={`flex items-center space-x-3 p-2 rounded-lg transition-colors cursor-pointer ${selectedModel === model.name ? (darkMode ? 'bg-blue-900/30 border-blue-700' : 'bg-blue-50 border-blue-200') : (darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100')} border`}
+                  className={`flex items-center space-x-3 p-3 rounded-lg transition-all cursor-pointer transform hover:scale-[1.02] ${selectedModel === model.name ? (darkMode ? 'bg-blue-900/30 border-blue-700' : 'bg-blue-50 border-blue-200') : (darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100')} border`}
                   onClick={() => setSelectedModel(model.name)}
                 >
                   <div className={`w-2 h-2 rounded-full ${model.available ? 'bg-green-500' : 'bg-yellow-500'}`} />
@@ -343,15 +346,17 @@ export default function AnimeRoleDetect() {
                     <p className="text-xs text-gray-500 dark:text-gray-400">{model.description}</p>
                   </div>
                   {selectedModel === model.name && (
-                    <CheckCircle className="h-4 w-4 text-blue-500" />
+                    <CheckCircle className="h-4 w-4 text-blue-500 animate-pulse" />
                   )}
                 </div>
               ))}
             </div>
             
             <div className="border-t border-gray-200 dark:border-gray-700 pt-4 mt-4">
-              <h3 className="text-sm font-medium mb-2">识别设置</h3>
-              <div className={`flex items-center justify-between p-2 rounded-lg ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'} transition-colors cursor-pointer`}>
+              <h3 className="text-sm font-medium mb-2 flex items-center space-x-2">
+                <span>识别设置</span>
+              </h3>
+              <div className={`flex items-center justify-between p-3 rounded-lg ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'} transition-colors cursor-pointer transform hover:scale-[1.02]`}>
                 <div>
                   <p className="text-sm font-medium">多角色识别</p>
                   <p className="text-xs text-gray-500 dark:text-gray-400">同时识别图片中的多个角色</p>
@@ -369,10 +374,12 @@ export default function AnimeRoleDetect() {
             </div>
             
             <div className="border-t border-gray-200 dark:border-gray-700 pt-4 mt-4">
-              <h3 className="text-sm font-medium mb-2">历史记录</h3>
+              <h3 className="text-sm font-medium mb-2 flex items-center space-x-2">
+                <span>历史记录</span>
+              </h3>
               <button
                 onClick={clearHistory}
-                className={`w-full flex items-center justify-center space-x-2 p-2 rounded-lg ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'} transition-colors`}
+                className={`w-full flex items-center justify-center space-x-2 p-3 rounded-lg ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'} transition-colors transform hover:scale-[1.02]`}
               >
                 <Trash2 className="h-4 w-4" />
                 <span className="text-sm">清除历史记录</span>
@@ -387,7 +394,7 @@ export default function AnimeRoleDetect() {
             {/* 中间内容区 */}
             <div className="flex-1 overflow-y-auto">
               <div className="container mx-auto px-4 md:px-6 py-6 md:py-8">
-                <div className={`max-w-4xl mx-auto ${darkMode ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-md border ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+                <div className={`max-w-4xl mx-auto ${darkMode ? 'bg-gray-800' : 'bg-white'} rounded-xl shadow-lg border ${darkMode ? 'border-gray-700' : 'border-gray-200'} transform transition-all duration-300 hover:shadow-xl`}>
                   <div className="p-4 md:p-6 border-b ${darkMode ? 'border-gray-700' : 'border-gray-200'}">
                     <h2 className="text-lg md:text-xl font-semibold">动漫角色识别</h2>
                   </div>
@@ -395,16 +402,16 @@ export default function AnimeRoleDetect() {
                     {messages.map((message) => (
                       <div
                         key={message.id}
-                        className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
+                        className={`flex ${message.role === "user" ? "justify-end" : "justify-start"} animate-fade-in`}
                       >
                         <div
                           className={`flex-shrink-0 mr-2 ml-2 ${message.role === "user" ? "order-2" : "order-1"}`}
                         >
-                          <div className={`w-8 h-8 rounded-full flex items-center justify-center ${message.role === "user" ? 'bg-blue-500 text-white' : (darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700')}`}>
+                          <div className={`w-10 h-10 rounded-full flex items-center justify-center ${message.role === "user" ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white' : (darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700')} transition-transform hover:scale-110`}>
                             {message.role === "user" ? (
-                              <User className="h-4 w-4" />
+                              <User className="h-5 w-5" />
                             ) : (
-                              <Bot className="h-4 w-4" />
+                              <Bot className="h-5 w-5" />
                             )}
                           </div>
                         </div>
@@ -412,10 +419,10 @@ export default function AnimeRoleDetect() {
                           className={`max-w-[80%] ${message.role === "user" ? "order-1" : "order-2"}`}
                         >
                           <div
-                            className={`rounded-lg p-4 ${message.role === "user" ? 'bg-blue-500 text-white' : (darkMode ? 'bg-gray-700 text-gray-100' : 'bg-gray-100 text-gray-900')}`}
+                            className={`rounded-xl p-4 ${message.role === "user" ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white' : (darkMode ? 'bg-gray-700 text-gray-100' : 'bg-gray-100 text-gray-900')} shadow-sm transition-all hover:shadow-md`}
                           >
                             {message.image && (
-                              <div className="mb-3 rounded overflow-hidden">
+                              <div className="mb-3 rounded-lg overflow-hidden shadow-md transform hover:scale-[1.02] transition-transform">
                                 <img
                                   src={message.image}
                                   alt="User uploaded image"
@@ -426,21 +433,21 @@ export default function AnimeRoleDetect() {
                             <p className="whitespace-pre-wrap break-words">{message.content}</p>
 
                             {message.classification && (
-                              <div className="mt-3 space-y-2">
+                              <div className="mt-3 space-y-2 animate-fade-in">
                                 <div className="flex items-center space-x-2">
-                                  <div className="w-2 h-2 rounded-full bg-blue-500" />
+                                  <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
                                   <h4 className="font-semibold text-xs">识别结果</h4>
                                 </div>
                                 <div className={`grid grid-cols-2 gap-2 ${darkMode ? 'text-gray-100' : 'text-gray-900'}`}>
-                                  <div className={`p-2 ${darkMode ? 'bg-gray-600' : 'bg-gray-200'} rounded`}>
+                                  <div className={`p-2 ${darkMode ? 'bg-gray-600' : 'bg-gray-200'} rounded-lg transform hover:scale-[1.02] transition-transform`}>
                                     <p className="text-xs text-gray-500 dark:text-gray-400">角色</p>
                                     <p className="text-sm font-medium">{message.classification.role}</p>
                                   </div>
-                                  <div className={`p-2 ${darkMode ? 'bg-gray-600' : 'bg-gray-200'} rounded`}>
+                                  <div className={`p-2 ${darkMode ? 'bg-gray-600' : 'bg-gray-200'} rounded-lg transform hover:scale-[1.02] transition-transform`}>
                                     <p className="text-xs text-gray-500 dark:text-gray-400">相似度</p>
                                     <p className="text-sm font-medium">{(message.classification.similarity * 100).toFixed(1)}%</p>
                                   </div>
-                                  <div className={`p-2 ${darkMode ? 'bg-gray-600' : 'bg-gray-200'} rounded col-span-2`}>
+                                  <div className={`p-2 ${darkMode ? 'bg-gray-600' : 'bg-gray-200'} rounded-lg col-span-2 transform hover:scale-[1.02] transition-transform`}>
                                     <p className="text-xs text-gray-500 dark:text-gray-400">置信度</p>
                                     <div className="flex items-center space-x-2">
                                       <p className="text-sm font-medium">
@@ -456,14 +463,14 @@ export default function AnimeRoleDetect() {
                             )}
 
                             {message.multi_roles && message.multi_roles.length > 0 && (
-                              <div className="mt-3 space-y-2">
+                              <div className="mt-3 space-y-2 animate-fade-in">
                                 <div className="flex items-center space-x-2">
-                                  <div className="w-2 h-2 rounded-full bg-blue-500" />
+                                  <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
                                   <h4 className="font-semibold text-xs">多角色识别结果</h4>
                                 </div>
                                 <div className="space-y-2">
                                   {message.multi_roles.map((role, index) => (
-                                    <div key={index} className={`p-2 ${darkMode ? 'bg-gray-600' : 'bg-gray-200'} rounded`}>
+                                    <div key={index} className={`p-2 ${darkMode ? 'bg-gray-600' : 'bg-gray-200'} rounded-lg transform hover:scale-[1.02] transition-transform`}>
                                       <div className="flex justify-between items-center">
                                         <p className="text-sm font-medium">{role.role}</p>
                                         <div className="flex items-center space-x-2">
@@ -480,16 +487,16 @@ export default function AnimeRoleDetect() {
                             )}
 
                             {message.attributes && message.attributes.length > 0 && (
-                              <div className="mt-3 space-y-2">
+                              <div className="mt-3 space-y-2 animate-fade-in">
                                 <div className="flex items-center space-x-2">
-                                  <div className="w-2 h-2 rounded-full bg-blue-500" />
+                                  <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
                                   <h4 className="font-semibold text-xs">角色属性</h4>
                                 </div>
-                                <div className="flex flex-wrap gap-1">
+                                <div className="flex flex-wrap gap-2">
                                   {message.attributes.map((attr, index) => (
                                     <span
                                       key={index}
-                                      className={`px-2 py-1 ${darkMode ? 'bg-blue-900/50 text-blue-400' : 'bg-blue-100 text-blue-600'} rounded-full text-xs font-medium`}
+                                      className={`px-3 py-1.5 ${darkMode ? 'bg-blue-900/50 text-blue-400' : 'bg-blue-100 text-blue-600'} rounded-full text-xs font-medium transform hover:scale-105 transition-transform`}
                                     >
                                       {attr.tag}
                                     </span>
@@ -499,14 +506,14 @@ export default function AnimeRoleDetect() {
                             )}
 
                             {message.text_detections && message.text_detections.length > 0 && (
-                              <div className="mt-3 space-y-2">
+                              <div className="mt-3 space-y-2 animate-fade-in">
                                 <div className="flex items-center space-x-2">
-                                  <div className="w-2 h-2 rounded-full bg-blue-500" />
+                                  <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
                                   <h4 className="font-semibold text-xs">文本检测</h4>
                                 </div>
-                                <div className="space-y-1">
+                                <div className="space-y-2">
                                   {message.text_detections.map((text, index) => (
-                                    <div key={index} className={`p-2 ${darkMode ? 'bg-gray-600' : 'bg-gray-200'} rounded`}>
+                                    <div key={index} className={`p-2 ${darkMode ? 'bg-gray-600' : 'bg-gray-200'} rounded-lg transform hover:scale-[1.02] transition-transform`}>
                                       <p className="text-sm font-medium">{text.text}</p>
                                     </div>
                                   ))}
@@ -515,24 +522,24 @@ export default function AnimeRoleDetect() {
                             )}
 
                             {message.ai_predicted_role && (
-                              <div className="mt-3 space-y-2">
+                              <div className="mt-3 space-y-2 animate-fade-in">
                                 <div className="flex items-center space-x-2">
-                                  <div className="w-2 h-2 rounded-full bg-green-500" />
+                                  <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
                                   <h4 className="font-semibold text-xs">AI预测角色</h4>
                                 </div>
-                                <div className={`p-2 ${darkMode ? 'bg-gray-600' : 'bg-gray-200'} rounded`}>
+                                <div className={`p-2 ${darkMode ? 'bg-gray-600' : 'bg-gray-200'} rounded-lg transform hover:scale-[1.02] transition-transform`}>
                                   <p className="text-sm font-medium">{message.ai_predicted_role}</p>
                                 </div>
                               </div>
                             )}
 
                             {message.thoughts && !message.isThinkingFinished && (
-                              <div className="mt-3 space-y-1">
+                              <div className="mt-3 space-y-2 animate-fade-in">
                                 <div className="flex items-center space-x-2">
-                                  <div className="w-2 h-2 rounded-full bg-blue-500" />
+                                  <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
                                   <h4 className="font-semibold text-xs">识别过程</h4>
                                 </div>
-                                <div className="space-y-1">
+                                <div className="space-y-2">
                                   {message.thoughts.map((thought, index) => (
                                     <div key={index} className="flex items-center space-x-2">
                                       <div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
@@ -548,14 +555,14 @@ export default function AnimeRoleDetect() {
                               <div className="flex items-center space-x-2">
                                 <button
                                   onClick={() => handleCopyMessage(message.content)}
-                                  className={`p-1 rounded ${darkMode ? 'hover:bg-gray-600' : 'hover:bg-gray-200'} transition-colors`}
+                                  className={`p-1 rounded-full ${darkMode ? 'hover:bg-gray-600' : 'hover:bg-gray-200'} transition-colors transform hover:scale-110`}
                                   title="复制内容"
                                 >
                                   <Copy className="h-3 w-3" />
                                 </button>
                                 <button
                                   onClick={() => handleDownloadMessage(message.content, message.role)}
-                                  className={`p-1 rounded ${darkMode ? 'hover:bg-gray-600' : 'hover:bg-gray-200'} transition-colors`}
+                                  className={`p-1 rounded-full ${darkMode ? 'hover:bg-gray-600' : 'hover:bg-gray-200'} transition-colors transform hover:scale-110`}
                                   title="下载内容"
                                 >
                                   <Download className="h-3 w-3" />
@@ -575,7 +582,7 @@ export default function AnimeRoleDetect() {
                         type="file"
                         accept="image/*"
                         onChange={handleImageSelect}
-                        className={`px-3 py-2 md:px-4 md:py-3 rounded-lg ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-gray-50 border-gray-200'} border focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm`}
+                        className={`px-3 py-2 md:px-4 md:py-3 rounded-lg ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-gray-50 border-gray-200'} border focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm transition-all hover:border-blue-300`}
                       />
                       <div className="flex-1 relative">
                         <input
@@ -584,12 +591,12 @@ export default function AnimeRoleDetect() {
                           onChange={(e) => setInputText(e.target.value)}
                           onKeyPress={handleKeyPress}
                           placeholder="输入消息或上传图片..."
-                          className={`w-full px-4 py-2 md:px-5 md:py-3 pr-12 md:pr-16 ${darkMode ? 'bg-gray-700 border-gray-600' : 'bg-gray-50 border-gray-200'} border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm`}
+                          className={`w-full px-4 py-2 md:px-5 md:py-3 pr-12 md:pr-16 ${darkMode ? 'bg-gray-700 border-gray-600' : 'bg-gray-50 border-gray-200'} border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm transition-all hover:border-blue-300`}
                           disabled={isProcessing}
                         />
                         <button
                           onClick={() => setInputText("")}
-                          className={`absolute right-8 top-1/2 transform -translate-y-1/2 p-1 ${darkMode ? 'hover:bg-gray-600' : 'hover:bg-gray-200'} rounded transition-colors`}
+                          className={`absolute right-8 top-1/2 transform -translate-y-1/2 p-1 rounded-full ${darkMode ? 'hover:bg-gray-600' : 'hover:bg-gray-200'} transition-colors transform hover:scale-110`}
                           title="清空输入"
                           disabled={!inputText.trim() || isProcessing}
                         >
@@ -600,7 +607,7 @@ export default function AnimeRoleDetect() {
                       <button
                         onClick={handleSend}
                         disabled={(!inputText.trim() && !selectedImage) || isProcessing}
-                        className={`bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 md:px-6 md:py-3 rounded-lg font-medium transition-colors flex items-center justify-center space-x-1 md:space-x-2 ${(!inputText.trim() && !selectedImage) || isProcessing ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        className={`bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white px-4 py-2 md:px-6 md:py-3 rounded-lg font-medium transition-all flex items-center justify-center space-x-1 md:space-x-2 ${(!inputText.trim() && !selectedImage) || isProcessing ? 'opacity-50 cursor-not-allowed' : 'transform hover:scale-105 hover:shadow-lg'}`}
                       >
                         {isProcessing ? (
                           <>
@@ -619,8 +626,8 @@ export default function AnimeRoleDetect() {
                       </button>
                     </div>
                     {selectedImage && imagePreview && (
-                      <div className={`mt-3 ${darkMode ? 'bg-gray-700 border-gray-600' : 'bg-gray-50 border-gray-200'} border rounded-lg p-3 flex items-center space-x-3`}>
-                        <div className="w-16 h-16 rounded overflow-hidden">
+                      <div className={`mt-3 ${darkMode ? 'bg-gray-700 border-gray-600' : 'bg-gray-50 border-gray-200'} border rounded-lg p-3 flex items-center space-x-3 animate-fade-in`}>
+                        <div className="w-16 h-16 rounded-lg overflow-hidden shadow-md">
                           <img
                             src={imagePreview}
                             alt="Selected image"
@@ -637,7 +644,7 @@ export default function AnimeRoleDetect() {
                         </div>
                         <button
                           onClick={removeImage}
-                          className={`p-1.5 rounded-full ${darkMode ? 'hover:bg-red-900/20' : 'hover:bg-red-50'} text-red-500 transition-colors`}
+                          className={`p-1.5 rounded-full ${darkMode ? 'hover:bg-red-900/20' : 'hover:bg-red-50'} text-red-500 transition-colors transform hover:scale-110`}
                           title="移除图片"
                         >
                           <X className="h-4 w-4" />
@@ -651,33 +658,36 @@ export default function AnimeRoleDetect() {
             {/* 右侧边栏 */}
             <div className="w-0 lg:w-80 border-l border-gray-200 dark:border-gray-700 overflow-y-auto">
               <div className="p-6">
-                <h3 className="text-lg font-semibold mb-4">识别结果</h3>
+                <h3 className="text-lg font-semibold mb-4 flex items-center space-x-2">
+                  <Sparkles className="h-5 w-5 text-blue-500" />
+                  <span>识别结果</span>
+                </h3>
                 {(() => {
                   const lastMessage = messages[messages.length - 1];
                   if (!lastMessage?.classification) return null;
                   return (
-                    <div className={`p-4 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
-                      <div className="space-y-3">
-                        <div>
+                    <div className={`p-5 rounded-xl ${darkMode ? 'bg-gray-700' : 'bg-gray-50'} shadow-md transition-all hover:shadow-lg animate-fade-in`}>
+                      <div className="space-y-4">
+                        <div className="transform hover:scale-[1.02] transition-transform">
                           <p className="text-sm text-gray-500 dark:text-gray-400">角色</p>
-                          <p className="text-lg font-semibold">{lastMessage.classification.role}</p>
+                          <p className="text-lg font-semibold bg-gradient-to-r from-blue-500 to-purple-600 bg-clip-text text-transparent">{lastMessage.classification.role}</p>
                         </div>
-                        <div>
+                        <div className="transform hover:scale-[1.02] transition-transform">
                           <p className="text-sm text-gray-500 dark:text-gray-400">相似度</p>
                           <p className="text-sm font-medium">{(lastMessage.classification.similarity * 100).toFixed(1)}%</p>
                         </div>
                         {lastMessage.classification.confidence && (
-                          <div>
+                          <div className="transform hover:scale-[1.02] transition-transform">
                             <p className="text-sm text-gray-500 dark:text-gray-400">置信度</p>
                             <p className="text-sm font-medium">{lastMessage.classification.confidence}</p>
                           </div>
                         )}
                         {lastMessage.attributes && lastMessage.attributes.length > 0 && (
-                          <div>
+                          <div className="transform hover:scale-[1.02] transition-transform">
                             <p className="text-sm text-gray-500 dark:text-gray-400">角色属性</p>
                             <div className="flex flex-wrap gap-2 mt-2">
                               {lastMessage.attributes.map((attr, index) => (
-                                <span key={index} className={`px-2 py-1 rounded-full text-xs ${darkMode ? 'bg-gray-600' : 'bg-gray-200'}`}>
+                                <span key={index} className={`px-3 py-1.5 rounded-full text-xs ${darkMode ? 'bg-gray-600' : 'bg-gray-200'} transform hover:scale-105 transition-transform`}>
                                   {attr.tag}
                                 </span>
                               ))}
@@ -695,9 +705,9 @@ export default function AnimeRoleDetect() {
       </div>
       
       {/* 页脚 */}
-      <footer className={`py-4 border-t ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+      <footer className={`py-4 border-t ${darkMode ? 'border-gray-700' : 'border-gray-200'} transition-all duration-300`}>
         <div className="container mx-auto px-4 text-center text-sm text-gray-500 dark:text-gray-400">
-          <p>动漫角色识别助手 © zhaoqi.cao arona 2026</p>
+          <p className="bg-gradient-to-r from-blue-500 to-purple-600 bg-clip-text text-transparent">动漫角色识别助手 © zhaoqi.cao arona 2026</p>
           <p className="mt-1">基于深度学习的动漫角色识别系统</p>
         </div>
       </footer>
