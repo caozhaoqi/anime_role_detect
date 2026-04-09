@@ -35,7 +35,7 @@
 ### 2.1 克隆代码仓库
 
 ```bash
-git clone https://github.com/yourusername/anime_role_detect.git
+git clone https://github.com/caozhaoqi/anime_role_detect.git
 cd anime_role_detect
 ```
 
@@ -54,7 +54,7 @@ npm install
 
 ```env
 # 后端API服务地址
-NEXT_PUBLIC_API_URL=http://backend-server:8000
+NEXT_PUBLIC_API_URL=http://localhost:8000
 ```
 
 #### 2.2.3 构建和部署
@@ -85,7 +85,7 @@ pip install -r requirements.txt
 
 ```env
 # 模型服务地址
-MODEL_SERVICE_URL=http://model-server:8001
+MODEL_SERVICE_URL=http://localhost:8001
 
 # 是否使用模型服务
 USE_MODEL_SERVICE=true
