@@ -140,7 +140,93 @@ anime_role_detect/
 └── README.zh.md           # Chinese documentation
 ```
 
-## 🌐 Usage
+## 🏗️ System Architecture
+
+### Layered Architecture
+
+The system adopts a layered architecture design, separating different functional modules to improve system maintainability and scalability.
+
+```mermaid
+flowchart TD
+    subgraph Frontend Layer
+        A[Web Interface] --> B[Next.js Application]
+        B --> C[API Client]
+    end
+    
+    subgraph API Layer
+        D[Backend API] --> E[Request Handler]
+        E --> F[Cache Manager]
+        F --> G[Response Builder]
+    end
+    
+    subgraph Service Layer
+        H[Model Service] --> I[Feature Extraction]
+        I --> J[Model Inference]
+        J --> K[Attribute Prediction]
+    end
+    
+    subgraph Core Layer
+        L[Preprocessing] --> M[Classification]
+        M --> N[Tagging]
+        N --> O[Keypoint Detection]
+    end
+    
+    C --> D
+    G --> H
+    K --> L
+```
+
+### Data Flow Diagram
+
+The data flow through the system follows a clear path from image upload to result generation:
+
+```mermaid
+sequenceDiagram
+    participant User as User
+    participant Frontend as Frontend
+    participant API as Backend API
+    participant ModelService as Model Service
+    participant Core as Core Services
+    
+    User->>Frontend: Upload Image
+    Frontend->>API: POST /api/classify
+    API->>ModelService: Request Prediction
+    ModelService->>Core: Preprocess Image
+    Core->>Core: Extract Features
+    Core->>Core: Classify Character
+    Core->>ModelService: Return Features & Prediction
+    ModelService->>API: Return Results
+    API->>Frontend: Return JSON Response
+    Frontend->>User: Display Results
+```
+
+### Architecture Overview
+
+The system architecture is designed to support distributed deployment, with each service able to run independently on different servers:
+
+1. **Frontend Layer**:
+   - Next.js application with responsive design
+   - User interface for image upload and result display
+   - API client for communicating with backend
+
+2. **API Layer**:
+   - FastAPI-based RESTful API
+   - Request handling and response building
+   - Cache management for improved performance
+
+3. **Service Layer**:
+   - Model service for core prediction functionality
+   - Feature extraction and model inference
+   - Attribute prediction and text detection
+
+4. **Core Layer**:
+   - Preprocessing and image validation
+   - Classification models and algorithms
+   - Tagging and keypoint detection
+
+This layered architecture allows for easy scaling and maintenance, with each layer responsible for specific functionality. The services communicate through well-defined API interfaces, enabling independent deployment and scaling.
+
+## �🌐 Usage
 
 ### Web Interface
 
