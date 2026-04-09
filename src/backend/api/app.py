@@ -72,6 +72,12 @@ keypoint_detector = None  # 关键点检测器实例
 # 新训练的模型缓存
 trained_models = {}  # 缓存训练好的分类模型
 
+# 模型加载时间缓存
+model_load_times = {}  # 记录模型加载时间
+
+# 模型推理时间缓存
+model_inference_times = {}  # 记录模型推理时间
+
 # 多角色检测器实例
 multi_role_detector = None  # 多角色检测器实例
 current_model_name = None  # 当前使用的模型名称
@@ -547,39 +553,33 @@ def load_trained_model(model_name):
         if model_name == 'mobilenet_v2':
             # 使用更轻量级的模型
             model = models.mobilenet_v2(pretrained=False)
-            # 修改分类器
+            # 修改分类器，简化结构以提高速度
             model.classifier = nn.Sequential(
-                nn.Dropout(p=0.3),
-                nn.Linear(model.classifier[1].in_features, 512),
+                nn.Dropout(p=0.2),
+                nn.Linear(model.classifier[1].in_features, 256),
                 nn.ReLU(inplace=True),
-                nn.BatchNorm1d(512),
-                nn.Dropout(p=0.15),
-                nn.Linear(512, len(class_to_idx))
+                nn.Linear(256, len(class_to_idx))
             )
         else:
             # 对于其他模型，使用默认分类器
             logger.warning(f"模型 {model_name} 可能会占用较多内存")
             if model_name == 'efficientnet_b0':
                 model = models.efficientnet_b0(pretrained=False)
-                # 修改分类器，添加与训练时一致的层
+                # 修改分类器，简化结构以提高速度
                 model.classifier = nn.Sequential(
-                    nn.Dropout(p=0.3),
-                    nn.Linear(model.classifier[1].in_features, 512),
+                    nn.Dropout(p=0.2),
+                    nn.Linear(model.classifier[1].in_features, 256),
                     nn.ReLU(inplace=True),
-                    nn.BatchNorm1d(512),
-                    nn.Dropout(p=0.15),
-                    nn.Linear(512, len(class_to_idx))
+                    nn.Linear(256, len(class_to_idx))
                 )
             elif model_name == 'efficientnet_b3':
                 model = models.efficientnet_b3(pretrained=False)
-                # 修改分类器，添加与训练时一致的层
+                # 修改分类器，简化结构以提高速度
                 model.classifier = nn.Sequential(
-                    nn.Dropout(p=0.3),
-                    nn.Linear(model.classifier[1].in_features, 768),
+                    nn.Dropout(p=0.2),
+                    nn.Linear(model.classifier[1].in_features, 512),
                     nn.ReLU(inplace=True),
-                    nn.BatchNorm1d(768),
-                    nn.Dropout(p=0.15),
-                    nn.Linear(768, len(class_to_idx))
+                    nn.Linear(512, len(class_to_idx))
                 )
             elif model_name == 'resnet50':
                 model = models.resnet50(pretrained=False)
