@@ -103,6 +103,10 @@ def start_api_service(host: str = '0.0.0.0', port: int = 8000, reload: bool = Fa
     env = os.environ.copy()
     env['PYTHONPATH'] = f"{project_root}:{env.get('PYTHONPATH', '')}"
     
+    # 设置模型服务环境变量
+    env['USE_MODEL_SERVICE'] = "true"
+    env['MODEL_SERVICE_URL'] = "http://localhost:8001"
+    
     # 启动服务
     try:
         subprocess.run(cmd, check=True, env=env)

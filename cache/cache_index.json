@@ -1,14 +1,14 @@
 {
-  "image_processing_3b977d1cc9be2c602a245c628a3a4bc9_default": {
-    "created": "2026-04-09T13:56:47.084477",
-    "last_accessed": "2026-04-09T13:56:47.084477",
-    "ttl": 1800,
-    "file": "034a3a3ecfc6a957895e6ac7ba8643ff.pkl"
-  },
-  "image_processing_3b977d1cc9be2c602a245c628a3a4bc9_mobilenet_v2": {
-    "created": "2026-04-09T14:05:53.383359",
-    "last_accessed": "2026-04-09T14:05:53.383359",
+  "image_processing_134f287973a87d204f56c674f29e6fe2_mobilenet_v2": {
+    "created": "2026-04-09T15:54:04.953187",
+    "last_accessed": "2026-04-09T15:54:04.953187",
     "ttl": 3600,
-    "file": "950e66b8f3d5eb02559e0028f9e7a1ed.pkl"
+    "file": "91aa3760ae3668b686d2430b4d5aa019.pkl"
+  },
+  "image_processing_a2930d564932c4140fa52e00d0a4f8e8_default": {
+    "created": "2026-04-09T15:57:15.473163",
+    "last_accessed": "2026-04-09T15:57:15.473163",
+    "ttl": 1800,
+    "file": "777bdfe12c9bc5e10f272e4738d7bf7e.pkl"
   }
 }

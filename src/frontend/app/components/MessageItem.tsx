@@ -44,22 +44,22 @@ const MessageItem: React.FC<MessageItemProps> = ({ message, darkMode, handleCopy
           <p className="whitespace-pre-wrap break-words">{message.content}</p>
 
           {message.classification && (
-            <div className="mt-3 space-y-2 animate-fade-in">
+            <div className="mt-4 space-y-3 animate-fade-in">
               <div className="flex items-center space-x-2">
                 <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
-                <h4 className="font-semibold text-xs">识别结果</h4>
+                <h4 className="font-semibold text-sm">识别结果</h4>
               </div>
-              <div className={`grid grid-cols-2 gap-2 ${darkMode ? 'text-gray-100' : 'text-gray-900'}`}>
-                <div className={`p-2 ${darkMode ? 'bg-gray-600' : 'bg-gray-200'} rounded-lg transform hover:scale-[1.02] transition-transform`}>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">角色</p>
+              <div className={`grid grid-cols-3 gap-3 ${darkMode ? 'text-gray-100' : 'text-gray-900'}`}>
+                <div className={`p-3 ${darkMode ? 'bg-gray-600' : 'bg-gray-200'} rounded-lg transform hover:scale-[1.02] transition-transform`}>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">角色</p>
                   <p className="text-sm font-medium">{message.classification.role}</p>
                 </div>
-                <div className={`p-2 ${darkMode ? 'bg-gray-600' : 'bg-gray-200'} rounded-lg transform hover:scale-[1.02] transition-transform`}>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">相似度</p>
+                <div className={`p-3 ${darkMode ? 'bg-gray-600' : 'bg-gray-200'} rounded-lg transform hover:scale-[1.02] transition-transform`}>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">相似度</p>
                   <p className="text-sm font-medium">{(message.classification.similarity * 100).toFixed(1)}%</p>
                 </div>
-                <div className={`p-2 ${darkMode ? 'bg-gray-600' : 'bg-gray-200'} rounded-lg col-span-2 transform hover:scale-[1.02] transition-transform`}>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">置信度</p>
+                <div className={`p-3 ${darkMode ? 'bg-gray-600' : 'bg-gray-200'} rounded-lg transform hover:scale-[1.02] transition-transform`}>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">置信度</p>
                   <div className="flex items-center space-x-2">
                     <p className="text-sm font-medium">
                       {message.classification.confidence === "high" ? "高" : message.classification.confidence === "medium" ? "中" : "低"}
@@ -74,20 +74,20 @@ const MessageItem: React.FC<MessageItemProps> = ({ message, darkMode, handleCopy
           )}
 
           {message.multi_roles && message.multi_roles.length > 0 && (
-            <div className="mt-3 space-y-2 animate-fade-in">
+            <div className="mt-4 space-y-3 animate-fade-in">
               <div className="flex items-center space-x-2">
                 <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
-                <h4 className="font-semibold text-xs">多角色识别结果</h4>
+                <h4 className="font-semibold text-sm">多角色识别结果</h4>
               </div>
               <div className="space-y-2">
                 {message.multi_roles.map((role, index) => (
-                  <div key={index} className={`p-2 ${darkMode ? 'bg-gray-600' : 'bg-gray-200'} rounded-lg transform hover:scale-[1.02] transition-transform`}>
+                  <div key={index} className={`p-3 ${darkMode ? 'bg-gray-600' : 'bg-gray-200'} rounded-lg transform hover:scale-[1.02] transition-transform`}>
                     <div className="flex justify-between items-center">
                       <p className="text-sm font-medium">{role.role}</p>
                       <div className="flex items-center space-x-2">
-                        <p className="text-xs">{(role.similarity * 100).toFixed(1)}%</p>
+                        <p className="text-sm">{(role.similarity * 100).toFixed(1)}%</p>
                         <div
-                          className={`w-1.5 h-1.5 rounded-full ${role.similarity >= 0.8 ? "bg-green-500" : role.similarity >= 0.5 ? "bg-yellow-500" : "bg-red-500"}`}
+                          className={`w-2 h-2 rounded-full ${role.similarity >= 0.8 ? "bg-green-500" : role.similarity >= 0.5 ? "bg-yellow-500" : "bg-red-500"}`}
                         />
                       </div>
                     </div>
@@ -98,16 +98,16 @@ const MessageItem: React.FC<MessageItemProps> = ({ message, darkMode, handleCopy
           )}
 
           {message.attributes && message.attributes.length > 0 && (
-            <div className="mt-3 space-y-2 animate-fade-in">
+            <div className="mt-4 space-y-3 animate-fade-in">
               <div className="flex items-center space-x-2">
                 <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
-                <h4 className="font-semibold text-xs">角色属性</h4>
+                <h4 className="font-semibold text-sm">角色属性</h4>
               </div>
               <div className="flex flex-wrap gap-2">
                 {message.attributes.map((attr, index) => (
                   <span
                     key={index}
-                    className={`px-3 py-1.5 ${darkMode ? 'bg-blue-900/50 text-blue-400' : 'bg-blue-100 text-blue-600'} rounded-full text-xs font-medium transform hover:scale-105 transition-transform`}
+                    className={`px-4 py-2 ${darkMode ? 'bg-blue-900/50 text-blue-400' : 'bg-blue-100 text-blue-600'} rounded-full text-sm font-medium transform hover:scale-105 transition-transform`}
                   >
                     {attr.tag}
                   </span>
@@ -117,14 +117,14 @@ const MessageItem: React.FC<MessageItemProps> = ({ message, darkMode, handleCopy
           )}
 
           {message.text_detections && message.text_detections.length > 0 && (
-            <div className="mt-3 space-y-2 animate-fade-in">
+            <div className="mt-4 space-y-3 animate-fade-in">
               <div className="flex items-center space-x-2">
                 <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
-                <h4 className="font-semibold text-xs">文本检测</h4>
+                <h4 className="font-semibold text-sm">文本检测</h4>
               </div>
               <div className="space-y-2">
                 {message.text_detections.map((text, index) => (
-                  <div key={index} className={`p-2 ${darkMode ? 'bg-gray-600' : 'bg-gray-200'} rounded-lg transform hover:scale-[1.02] transition-transform`}>
+                  <div key={index} className={`p-3 ${darkMode ? 'bg-gray-600' : 'bg-gray-200'} rounded-lg transform hover:scale-[1.02] transition-transform`}>
                     <p className="text-sm font-medium">{text.text}</p>
                   </div>
                 ))}
@@ -133,28 +133,28 @@ const MessageItem: React.FC<MessageItemProps> = ({ message, darkMode, handleCopy
           )}
 
           {message.ai_predicted_role && (
-            <div className="mt-3 space-y-2 animate-fade-in">
+            <div className="mt-4 space-y-3 animate-fade-in">
               <div className="flex items-center space-x-2">
                 <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                <h4 className="font-semibold text-xs">AI预测角色</h4>
+                <h4 className="font-semibold text-sm">AI预测角色</h4>
               </div>
-              <div className={`p-2 ${darkMode ? 'bg-gray-600' : 'bg-gray-200'} rounded-lg transform hover:scale-[1.02] transition-transform`}>
+              <div className={`p-3 ${darkMode ? 'bg-gray-600' : 'bg-gray-200'} rounded-lg transform hover:scale-[1.02] transition-transform`}>
                 <p className="text-sm font-medium">{message.ai_predicted_role}</p>
               </div>
             </div>
           )}
 
           {message.thoughts && !message.isThinkingFinished && (
-            <div className="mt-3 space-y-2 animate-fade-in">
+            <div className="mt-4 space-y-3 animate-fade-in">
               <div className="flex items-center space-x-2">
                 <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
-                <h4 className="font-semibold text-xs">识别过程</h4>
+                <h4 className="font-semibold text-sm">识别过程</h4>
               </div>
               <div className="space-y-2">
                 {message.thoughts.map((thought, index) => (
                   <div key={index} className="flex items-center space-x-2">
-                    <div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
-                    <p className="text-xs">{thought}</p>
+                    <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+                    <p className="text-sm">{thought}</p>
                   </div>
                 ))}
               </div>

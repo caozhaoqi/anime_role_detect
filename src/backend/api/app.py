@@ -61,6 +61,13 @@ app.add_middleware(
 monitoring_system = MonitoringSystem()  # 系统监控实例
 distributed_manager = DistributedManager()  # 分布式管理实例
 
+# 模型服务配置
+MODEL_SERVICE_URL = os.environ.get("MODEL_SERVICE_URL", "http://localhost:8001")
+USE_MODEL_SERVICE = os.environ.get("USE_MODEL_SERVICE", "false").lower() == "true"
+
+logger.info(f"模型服务URL: {MODEL_SERVICE_URL}")
+logger.info(f"是否使用模型服务: {USE_MODEL_SERVICE}")
+
 # 模型实例缓存
 extractor = None  # 特征提取器实例
 classifiers = {}  # 缓存不同模型的分类器实例
@@ -1019,6 +1026,7 @@ async def process_single_image(file, model_name, cache_bypass=False):
     import torch
     import torchvision.transforms as transforms
     from PIL import Image
+    import requests
     
     temp_path = None
     start_time = time.time()
@@ -1045,161 +1053,223 @@ async def process_single_image(file, model_name, cache_bypass=False):
         else:
             logger.info(f"缓存绕过，重新处理: {file.filename}")
         
-        # 验证图像
-        validate_start = time.time()
-        temp_path = validate_image(file, content)
-        validate_time = time.time() - validate_start
-        logger.debug(f"验证图像耗时: {validate_time:.4f}秒")
+        # 初始化变量
+        text_detections = []
+        keypoints = []
+        ai_predicted_role = None
         
-        # 检查是否使用新训练的模型
-        trained_model_names = ["mobilenet_v2", "efficientnet_b0", "efficientnet_b3", "resnet50"]
+        # 检查是否使用模型服务
+        use_model_service = USE_MODEL_SERVICE
+        if use_model_service:
+            logger.info(f"使用模型服务: {MODEL_SERVICE_URL}")
+            
+            # 构建请求
+            files = {'file': (file.filename, content, file.content_type)}
+            data = {
+                'model_name': model_name,
+                'use_attributes': 'true'
+            }
+            
+            # 发送请求到模型服务
+            try:
+                response = requests.post(
+                    f"{MODEL_SERVICE_URL}/api/model/predict",
+                    files=files,
+                    data=data,
+                    timeout=30
+                )
+                response.raise_for_status()
+                model_result = response.json()
+                
+                # 处理结果
+                role = model_result.get('role', 'unknown')
+                similarity = model_result.get('similarity', 0.0)
+                attributes = model_result.get('attributes', [])
+                
+                # 保存临时文件用于其他处理
+                temp_path = f"temp_{int(time.time())}_{file.filename}"
+                with open(temp_path, "wb") as f:
+                    f.write(content)
+                
+                # 检测文本（非SVG文件）
+                if file.content_type != "image/svg+xml":
+                    text_detections = await detect_image_text(temp_path)
+                    if isinstance(text_detections, Exception):
+                        text_detections = []
+                else:
+                    logger.info("跳过SVG文件的文本检测")
+                
+                # 处理关键点检测和角色预测
+                if file.content_type != "image/svg+xml":
+                    tasks = [detect_keypoints(temp_path), predict_role(attributes, (role, similarity))]
+                    results = await asyncio.gather(*tasks, return_exceptions=True)
+                    keypoints = results[0] if not isinstance(results[0], Exception) else []
+                    ai_predicted_role = results[1] if not isinstance(results[1], Exception) else None
+                else:
+                    logger.info("跳过SVG文件的关键点检测")
+                    ai_predicted_role = await predict_role(attributes, (role, similarity))
+            except Exception as e:
+                logger.error(f"调用模型服务失败: {e}")
+                # 回退到本地处理
+                use_model_service = False
         
-        if model_name in trained_model_names:
-            logger.info(f"使用新训练的模型: {model_name}")
+        # 如果不使用模型服务或调用失败，使用本地处理
+        if not use_model_service:
+            # 验证图像
+            validate_start = time.time()
+            temp_path = validate_image(file, content)
+            validate_time = time.time() - validate_start
+            logger.debug(f"验证图像耗时: {validate_time:.4f}秒")
             
-            # 加载训练好的模型
-            model_info = load_trained_model(model_name)
-            if model_info is None:
-                result = {"role": "unknown", "similarity": 0.0, "attributes": []}
-                # 缓存结果
-                cache_manager.set(result, cache_key, ttl=3600)
-                result["processing_time"] = time.time() - start_time
-                return result
+            # 检查是否使用新训练的模型
+            trained_model_names = ["mobilenet_v2", "efficientnet_b0", "efficientnet_b3", "resnet50"]
             
-            model, class_to_idx = model_info
-            idx_to_class = {v: k for k, v in class_to_idx.items()}
-            
-            # 图像预处理
-            transform = transforms.Compose([
-                transforms.Resize((256, 256)),
-                transforms.CenterCrop((224, 224)),
-                transforms.ToTensor(),
-                transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-            ])
-            
-            # 加载图像
-            img = Image.open(temp_path).convert('RGB')
-            img = transform(img)
-            img = img.unsqueeze(0)  # 添加批次维度
-            
-            # 预测
-            with torch.no_grad():
-                outputs = model(img)
-                _, predicted = torch.max(outputs, 1)
-                confidence = torch.nn.functional.softmax(outputs, dim=1)[0][predicted.item()].item()
-            
-            # 获取预测结果
-            role = idx_to_class.get(predicted.item(), "unknown")
-            similarity = float(confidence)
-            
-            # 并行处理文本检测、标签生成
-            tasks = []
-            
-            # 检测文本（非SVG文件）
-            if file.content_type != "image/svg+xml":
-                tasks.append(detect_image_text(temp_path))
-            else:
-                logger.info("跳过SVG文件的文本检测")
-            
-            # 生成标签（非SVG文件）
-            if file.content_type != "image/svg+xml":
-                tasks.append(generate_image_tags(temp_path))
-            else:
-                logger.info("跳过SVG文件的标签生成")
-            
-            # 并行执行
-            parallel_start = time.time()
-            results = await asyncio.gather(*tasks, return_exceptions=True)
-            parallel_time = time.time() - parallel_start
-            logger.debug(f"并行处理耗时: {parallel_time:.4f}秒")
-            
-            # 处理结果
-            text_detections = results[0] if len(results) > 0 and not isinstance(results[0], Exception) else []
-            attributes = results[1] if len(results) > 1 and not isinstance(results[1], Exception) else []
-            
-            # 并行处理关键点检测和角色预测
-            keypoints = []
-            ai_predicted_role = None
-            
-            if file.content_type != "image/svg+xml":
-                tasks = [detect_keypoints(temp_path), predict_role(attributes, (role, similarity))]
+            if model_name in trained_model_names:
+                logger.info(f"使用新训练的模型: {model_name}")
+                
+                # 加载训练好的模型
+                model_info = load_trained_model(model_name)
+                if model_info is None:
+                    result = {"role": "unknown", "similarity": 0.0, "attributes": []}
+                    # 缓存结果
+                    cache_manager.set(result, cache_key, ttl=3600)
+                    result["processing_time"] = time.time() - start_time
+                    return result
+                
+                model, class_to_idx = model_info
+                idx_to_class = {v: k for k, v in class_to_idx.items()}
+                
+                # 图像预处理
+                transform = transforms.Compose([
+                    transforms.Resize((256, 256)),
+                    transforms.CenterCrop((224, 224)),
+                    transforms.ToTensor(),
+                    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+                ])
+                
+                # 加载图像
+                img = Image.open(temp_path).convert('RGB')
+                img = transform(img)
+                img = img.unsqueeze(0)  # 添加批次维度
+                
+                # 预测
+                with torch.no_grad():
+                    outputs = model(img)
+                    _, predicted = torch.max(outputs, 1)
+                    confidence = torch.nn.functional.softmax(outputs, dim=1)[0][predicted.item()].item()
+                
+                # 获取预测结果
+                role = idx_to_class.get(predicted.item(), "unknown")
+                similarity = float(confidence)
+                
+                # 并行处理文本检测、标签生成
+                tasks = []
+                
+                # 检测文本（非SVG文件）
+                if file.content_type != "image/svg+xml":
+                    tasks.append(detect_image_text(temp_path))
+                else:
+                    logger.info("跳过SVG文件的文本检测")
+                
+                # 生成标签（非SVG文件）
+                if file.content_type != "image/svg+xml":
+                    tasks.append(generate_image_tags(temp_path))
+                else:
+                    logger.info("跳过SVG文件的标签生成")
+                
+                # 并行执行
+                parallel_start = time.time()
                 results = await asyncio.gather(*tasks, return_exceptions=True)
-                keypoints = results[0] if not isinstance(results[0], Exception) else []
-                ai_predicted_role = results[1] if not isinstance(results[1], Exception) else None
+                parallel_time = time.time() - parallel_start
+                logger.debug(f"并行处理耗时: {parallel_time:.4f}秒")
+                
+                # 处理结果
+                text_detections = results[0] if len(results) > 0 and not isinstance(results[0], Exception) else []
+                attributes = results[1] if len(results) > 1 and not isinstance(results[1], Exception) else []
+                
+                # 并行处理关键点检测和角色预测
+                keypoints = []
+                ai_predicted_role = None
+                
+                if file.content_type != "image/svg+xml":
+                    tasks = [detect_keypoints(temp_path), predict_role(attributes, (role, similarity))]
+                    results = await asyncio.gather(*tasks, return_exceptions=True)
+                    keypoints = results[0] if not isinstance(results[0], Exception) else []
+                    ai_predicted_role = results[1] if not isinstance(results[1], Exception) else None
+                else:
+                    logger.info("跳过SVG文件的关键点检测")
+                    ai_predicted_role = await predict_role(attributes, (role, similarity))
+                
             else:
-                logger.info("跳过SVG文件的关键点检测")
-                ai_predicted_role = await predict_role(attributes, (role, similarity))
-            
-        else:
-            # 使用传统的分类器
-            logger.info(f"使用传统分类器: {model_name}")
-            
-            # 获取项目根目录
-            project_root = get_project_root()
-            
-            # 获取模型路径
-            index_path = get_model_path(model_name, project_root)
-            
-            # 获取或创建分类器
-            classifier_start = time.time()
-            classifier = await get_or_create_classifier(index_path)
-            classifier_time = time.time() - classifier_start
-            logger.debug(f"获取分类器耗时: {classifier_time:.4f}秒")
-            
-            if classifier is None:
-                result = {"role": "unknown", "similarity": 0.0, "attributes": []}
-                # 缓存结果
-                cache_manager.set(result, cache_key, ttl=3600)
-                result["processing_time"] = time.time() - start_time
-                return result
-            
-            # 并行处理特征提取、文本检测、标签生成
-            tasks = []
-            
-            # 提取特征
-            tasks.append(extract_image_features(temp_path))
-            
-            # 检测文本（非SVG文件）
-            if file.content_type != "image/svg+xml":
-                tasks.append(detect_image_text(temp_path))
-            else:
-                logger.info("跳过SVG文件的文本检测")
-            
-            # 生成标签（非SVG文件）
-            if file.content_type != "image/svg+xml":
-                tasks.append(generate_image_tags(temp_path))
-            else:
-                logger.info("跳过SVG文件的标签生成")
-            
-            # 并行执行
-            parallel_start = time.time()
-            results = await asyncio.gather(*tasks, return_exceptions=True)
-            parallel_time = time.time() - parallel_start
-            logger.debug(f"并行处理耗时: {parallel_time:.4f}秒")
-            
-            # 处理结果
-            feature = results[0]
-            text_detections = results[1] if len(results) > 1 and not isinstance(results[1], Exception) else []
-            attributes = results[2] if len(results) > 2 and not isinstance(results[2], Exception) else []
-            
-            # 分类图像
-            classify_start = time.time()
-            role, similarity = await classify_image_internal(classifier, feature, attributes)
-            classify_time = time.time() - classify_start
-            logger.debug(f"分类图像耗时: {classify_time:.4f}秒")
-            
-            # 并行处理关键点检测和角色预测
-            keypoints = []
-            ai_predicted_role = None
-            
-            if file.content_type != "image/svg+xml":
-                tasks = [detect_keypoints(temp_path), predict_role(attributes, (role, similarity))]
+                # 使用传统的分类器
+                logger.info(f"使用传统分类器: {model_name}")
+                
+                # 获取项目根目录
+                project_root = get_project_root()
+                
+                # 获取模型路径
+                index_path = get_model_path(model_name, project_root)
+                
+                # 获取或创建分类器
+                classifier_start = time.time()
+                classifier = await get_or_create_classifier(index_path)
+                classifier_time = time.time() - classifier_start
+                logger.debug(f"获取分类器耗时: {classifier_time:.4f}秒")
+                
+                if classifier is None:
+                    result = {"role": "unknown", "similarity": 0.0, "attributes": []}
+                    # 缓存结果
+                    cache_manager.set(result, cache_key, ttl=3600)
+                    result["processing_time"] = time.time() - start_time
+                    return result
+                
+                # 并行处理特征提取、文本检测、标签生成
+                tasks = []
+                
+                # 提取特征
+                tasks.append(extract_image_features(temp_path))
+                
+                # 检测文本（非SVG文件）
+                if file.content_type != "image/svg+xml":
+                    tasks.append(detect_image_text(temp_path))
+                else:
+                    logger.info("跳过SVG文件的文本检测")
+                
+                # 生成标签（非SVG文件）
+                if file.content_type != "image/svg+xml":
+                    tasks.append(generate_image_tags(temp_path))
+                else:
+                    logger.info("跳过SVG文件的标签生成")
+                
+                # 并行执行
+                parallel_start = time.time()
                 results = await asyncio.gather(*tasks, return_exceptions=True)
-                keypoints = results[0] if not isinstance(results[0], Exception) else []
-                ai_predicted_role = results[1] if not isinstance(results[1], Exception) else None
-            else:
-                logger.info("跳过SVG文件的关键点检测")
-                ai_predicted_role = await predict_role(attributes, (role, similarity))
+                parallel_time = time.time() - parallel_start
+                logger.debug(f"并行处理耗时: {parallel_time:.4f}秒")
+                
+                # 处理结果
+                feature = results[0]
+                text_detections = results[1] if len(results) > 1 and not isinstance(results[1], Exception) else []
+                attributes = results[2] if len(results) > 2 and not isinstance(results[2], Exception) else []
+                
+                # 分类图像
+                classify_start = time.time()
+                role, similarity = await classify_image_internal(classifier, feature, attributes)
+                classify_time = time.time() - classify_start
+                logger.debug(f"分类图像耗时: {classify_time:.4f}秒")
+                
+                # 并行处理关键点检测和角色预测
+                keypoints = []
+                ai_predicted_role = None
+                
+                if file.content_type != "image/svg+xml":
+                    tasks = [detect_keypoints(temp_path), predict_role(attributes, (role, similarity))]
+                    results = await asyncio.gather(*tasks, return_exceptions=True)
+                    keypoints = results[0] if not isinstance(results[0], Exception) else []
+                    ai_predicted_role = results[1] if not isinstance(results[1], Exception) else None
+                else:
+                    logger.info("跳过SVG文件的关键点检测")
+                    ai_predicted_role = await predict_role(attributes, (role, similarity))
         
         # 构建响应
         result = {
@@ -1212,12 +1282,12 @@ async def process_single_image(file, model_name, cache_bypass=False):
         }
         
         # 添加文本检测结果（如果有）
-        if text_detections:
+        if 'text_detections' in locals() and text_detections:
             result["text_detections"] = text_detections
             logger.info(f"返回文本检测结果: {len(text_detections)} 个文本")
         
         # 添加关键点检测结果（如果有）
-        if keypoints:
+        if 'keypoints' in locals() and keypoints:
             result["keypoints"] = keypoints
             logger.info("返回关键点检测结果")
         
