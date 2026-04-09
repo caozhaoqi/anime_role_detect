@@ -27,7 +27,7 @@ const MessageItem: React.FC<MessageItemProps> = ({ message, darkMode, handleCopy
         </div>
       </div>
       <div
-        className={`max-w-[80%] ${message.role === "user" ? "order-1" : "order-2"}`}
+        className={`max-w-full ${message.role === "user" ? "order-1" : "order-2"}`}
       >
         <div
           className={`rounded-xl p-4 ${message.role === "user" ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white' : (darkMode ? 'bg-gray-700 text-gray-100' : 'bg-gray-100 text-gray-900')} shadow-sm transition-all hover:shadow-md`}
