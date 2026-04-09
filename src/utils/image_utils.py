@@ -264,11 +264,11 @@ class ImageUtils:
             if img.mode != 'L':
                 img = img.convert('L')
             
-            # 应用拉普拉斯边缘检测
-            laplacian = img.filter(ImageFilter.Laplacian)
+            # 使用Sobel边缘检测（PIL支持的方法）
+            sobel_x = img.filter(ImageFilter.FIND_EDGES)
             
             # 计算边缘强度的方差
-            np_img = np.array(laplacian)
+            np_img = np.array(sobel_x)
             variance = np.var(np_img)
             
             # 归一化到 0-1

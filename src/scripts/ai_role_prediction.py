@@ -20,44 +20,57 @@ logging.basicConfig(
 )
 logger = logging.getLogger('ai_role_prediction')
 
+# 全局单例实例
+_ai_role_predictor_instance = None
+
 class AIRolePredictor:
     """
     AI 角色预测器
     参考 JD Agent 项目的多智能体协同方法
     """
     
+    def __new__(cls):
+        """创建单例实例"""
+        global _ai_role_predictor_instance
+        if _ai_role_predictor_instance is None:
+            _ai_role_predictor_instance = super(AIRolePredictor, cls).__new__(cls)
+            _ai_role_predictor_instance._initialized = False
+        return _ai_role_predictor_instance
+    
     def __init__(self):
         """初始化 AI 角色预测器"""
-        logger.info("初始化 AI 角色预测器")
-        # 从环境变量获取 API 配置
-        self.api_key = os.environ.get('OPENAI_API_KEY', '')
-        self.api_base = os.environ.get('OPENAI_API_BASE', 'https://api.siliconflow.cn/v1')
-        self.model_name = os.environ.get('MODEL_NAME', 'deepseek-ai/DeepSeek-R1-0528-Qwen3-8B')
-        
-        # 尝试从JD_agent的.env文件读取配置
-        jd_agent_env_path = '/Users/caozhaoqi/PycharmProjects/JD_agent/.env'
-        if os.path.exists(jd_agent_env_path):
-            logger.info(f"从 {jd_agent_env_path} 读取 API 配置")
-            with open(jd_agent_env_path, 'r') as f:
-                for line in f:
-                    line = line.strip()
-                    if line and not line.startswith('#'):
-                        key, value = line.split('=', 1)
-                        if key == 'OPENAI_API_KEY':
-                            self.api_key = value
-                        elif key == 'OPENAI_API_BASE':
-                            self.api_base = value
-                        elif key == 'MODEL_NAME':
-                            self.model_name = value
-        
-        if not self.api_key:
-            logger.warning("未设置 OPENAI_API_KEY 环境变量，将使用模拟响应")
-        
-        self.api_url = f"{self.api_base}/chat/completions"
-        logger.info(f"使用 API 配置 - 基础URL: {self.api_base}, 模型: {self.model_name}")
-        
-        # 添加预测缓存
-        self.prediction_cache = {}
+        if not getattr(self, '_initialized', False):
+            logger.info("初始化 AI 角色预测器")
+            # 从环境变量获取 API 配置
+            self.api_key = os.environ.get('OPENAI_API_KEY', '')
+            self.api_base = os.environ.get('OPENAI_API_BASE', 'https://api.siliconflow.cn/v1')
+            self.model_name = os.environ.get('MODEL_NAME', 'deepseek-ai/DeepSeek-R1-0528-Qwen3-8B')
+            
+            # 尝试从JD_agent的.env文件读取配置
+            jd_agent_env_path = '/Users/caozhaoqi/PycharmProjects/JD_agent/.env'
+            if os.path.exists(jd_agent_env_path):
+                logger.info(f"从 {jd_agent_env_path} 读取 API 配置")
+                with open(jd_agent_env_path, 'r') as f:
+                    for line in f:
+                        line = line.strip()
+                        if line and not line.startswith('#'):
+                            key, value = line.split('=', 1)
+                            if key == 'OPENAI_API_KEY':
+                                self.api_key = value
+                            elif key == 'OPENAI_API_BASE':
+                                self.api_base = value
+                            elif key == 'MODEL_NAME':
+                                self.model_name = value
+            
+            if not self.api_key:
+                logger.warning("未设置 OPENAI_API_KEY 环境变量，将使用模拟响应")
+            
+            self.api_url = f"{self.api_base}/chat/completions"
+            logger.info(f"使用 API 配置 - 基础URL: {self.api_base}, 模型: {self.model_name}")
+            
+            # 添加预测缓存
+            self.prediction_cache = {}
+            self._initialized = True
     
     def predict_role(self, tags):
         """

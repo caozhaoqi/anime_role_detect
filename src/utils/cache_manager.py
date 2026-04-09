@@ -25,7 +25,7 @@ class CacheManager:
     缓存管理器
     """
     
-    def __init__(self, cache_dir='./cache', max_memory_size=500, max_file_size=5000, default_ttl=3600):
+    def __init__(self, cache_dir='./cache', max_memory_size=200, max_file_size=1000, default_ttl=3600):
         """
         初始化缓存管理器
         
@@ -39,6 +39,7 @@ class CacheManager:
         self.max_memory_size = max_memory_size
         self.max_file_size = max_file_size
         self.default_ttl = default_ttl
+        self.max_item_size = 10 * 1024 * 1024  # 单个缓存项的最大大小（10MB）
         
         # 创建缓存目录
         os.makedirs(cache_dir, exist_ok=True)
@@ -240,13 +241,24 @@ class CacheManager:
             if ttl is None:
                 ttl = self.default_ttl
             
+            # 检查缓存项大小
+            import pickle
+            try:
+                item_size = len(pickle.dumps(value))
+                if item_size > self.max_item_size:
+                    logger.warning(f"缓存项过大，跳过存储: {key}, 大小: {item_size / (1024 * 1024):.2f}MB")
+                    return key
+            except Exception as e:
+                logger.error(f"计算缓存项大小失败: {e}")
+                return key
+            
             # 添加到内存缓存
             self._add_to_memory_cache(key, value, ttl)
             
             # 添加到文件缓存
             self._add_to_file_cache(key, value, ttl)
             
-            logger.debug(f"设置缓存: {key}, TTL: {ttl}秒")
+            logger.debug(f"设置缓存: {key}, TTL: {ttl}秒, 大小: {item_size / (1024 * 1024):.2f}MB")
             return key
     
     def _add_to_memory_cache(self, key, value, ttl):

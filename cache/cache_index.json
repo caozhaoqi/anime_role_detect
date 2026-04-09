@@ -1,1 +1,14 @@
-{}
+{
+  "image_processing_3b977d1cc9be2c602a245c628a3a4bc9_default": {
+    "created": "2026-04-09T13:56:47.084477",
+    "last_accessed": "2026-04-09T13:56:47.084477",
+    "ttl": 1800,
+    "file": "034a3a3ecfc6a957895e6ac7ba8643ff.pkl"
+  },
+  "image_processing_3b977d1cc9be2c602a245c628a3a4bc9_mobilenet_v2": {
+    "created": "2026-04-09T14:05:53.383359",
+    "last_accessed": "2026-04-09T14:05:53.383359",
+    "ttl": 3600,
+    "file": "950e66b8f3d5eb02559e0028f9e7a1ed.pkl"
+  }
+}

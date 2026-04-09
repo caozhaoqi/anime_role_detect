@@ -28,6 +28,7 @@ from utils.monitoring_system import MonitoringSystem
 from utils.cache_manager import cache_manager
 from utils.distributed_manager import DistributedManager
 from utils.memory_monitor import init_memory_monitoring, shutdown_memory_monitoring, get_memory_monitor
+from utils.image_utils import ImageUtils
 from core.logging.global_logger import get_logger
 from core.classification.classification import Classification
 from core.feature_extraction.feature_extraction import FeatureExtraction
@@ -71,6 +72,16 @@ keypoint_detector = None  # 关键点检测器实例
 
 # 新训练的模型缓存
 trained_models = {}  # 缓存训练好的分类模型
+model_usage = {}  # 记录模型使用频率
+model_memory_usage = {
+    "mobilenet_v2": 200,  # MB
+    "efficientnet_b0": 300,  # MB
+    "efficientnet_b3": 600,  # MB
+    "resnet50": 1000,  # MB
+}
+
+# 最大内存使用阈值（MB）
+MAX_MEMORY_USAGE = 6000  # 6GB
 
 # 模型加载时间缓存
 model_load_times = {}  # 记录模型加载时间
@@ -255,7 +266,7 @@ async def analyze_image(file: UploadFile = File(...)):
         
         # 分析图片
         score = ImageUtils.calculate_image_quality(content)
-        analysis = ImageUtils.analyze_image(content)
+        analysis = ImageUtils.analyze_image_content(content)
         
         return {
             "status": "success",
@@ -503,6 +514,62 @@ def get_model_path(model_name, project_root):
     logger.info(f"使用模型: {model_name}, 索引路径: {index_path}")
     return index_path
 
+def get_current_memory_usage():
+    """
+    获取当前系统内存使用情况
+    
+    Returns:
+        当前内存使用量（MB）
+    """
+    import psutil
+    memory = psutil.virtual_memory()
+    return memory.used / (1024 * 1024)  # 转换为MB
+
+def unload_unused_models(required_memory=0):
+    """
+    卸载不常用的模型以释放内存
+    
+    Args:
+        required_memory: 需要的内存（MB）
+    """
+    global trained_models, model_usage, model_memory_usage, MAX_MEMORY_USAGE
+    
+    current_memory = get_current_memory_usage()
+    target_memory = current_memory + required_memory
+    
+    if target_memory <= MAX_MEMORY_USAGE:
+        return
+    
+    # 计算需要释放的内存
+    memory_to_release = target_memory - MAX_MEMORY_USAGE
+    
+    # 按使用频率排序模型（从低到高）
+    sorted_models = sorted(model_usage.items(), key=lambda x: x[1], reverse=False)
+    
+    released_memory = 0
+    models_to_unload = []
+    
+    for model_name, usage in sorted_models:
+        if model_name in trained_models:
+            memory_used = model_memory_usage.get(model_name, 0)
+            models_to_unload.append(model_name)
+            released_memory += memory_used
+            
+            if released_memory >= memory_to_release:
+                break
+    
+    # 卸载模型
+    for model_name in models_to_unload:
+        if model_name in trained_models:
+            del trained_models[model_name]
+            logger.info(f"已卸载模型: {model_name}，释放内存: {model_memory_usage.get(model_name, 0)}MB")
+    
+    if models_to_unload:
+        # 强制垃圾回收
+        import gc
+        gc.collect()
+        logger.info(f"已释放内存: {released_memory}MB，当前内存使用: {get_current_memory_usage():.2f}MB")
+
 def load_trained_model(model_name):
     """
     加载训练好的模型
@@ -517,11 +584,13 @@ def load_trained_model(model_name):
     import torch.nn as nn
     from torchvision import models
     
-    global trained_models
+    global trained_models, model_usage, model_memory_usage
     
     # 检查模型是否已经加载
     if model_name in trained_models:
-        logger.info(f"从缓存加载模型: {model_name}")
+        # 更新使用频率
+        model_usage[model_name] = model_usage.get(model_name, 0) + 1
+        logger.info(f"从缓存加载模型: {model_name}，使用频率: {model_usage[model_name]}")
         return trained_models[model_name]
     
     # 模型路径映射
@@ -543,6 +612,12 @@ def load_trained_model(model_name):
     if not os.path.exists(model_path):
         logger.error(f"模型文件不存在: {model_path}")
         return None
+    
+    # 计算需要的内存
+    required_memory = model_memory_usage.get(model_name, 200)
+    
+    # 卸载不常用的模型以释放内存
+    unload_unused_models(required_memory)
     
     try:
         # 加载模型数据（使用map_location和低内存模式）
@@ -594,7 +669,9 @@ def load_trained_model(model_name):
         
         # 保存到缓存
         trained_models[model_name] = (model, class_to_idx)
+        model_usage[model_name] = 1  # 初始化使用频率
         logger.info(f"模型 {model_name} 加载完成，类别数: {len(class_to_idx)}")
+        logger.info(f"当前内存使用: {get_current_memory_usage():.2f}MB")
         
         return (model, class_to_idx)
     except Exception as e:
