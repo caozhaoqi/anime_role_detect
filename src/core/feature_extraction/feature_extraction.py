@@ -71,6 +71,12 @@ class FeatureExtraction:
                 logger.info("模型量化完成")
             elif 'mps' in str(self.__class__._device):
                 logger.info("MPS设备不支持量化，跳过量化步骤")
+            
+            # 清理内存
+            if 'cuda' in str(self.__class__._device):
+                torch.cuda.empty_cache()
+            else:
+                gc.collect()
         
         self.model = self.__class__._model_instance
         self.processor = self.__class__._processor_instance
@@ -89,7 +95,7 @@ class FeatureExtraction:
             
             # 如果使用Core ML模式
             if self.coreml_mode:
-                logger.info("使用Core ML提取特征")
+                logger.debug("使用Core ML提取特征")
                 return self.__class__._coreml_extractor.extract_features(img)
             
             # 预处理图像

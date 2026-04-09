@@ -92,8 +92,10 @@ def start_api_service(host: str = '0.0.0.0', port: int = 8000, reload: bool = Fa
         'src.backend.api.app:app',
         '--host', host,
         '--port', str(port),
-        '--workers', '1',  # 减少到1个工作线程，减少内存使用
-        '--timeout-keep-alive', '30'  # 增加保持连接的超时时间
+        '--workers', '2',  # 增加到2个工作线程，提高并发处理能力
+        '--timeout-keep-alive', '30',  # 增加保持连接的超时时间
+        '--limit-concurrency', '10',  # 限制并发数，避免内存过载
+        '--limit-max-requests', '1000'  # 限制最大请求数，避免内存泄漏
     ]
     
     if reload:

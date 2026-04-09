@@ -1,1 +1,8 @@
-{}
+{
+  "image_processing_3b977d1cc9be2c602a245c628a3a4bc9_mobilenet_v2": {
+    "created": "2026-04-09T18:25:53.641235",
+    "last_accessed": "2026-04-09T18:25:53.641235",
+    "ttl": 1800,
+    "file": "950e66b8f3d5eb02559e0028f9e7a1ed.pkl"
+  }
+}

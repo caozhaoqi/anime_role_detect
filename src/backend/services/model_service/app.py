@@ -63,23 +63,12 @@ async def init_models():
     global classifier, feature_extractor, preprocessor, tagger
     
     try:
-        # 初始化预处理器
+        # 延迟加载模型，只初始化预处理器
         preprocessor = Preprocessing()
         logger.info("预处理器初始化完成")
         
-        # 初始化特征提取器
-        feature_extractor = FeatureExtraction()
-        logger.info("特征提取器初始化完成")
-        
-        # 初始化分类器
-        model_name = "mobilenet_v2"  # 使用默认模型名称
-        index_path = f"./models/{model_name}"  # 使用默认模型路径
-        classifier = Classification(index_path)
-        logger.info(f"分类器初始化完成，模型: {model_name}")
-        
-        # 初始化标签生成器
-        tagger = WDViTV3Tagger()
-        logger.info("标签生成器初始化完成")
+        # 其他模型在需要时才初始化
+        logger.info("模型服务启动完成，其他模型将在需要时自动初始化")
         
     except Exception as e:
         logger.error(f"初始化模型失败: {e}")
@@ -114,8 +103,20 @@ async def validate_image(file: UploadFile) -> str:
         content = await file.read()
         
         # 验证文件类型
-        if not file.content_type.startswith("image/"):
-            raise HTTPException(status_code=400, detail="文件类型错误，只支持图像文件")
+        if file.content_type is None or not file.content_type.startswith("image/"):
+            # 尝试从文件名推断文件类型
+            import os
+            ext = os.path.splitext(file.filename)[1].lower()
+            ext_to_content_type = {
+                '.jpg': 'image/jpeg',
+                '.jpeg': 'image/jpeg',
+                '.png': 'image/png',
+                '.gif': 'image/gif',
+                '.bmp': 'image/bmp',
+                '.svg': 'image/svg+xml'
+            }
+            if ext not in ext_to_content_type:
+                raise HTTPException(status_code=400, detail="文件类型错误，只支持图像文件")
         
         # 验证文件大小
         if len(content) > 10 * 1024 * 1024:  # 10MB
@@ -165,32 +166,68 @@ async def predict_image(
         
         # 预处理图像
         if preprocessor:
-            processed_image = preprocessor.process(temp_path)
+            processed_result = preprocessor.process(temp_path)
+            # 预处理器返回的是元组 (normalized_img, boxes)
+            if isinstance(processed_result, tuple):
+                processed_image = processed_result[0]
+            else:
+                processed_image = processed_result
         else:
             processed_image = temp_path
         
+        # 延迟初始化特征提取器
+        global feature_extractor
+        if not feature_extractor:
+            logger.info("初始化特征提取器...")
+            try:
+                feature_extractor = FeatureExtraction()
+                logger.info("特征提取器初始化完成")
+            except Exception as e:
+                logger.error(f"特征提取器初始化失败: {e}")
+                raise HTTPException(status_code=503, detail=f"特征提取器初始化失败: {e}")
+        
         # 提取特征
-        if feature_extractor:
+        try:
             feature = feature_extractor.extract_features(processed_image)
-        else:
-            raise HTTPException(status_code=500, detail="特征提取器未初始化")
+        except Exception as e:
+            logger.error(f"特征提取失败: {e}")
+            raise HTTPException(status_code=503, detail=f"特征提取失败: {e}")
         
         # 生成标签
         attributes = []
-        if use_attributes and tagger:
+        if use_attributes:
+            global tagger
+            if not tagger:
+                logger.info("初始化标签生成器...")
+                tagger = WDViTV3Tagger()
+                logger.info("标签生成器初始化完成")
             attributes = tagger.generate_tags(processed_image)
         
-        # 分类图像
-        if classifier:
-            role, similarity = classifier.classify(feature, attributes)
+        # 延迟初始化分类器
+        global classifier
+        if not classifier:
+            logger.info("初始化分类器...")
+            model_name = "mobilenet_v2"  # 使用默认模型名称
+            index_path = f"./models/{model_name}"  # 使用默认模型路径
+            classifier = Classification(index_path)
+            logger.info(f"分类器初始化完成，模型: {model_name}")
+        
+        # 检查分类器是否有索引
+        if classifier.index is not None:
+            # 分类图像
+            role, similarity = classifier.classify(feature, 5, attributes)  # 减少top_k值，提高速度
         else:
-            raise HTTPException(status_code=500, detail="分类器未初始化")
+            # 如果没有索引，返回特征向量和未知角色
+            logger.warning("分类器索引不存在，返回特征向量和未知角色")
+            role = "unknown"
+            similarity = 0.0
         
         # 构建响应
         result = {
             "role": role,
             "similarity": float(similarity),
-            "attributes": attributes
+            "attributes": attributes,
+            "feature": feature.tolist() if hasattr(feature, 'tolist') else feature  # 返回特征向量供后端使用
         }
         
         return result
@@ -232,11 +269,15 @@ async def extract_features(
         else:
             processed_image = temp_path
         
+        # 延迟初始化特征提取器
+        global feature_extractor
+        if not feature_extractor:
+            logger.info("初始化特征提取器...")
+            feature_extractor = FeatureExtraction()
+            logger.info("特征提取器初始化完成")
+        
         # 提取特征
-        if feature_extractor:
-            feature = feature_extractor.extract_features(processed_image)
-        else:
-            raise HTTPException(status_code=500, detail="特征提取器未初始化")
+        feature = feature_extractor.extract_features(processed_image)
         
         # 构建响应
         result = {
@@ -259,4 +300,11 @@ async def extract_features(
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8001)
+    uvicorn.run(
+        app, 
+        host="0.0.0.0", 
+        port=8001,
+        timeout_keep_alive=60,
+        limit_concurrency=5,
+        limit_max_requests=500
+    )

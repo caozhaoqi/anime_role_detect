@@ -14,45 +14,60 @@ class Preprocessing:
     _ocr_instance = None
     
     def __init__(self, model_path=None):
-        """初始化预处理模块"""
-        # 使用全局模型实例避免重复加载
-        if not self.__class__._model_instance:
-            if model_path:
-                logger.info(f"加载指定模型: {model_path}")
-                self.__class__._model_instance = YOLO(model_path)
-                logger.info("模型加载成功")
-            else:
-                # 尝试加载YOLOv8-anime模型，如果没有则使用默认模型
-                try:
-                    logger.info("尝试加载YOLOv8-anime模型...")
-                    self.__class__._model_instance = YOLO('yolov8s-anime.pt')
-                    logger.info("YOLOv8-anime模型加载成功")
-                except Exception as e:
-                    logger.warning(f"YOLOv8-anime模型加载失败: {e}，使用默认模型")
-                    self.__class__._model_instance = YOLO('yolov8s.pt')
-                    logger.info("默认YOLOv8s模型加载成功")
+        """初始化预处理模块
         
-        self.model = self.__class__._model_instance
+        Args:
+            model_path: 模型路径，如果为None则使用默认模型
+        """
         # 图像标准化参数
         self.img_size = (224, 224)
+        self.model_path = model_path
         
-        # 初始化OCR模型
-        if not self.__class__._ocr_instance:
-            try:
-                from paddleocr import PaddleOCR
-                logger.info("尝试加载PaddleOCR模型...")
-                self.__class__._ocr_instance = PaddleOCR(use_angle_cls=True, lang='ch')
-                logger.info("PaddleOCR模型加载成功")
-            except Exception as e:
-                logger.warning(f"PaddleOCR模型加载失败: {e}，OCR功能将不可用")
-                self.__class__._ocr_instance = None
+        # 延迟加载模型
+        self.model = None
+        self.ocr = None
         
-        self.ocr = self.__class__._ocr_instance
         logger.debug(f"预处理模块初始化完成，图像大小: {self.img_size}")
+    
+    def _load_model(self):
+        """延迟加载YOLO模型"""
+        if not self.model:
+            if not hasattr(self.__class__, '_model_instance') or self.model_path:
+                if self.model_path:
+                    logger.info(f"加载指定模型: {self.model_path}")
+                    self.__class__._model_instance = YOLO(self.model_path)
+                    logger.info("模型加载成功")
+                else:
+                    # 尝试加载YOLOv8-anime模型，如果没有则使用默认模型
+                    try:
+                        logger.info("尝试加载YOLOv8-anime模型...")
+                        self.__class__._model_instance = YOLO('yolov8s-anime.pt')
+                        logger.info("YOLOv8-anime模型加载成功")
+                    except Exception as e:
+                        logger.warning(f"YOLOv8-anime模型加载失败: {e}，使用默认模型")
+                        self.__class__._model_instance = YOLO('yolov8s.pt')
+                        logger.info("默认YOLOv8s模型加载成功")
+            self.model = self.__class__._model_instance
+    
+    def _load_ocr(self):
+        """延迟加载OCR模型"""
+        if not self.ocr:
+            if not hasattr(self.__class__, '_ocr_instance'):
+                try:
+                    from paddleocr import PaddleOCR
+                    logger.info("尝试加载PaddleOCR模型...")
+                    self.__class__._ocr_instance = PaddleOCR(use_angle_cls=True, lang='ch')
+                    logger.info("PaddleOCR模型加载成功")
+                except Exception as e:
+                    logger.warning(f"PaddleOCR模型加载失败: {e}，OCR功能将不可用")
+                    self.__class__._ocr_instance = None
+            self.ocr = self.__class__._ocr_instance
     
     def detect_character(self, image_path):
         """使用YOLOv8检测图像中的角色主体"""
         logger.debug(f"开始检测角色: {image_path}")
+        # 延迟加载模型
+        self._load_model()
         # 加载图像
         if image_path.lower().endswith(('.svg', '.webp')):
             # 使用PIL加载SVG和WebP文件
@@ -152,6 +167,9 @@ class Preprocessing:
     def detect_text(self, image_path):
         """使用OCR检测图像中的文本"""
         logger.debug(f"开始检测文本: {image_path}")
+        
+        # 延迟加载OCR模型
+        self._load_ocr()
         
         # 检查OCR模型是否可用
         if not self.ocr:

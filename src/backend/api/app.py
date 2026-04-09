@@ -670,8 +670,8 @@ def load_trained_model(model_name):
                 logger.error(f"不支持的模型类型: {model_name}")
                 return None
         
-        # 加载模型权重
-        model.load_state_dict(model_data['model_state_dict'])
+        # 加载模型权重，使用strict=False忽略不匹配的键
+        model.load_state_dict(model_data['model_state_dict'], strict=False)
         model.eval()
         
         # 保存到缓存
@@ -1063,8 +1063,23 @@ async def process_single_image(file, model_name, cache_bypass=False):
         if use_model_service:
             logger.info(f"使用模型服务: {MODEL_SERVICE_URL}")
             
+            # 确定文件类型
+            content_type = file.content_type
+            if content_type is None:
+                import os
+                ext = os.path.splitext(file.filename)[1].lower()
+                ext_to_content_type = {
+                    '.jpg': 'image/jpeg',
+                    '.jpeg': 'image/jpeg',
+                    '.png': 'image/png',
+                    '.gif': 'image/gif',
+                    '.bmp': 'image/bmp',
+                    '.svg': 'image/svg+xml'
+                }
+                content_type = ext_to_content_type.get(ext, 'application/octet-stream')
+            
             # 构建请求
-            files = {'file': (file.filename, content, file.content_type)}
+            files = {'file': (file.filename, content, content_type)}
             data = {
                 'model_name': model_name,
                 'use_attributes': 'true'
@@ -1085,11 +1100,45 @@ async def process_single_image(file, model_name, cache_bypass=False):
                 role = model_result.get('role', 'unknown')
                 similarity = model_result.get('similarity', 0.0)
                 attributes = model_result.get('attributes', [])
+                feature = model_result.get('feature', None)
                 
                 # 保存临时文件用于其他处理
                 temp_path = f"temp_{int(time.time())}_{file.filename}"
                 with open(temp_path, "wb") as f:
                     f.write(content)
+                
+                # 如果模型服务返回unknown且提供了特征向量，使用本地模型进行分类
+                if role == 'unknown' and feature is not None:
+                    logger.info("模型服务返回unknown，使用本地模型进行分类")
+                    # 加载训练好的模型
+                    model_info = load_trained_model(model_name)
+                    if model_info is not None:
+                        model, class_to_idx = model_info
+                        idx_to_class = {v: k for k, v in class_to_idx.items()}
+                        
+                        # 图像预处理
+                        transform = transforms.Compose([
+                            transforms.Resize((256, 256)),
+                            transforms.CenterCrop((224, 224)),
+                            transforms.ToTensor(),
+                            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+                        ])
+                        
+                        # 加载图像
+                        img = Image.open(temp_path).convert('RGB')
+                        img = transform(img)
+                        img = img.unsqueeze(0)  # 添加批次维度
+                        
+                        # 预测
+                        with torch.no_grad():
+                            outputs = model(img)
+                            _, predicted = torch.max(outputs, 1)
+                            confidence = torch.nn.functional.softmax(outputs, dim=1)[0][predicted.item()].item()
+                        
+                        # 获取预测结果
+                        role = idx_to_class.get(predicted.item(), "unknown")
+                        similarity = float(confidence)
+                        logger.info(f"本地模型分类结果: {role}, 相似度: {similarity:.4f}")
                 
                 # 检测文本（非SVG文件）
                 if file.content_type != "image/svg+xml":
