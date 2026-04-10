@@ -13,7 +13,7 @@ from tqdm import tqdm
 from transformers import AutoProcessor, AutoModelForImageClassification, CLIPProcessor, CLIPModel
 import requests
 
-from core.logging.global_logger import get_logger
+from src.core.logging.global_logger import get_logger
 
 logger = get_logger("wd_vit_v3_tagger")
 
@@ -33,7 +33,7 @@ class WDViTV3Tagger:
             self.num_id2label = {}  # 初始化num_id2label属性
             self.logger.info("Core ML WD Vit Tagger 模型可用，使用 Core ML 进行标签生成")
             # 动态导入 Core ML 标签生成模块
-            from core.tagging.coreml_wd_vit_v3_tagger import CoreMLWDVitV3Tagger
+            from src.core.tagging.coreml_wd_vit_v3_tagger import CoreMLWDVitV3Tagger
             self.__class__._coreml_tagger = CoreMLWDVitV3Tagger(coreml_model_path, coreml_labels_path)
             self.coreml_mode = True
             return

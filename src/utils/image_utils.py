@@ -11,7 +11,7 @@ from io import BytesIO
 from skimage import filters, measure
 from skimage.color import rgb2gray
 
-from core.logging.global_logger import get_logger, log_system, log_error
+from src.core.logging.global_logger import get_logger, log_system, log_error
 
 logger = get_logger("image_utils")
 

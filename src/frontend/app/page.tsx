@@ -288,7 +288,7 @@ export default function AnimeRoleDetect() {
           <div className="flex-1 overflow-y-auto">
             <div className="container mx-auto px-4 md:px-6 py-6 md:py-8">
               <div className={`w-full ${darkMode ? 'bg-gray-800' : 'bg-white'} rounded-xl shadow-lg border ${darkMode ? 'border-gray-700' : 'border-gray-200'} transform transition-all duration-300 hover:shadow-xl`}>
-                <div className="p-4 md:p-6 border-b ${darkMode ? 'border-gray-700' : 'border-gray-200'}">
+                <div className={`p-4 md:p-6 border-b ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
                   <h2 className="text-lg md:text-xl font-semibold">动漫角色识别</h2>
                 </div>
                 <div className="p-4 md:p-6 max-h-[calc(100vh-24rem)] overflow-y-auto">
@@ -304,7 +304,7 @@ export default function AnimeRoleDetect() {
                   ))}
                   <div ref={messagesEndRef} />
                 </div>
-                <div className="p-4 md:p-6 border-t ${darkMode ? 'border-gray-700' : 'border-gray-200'}">
+                <div className={`p-4 md:p-6 border-t ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
                   <div className="flex flex-col md:flex-row items-stretch md:items-center space-y-3 md:space-y-0 md:space-x-4">
                     {/* 文件输入元素 */}
                     <input

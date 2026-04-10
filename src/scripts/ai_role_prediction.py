@@ -46,11 +46,11 @@ class AIRolePredictor:
             self.api_base = os.environ.get('OPENAI_API_BASE', 'https://api.siliconflow.cn/v1')
             self.model_name = os.environ.get('MODEL_NAME', 'deepseek-ai/DeepSeek-R1-0528-Qwen3-8B')
             
-            # 尝试从JD_agent的.env文件读取配置
-            jd_agent_env_path = '/Users/caozhaoqi/PycharmProjects/JD_agent/.env'
-            if os.path.exists(jd_agent_env_path):
-                logger.info(f"从 {jd_agent_env_path} 读取 API 配置")
-                with open(jd_agent_env_path, 'r') as f:
+            # 尝试从项目根目录的.env文件读取配置
+            project_env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../../..', '.env')
+            if os.path.exists(project_env_path):
+                logger.info(f"从 {project_env_path} 读取 API 配置")
+                with open(project_env_path, 'r') as f:
                     for line in f:
                         line = line.strip()
                         if line and not line.startswith('#'):

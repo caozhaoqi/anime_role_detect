@@ -10,7 +10,7 @@ import json
 import numpy as np
 from PIL import Image
 import coremltools as ct
-from core.logging.global_logger import get_logger
+from src.core.logging.global_logger import get_logger
 
 logger = get_logger("coreml_wd_tagger")
 

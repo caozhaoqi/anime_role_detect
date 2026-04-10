@@ -1,8 +1,20 @@
 {
-  "image_processing_33f7727cb2fc3e88501314af9daf5a6d_mobilenet_v2": {
-    "created": "2026-04-09T22:15:29.439341",
-    "last_accessed": "2026-04-09T22:15:29.439341",
-    "ttl": 3600,
-    "file": "851432a4d52ab1748449902271d6780f.pkl"
+  "image_processing_42f052ea6f8fbe1bdb8363e2845dd663_incremental": {
+    "created": "2026-04-10T17:48:53.076945",
+    "last_accessed": "2026-04-10T17:48:53.076945",
+    "ttl": 1800,
+    "file": "0165242b3fa54961c54f08ab9e3f99cf.pkl"
+  },
+  "image_processing_9f92365da3c4dc0caabfe73e3b485a08_incremental": {
+    "created": "2026-04-10T18:06:54.901206",
+    "last_accessed": "2026-04-10T18:06:54.901206",
+    "ttl": 1800,
+    "file": "cc0f039d988e0a5a6bfde2e997bf6d36.pkl"
+  },
+  "image_processing_1c61a85c7cd0e672bfe42884b4d63be3_default": {
+    "created": "2026-04-10T18:11:42.681916",
+    "last_accessed": "2026-04-10T18:11:42.681916",
+    "ttl": 1800,
+    "file": "337cd409ec9c44fe70e83ab3e910b51f.pkl"
   }
 }

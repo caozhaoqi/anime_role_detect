@@ -23,6 +23,11 @@ def get_base_model(model_type):
         feature_dim = base_model.classifier[1].in_features
         # 移除分类层
         base_model.classifier = nn.Identity()
+    elif model_type == 'mobilenet_v2_incremental':
+        base_model = models.mobilenet_v2(pretrained=True)
+        feature_dim = base_model.classifier[1].in_features
+        # 移除分类层
+        base_model.classifier = nn.Identity()
     elif model_type == 'efficientnet_b0':
         base_model = models.efficientnet_b0(pretrained=True)
         feature_dim = base_model.classifier[1].in_features

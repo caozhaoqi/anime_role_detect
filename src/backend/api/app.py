@@ -4,10 +4,13 @@ import os
 import hashlib
 import time
 import torch
+import torch.nn as nn
+import torchvision.models as models # 新增：建议放到全局
 import torchvision.transforms as transforms
 from PIL import Image
 import aiohttp
 import asyncio
+from pathlib import Path
 
 # 从环境变量中读取配置
 USE_MODEL_SERVICE = os.environ.get('USE_MODEL_SERVICE', 'false').lower() == 'true'
@@ -30,17 +33,15 @@ app.add_middleware(
 )
 
 # 导入其他模块
-from core.logging.global_logger import get_logger
-from utils.image_utils import ImageUtils
-from core.preprocessing.preprocessing import Preprocessing
-from core.keypoint.mediapipe_keypoint_detector import MediaPipeKeypointDetector
-from core.tagging.wd_vit_v3_tagger import WDViTV3Tagger
-from scripts.ai_role_prediction import AIRolePredictor
-from utils.cache_manager import CacheManager
-import torch
-from core.classification.models import get_model
+from src.core.logging.global_logger import get_logger
+from src.utils.image_utils import ImageUtils
+from src.core.preprocessing.preprocessing import Preprocessing
+from src.core.keypoint.mediapipe_keypoint_detector import MediaPipeKeypointDetector
+from src.core.tagging.wd_vit_v3_tagger import WDViTV3Tagger
+from src.scripts.ai_role_prediction import AIRolePredictor
+from src.utils.cache_manager import CacheManager
+from src.core.classification.models import get_model
 import os
-
 # 初始化预处理、关键点检测、标签生成和角色预测实例
 preprocessor = Preprocessing()
 keypoint_detector = MediaPipeKeypointDetector()
@@ -69,11 +70,22 @@ def load_model(model_name):
     """
     try:
         logger.info(f"加载模型: {model_name}")
-        # 这里可以根据需要实现模型加载逻辑
-        # 目前返回None，因为我们主要使用本地训练的模型
-        return None
+        # 直接创建一个简单的分类模型
+        # 
+        # .nn as nn
+        # vision.models as models
+        
+        # 创建一个mobilenet_v2模型
+        model = models.mobilenet_v2(pretrained=True)
+        # 修改分类层，使其输出3个类别
+        model.classifier[1] = nn.Linear(model.classifier[1].in_features, 3)
+        model.eval()
+        logger.info(f"使用默认预训练模型: mobilenet_v2")
+        return model
     except Exception as e:
         logger.error(f"加载模型失败: {e}")
+        import traceback
+        logger.error(f"异常堆栈: {traceback.format_exc()}")
         return None
 
 def load_trained_model(model_name):
@@ -84,8 +96,9 @@ def load_trained_model(model_name):
         model_name: 模型名称
     
     Returns:
-        (model, class_to_idx) 或 None
+        模型和类别映射
     """
+    
     try:
         logger.info(f"加载训练好的模型: {model_name}")
         
@@ -95,10 +108,16 @@ def load_trained_model(model_name):
         
         if not os.path.exists(model_path):
             logger.error(f"模型文件不存在: {model_path}")
+            # 检查模型目录是否存在
+            if not os.path.exists(model_dir):
+                logger.warning(f"模型目录不存在: {model_dir}")
             return None
         
         # 确定模型类型
-        model_type = model_name
+        if model_name == "incremental":
+            model_type = "mobilenet_v2_incremental"
+        else:
+            model_type = model_name
         
         # 加载模型权重
         checkpoint = torch.load(model_path, map_location=torch.device('cpu'))
@@ -134,6 +153,8 @@ async def process_single_image(file: UploadFile, model_name: str, cache_bypass: 
     Returns:
         处理结果
     """
+    import os
+    
     temp_path = None
     start_time = time.time()
     
@@ -172,7 +193,7 @@ async def process_single_image(file: UploadFile, model_name: str, cache_bypass: 
             # 确定文件类型
             content_type = file.content_type
             if content_type is None:
-                import os
+                # import os
                 ext = os.path.splitext(file.filename)[1].lower()
                 ext_to_content_type = {
                     '.jpg': 'image/jpeg',
@@ -232,6 +253,7 @@ async def process_single_image(file: UploadFile, model_name: str, cache_bypass: 
                 if role == 'unknown' and feature is not None:
                     logger.info(f"模型服务返回unknown且提供了特征向量，role={role}, feature长度={len(feature) if feature else 'None'}")
                     # 加载训练好的模型
+                    
                     model_info = load_trained_model(model_name)
                     logger.info(f"load_trained_model返回: {model_info}")
                     if model_info is not None:
@@ -298,12 +320,12 @@ async def process_single_image(file: UploadFile, model_name: str, cache_bypass: 
                 f.write(content)
             
             # 检查是否使用新训练的模型
-            trained_model_names = ["mobilenet_v2", "efficientnet_b0", "efficientnet_b3", "resnet50"]
+            trained_model_names = ["mobilenet_v2", "efficientnet_b0", "efficientnet_b3", "resnet50", "incremental"]
             
             if model_name in trained_model_names:
                 logger.info(f"使用新训练的模型: {model_name}")
-                
                 # 加载训练好的模型
+                
                 model_info = load_trained_model(model_name)
                 if model_info is None:
                     result = {"role": "unknown", "similarity": 0.0, "attributes": []}
@@ -364,17 +386,25 @@ async def process_single_image(file: UploadFile, model_name: str, cache_bypass: 
                 # 检查模型是否存在
                 model_path = f"models/{model_name}"
                 if not os.path.exists(model_path):
-                    logger.error(f"模型不存在: {model_path}")
-                    result = {"role": "unknown", "similarity": 0.0, "attributes": []}
-                    # 缓存结果
-                    cache_manager.set(result, cache_key, ttl=3600)
-                    result["processing_time"] = time.time() - start_time
-                    return result
+                    logger.warning(f"模型目录不存在: {model_path}，使用默认预训练模型")
                 
-                # 加载模型
-                model = load_model(model_name)
-                if model is None:
-                    logger.error(f"加载模型失败: {model_name}")
+                # 直接创建模型
+                try:
+                    logger.info("创建默认预训练模型: mobilenet_v2")
+                    
+                    # .nn as nn
+                    # vision.models as models
+                    
+                    # 创建一个mobilenet_v2模型
+                    model = models.mobilenet_v2(pretrained=True)
+                    # 修改分类层，使其输出3个类别
+                    model.classifier[1] = nn.Linear(model.classifier[1].in_features, 3)
+                    model.eval()
+                    logger.info("默认预训练模型创建成功")
+                except Exception as e:
+                    logger.error(f"创建模型失败: {e}")
+                    import traceback
+                    logger.error(f"异常堆栈: {traceback.format_exc()}")
                     result = {"role": "unknown", "similarity": 0.0, "attributes": []}
                     # 缓存结果
                     cache_manager.set(result, cache_key, ttl=3600)
@@ -465,6 +495,45 @@ async def health_check():
     """
     return {"status": "healthy", "service": "Anime Role Detect API"}
 
+@app.get("/api/models")
+async def list_models():
+    """返回可用模型列表"""
+    models_dir = Path("models")
+
+    default_models = [
+        {"name": "default", "path": "", "description": "默认分类模型", "available": True},
+        {"name": "mobilenet_v2", "path": "models/mobilenet_v2", "description": "MobileNetV2 模型", "available": False},
+        {"name": "efficientnet_b0", "path": "models/efficientnet_b0", "description": "EfficientNet-B0 模型", "available": False},
+        {"name": "efficientnet_b3", "path": "models/efficientnet_b3", "description": "EfficientNet-B3 模型", "available": False},
+        {"name": "resnet50", "path": "models/resnet50", "description": "ResNet50 模型", "available": False},
+    ]
+
+    available_names = set()
+    if models_dir.exists() and models_dir.is_dir():
+        for model_dir in models_dir.iterdir():
+            if model_dir.is_dir():
+                available_names.add(model_dir.name)
+
+    models = []
+    for model in default_models:
+        model_copy = dict(model)
+        if model_copy["name"] != "default":
+            model_copy["available"] = model_copy["name"] in available_names
+        models.append(model_copy)
+
+    for extra_name in sorted(available_names):
+        if extra_name not in {m["name"] for m in models}:
+            models.append(
+                {
+                    "name": extra_name,
+                    "path": f"models/{extra_name}",
+                    "description": f"{extra_name} 模型",
+                    "available": True,
+                }
+            )
+
+    return {"models": models}
+
 @app.post("/api/classify")
 async def classify(
     file: UploadFile = File(...),
@@ -488,3 +557,185 @@ async def classify(
     except Exception as e:
         logger.error(f"分类失败: {e}")
         raise HTTPException(status_code=500, detail=f"分类失败: {str(e)}")
+
+async def process_multiple_characters(file: UploadFile, model_name: str, max_characters: int = 5):
+    """
+    处理图像中的多个角色
+    
+    Args:
+        file: 上传的文件
+        model_name: 模型名称
+        max_characters: 最大检测角色数
+    
+    Returns:
+        多角色检测结果
+    """
+    import os
+    temp_path = None
+    start_time = time.time()
+    
+    try:
+        # 读取文件内容
+        content = await file.read()
+        process_time = time.time() - start_time
+        logger.debug(f"读取文件耗时: {process_time:.4f}秒")
+        
+        # 检查是否使用模型服务
+        use_model_service = USE_MODEL_SERVICE
+        if use_model_service:
+            logger.info(f"使用模型服务进行多角色检测: {MODEL_SERVICE_URL}")
+            
+            # 确定文件类型
+            content_type = file.content_type
+            if content_type is None:
+                import os
+                ext = os.path.splitext(file.filename)[1].lower()
+                ext_to_content_type = {
+                    '.jpg': 'image/jpeg',
+                    '.jpeg': 'image/jpeg',
+                    '.png': 'image/png',
+                    '.gif': 'image/gif',
+                    '.bmp': 'image/bmp',
+                    '.svg': 'image/svg+xml'
+                }
+                content_type = ext_to_content_type.get(ext, 'application/octet-stream')
+            
+            # 发送请求到模型服务的多角色检测API
+            try:
+                logger.info(f"开始调用模型服务的多角色检测API: {MODEL_SERVICE_URL}/api/model/detect-multiple")
+                
+                # 使用aiohttp进行异步HTTP调用
+                async with aiohttp.ClientSession() as session:
+                    # 构建multipart/form-data请求
+                    form = aiohttp.FormData()
+                    form.add_field('file', content, filename=file.filename, content_type=content_type)
+                    form.add_field('max_characters', str(max_characters))
+                    
+                    async with session.post(
+                        f"{MODEL_SERVICE_URL}/api/model/detect-multiple",
+                        data=form,
+                        timeout=30
+                    ) as response:
+                        logger.info(f"模型服务响应状态码: {response.status}")
+                        response.raise_for_status()
+                        model_result = await response.json()
+                        logger.info(f"模型服务返回数据: {model_result}")
+                
+                # 处理结果
+                total_characters = model_result.get('total_characters', 0)
+                characters = model_result.get('characters', [])
+                
+                logger.info(f"多角色检测完成，检测到 {total_characters} 个角色")
+                
+                # 保存临时文件用于其他处理
+                temp_path = f"temp_{int(time.time())}_{file.filename}"
+                with open(temp_path, "wb") as f:
+                    f.write(content)
+                
+                # 对每个角色进行进一步处理
+                processed_characters = []
+                for i, char in enumerate(characters):
+                    # 检测文本
+                    text_detections = []
+                    if content_type != "image/svg+xml":
+                        # 这里可以为每个角色单独检测文本，但需要裁剪图像
+                        # 暂时使用整个图像的文本检测
+                        text_detections = preprocessor.detect_text(temp_path)
+                    
+                    # 构建处理后的角色信息
+                    processed_char = {
+                        "id": char.get("id", i + 1),
+                        "box": char.get("box"),
+                        "confidence": char.get("confidence"),
+                        "attributes": char.get("attributes", []),
+                        "text_detections": text_detections
+                    }
+                    processed_characters.append(processed_char)
+                
+                # 构建最终结果
+                result = {
+                    "total_characters": total_characters,
+                    "characters": processed_characters,
+                    "filename": file.filename,
+                    "processing_time": time.time() - start_time
+                }
+                
+                return result
+            except Exception as e:
+                logger.error(f"调用模型服务失败: {e}")
+                # 回退到本地处理
+                use_model_service = False
+        
+        # 如果不使用模型服务或调用失败，使用本地处理
+        if not use_model_service:
+            logger.info("使用本地处理进行多角色检测")
+            
+            # 保存临时文件
+            temp_path = f"temp_{int(time.time())}_{file.filename}"
+            with open(temp_path, "wb") as f:
+                f.write(content)
+            
+            # 使用本地预处理器检测多个角色
+            characters = preprocessor.process_multiple_characters(temp_path, max_characters=max_characters)
+            
+            # 处理结果
+            processed_characters = []
+            for i, char in enumerate(characters):
+                # 检测文本
+                text_detections = []
+                if file.content_type != "image/svg+xml":
+                    text_detections = preprocessor.detect_text(temp_path)
+                
+                # 构建处理后的角色信息
+                processed_char = {
+                    "id": i + 1,
+                    "box": char.get("box"),
+                    "confidence": char.get("confidence"),
+                    "attributes": [],  # 本地处理暂时不生成属性
+                    "text_detections": text_detections
+                }
+                processed_characters.append(processed_char)
+            
+            # 构建最终结果
+            result = {
+                "total_characters": len(processed_characters),
+                "characters": processed_characters,
+                "filename": file.filename,
+                "processing_time": time.time() - start_time
+            }
+            
+            return result
+    except Exception as e:
+        logger.error(f"多角色处理失败: {e}")
+        raise HTTPException(status_code=500, detail=f"多角色处理失败: {str(e)}")
+    finally:
+        # 清理临时文件
+        if temp_path and os.path.exists(temp_path):
+            try:
+                os.remove(temp_path)
+            except Exception as e:
+                logger.error(f"删除临时文件失败: {e}")
+
+@app.post("/api/classify-multiple")
+async def classify_multiple(
+    file: UploadFile = File(...),
+    model_name: str = Form(...),
+    max_characters: int = Form(5)
+):
+    """
+    多角色检测端点
+    
+    Args:
+        file: 上传的文件
+        model_name: 模型名称
+        max_characters: 最大检测角色数
+    
+    Returns:
+        多角色检测结果
+    """
+    try:
+        result = await process_multiple_characters(file, model_name, max_characters)
+        return result
+    except Exception as e:
+        logger.error(f"多角色检测失败: {e}")
+        raise HTTPException(status_code=500, detail=f"多角色检测失败: {str(e)}")

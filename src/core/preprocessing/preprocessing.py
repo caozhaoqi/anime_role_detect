@@ -5,7 +5,7 @@ from PIL import Image
 import traceback
 
 # 使用全局日志系统
-from core.logging.global_logger import get_logger, log_system, log_error
+from src.core.logging.global_logger import get_logger, log_system, log_error
 logger = get_logger("preprocessing")
 
 class Preprocessing:
@@ -31,43 +31,104 @@ class Preprocessing:
     
     def _load_model(self):
         """延迟加载YOLO模型"""
+        logger.debug("开始加载YOLO模型")
+        logger.debug(f"当前model: {self.model}")
+        logger.debug(f"是否有_model_instance属性: {hasattr(self.__class__, '_model_instance')}")
+        logger.debug(f"model_path: {self.model_path}")
+        
         if not self.model:
-            if not hasattr(self.__class__, '_model_instance') or self.model_path:
-                if self.model_path:
+            logger.debug("模型未加载，开始加载")
+            # 强制重新加载模型，不管是否已有实例
+            if self.model_path:
+                try:
                     logger.info(f"加载指定模型: {self.model_path}")
                     self.__class__._model_instance = YOLO(self.model_path)
                     logger.info("模型加载成功")
-                else:
-                    # 尝试加载YOLOv8-anime模型，如果没有则使用默认模型
+                except Exception as e:
+                    logger.error(f"加载指定模型失败: {e}")
+                    import traceback
+                    logger.error(f"异常详细信息: {traceback.format_exc()}")
+                    self.__class__._model_instance = None
+            else:
+                # 尝试加载YOLOv8-anime模型，如果没有则使用默认模型
+                try:
+                    logger.info("尝试加载YOLOv8-anime模型...")
+                    self.__class__._model_instance = YOLO('yolov8s-anime.pt')
+                    logger.info("YOLOv8-anime模型加载成功")
+                except Exception as e:
+                    logger.warning(f"YOLOv8-anime模型加载失败: {e}，使用默认模型")
+                    import traceback
+                    logger.warning(f"异常详细信息: {traceback.format_exc()}")
                     try:
-                        logger.info("尝试加载YOLOv8-anime模型...")
-                        self.__class__._model_instance = YOLO('yolov8s-anime.pt')
-                        logger.info("YOLOv8-anime模型加载成功")
-                    except Exception as e:
-                        logger.warning(f"YOLOv8-anime模型加载失败: {e}，使用默认模型")
+                        logger.info("尝试加载默认YOLOv8s模型...")
                         self.__class__._model_instance = YOLO('yolov8s.pt')
                         logger.info("默认YOLOv8s模型加载成功")
+                    except Exception as e2:
+                        logger.error(f"默认模型加载失败: {e2}")
+                        import traceback
+                        logger.error(f"异常详细信息: {traceback.format_exc()}")
+                        self.__class__._model_instance = None
+            
             self.model = self.__class__._model_instance
+            logger.debug(f"模型加载完成，model: {self.model}")
+        else:
+            logger.debug("模型已加载，跳过")
     
     def _load_ocr(self):
         """延迟加载OCR模型"""
-        if not self.ocr:
-            if not hasattr(self.__class__, '_ocr_instance'):
+        logger.debug("开始加载OCR模型")
+        logger.debug(f"当前ocr: {self.ocr}")
+        logger.debug(f"是否有_ocr_instance属性: {hasattr(self.__class__, '_ocr_instance')}")
+        logger.debug(f"_ocr_instance值: {getattr(self.__class__, '_ocr_instance', '未设置')}")
+        
+        # 强制重新加载OCR模型，不管之前是否加载过
+        try:
+            from paddleocr import PaddleOCR
+            logger.info("尝试加载PaddleOCR模型...")
+            # 尝试不同的初始化参数
+            try:
+                # 尝试默认参数
+                self.__class__._ocr_instance = PaddleOCR(use_angle_cls=True, lang='ch')
+                logger.info("PaddleOCR模型加载成功")
+            except Exception as e1:
+                logger.warning(f"默认参数加载失败: {e1}，尝试使用其他参数")
+                # 尝试不使用角度分类
                 try:
-                    from paddleocr import PaddleOCR
-                    logger.info("尝试加载PaddleOCR模型...")
-                    self.__class__._ocr_instance = PaddleOCR(use_angle_cls=True, lang='ch')
-                    logger.info("PaddleOCR模型加载成功")
-                except Exception as e:
-                    logger.warning(f"PaddleOCR模型加载失败: {e}，OCR功能将不可用")
-                    self.__class__._ocr_instance = None
-            self.ocr = self.__class__._ocr_instance
+                    self.__class__._ocr_instance = PaddleOCR(use_angle_cls=False, lang='ch')
+                    logger.info("PaddleOCR模型加载成功（不使用角度分类）")
+                except Exception as e2:
+                    logger.warning(f"不使用角度分类加载失败: {e2}，尝试使用英文模型")
+                    # 尝试使用英文模型
+                    try:
+                        self.__class__._ocr_instance = PaddleOCR(use_angle_cls=False, lang='en')
+                        logger.info("PaddleOCR模型加载成功（英文模型）")
+                    except Exception as e3:
+                        logger.error(f"所有尝试都失败: {e3}")
+                        import traceback
+                        logger.error(f"异常详细信息: {traceback.format_exc()}")
+                        self.__class__._ocr_instance = None
+        except Exception as e:
+            logger.error(f"PaddleOCR模型加载失败: {e}")
+            import traceback
+            logger.error(f"异常详细信息: {traceback.format_exc()}")
+            self.__class__._ocr_instance = None
+        
+        self.ocr = self.__class__._ocr_instance
+        logger.debug(f"OCR模型加载完成，ocr: {self.ocr}")
     
     def detect_character(self, image_path):
         """使用YOLOv8检测图像中的角色主体"""
         logger.debug(f"开始检测角色: {image_path}")
         # 延迟加载模型
+        logger.debug("调用 _load_model() 方法")
         self._load_model()
+        logger.debug(f"_load_model() 方法执行完成，model={self.model}")
+        
+        # 检查模型是否加载成功
+        if not self.model:
+            logger.error("模型加载失败，无法进行角色检测")
+            return []
+        
         # 加载图像
         if image_path.lower().endswith(('.svg', '.webp')):
             # 使用PIL加载SVG和WebP文件
@@ -89,8 +150,8 @@ class Preprocessing:
             img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         logger.debug(f"图像加载成功，大小: {img_rgb.shape}")
         
-        # 使用YOLOv8检测
-        results = self.model(img_rgb)
+        # 使用YOLOv8检测，调整参数以提高检测率
+        results = self.model(img_rgb, conf=0.1, iou=0.45)
         
         # 提取检测结果
         boxes = []
@@ -100,9 +161,9 @@ class Preprocessing:
                 conf = box.conf[0].item()
                 cls = box.cls[0].item()
                 
-                # 修改：降低置信度阈值到 0.25，提高召回率
+                # 修改：降低置信度阈值到 0.1，提高召回率
                 # 修改：放宽类别限制，不仅限于 person (0)，防止二次元角色被误识别
-                if conf > 0.25:
+                if conf > 0.1:
                     boxes.append({
                         'bbox': [x1, y1, x2, y2],
                         'confidence': conf
@@ -434,6 +495,11 @@ class Preprocessing:
             # 检测角色
             boxes = self.detect_character(image_path)
             
+            # 检查boxes是否为空
+            if not boxes:
+                logger.warning("未检测到角色，返回空列表")
+                return []
+            
             # 按置信度排序，选择前max_characters个角色
             boxes.sort(key=lambda x: x['confidence'], reverse=True)
             selected_boxes = boxes[:max_characters]
@@ -443,22 +509,28 @@ class Preprocessing:
             processed_characters = []
             for i, box in enumerate(selected_boxes):
                 logger.debug(f"处理角色 {i+1}/{len(selected_boxes)}，置信度: {box['confidence']:.4f}")
-                # 裁剪单个角色
-                cropped_img = self.crop_single_character(image_path, box)
-                
-                # 标准化图像
-                normalized_img = self.normalize_image(cropped_img)
-                
-                processed_characters.append({
-                    'box': box['bbox'],
-                    'confidence': box['confidence'],
-                    'image': normalized_img
-                })
+                try:
+                    # 裁剪单个角色
+                    cropped_img = self.crop_single_character(image_path, box)
+                    
+                    # 标准化图像
+                    normalized_img = self.normalize_image(cropped_img)
+                    
+                    processed_characters.append({
+                        'box': box['bbox'],
+                        'confidence': box['confidence'],
+                        'image': normalized_img
+                    })
+                except Exception as e:
+                    logger.error(f"处理角色 {i+1} 失败: {e}")
+                    continue
             
             logger.info(f"多角色处理完成，成功处理 {len(processed_characters)} 个角色")
             return processed_characters
         except Exception as e:
             logger.error(f"多角色处理失败: {e}")
+            import traceback
+            logger.error(f"异常详细信息: {traceback.format_exc()}")
             return []
     
     def crop_single_character(self, image_path, box):

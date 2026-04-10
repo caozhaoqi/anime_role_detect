@@ -13,7 +13,6 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from src.scripts.data_preparation.data_preparation import DataPreparation
 from src.scripts.classification_script.classification_script import ClassificationScript
-from src.backend.web.web_ui import WebUI
 
 class AnimeRoleDetect:
     def __init__(self):
@@ -68,6 +67,13 @@ class AnimeRoleDetect:
     def run_web_ui(self, index_path="role_index", threshold=0.7, share=False, server_port=7860):
         """运行Web UI"""
         print("=== 运行Web UI ===")
+        try:
+            from src.backend.web.web_ui import WebUI
+        except ImportError:
+            print("未找到 src.backend.web.web_ui，请使用 src/frontend 的 Next.js 前端。")
+            print("启动方式: cd src/frontend && npm install && npm run dev")
+            return
+
         web_ui = WebUI(index_path, threshold)
         web_ui.launch(share=share, server_port=server_port)
     

@@ -20,11 +20,10 @@ from src.core.preprocessing.preprocessing import Preprocessing
 from src.core.feature_extraction.feature_extraction import FeatureExtraction
 from src.core.tagging.wd_vit_v3_tagger import WDViTV3Tagger
 from src.core.classification.classification import Classification
-from src.utils.log_manager import LogManager
+from src.core.logging.global_logger import get_logger
 
-# 初始化日志管理器
-log_manager = LogManager(log_dir='logs', log_level='INFO')
-logger = log_manager.get_logger("model_service")
+# 初始化日志
+logger = get_logger("model_service")
 
 # 初始化FastAPI应用
 app = FastAPI(
@@ -127,14 +126,18 @@ async def predict_image(
                 raise HTTPException(status_code=500, detail=f"特征提取器初始化失败: {e}")
         
         # 提取特征
-        feature = feature_extractor.extract(processed_image)
+        feature = feature_extractor.extract_features(processed_image)
         
         # 初始化标签生成器
         if tagger is None:
             logger.info("初始化标签生成器...")
             try:
-                tagger = WDVitV3Tagger()
+                tagger = WDViTV3Tagger()
                 logger.info("标签生成器初始化完成")
+                # 加载模型
+                logger.info("加载标签生成模型...")
+                tagger.load_model()
+                logger.info("标签生成模型加载完成")
             except Exception as e:
                 logger.error(f"标签生成器初始化失败: {e}")
                 tagger = None
@@ -242,7 +245,7 @@ async def extract_features(
                 raise HTTPException(status_code=500, detail=f"特征提取器初始化失败: {e}")
         
         # 提取特征
-        feature = feature_extractor.extract(processed_image)
+        feature = feature_extractor.extract_features(processed_image)
         
         # 构建响应
         result = {
@@ -255,6 +258,109 @@ async def extract_features(
     except Exception as e:
         logger.error(f"特征提取失败: {e}")
         raise HTTPException(status_code=500, detail=f"特征提取失败: {e}")
+    finally:
+        # 清理临时文件
+        if temp_path and os.path.exists(temp_path):
+            try:
+                os.remove(temp_path)
+            except Exception as e:
+                logger.error(f"删除临时文件失败: {e}")
+
+# 多角色检测
+@app.post("/api/model/detect-multiple")
+async def detect_multiple_characters(
+    file: UploadFile = File(...),
+    max_characters: int = Form(5)
+):
+    """
+    检测图片中的多个角色
+    
+    Args:
+        file: 上传的图像文件
+        max_characters: 最大检测角色数
+    
+    Returns:
+        检测到的角色列表
+    """
+    global preprocessor, feature_extractor, tagger
+    
+    temp_path = None
+    
+    try:
+        # 读取文件内容
+        content = await file.read()
+        
+        # 保存临时文件
+        temp_path = f"temp_{int(time.time())}_{file.filename}"
+        with open(temp_path, "wb") as f:
+            f.write(content)
+        
+        # 初始化预处理器
+        if preprocessor is None:
+            preprocessor = Preprocessing()
+        
+        # 处理多个角色
+        characters = preprocessor.process_multiple_characters(temp_path, max_characters=max_characters)
+        
+        # 初始化特征提取器
+        if feature_extractor is None:
+            logger.info("初始化特征提取器...")
+            try:
+                feature_extractor = FeatureExtraction()
+                logger.info("特征提取器初始化完成")
+            except Exception as e:
+                logger.error(f"特征提取器初始化失败: {e}")
+                raise HTTPException(status_code=500, detail=f"特征提取器初始化失败: {e}")
+        
+        # 初始化标签生成器
+        if tagger is None:
+            logger.info("初始化标签生成器...")
+            try:
+                tagger = WDViTV3Tagger()
+                logger.info("标签生成器初始化完成")
+                # 加载模型
+                logger.info("加载标签生成模型...")
+                tagger.load_model()
+                logger.info("标签生成模型加载完成")
+            except Exception as e:
+                logger.error(f"标签生成器初始化失败: {e}")
+                tagger = None
+        
+        # 为每个角色提取特征和生成标签
+        results = []
+        for i, char in enumerate(characters):
+            # 提取特征
+            feature = feature_extractor.extract_features(char['image'])
+            
+            # 生成属性标签
+            attributes = []
+            if tagger:
+                try:
+                    attributes = tagger.generate_tags(char['image'])
+                except Exception as e:
+                    logger.error(f"标签生成失败: {e}")
+            
+            # 构建角色结果
+            results.append({
+                "id": i + 1,
+                "box": char['box'],
+                "confidence": char['confidence'],
+                "attributes": attributes,
+                "feature": feature.tolist() if hasattr(feature, 'tolist') else feature
+            })
+        
+        # 构建响应
+        response = {
+            "total_characters": len(results),
+            "characters": results
+        }
+        
+        return response
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"多角色检测失败: {e}")
+        raise HTTPException(status_code=500, detail=f"多角色检测失败: {e}")
     finally:
         # 清理临时文件
         if temp_path and os.path.exists(temp_path):

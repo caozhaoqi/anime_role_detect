@@ -30,26 +30,6 @@ The Character Classification System is an AI-based image recognition tool specif
 | EfficientNet-B3 | 300x300 | 50 (early stopping) | 32 | 0.001 | 96.80% |
 | ResNet50 | 224x224 | 50 (early stopping) | 32 | 0.001 | 94.80% |
 
-### Training Data
-- **Total Samples**: 2,629 images
-- **Classes**: 11 characters
-- **Training Set**: 2,103 images
-- **Validation Set**: 526 images
-
-### Supported Characters
-| Character | Samples | Test Precision | Test Recall |
-|-----------|---------|----------------|-------------|
-| 阿罗娜 (Arona) | 398 | 96.18% | 99.60% |
-| 日奈 (Hina) | 55 | 86.44% | 92.73% |
-| 普拉娜 (Plana) | 486 | 97.50% | 82.98% |
-| 千夏 (Chinatsu) | 25 | 89.47% | 68.00% |
-| 亚子 (Ako) | 28 | 89.29% | 89.29% |
-| 枫香 (Kaede) | 6 | 100.00% | 83.33% |
-| 伊织 (Iori) | 3 | 75.00% | 100.00% |
-| 可莉 (Klee) | 226 | - | - |
-| 提宝 (Tibao) | 283 | - | - |
-| 火花 (Spark) | 412 | - | - |
-| 纳西妲 (Nahida) | 707 | - | - |
 
 ### Performance
 | Model | Test Accuracy | Precision | Recall | F1-Score | Inference Speed (FPS) |
@@ -244,26 +224,6 @@ When using multi-role detection:
 - Each character will be identified with its own confidence score
 - The results will show the number of detected characters and their positions
 - Processing time may be longer for images with multiple characters
-
-### Automatic Detection Flow
-
-The system can automatically determine whether to use single-role or multi-role detection based on the image content. Here's the complete flow:
-
-```mermaid
-flowchart TD
-    A[Upload Image] --> B[Image Preprocessing]
-    B --> C[Automatic Character Detection]
-    C --> D{Multiple Characters Detected?}
-    D -->|Yes| E[Multi-role Detection]
-    D -->|No| F[Single-role Detection]
-    E --> G[Process Each Character]
-    G --> H[Character Classification]
-    F --> H
-    H --> I[Attribute Prediction]
-    I --> J[Text Detection]
-    J --> K[Result Generation]
-    K --> L[Return Results]
-```
 
 ### How Automatic Detection Works
 
