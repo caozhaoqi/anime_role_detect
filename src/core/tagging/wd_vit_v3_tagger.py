@@ -199,58 +199,63 @@ class WDViTV3Tagger:
                 image = Image.open(image_path).convert('RGB')
                 self.logger.info(f"加载图像成功: {image_path}")
                 
-                # 使用Core ML标签生成器
-                tags = self.__class__._coreml_tagger.generate_tags(image, threshold)
-                
-                # 检查生成的标签是否都是LABEL_格式
-                has_valid_tags = any(not tag['tag'].startswith('LABEL_') for tag in tags)
-                if has_valid_tags:
-                    # 打印前10个标签
-                    self.logger.info(f"Core ML WD Vit Tagger 前10个标签: {tags[:10]}")
-                    return tags
-                else:
-                    self.logger.warning("Core ML生成的标签都是LABEL_格式，回退到CLIP模型")
+                # 尝试使用Core ML标签生成器
+                try:
+                    tags = self.__class__._coreml_tagger.generate_tags(image, threshold)
+                    
+                    # 检查生成的标签是否都是LABEL_格式
+                    has_valid_tags = any(not tag['tag'].startswith('LABEL_') for tag in tags)
+                    if has_valid_tags:
+                        # 打印前10个标签
+                        self.logger.info(f"Core ML WD Vit Tagger 前10个标签: {tags[:10]}")
+                        return tags
+                    else:
+                        self.logger.warning("Core ML生成的标签都是LABEL_格式，回退到CLIP模型")
+                except Exception as e:
+                    self.logger.error(f"Core ML 标签生成失败: {e}")
                     # 回退到CLIP模型
-                    if not self.clip_model:
-                        self.logger.info("加载CLIP模型作为标签生成的替代方案...")
-                        from transformers import CLIPProcessor, CLIPModel
-                        self.clip_model = CLIPModel.from_pretrained("openai/clip-vit-base-patch32").to(self.device)
-                        self.clip_processor = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32")
-                        
-                        # 检查MPS是否可用，不可用则使用CPU
-                        if torch.backends.mps.is_available():
-                            self.logger.info("使用MPS设备")
-                        else:
-                            self.logger.info("MPS设备不可用，使用CPU")
-                        
-                        # 跳过量化，因为MPS不支持
-                        self.logger.info("MPS设备不支持量化，跳过量化步骤")
+                
+                # 回退到CLIP模型
+                if not self.clip_model:
+                    self.logger.info("加载CLIP模型作为标签生成的替代方案...")
+                    from transformers import CLIPProcessor, CLIPModel
+                    self.clip_model = CLIPModel.from_pretrained("openai/clip-vit-base-patch32").to(self.device)
+                    self.clip_processor = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32")
                     
-                    # 使用CLIP模型生成标签
-                    inputs = self.clip_processor(images=image, return_tensors="pt").to(self.device)
-                    outputs = self.clip_model(**inputs)
-                    logits_per_image = outputs.logits_per_image
-                    probs = logits_per_image.softmax(dim=1)
+                    # 检查MPS是否可用，不可用则使用CPU
+                    if torch.backends.mps.is_available():
+                        self.logger.info("使用MPS设备")
+                    else:
+                        self.logger.info("MPS设备不可用，使用CPU")
                     
-                    # 生成标签
-                    tag_probs = []
-                    for i, prob in enumerate(probs[0]):
-                        if prob.item() > threshold and i < len(self.tags):
-                            tag_probs.append((self.tags[i], prob.item()))
-                    
-                    # 排序
-                    tag_probs.sort(key=lambda x: x[1], reverse=True)
-                    
-                    # 打印前10个标签
-                    self.logger.info(f"CLIP模型前10个标签: {[(tag, prob) for tag, prob in tag_probs[:10]]}")
-                    
-                    # 清理内存
-                    del inputs, outputs, logits_per_image, probs
-                    if torch.cuda.is_available():
-                        torch.cuda.empty_cache()
-                    
-                    # 返回标签
-                    return [{"tag": tag, "confidence": float(prob)} for tag, prob in tag_probs]
+                    # 跳过量化，因为MPS不支持
+                    self.logger.info("MPS设备不支持量化，跳过量化步骤")
+                
+                # 使用CLIP模型生成标签
+                inputs = self.clip_processor(images=image, return_tensors="pt").to(self.device)
+                outputs = self.clip_model(**inputs)
+                logits_per_image = outputs.logits_per_image
+                probs = logits_per_image.softmax(dim=1)
+                
+                # 生成标签
+                tag_probs = []
+                for i, prob in enumerate(probs[0]):
+                    if prob.item() > threshold and i < len(self.tags):
+                        tag_probs.append((self.tags[i], prob.item()))
+                
+                # 排序
+                tag_probs.sort(key=lambda x: x[1], reverse=True)
+                
+                # 打印前10个标签
+                self.logger.info(f"CLIP模型前10个标签: {[(tag, prob) for tag, prob in tag_probs[:10]]}")
+                
+                # 清理内存
+                del inputs, outputs, logits_per_image, probs
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+                
+                # 返回标签
+                return [{"tag": tag, "confidence": float(prob)} for tag, prob in tag_probs]
             except Exception as e:
                 self.logger.error(f"Core ML 标签生成失败: {e}")
                 return []

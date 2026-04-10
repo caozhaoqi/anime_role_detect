@@ -147,6 +147,8 @@ class CoreMLWDVitV3Tagger:
                 raise ValueError("输入图像为None")
             
             # 预处理图像
+            # 确保图像是RGB格式
+            img = img.convert('RGB')
             # 调整图像大小为448x448
             img = img.resize((448, 448))
             # 转换为numpy数组

@@ -346,39 +346,82 @@ async def process_single_image(file: UploadFile, model_name: str, cache_bypass: 
                 ])
                 
                 # 加载图像
-                img = Image.open(temp_path).convert('RGB')
-                img = transform(img)
-                img = img.unsqueeze(0)  # 添加批次维度
-                
-                # 预测
-                with torch.no_grad():
-                    outputs = model(img)
-                    _, predicted = torch.max(outputs, 1)
-                    confidence = torch.nn.functional.softmax(outputs, dim=1)[0][predicted.item()].item()
-                
-                # 获取预测结果
-                role = idx_to_class.get(predicted.item(), "unknown")
-                similarity = float(confidence)
-                
-                # 处理文本检测、标签生成
-                
-                # 文本检测
-                if file.content_type != "image/svg+xml":
-                    text_detections = preprocessor.detect_text(temp_path)
-                else:
-                    text_detections = []
-                
-                # 标签生成
-                attributes = tagger.generate_tags(temp_path)
-                
-                # 关键点检测
-                if file.content_type != "image/svg+xml":
-                    keypoints = keypoint_detector.detect_keypoints(temp_path)
-                else:
-                    keypoints = []
-                
-                # 角色预测
-                ai_predicted_role = role_predictor.predict_role([])
+                try:
+                    logger.info(f"加载图像: {temp_path}")
+                    img = Image.open(temp_path).convert('RGB')
+                    logger.info(f"图像加载成功，大小: {img.size}")
+                    
+                    # 应用变换
+                    img = transform(img)
+                    logger.info(f"图像变换成功，形状: {img.shape}")
+                    
+                    img = img.unsqueeze(0)  # 添加批次维度
+                    logger.info(f"添加批次维度后，形状: {img.shape}")
+                    
+                    # 预测
+                    with torch.no_grad():
+                        logger.info("开始模型预测...")
+                        outputs = model(img)
+                        logger.info(f"模型输出形状: {outputs.shape}")
+                        _, predicted = torch.max(outputs, 1)
+                        confidence = torch.nn.functional.softmax(outputs, dim=1)[0][predicted.item()].item()
+                    logger.info(f"预测完成，预测类别: {predicted.item()}, 置信度: {confidence}")
+                    
+                    # 获取预测结果
+                    role = idx_to_class.get(predicted.item(), "unknown")
+                    similarity = float(confidence)
+                    logger.info(f"预测角色: {role}, 相似度: {similarity}")
+                    
+                    # 处理文本检测、标签生成
+                    
+                    # 文本检测
+                    try:
+                        if file.content_type != "image/svg+xml":
+                            logger.info("开始文本检测...")
+                            text_detections = preprocessor.detect_text(temp_path)
+                            logger.info(f"文本检测完成，检测到 {len(text_detections)} 个文本")
+                        else:
+                            text_detections = []
+                            logger.info("SVG图像，跳过文本检测")
+                    except Exception as e:
+                        logger.error(f"文本检测失败: {e}")
+                        text_detections = []
+                    
+                    # 标签生成
+                    try:
+                        logger.info("开始标签生成...")
+                        attributes = tagger.generate_tags(temp_path)
+                        logger.info(f"标签生成完成，生成 {len(attributes)} 个标签")
+                    except Exception as e:
+                        logger.error(f"标签生成失败: {e}")
+                        attributes = []
+                    
+                    # 关键点检测
+                    try:
+                        if file.content_type != "image/svg+xml":
+                            logger.info("开始关键点检测...")
+                            keypoints = keypoint_detector.detect_keypoints(temp_path)
+                            logger.info(f"关键点检测完成，检测到 {len(keypoints)} 个关键点")
+                        else:
+                            keypoints = []
+                            logger.info("SVG图像，跳过关键点检测")
+                    except Exception as e:
+                        logger.error(f"关键点检测失败: {e}")
+                        keypoints = []
+                    
+                    # 角色预测
+                    try:
+                        logger.info("开始角色预测...")
+                        ai_predicted_role = role_predictor.predict_role([])
+                        logger.info(f"角色预测完成，预测角色: {ai_predicted_role}")
+                    except Exception as e:
+                        logger.error(f"角色预测失败: {e}")
+                        ai_predicted_role = None
+                except Exception as e:
+                    logger.error(f"图像处理失败: {e}")
+                    import traceback
+                    logger.error(f"异常堆栈: {traceback.format_exc()}")
+                    raise
             else:
                 # 使用传统模型
                 logger.info(f"使用传统模型: {model_name}")
