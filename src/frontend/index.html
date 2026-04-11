@@ -211,6 +211,43 @@
             margin-bottom: 10px;
             color: #2c3e50;
         }
+        
+        /* 流程检测结果样式 */
+        .detection-process {
+            margin-top: 30px;
+            padding: 20px;
+            background-color: #f9f9f9;
+            border-radius: 5px;
+        }
+        
+        .detection-process h3 {
+            margin-bottom: 15px;
+            color: #2c3e50;
+        }
+        
+        .process-steps {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        
+        .process-step {
+            padding: 15px;
+            background-color: white;
+            border-radius: 5px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        
+        .process-step h4 {
+            margin-bottom: 10px;
+            color: #3498db;
+            font-size: 16px;
+        }
+        
+        .process-step p {
+            margin: 5px 0;
+            color: #555;
+        }
     </style>
 </head>
 <body>
@@ -503,6 +540,44 @@
                     `;
                     top5Results.appendChild(keypointsDiv);
                 }
+            }
+            
+            // 显示流程检测结果
+            if (result.detection_process) {
+                const processDiv = document.createElement('div');
+                processDiv.className = 'detection-process';
+                processDiv.innerHTML = `
+                    <h3>流程检测结果</h3>
+                    <div class="process-steps">
+                        <div class="process-step">
+                            <h4>1. 内容检测</h4>
+                            <p><strong>NSFW检测:</strong> ${result.detection_process.content_detection.nsfw.is_nsfw ? '包含敏感内容' : '不包含敏感内容'} (皮肤比例: ${(result.detection_process.content_detection.nsfw.skin_ratio * 100).toFixed(2)}%)</p>
+                            <p><strong>OCR检测:</strong> ${result.detection_process.content_detection.ocr.status} (检测到 ${result.detection_process.content_detection.ocr.text_detections.length} 个文本)</p>
+                        </div>
+                        <div class="process-step">
+                            <h4>2. 分类检测</h4>
+                            <p><strong>状态:</strong> ${result.detection_process.classification.status}</p>
+                            <p><strong>角色:</strong> ${result.detection_process.classification.role}</p>
+                            <p><strong>相似度:</strong> ${(result.detection_process.classification.similarity * 100).toFixed(2)}%</p>
+                        </div>
+                        <div class="process-step">
+                            <h4>3. 标签输出</h4>
+                            <p><strong>状态:</strong> ${result.detection_process.tag_output.status}</p>
+                            <p><strong>标签数量:</strong> ${result.detection_process.tag_output.attributes.length}</p>
+                        </div>
+                        <div class="process-step">
+                            <h4>4. 关键点检测</h4>
+                            <p><strong>状态:</strong> ${result.detection_process.keypoint_detection.status}</p>
+                            <p><strong>关键点数量:</strong> ${result.detection_process.keypoint_detection.keypoints.length}</p>
+                        </div>
+                        <div class="process-step">
+                            <h4>5. 角色预测</h4>
+                            <p><strong>状态:</strong> ${result.detection_process.role_prediction.status}</p>
+                            <p><strong>预测角色:</strong> ${result.detection_process.role_prediction.predicted_role}</p>
+                        </div>
+                    </div>
+                `;
+                top5Results.appendChild(processDiv);
             }
             
             // 绘制置信度图表

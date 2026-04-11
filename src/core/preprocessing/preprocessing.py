@@ -1,9 +1,3 @@
-import cv2
-import numpy as np
-from ultralytics import YOLO
-from PIL import Image
-import traceback
-
 # 使用全局日志系统
 from src.core.logging.global_logger import get_logger, log_system, log_error
 logger = get_logger("preprocessing")
@@ -38,6 +32,8 @@ class Preprocessing:
         
         if not self.model:
             logger.debug("模型未加载，开始加载")
+            # 延迟导入YOLO
+            from ultralytics import YOLO
             # 强制重新加载模型，不管是否已有实例
             if self.model_path:
                 try:
@@ -133,14 +129,16 @@ class Preprocessing:
         if image_path.lower().endswith(('.svg', '.webp')):
             # 使用PIL加载SVG和WebP文件
             from PIL import Image
+            import numpy as np
             img = Image.open(image_path)
             # 转换为RGB
             img = img.convert('RGB')
             # 转换为numpy数组
-            import numpy as np
             img_rgb = np.array(img)
         else:
             # 使用OpenCV加载其他格式
+            import cv2
+            import numpy as np
             img = cv2.imread(image_path)
             if img is None:
                 logger.error(f"无法加载图像: {image_path}")
@@ -150,8 +148,9 @@ class Preprocessing:
             img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         logger.debug(f"图像加载成功，大小: {img_rgb.shape}")
         
-        # 使用YOLOv8检测，调整参数以提高检测率
-        results = self.model(img_rgb, conf=0.1, iou=0.45)
+        # 优化YOLOv8检测参数
+        # 调整conf和iou参数以提高检测准确率
+        results = self.model(img_rgb, conf=0.05, iou=0.4, max_det=30)
         
         # 提取检测结果
         boxes = []
@@ -161,16 +160,63 @@ class Preprocessing:
                 conf = box.conf[0].item()
                 cls = box.cls[0].item()
                 
-                # 修改：降低置信度阈值到 0.1，提高召回率
-                # 修改：放宽类别限制，不仅限于 person (0)，防止二次元角色被误识别
-                if conf > 0.1:
-                    boxes.append({
-                        'bbox': [x1, y1, x2, y2],
-                        'confidence': conf
-                    })
+                # 进一步降低置信度阈值，提高召回率
+                # 对于动漫角色，可能需要更宽松的阈值
+                if conf > 0.05:
+                    # 计算边界框面积
+                    area = (x2 - x1) * (y2 - y1)
+                    # 过滤过小的边界框
+                    if area > 1000:  # 最小面积阈值
+                        boxes.append({
+                            'bbox': [x1, y1, x2, y2],
+                            'confidence': conf,
+                            'area': area
+                        })
+        
+        # 非极大值抑制，去除重叠的边界框
+        boxes = self._non_max_suppression(boxes, iou_threshold=0.3)
         
         logger.info(f"角色检测完成，检测到 {len(boxes)} 个角色")
         return boxes
+    
+    def _non_max_suppression(self, boxes, iou_threshold=0.5):
+        """非极大值抑制，去除重叠的边界框"""
+        if not boxes:
+            return []
+        
+        # 按置信度排序
+        boxes.sort(key=lambda x: x['confidence'], reverse=True)
+        
+        filtered_boxes = []
+        while boxes:
+            current_box = boxes.pop(0)
+            filtered_boxes.append(current_box)
+            
+            # 过滤与当前框重叠的框
+            boxes = [box for box in boxes if self._calculate_iou(current_box['bbox'], box['bbox']) < iou_threshold]
+        
+        return filtered_boxes
+    
+    def _calculate_iou(self, box1, box2):
+        """计算两个边界框的IoU"""
+        x1 = max(box1[0], box2[0])
+        y1 = max(box1[1], box2[1])
+        x2 = min(box1[2], box2[2])
+        y2 = min(box1[3], box2[3])
+        
+        # 计算交集面积
+        intersection = max(0, x2 - x1) * max(0, y2 - y1)
+        
+        # 计算两个框的面积
+        area1 = (box1[2] - box1[0]) * (box1[3] - box1[1])
+        area2 = (box2[2] - box2[0]) * (box2[3] - box2[1])
+        
+        # 计算并集面积
+        union = area1 + area2 - intersection
+        
+        # 计算IoU
+        iou = intersection / union if union > 0 else 0
+        return iou
     
     def crop_character(self, image_path, boxes):
         """根据检测结果裁剪角色主体"""
@@ -229,6 +275,11 @@ class Preprocessing:
         """使用OCR检测图像中的文本"""
         logger.debug(f"开始检测文本: {image_path}")
         
+        # 导入必要的模块
+        import cv2
+        import numpy as np
+        from PIL import Image
+        
         # 延迟加载OCR模型
         self._load_ocr()
         
@@ -241,12 +292,10 @@ class Preprocessing:
             # 加载图像
             if image_path.lower().endswith(('.svg', '.webp')):
                 # 使用PIL加载SVG和WebP文件
-                from PIL import Image
                 img = Image.open(image_path)
                 # 转换为RGB
                 img = img.convert('RGB')
                 # 转换为numpy数组
-                import numpy as np
                 img = np.array(img)
             else:
                 # 使用OpenCV加载其他格式
@@ -431,6 +480,10 @@ class Preprocessing:
         """标准化图像"""
         logger.debug("开始标准化图像")
         
+        # 导入必要的模块
+        import cv2
+        from PIL import Image
+        
         # 调整大小
         resized_img = cv2.resize(img, self.img_size)
         logger.debug(f"调整图像大小到: {self.img_size}")
@@ -479,6 +532,8 @@ class Preprocessing:
                 return self.normalize_image(img_rgb), []
             else:
                 # 使用OpenCV加载其他格式
+                import cv2
+                import numpy as np
                 img = cv2.imread(image_path)
                 if img is not None:
                     logger.warning("返回原始图像的标准化版本")
@@ -513,6 +568,11 @@ class Preprocessing:
                     # 裁剪单个角色
                     cropped_img = self.crop_single_character(image_path, box)
                     
+                    # 检查裁剪结果是否有效
+                    if cropped_img.size == 0 or cropped_img.shape[0] < 10 or cropped_img.shape[1] < 10:
+                        logger.warning(f"角色 {i+1} 裁剪结果无效，跳过")
+                        continue
+                    
                     # 标准化图像
                     normalized_img = self.normalize_image(cropped_img)
                     
@@ -523,6 +583,8 @@ class Preprocessing:
                     })
                 except Exception as e:
                     logger.error(f"处理角色 {i+1} 失败: {e}")
+                    import traceback
+                    logger.error(f"异常详细信息: {traceback.format_exc()}")
                     continue
             
             logger.info(f"多角色处理完成，成功处理 {len(processed_characters)} 个角色")
@@ -536,6 +598,9 @@ class Preprocessing:
     def crop_single_character(self, image_path, box):
         """裁剪单个角色"""
         logger.debug(f"开始裁剪单个角色: {image_path}")
+        # 导入必要的模块
+        import cv2
+        import numpy as np
         # 加载图像
         img = cv2.imread(image_path)
         if img is None:

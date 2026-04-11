@@ -5,6 +5,18 @@
 """
 import os
 import sys
+
+# 设置环境变量，避免 MPS 设备检查导致的锁竞争
+os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
+os.environ['MPS_HIGH_WATERMARK_RATIO'] = '0.0'
+os.environ['PYTORCH_MPS_HIGH_WATERMARK_RATIO'] = '0.0'
+os.environ['CUDA_VISIBLE_DEVICES'] = ''  # 禁用 CUDA，强制使用 CPU
+
+# 导入 torch 并禁用 MPS 后端
+import torch
+torch.backends.mps.is_available = lambda: False
+torch.backends.mps.is_built = lambda: False
+
 import time
 from datetime import datetime
 from typing import Dict, Any, Optional, List
@@ -14,15 +26,29 @@ from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 
 # 添加项目根目录到Python路径
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..')))
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../../..'))
+sys.path.insert(0, project_root)
+print(f"添加到Python路径: {project_root}")
+print(f"当前工作目录: {os.getcwd()}")
+print(f"Python路径: {sys.path}")
+# 延迟导入核心模块，避免启动时的锁竞争
+Preprocessing = None
+FeatureExtraction = None
+WDViTV3Tagger = None
+Classification = None
+get_logger = None
 
-from src.core.preprocessing.preprocessing import Preprocessing
-from src.core.feature_extraction.feature_extraction import FeatureExtraction
-from src.core.tagging.wd_vit_v3_tagger import WDViTV3Tagger
-from src.core.classification.classification import Classification
-from src.core.logging.global_logger import get_logger
+# 动态导入函数
+def import_core_modules():
+    global Preprocessing, FeatureExtraction, WDViTV3Tagger, Classification, get_logger
+    from src.core.preprocessing.preprocessing import Preprocessing
+    from src.core.feature_extraction.feature_extraction import FeatureExtraction
+    from src.core.tagging.wd_vit_v3_tagger import WDViTV3Tagger
+    from src.core.classification.classification import Classification
+    from src.core.logging.global_logger import get_logger
 
 # 初始化日志
+import_core_modules()
 logger = get_logger("model_service")
 
 # 初始化FastAPI应用
@@ -55,6 +81,21 @@ async def init_models():
     global preprocessor, feature_extractor, tagger
     
     try:
+        # 先初始化特征提取器，避免锁竞争
+        logger.info("初始化特征提取器...")
+        feature_extractor = FeatureExtraction()
+        logger.info("特征提取器初始化完成")
+        
+        # 加载特征提取模型，避免运行时加载导致的锁竞争
+        logger.info("加载特征提取模型...")
+        # 创建一个空的图像，用于触发模型加载
+        from PIL import Image
+        import numpy as np
+        dummy_image = Image.new('RGB', (224, 224), color='white')
+        # 提取特征，触发模型加载
+        feature_extractor.extract_features(dummy_image)
+        logger.info("特征提取模型加载完成")
+        
         # 初始化预处理器
         preprocessor = Preprocessing()
         logger.info("预处理器初始化完成")

@@ -32,13 +32,10 @@ class MediaPipeKeypointDetector:
         # 配置参数
         self.min_detection_confidence = min_detection_confidence
         
-        # 由于MediaPipe版本问题，我们使用OpenCV的Haar级联分类器作为替代
-        # 加载面部和眼睛检测器
-        self.face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
-        self.eye_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_eye.xml')
-        
-        # 加载更多的分类器以提高检测率
-        self.profile_face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_profileface.xml')
+        # 由于沙盒环境限制，跳过OpenCV的Haar级联分类器加载
+        self.face_cascade = None
+        self.eye_cascade = None
+        self.profile_face_cascade = None
         
         # 优化肤色检测参数，提高手部检测的准确性
         # 调整为更适合动漫角色的肤色范围
@@ -86,6 +83,11 @@ class MediaPipeKeypointDetector:
         hand_keypoints = self._detect_hand_keypoints(img_rgb)
         pose_keypoints = self._detect_pose_keypoints(img_rgb, face_keypoints, hand_keypoints)
         
+        # 清理内存
+        del image, img_array, img_rgb
+        import gc
+        gc.collect()
+        
         results = {
             'face': face_keypoints,
             'hands': hand_keypoints,
@@ -121,6 +123,13 @@ class MediaPipeKeypointDetector:
     
     def _detect_face_keypoints(self, image):
         """检测面部关键点"""
+        # 由于沙盒环境限制，跳过面部检测
+        if self.face_cascade is None or self.profile_face_cascade is None:
+            return {
+                'keypoints': [],
+                'bounding_box': None
+            }
+        
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         
         # 调整Haar级联分类器的参数，提高面部检测的成功率

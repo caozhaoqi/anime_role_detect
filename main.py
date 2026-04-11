@@ -5,6 +5,7 @@ import sys
 # 多角色分类
 # 目标检测 分类  
 # 人脸检测 分类
+# nsfw 内容审查
 # web ->  image ->  classification -> model -> result
 # 系统分层架构 数据流图 架构图
 

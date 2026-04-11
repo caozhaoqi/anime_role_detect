@@ -161,6 +161,71 @@ const MessageItem: React.FC<MessageItemProps> = ({ message, darkMode, handleCopy
             </div>
           )}
 
+          {message.nsfw && (
+            <div className="mt-4 space-y-3 animate-fade-in">
+              <div className="flex items-center space-x-2">
+                <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+                <h4 className="font-semibold text-sm">NSFW检测</h4>
+              </div>
+              <div className={`grid grid-cols-2 gap-3 ${darkMode ? 'text-gray-100' : 'text-gray-900'}`}>
+                <div className={`p-3 ${darkMode ? 'bg-gray-600' : 'bg-gray-200'} rounded-lg transform hover:scale-[1.02] transition-transform`}>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">是否NSFW</p>
+                  <div className="flex items-center space-x-2">
+                    <p className="text-sm font-medium">
+                      {message.nsfw.is_nsfw ? "是" : "否"}
+                    </p>
+                    <div
+                      className={`w-2 h-2 rounded-full ${message.nsfw.is_nsfw ? "bg-red-500" : "bg-green-500"}`}
+                    />
+                  </div>
+                </div>
+                <div className={`p-3 ${darkMode ? 'bg-gray-600' : 'bg-gray-200'} rounded-lg transform hover:scale-[1.02] transition-transform`}>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">皮肤比例</p>
+                  <p className="text-sm font-medium">{(message.nsfw.skin_ratio * 100).toFixed(1)}%</p>
+                </div>
+              </div>
+              {message.nsfw.details && (
+                <div className="mt-3 space-y-2">
+                  <h5 className="text-xs text-gray-500 dark:text-gray-400">详细结果</h5>
+                  <div className="flex flex-wrap gap-2">
+                    {Object.entries(message.nsfw.details).map(([key, value]) => (
+                      <span
+                        key={key}
+                        className={`px-4 py-2 ${darkMode ? 'bg-blue-900/50 text-blue-400' : 'bg-blue-100 text-blue-600'} rounded-full text-sm font-medium transform hover:scale-105 transition-transform`}
+                      >
+                        {key}: {(Number(value) * 100).toFixed(1)}%
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {message.possible_roles && message.possible_roles.length > 0 && (
+            <div className="mt-4 space-y-3 animate-fade-in">
+              <div className="flex items-center space-x-2">
+                <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+                <h4 className="font-semibold text-sm">其他模型检测结果</h4>
+              </div>
+              <div className="space-y-2">
+                {message.possible_roles.map((role, index) => (
+                  <div key={index} className={`p-3 ${darkMode ? 'bg-gray-600' : 'bg-gray-200'} rounded-lg transform hover:scale-[1.02] transition-transform`}>
+                    <div className="flex justify-between items-center">
+                      <p className="text-sm font-medium">{role.role}</p>
+                      <div className="flex items-center space-x-2">
+                        <p className="text-sm">{(role.probability * 100).toFixed(1)}%</p>
+                        <div
+                          className={`w-2 h-2 rounded-full ${role.probability >= 0.8 ? "bg-green-500" : role.probability >= 0.5 ? "bg-yellow-500" : "bg-red-500"}`}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="flex items-center justify-between mt-3 text-xs text-gray-400 dark:text-gray-500">
             <span suppressHydrationWarning={true}>{new Date(message.timestamp).toLocaleTimeString()}</span>
             <div className="flex items-center space-x-2">

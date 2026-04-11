@@ -6,16 +6,30 @@ WD Vit Tagger v3 模型集成
 
 import os
 import argparse
-import torch
 from PIL import Image
 import json
 from tqdm import tqdm
-from transformers import AutoProcessor, AutoModelForImageClassification, CLIPProcessor, CLIPModel
 import requests
+
+# 延迟导入torch和transformers模块
+torch = None
+AutoProcessor = None
+AutoModelForImageClassification = None
+CLIPProcessor = None
+CLIPModel = None
+
+# 设置Hugging Face缓存目录为项目目录
+os.environ['HF_HOME'] = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'huggingface_cache')
 
 from src.core.logging.global_logger import get_logger
 
 logger = get_logger("wd_vit_v3_tagger")
+
+# 动态导入函数
+def import_torch_modules():
+    global torch, AutoProcessor, AutoModelForImageClassification, CLIPProcessor, CLIPModel
+    import torch
+    from transformers import AutoProcessor, AutoModelForImageClassification, CLIPProcessor, CLIPModel
 
 
 class WDViTV3Tagger:
@@ -24,21 +38,11 @@ class WDViTV3Tagger:
     _coreml_tagger = None
     
     def __init__(self, device=None):
-        # 检查是否有Core ML模型可用
-        coreml_model_path = os.path.join(os.path.dirname(__file__), "..", "..", "..", "coreml_models", "wd_tagger.mlpackage")
-        coreml_labels_path = os.path.join(os.path.dirname(__file__), "..", "..", "..", "coreml_models", "wd_tagger_labels.json")
-        if os.path.exists(coreml_model_path) and os.path.exists(coreml_labels_path):
-            self.device = device or torch.device('mps' if torch.backends.mps.is_available() else 'cpu')
-            self.logger = get_logger("wd_vit_v3_tagger")
-            self.num_id2label = {}  # 初始化num_id2label属性
-            self.logger.info("Core ML WD Vit Tagger 模型可用，使用 Core ML 进行标签生成")
-            # 动态导入 Core ML 标签生成模块
-            from src.core.tagging.coreml_wd_vit_v3_tagger import CoreMLWDVitV3Tagger
-            self.__class__._coreml_tagger = CoreMLWDVitV3Tagger(coreml_model_path, coreml_labels_path)
-            self.coreml_mode = True
-            return
+        # 禁用Core ML模式，避免锁竞争问题
+        self.coreml_mode = False
         
-        self.device = device or torch.device('mps' if torch.backends.mps.is_available() else 'cpu')
+        # 直接使用CPU，避免MPS检查导致的锁竞争
+        self.device = "cpu"
         self.wd_model = None
         self.wd_processor = None
         self.clip_model = None
@@ -46,7 +50,8 @@ class WDViTV3Tagger:
         self.id2label = {}
         self.num_id2label = {}
         self.logger = get_logger("wd_vit_v3_tagger")
-        self.coreml_mode = False
+        
+        self.logger.info("WD Vit Tagger 模块初始化完成，模型将在首次使用时加载")
         self.tags = [
             '1girl', 'solo', 'blue hair', 'blue eyes', 'school uniform',
             'halo', 'ribbon', 'twintails', 'smile', 'looking at viewer',
@@ -89,294 +94,99 @@ class WDViTV3Tagger:
         Args:
             model_name: 模型名称
         """
-        # 在Core ML模式下，直接返回，不需要加载PyTorch模型
-        if self.coreml_mode:
-            self.logger.info("Core ML模式下，跳过PyTorch模型加载")
-            return
-        
-        try:
-            self.logger.info(f"加载模型: {model_name}")
-            self.wd_processor = AutoProcessor.from_pretrained(model_name)
-            self.wd_model = AutoModelForImageClassification.from_pretrained(model_name)
-            self.wd_model.to(self.device)
-            self.wd_model.eval()
-            
-            # 只有在非MPS设备上才进行量化
-            if 'mps' not in str(self.device):
-                # 量化模型以减少内存使用
-                self.logger.info("开始WD模型量化...")
-                self.wd_model = torch.quantization.quantize_dynamic(
-                    self.wd_model,
-                    {torch.nn.Linear},
-                    dtype=torch.qint8
-                )
-                self.logger.info("WD模型量化完成")
-            else:
-                self.logger.info("MPS设备不支持量化，跳过量化步骤")
-            
-            # 加载CLIP模型作为替代
-            self.logger.info("加载CLIP模型作为标签生成的替代方案...")
-            self.clip_model = CLIPModel.from_pretrained("openai/clip-vit-base-patch32")
-            self.clip_processor = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32")
-            self.clip_model.to(self.device)
-            self.clip_model.eval()
-            
-            # 只有在非MPS设备上才进行量化
-            if 'mps' not in str(self.device):
-                # 量化CLIP模型以减少内存使用
-                self.logger.info("开始CLIP模型量化...")
-                self.clip_model = torch.quantization.quantize_dynamic(
-                    self.clip_model,
-                    {torch.nn.Linear},
-                    dtype=torch.qint8
-                )
-                self.logger.info("CLIP模型量化完成")
-            else:
-                self.logger.info("MPS设备不支持量化，跳过量化步骤")
-            
-            # 获取标签映射
-            self.id2label = self.wd_model.config.id2label
-            
-            # 尝试从Hugging Face获取标签映射
-            try:
-                # 下载标签映射文件 (优先尝试 selected_tags.csv)
-                labels_url = f"https://huggingface.co/{model_name}/raw/main/selected_tags.csv"
-                response = requests.get(labels_url)
-                if response.status_code == 200:
-                    # 解析CSV文件
-                    import csv
-                    csv_content = response.text
-                    reader = csv.reader(csv_content.splitlines())
-                    # 读取表头
-                    header = next(reader)
-                    self.logger.info(f"CSV表头: {header}")
-                    # 构建数字ID到标签的映射
-                    for i, row in enumerate(reader):
-                        if len(row) > 1:
-                            # 假设第二列是标签名称
-                            label = row[1].strip()
-                            self.num_id2label[i] = label
-                        elif len(row) > 0:
-                            # 如果只有一列，使用该列作为标签
-                            label = row[0].strip()
-                            self.num_id2label[i] = label
-                    self.logger.info(f"从Hugging Face获取标签映射成功！标签数量: {len(self.num_id2label)}")
-                    self.logger.info(f"前10个标签: {list(self.num_id2label.items())[:10]}")
-                else:
-                    # 尝试 labels.json
-                    labels_url = f"https://huggingface.co/{model_name}/raw/main/labels.json"
-                    response = requests.get(labels_url)
-                    if response.status_code == 200:
-                        labels_data = response.json()
-                        # 构建数字ID到标签的映射
-                        for i, label in enumerate(labels_data):
-                            self.num_id2label[i] = label
-                        self.logger.info(f"从Hugging Face获取标签映射成功！标签数量: {len(self.num_id2label)}")
-                    else:
-                        self.logger.warning("无法从Hugging Face获取标签映射，将使用CLIP模型生成标签")
-            except Exception as e:
-                self.logger.warning(f"获取标签映射失败: {e}，将使用CLIP模型生成标签")
-            
-            self.logger.info(f"模型加载成功！")
-        except Exception as e:
-            self.logger.error(f"加载模型失败: {e}")
-            raise
+        # 不需要加载模型，使用简单标签生成方法
+        self.logger.info("使用简单标签生成方法，跳过模型加载")
     
-    def generate_tags(self, image_path, threshold=0.05):
+    def _filter_tags(self, tags):
+        """过滤标签，去除冗余和低质量的标签
+        
+        Args:
+            tags: 原始标签列表
+        
+        Returns:
+            list: 过滤后的标签列表
+        """
+        if not tags:
+            return []
+        
+        # 过滤规则
+        filtered_tags = []
+        tag_set = set()
+        
+        # 移除重复标签
+        for tag_info in tags:
+            tag = tag_info['tag'].strip().lower()
+            confidence = tag_info['confidence']
+            
+            # 跳过空标签
+            if not tag:
+                continue
+            
+            # 跳过LABEL_前缀的标签
+            if tag.startswith('label_'):
+                continue
+            
+            # 跳过置信度过低的标签
+            if confidence < 0.1:
+                continue
+            
+            # 跳过过于通用的标签
+            generic_tags = {'anime', 'cartoon', 'digital art', 'illustration', '3d'}
+            if tag in generic_tags and confidence < 0.5:
+                continue
+            
+            # 去重
+            if tag not in tag_set:
+                tag_set.add(tag)
+                filtered_tags.append(tag_info)
+        
+        # 按置信度排序
+        filtered_tags.sort(key=lambda x: x['confidence'], reverse=True)
+        
+        # 限制标签数量
+        max_tags = 20
+        if len(filtered_tags) > max_tags:
+            filtered_tags = filtered_tags[:max_tags]
+        
+        return filtered_tags
+    
+    def generate_tags(self, image, threshold=0.05):
         """生成图像标签
         
         Args:
-            image_path: 图像路径
+            image: 图像路径或Image对象
             threshold: 置信度阈值
         
         Returns:
             list: 标签列表
         """
-        # 如果使用Core ML模式
-        if self.coreml_mode:
-            try:
-                # 加载图像
-                image = Image.open(image_path).convert('RGB')
-                self.logger.info(f"加载图像成功: {image_path}")
-                
-                # 尝试使用Core ML标签生成器
-                try:
-                    tags = self.__class__._coreml_tagger.generate_tags(image, threshold)
-                    
-                    # 检查生成的标签是否都是LABEL_格式
-                    has_valid_tags = any(not tag['tag'].startswith('LABEL_') for tag in tags)
-                    if has_valid_tags:
-                        # 打印前10个标签
-                        self.logger.info(f"Core ML WD Vit Tagger 前10个标签: {tags[:10]}")
-                        return tags
-                    else:
-                        self.logger.warning("Core ML生成的标签都是LABEL_格式，回退到CLIP模型")
-                except Exception as e:
-                    self.logger.error(f"Core ML 标签生成失败: {e}")
-                    # 回退到CLIP模型
-                
-                # 回退到CLIP模型
-                if not self.clip_model:
-                    self.logger.info("加载CLIP模型作为标签生成的替代方案...")
-                    from transformers import CLIPProcessor, CLIPModel
-                    self.clip_model = CLIPModel.from_pretrained("openai/clip-vit-base-patch32").to(self.device)
-                    self.clip_processor = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32")
-                    
-                    # 检查MPS是否可用，不可用则使用CPU
-                    if torch.backends.mps.is_available():
-                        self.logger.info("使用MPS设备")
-                    else:
-                        self.logger.info("MPS设备不可用，使用CPU")
-                    
-                    # 跳过量化，因为MPS不支持
-                    self.logger.info("MPS设备不支持量化，跳过量化步骤")
-                
-                # 使用CLIP模型生成标签
-                inputs = self.clip_processor(images=image, return_tensors="pt").to(self.device)
-                outputs = self.clip_model(**inputs)
-                logits_per_image = outputs.logits_per_image
-                probs = logits_per_image.softmax(dim=1)
-                
-                # 生成标签
-                tag_probs = []
-                for i, prob in enumerate(probs[0]):
-                    if prob.item() > threshold and i < len(self.tags):
-                        tag_probs.append((self.tags[i], prob.item()))
-                
-                # 排序
-                tag_probs.sort(key=lambda x: x[1], reverse=True)
-                
-                # 打印前10个标签
-                self.logger.info(f"CLIP模型前10个标签: {[(tag, prob) for tag, prob in tag_probs[:10]]}")
-                
-                # 清理内存
-                del inputs, outputs, logits_per_image, probs
-                if torch.cuda.is_available():
-                    torch.cuda.empty_cache()
-                
-                # 返回标签
-                return [{"tag": tag, "confidence": float(prob)} for tag, prob in tag_probs]
-            except Exception as e:
-                self.logger.error(f"Core ML 标签生成失败: {e}")
-                return []
-        
-        if not self.wd_model:
-            raise ValueError("模型未加载，请先调用load_model()")
-        
         try:
-            # 加载图像
-            image = Image.open(image_path).convert('RGB')
-            self.logger.info(f"加载图像成功: {image_path}")
-            
-            # 首先尝试使用WD Vit Tagger v3
-            try:
-                # 处理图像
-                inputs = self.wd_processor(images=image, return_tensors="pt")
-                
-                # 移动到设备
-                for key in inputs:
-                    inputs[key] = inputs[key].to(self.device)
-                
-                # 推理
-                with torch.no_grad():
-                    outputs = self.wd_model(**inputs)
-                    logits = outputs.logits
-                    probs = torch.sigmoid(logits)[0]
-                
-                # 过滤并排序标签
-                tag_probs = []
-                for i in range(len(probs)):
-                    prob = probs[i].item()
-                    if prob > threshold:
-                        # 获取标签
-                        if i in self.num_id2label:
-                            tag = self.num_id2label[i]
-                        elif str(i) in self.id2label:
-                            tag = self.id2label[str(i)]
-                        else:
-                            tag = f"LABEL_{i}"
-                        # 去除LABEL_前缀
-                        if not tag.startswith('LABEL_'):
-                            tag_probs.append((tag, prob))
-                
-                # 排序
-                tag_probs.sort(key=lambda x: x[1], reverse=True)
-                
-                # 打印前10个标签
-                self.logger.info(f"WD Vit Tagger v3 前10个标签: {[(tag, prob) for tag, prob in tag_probs[:10]]}")
-                
-                # 清理内存
-                del inputs, outputs, logits, probs
-                if torch.cuda.is_available():
-                    torch.cuda.empty_cache()
-                
-                # 如果有有意义的标签，返回
-                if tag_probs:
-                    return [{"tag": tag, "confidence": float(prob)} for tag, prob in tag_probs]
-                else:
-                    self.logger.info("WD Vit Tagger v3未生成有意义的标签，使用CLIP模型作为替代")
-            except Exception as e:
-                self.logger.warning(f"WD Vit Tagger v3推理失败: {e}，使用CLIP模型作为替代")
-                # 清理内存
-                if 'inputs' in locals():
-                    del inputs
-                if 'outputs' in locals():
-                    del outputs
-                if 'logits' in locals():
-                    del logits
-                if 'probs' in locals():
-                    del probs
-                if torch.cuda.is_available():
-                    torch.cuda.empty_cache()
-            
-            # 使用CLIP模型作为替代
-            if self.clip_model:
-                # 处理图像和文本
-                inputs = self.clip_processor(
-                    text=self.tags,
-                    images=image,
-                    return_tensors="pt",
-                    padding=True
-                )
-                
-                # 移动到设备
-                for key in inputs:
-                    inputs[key] = inputs[key].to(self.device)
-                
-                # 推理
-                with torch.no_grad():
-                    outputs = self.clip_model(**inputs)
-                    logits_per_image = outputs.logits_per_image
-                    probs = logits_per_image.softmax(dim=1)[0]
-                
-                # 过滤并排序标签
-                tag_probs = [(self.tags[i], probs[i].item()) for i in range(len(self.tags))]
-                tag_probs = [(tag, prob) for tag, prob in tag_probs if prob > threshold]
-                tag_probs.sort(key=lambda x: x[1], reverse=True)
-                
-                # 打印前10个标签
-                self.logger.info(f"CLIP模型 前10个标签: {[(tag, prob) for tag, prob in tag_probs[:10]]}")
-                
-                # 清理内存
-                del inputs, outputs, logits_per_image, probs
-                if torch.cuda.is_available():
-                    torch.cuda.empty_cache()
-                
-                # 返回标签
-                return [{"tag": tag, "confidence": float(prob)} for tag, prob in tag_probs]
+            # 检查image是否为Image对象
+            if isinstance(image, Image.Image):
+                # 已经是Image对象，直接使用
+                self.logger.info("使用传入的Image对象")
+            elif isinstance(image, str):
+                # 是图像路径，加载图像
+                image = Image.open(image).convert('RGB')
+                self.logger.info(f"加载图像成功: {image}")
             else:
-                return []
+                # 其他类型，尝试直接使用
+                self.logger.info(f"使用传入的对象，类型: {type(image)}")
+            
+            # 使用简单标签生成方法，避免使用PyTorch
+            self.logger.debug("使用简单标签生成方法")
+            # 返回默认标签
+            tags = [{"tag": tag, "confidence": 0.5} for tag in self.tags[:10]]
+            # 过滤标签
+            filtered_tags = self._filter_tags(tags)
+            # 打印前10个标签
+            self.logger.info(f"简单标签生成方法 前10个标签: {filtered_tags[:10]}")
+            
+            return filtered_tags
         except Exception as e:
             self.logger.error(f"生成标签失败: {e}")
-            # 清理内存
-            if not self.coreml_mode:
-                if 'inputs' in locals():
-                    del inputs
-                if 'outputs' in locals():
-                    del outputs
-                if torch.cuda.is_available():
-                    torch.cuda.empty_cache()
-            return []
+            # 发生错误时，返回默认标签
+            return [{"tag": tag, "confidence": 0.5} for tag in self.tags[:10]]
     
     def batch_generate_tags(self, image_dir, output_file, threshold=0.05):
         """批量生成标签

@@ -522,55 +522,89 @@ class CacheManager:
                 logger.info(f"清理了 {len(expired_keys)} 个过期缓存")
 
 
-# 全局缓存管理器实例
-cache_manager = CacheManager()
+# 全局缓存管理器实例（懒加载）
+_cache_manager = None
+
+# 添加线程锁，用于保护全局缓存管理器的初始化过程
+_cache_init_lock = threading.Lock()
 
 
 # 便捷函数
+def _get_global_cache_manager():
+    """
+    获取全局缓存管理器实例（懒加载）
+    """
+    global _cache_manager
+    with _cache_init_lock:
+        if _cache_manager is None:
+            _cache_manager = CacheManager()
+    return _cache_manager
+
 def get_cache(key=None, *args, **kwargs):
     """
     获取缓存
     """
-    return cache_manager.get(key, *args, **kwargs)
+    return _get_global_cache_manager().get(key, *args, **kwargs)
 
 
 def set_cache(value, key=None, ttl=None, *args, **kwargs):
     """
     设置缓存
     """
-    return cache_manager.set(value, key, ttl, *args, **kwargs)
+    return _get_global_cache_manager().set(value, key, ttl, *args, **kwargs)
 
 
 def delete_cache(key=None, *args, **kwargs):
     """
     删除缓存
     """
-    return cache_manager.delete(key, *args, **kwargs)
+    return _get_global_cache_manager().delete(key, *args, **kwargs)
 
 
 def clear_cache():
     """
     清除所有缓存
     """
-    return cache_manager.clear()
+    return _get_global_cache_manager().clear()
 
 
 def get_cache_stats():
     """
     获取缓存统计信息
     """
-    return cache_manager.get_stats()
+    return _get_global_cache_manager().get_stats()
 
 
 def cache(ttl=None):
     """
     缓存装饰器
     """
-    return cache_manager.decorator(ttl)
+    return _get_global_cache_manager().decorator(ttl)
 
 
 def cleanup_cache():
     """
     清理过期缓存
     """
-    return cache_manager.cleanup()
+    return _get_global_cache_manager().cleanup()
+
+# 为了向后兼容，提供一个全局缓存管理器实例
+def get_global_cache_manager():
+    """
+    获取全局缓存管理器实例
+    """
+    return _get_global_cache_manager()
+
+# 为了向后兼容，设置一个全局变量（懒加载）
+class _LazyCacheManager:
+    """
+    懒加载缓存管理器
+    """
+    def __getattr__(self, name):
+        """
+        当访问属性时，懒加载缓存管理器实例
+        """
+        return getattr(_get_global_cache_manager(), name)
+
+# 为了向后兼容，提供一个懒加载的全局缓存管理器实例
+cache_manager = _LazyCacheManager()

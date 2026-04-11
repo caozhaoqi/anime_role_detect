@@ -18,6 +18,17 @@ export interface Message {
     bbox: number[];
   }>;
   ai_predicted_role?: string;
+  nsfw?: {
+    is_nsfw: boolean;
+    skin_ratio: number;
+    details?: {
+      [key: string]: number;
+    };
+  };
+  possible_roles?: Array<{
+    role: string;
+    probability: number;
+  }>;
   multi_roles?: Array<{
     role: string;
     similarity: number;
