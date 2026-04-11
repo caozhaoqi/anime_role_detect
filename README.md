@@ -143,17 +143,25 @@ flowchart TD
         H[Model Service] --> I[Feature Extraction]
         I --> J[Model Inference]
         J --> K[Attribute Prediction]
+        K --> L[NSFW Detection]
     end
     
     subgraph Core Layer
-        L[Preprocessing] --> M[Classification]
-        M --> N[Tagging]
-        N --> O[Keypoint Detection]
+        M[Preprocessing] --> N[Classification]
+        N --> O[Tagging]
+        O --> P[Keypoint Detection]
+    end
+    
+    subgraph Data Layer
+        Q[Spider System] --> R[URL Collection]
+        R --> S[Image Download]
+        S --> T[Data Storage]
     end
     
     C --> D
     G --> H
-    K --> L
+    L --> M
+    T --> N
 ```
 
 ### Data Flow Diagram
@@ -167,11 +175,14 @@ sequenceDiagram
     participant API as Backend API
     participant ModelService as Model Service
     participant Core as Core Services
+    participant NSFW as NSFW Detection
     
     User->>Frontend: Upload Image
     Frontend->>API: POST /api/classify
     API->>ModelService: Request Prediction
     ModelService->>Core: Preprocess Image
+    Core->>NSFW: NSFW Content Detection
+    NSFW->>Core: Return NSFW Result
     Core->>Core: Extract Features
     Core->>Core: Classify Character
     Core->>ModelService: Return Features & Prediction
@@ -198,13 +209,59 @@ The system architecture is designed to support distributed deployment, with each
    - Model service for core prediction functionality
    - Feature extraction and model inference
    - Attribute prediction and text detection
+   - NSFW detection for content filtering
 
 4. **Core Layer**:
    - Preprocessing and image validation
    - Classification models and algorithms
    - Tagging and keypoint detection
 
+5. **Data Layer**:
+   - Spider system for data collection
+   - URL collection and filtering
+   - Image download and storage
+   - Data organization and management
+
 This layered architecture allows for easy scaling and maintenance, with each layer responsible for specific functionality. The services communicate through well-defined API interfaces, enabling independent deployment and scaling.
+
+### System Detection Flow
+
+The system detection flow has been updated to include NSFW detection and improved data management:
+
+1. **Image Upload**:
+   - User uploads image through web interface or API
+   - System validates image format and size
+   - Temporary files are stored in a dedicated directory
+
+2. **Preprocessing**:
+   - Image is compressed and normalized
+   - System checks for NSFW content using dedicated model
+   - Results are stored for further processing
+
+3. **Character Detection**:
+   - System automatically detects if there are multiple characters
+   - Appropriate detection mode is selected based on character count
+
+4. **Character Classification**:
+   - Each character is classified using the selected model
+   - Feature extraction and model inference are performed
+   - Confidence scores are calculated for each prediction
+
+5. **Attribute Prediction**:
+   - Character attributes (hair color, eye color, clothing) are predicted
+   - Results are integrated with classification data
+
+6. **Result Generation**:
+   - Results are compiled and formatted
+   - NSFW detection results are included in the response
+   - Data is returned to the user through the API
+
+7. **Data Collection**:
+   - Spider system collects character images from various sources
+   - URLs are filtered and stored in dedicated directories
+   - Images are downloaded and organized for model training
+
+This updated flow ensures that the system can effectively handle NSFW content and provides a more comprehensive detection process.
 
 ## �🌐 Usage
 
