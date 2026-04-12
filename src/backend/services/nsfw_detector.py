@@ -14,35 +14,42 @@ from src.core.logging.global_logger import get_logger
 logger = get_logger("nsfw_detector")
 
 
-def detect_nsfw(image_path):
+def detect_nsfw(image_source):
     """
     NSFW检测
     
     Args:
-        image_path: 图像路径
+        image_source: 图像路径或内存缓冲区(BytesIO)
     
     Returns:
         dict: NSFW检测结果
     """
-    logger.info(f"开始NSFW检测: {image_path}")
+    if isinstance(image_source, str):
+        logger.info(f"开始NSFW检测: {image_source}")
+    else:
+        logger.info("开始NSFW检测: 内存缓冲区")
     
     try:
-        # 检查文件是否存在
-        if not os.path.exists(image_path):
-            logger.error(f"图像文件不存在: {image_path}")
+        # 检查文件是否存在（如果是文件路径）
+        if isinstance(image_source, str) and not os.path.exists(image_source):
+            logger.error(f"图像文件不存在: {image_source}")
             return {
                 'is_nsfw': False,
                 'skin_ratio': 0.0
             }
         
         # 使用基于规则的NSFW检测
-        logger.info(f"使用基于规则的NSFW检测: {image_path}")
+        if isinstance(image_source, str):
+            logger.info(f"使用基于规则的NSFW检测: {image_source}")
+        else:
+            logger.info("使用基于规则的NSFW检测: 内存缓冲区")
+        
         try:
             from PIL import Image
             import numpy as np
             
             # 加载图像
-            img = Image.open(image_path).convert('RGB')
+            img = Image.open(image_source).convert('RGB')
             img_array = np.array(img)
             
             # 定义皮肤颜色范围（HSL）

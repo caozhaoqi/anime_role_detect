@@ -6,16 +6,18 @@
 import os
 import sys
 
-# 设置环境变量，避免 MPS 设备检查导致的锁竞争
+# 设置环境变量，避免锁竞争问题
 os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
 os.environ['MPS_HIGH_WATERMARK_RATIO'] = '0.0'
 os.environ['PYTORCH_MPS_HIGH_WATERMARK_RATIO'] = '0.0'
-os.environ['CUDA_VISIBLE_DEVICES'] = ''  # 禁用 CUDA，强制使用 CPU
+os.environ['OMP_NUM_THREADS'] = '1'
+os.environ['MKL_NUM_THREADS'] = '1'
+os.environ['OPENBLAS_NUM_THREADS'] = '1'
+os.environ['VECLIB_MAXIMUM_THREADS'] = '1'
+os.environ['NUMEXPR_NUM_THREADS'] = '1'
 
-# 导入 torch 并禁用 MPS 后端
-import torch
-torch.backends.mps.is_available = lambda: False
-torch.backends.mps.is_built = lambda: False
+# 延迟导入torch
+import sys
 
 import time
 from datetime import datetime
@@ -40,7 +42,9 @@ get_logger = None
 
 # 动态导入函数
 def import_core_modules():
-    global Preprocessing, FeatureExtraction, WDViTV3Tagger, Classification, get_logger
+    global Preprocessing, FeatureExtraction, WDViTV3Tagger, Classification, get_logger, torch
+    # 导入torch
+    import torch
     from src.core.preprocessing.preprocessing import Preprocessing
     from src.core.feature_extraction.feature_extraction import FeatureExtraction
     from src.core.tagging.wd_vit_v3_tagger import WDViTV3Tagger
@@ -81,27 +85,13 @@ async def init_models():
     global preprocessor, feature_extractor, tagger
     
     try:
-        # 先初始化特征提取器，避免锁竞争
-        logger.info("初始化特征提取器...")
-        feature_extractor = FeatureExtraction()
-        logger.info("特征提取器初始化完成")
-        
-        # 加载特征提取模型，避免运行时加载导致的锁竞争
-        logger.info("加载特征提取模型...")
-        # 创建一个空的图像，用于触发模型加载
-        from PIL import Image
-        import numpy as np
-        dummy_image = Image.new('RGB', (224, 224), color='white')
-        # 提取特征，触发模型加载
-        feature_extractor.extract_features(dummy_image)
-        logger.info("特征提取模型加载完成")
-        
-        # 初始化预处理器
+        # 只初始化预处理器，特征提取器和标签生成器在第一次请求时初始化
+        logger.info("初始化预处理器...")
         preprocessor = Preprocessing()
         logger.info("预处理器初始化完成")
         
         # 其他模型在需要时自动初始化
-        logger.info("模型服务启动完成，其他模型将在需要时自动初始化")
+        logger.info("模型服务启动完成，其他模型将在第一次请求时自动初始化")
     except Exception as e:
         logger.error(f"模型初始化失败: {e}")
 

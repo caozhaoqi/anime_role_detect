@@ -23,19 +23,11 @@ except ImportError:
 # 动态导入函数
 def import_torch_modules():
     global torch, CLIPProcessor, CLIPModel, gc
-    # 设置环境变量，避免 MPS 设备检查导致的锁竞争
+    # 设置环境变量
     import os
     os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
-    os.environ['MPS_HIGH_WATERMARK_RATIO'] = '0.0'
-    os.environ['PYTORCH_MPS_HIGH_WATERMARK_RATIO'] = '0.0'
-    os.environ['CUDA_VISIBLE_DEVICES'] = ''  # 禁用 CUDA，强制使用 CPU
     # 导入模块
     import torch
-    # 强制使用 CPU，避免 MPS 设备检查
-    torch.device('cpu')
-    # 禁用 MPS 后端
-    torch.backends.mps.is_available = lambda: False
-    torch.backends.mps.is_built = lambda: False
     from transformers import CLIPProcessor, CLIPModel
     import gc
 
@@ -67,7 +59,14 @@ class FeatureExtraction:
         # 初始化模型实例为None
         self.model = None
         self.processor = None
-        self.device = "cpu"
+        
+        # 自动选择设备
+        import_torch_modules()
+        global torch
+        self.device = torch.device('mps' if torch.backends.mps.is_available() else 'cuda' if torch.cuda.is_available() else 'cpu')
+        logger.info(f"特征提取模块使用设备: {self.device}")
+        logger.info(f"MPS可用: {torch.backends.mps.is_available()}")
+        logger.info(f"CUDA可用: {torch.cuda.is_available()}")
         
         logger.info("特征提取模块初始化完成，模型将在首次使用时加载")
     

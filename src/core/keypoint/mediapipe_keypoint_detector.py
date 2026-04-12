@@ -53,7 +53,7 @@ class MediaPipeKeypointDetector:
         """检测图像中的关键点
         
         Args:
-            image: PIL图像对象或图像路径
+            image: PIL图像对象、图像路径或内存缓冲区(BytesIO)
             
         Returns:
             dict: 包含各种关键点的字典
@@ -73,6 +73,16 @@ class MediaPipeKeypointDetector:
                         'hands': None,
                         'pose': None
                     }
+        elif hasattr(image, 'read'):  # 检查是否为内存缓冲区
+            try:
+                image = Image.open(image).convert('RGB')
+            except Exception as e:
+                print(f"从内存缓冲区加载图像失败: {e}")
+                return {
+                    'face': None,
+                    'hands': None,
+                    'pose': None
+                }
         
         # 转换为OpenCV格式
         img_array = np.array(image)

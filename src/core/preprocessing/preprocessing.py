@@ -271,14 +271,18 @@ class Preprocessing:
         
         return resized_img
     
-    def detect_text(self, image_path):
+    def detect_text(self, image_source):
         """使用OCR检测图像中的文本"""
-        logger.debug(f"开始检测文本: {image_path}")
+        if isinstance(image_source, str):
+            logger.debug(f"开始检测文本: {image_source}")
+        else:
+            logger.debug("开始检测文本: 内存缓冲区")
         
         # 导入必要的模块
         import cv2
         import numpy as np
         from PIL import Image
+        from io import BytesIO
         
         # 延迟加载OCR模型
         self._load_ocr()
@@ -290,18 +294,33 @@ class Preprocessing:
         
         try:
             # 加载图像
-            if image_path.lower().endswith(('.svg', '.webp')):
-                # 使用PIL加载SVG和WebP文件
-                img = Image.open(image_path)
-                # 转换为RGB
-                img = img.convert('RGB')
-                # 转换为numpy数组
-                img = np.array(img)
+            img = None
+            is_file_path = isinstance(image_source, str)
+            
+            if is_file_path:
+                if image_source.lower().endswith(('.svg', '.webp')):
+                    # 使用PIL加载SVG和WebP文件
+                    img = Image.open(image_source)
+                    # 转换为RGB
+                    img = img.convert('RGB')
+                    # 转换为numpy数组
+                    img = np.array(img)
+                else:
+                    # 使用OpenCV加载其他格式
+                    img = cv2.imread(image_source)
+                    if img is None:
+                        logger.error(f"无法加载图像: {image_source}")
+                        return []
             else:
-                # 使用OpenCV加载其他格式
-                img = cv2.imread(image_path)
-                if img is None:
-                    logger.error(f"无法加载图像: {image_path}")
+                # 从内存缓冲区加载图像
+                try:
+                    img = Image.open(image_source)
+                    # 转换为RGB
+                    img = img.convert('RGB')
+                    # 转换为numpy数组
+                    img = np.array(img)
+                except Exception as e:
+                    logger.error(f"从内存缓冲区加载图像失败: {e}")
                     return []
             
             # 调试：打印OCR模型信息
@@ -310,17 +329,28 @@ class Preprocessing:
             # 使用PaddleOCR检测文本
             logger.debug(f"开始调用PaddleOCR.ocr()")
             # 尝试不同的OCR调用方式以兼容不同版本
+            result = None
             try:
-                # 尝试默认调用方式
-                result = self.ocr.ocr(image_path)
+                if is_file_path:
+                    # 尝试默认调用方式
+                    result = self.ocr.ocr(image_source)
+                else:
+                    # 对于内存缓冲区，使用numpy数组
+                    result = self.ocr.ocr(img)
             except TypeError as e:
                 logger.warning(f"OCR调用失败: {e}，尝试使用其他参数")
                 # 尝试不使用cls参数
                 try:
-                    result = self.ocr.ocr(image_path, cls=False)
+                    if is_file_path:
+                        result = self.ocr.ocr(image_source, cls=False)
+                    else:
+                        result = self.ocr.ocr(img, cls=False)
                 except TypeError as e2:
                     logger.warning(f"OCR调用失败: {e2}，尝试不使用任何参数")
-                    result = self.ocr.ocr(image_path)
+                    if is_file_path:
+                        result = self.ocr.ocr(image_source)
+                    else:
+                        result = self.ocr.ocr(img)
             logger.debug(f"PaddleOCR.ocr()调用完成")
             
             # 调试：打印返回结果格式

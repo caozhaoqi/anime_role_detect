@@ -30,12 +30,12 @@ class_names = [
 ]
 
 
-def preprocess_image(image_path):
+def preprocess_image(image_source):
     """
     预处理图像
     
     Args:
-        image_path: 图像路径
+        image_source: 图像路径或内存缓冲区(BytesIO)
     
     Returns:
         预处理后的图像张量
@@ -48,10 +48,11 @@ def preprocess_image(image_path):
         transform = get_image_transform()
         
         # 加载图像并转换
-        img = Image.open(image_path).convert('RGB')
+        img = Image.open(image_source).convert('RGB')
         
         # 限制图像大小，避免内存占用过高
-        max_size = 1024
+        # 根据性能分析报告，强制缩放到模型需要的最小尺寸
+        max_size = 448  # 模型需要的最小尺寸
         width, height = img.size
         if width > max_size or height > max_size:
             # 计算缩放比例
@@ -229,6 +230,7 @@ async def _process_with_local_model(file, content, model_name):
         dict: 处理结果
     """
     import os
+    from io import BytesIO
     
     temp_path = None
     
@@ -239,18 +241,32 @@ async def _process_with_local_model(file, content, model_name):
         validate_time = time.time() - validate_start
         logger.debug(f"验证图像耗时: {validate_time:.4f}秒, 结果: {is_valid}")
         
-        # 保存临时文件
-        temp_path = f"temp/temp_{int(time.time())}_{file.filename}"
-        with open(temp_path, "wb") as f:
-            f.write(content)
-        
         # 检查是否使用新训练的模型
         trained_model_names = ["mobilenet_v2", "efficientnet_b0", "efficientnet_b3", "resnet50", "incremental"]
         
-        if model_name in trained_model_names:
-            return await _process_with_trained_model(file, temp_path, model_name)
-        else:
-            return _process_with_traditional_model(file, temp_path, model_name)
+        # 尝试使用内存缓冲区处理
+        try:
+            # 创建内存缓冲区
+            buffer = BytesIO(content)
+            
+            # 检查是否使用新训练的模型
+            if model_name in trained_model_names:
+                return await _process_with_trained_model(file, buffer, model_name)
+            else:
+                return _process_with_traditional_model(file, buffer, model_name)
+        except Exception as e:
+            # 如果内存处理失败，回退到临时文件
+            logger.debug(f"内存处理失败，回退到临时文件: {e}")
+            
+            # 保存临时文件
+            temp_path = f"temp/temp_{int(time.time())}_{file.filename}"
+            with open(temp_path, "wb") as f:
+                f.write(content)
+            
+            if model_name in trained_model_names:
+                return await _process_with_trained_model(file, temp_path, model_name)
+            else:
+                return _process_with_traditional_model(file, temp_path, model_name)
     finally:
         # 清理临时文件
         if temp_path and os.path.exists(temp_path):
@@ -261,13 +277,13 @@ async def _process_with_local_model(file, content, model_name):
                 logger.error(f"清理临时文件失败: {e}")
 
 
-async def _process_with_trained_model(file, temp_path, model_name):
+async def _process_with_trained_model(file, image_source, model_name):
     """
     使用训练好的模型处理图像
     
     Args:
         file: 上传的文件
-        temp_path: 临时文件路径
+        image_source: 图像路径或内存缓冲区(BytesIO)
         model_name: 模型名称
     
     Returns:
@@ -286,16 +302,20 @@ async def _process_with_trained_model(file, temp_path, model_name):
     
     # 预处理图像
     try:
-        logger.info(f"加载图像: {temp_path}")
-        img = preprocess_image(temp_path)
-        logger.info(f"图像预处理成功，形状: {img.shape}")
+        if isinstance(image_source, str) and logger.isEnabledFor(logging.INFO):
+            logger.info(f"加载图像: {image_source}")
+        img = preprocess_image(image_source)
+        if logger.isEnabledFor(logging.INFO):
+            logger.info(f"图像预处理成功，形状: {img.shape}")
         
         # 预测
         import torch
         with torch.no_grad():
-            logger.info("开始模型预测...")
+            if logger.isEnabledFor(logging.INFO):
+                logger.info("开始模型预测...")
             outputs = model(img)
-            logger.info(f"模型输出形状: {outputs.shape}")
+            if logger.isEnabledFor(logging.INFO):
+                logger.info(f"模型输出形状: {outputs.shape}")
             
             # 计算所有类别的概率
             probabilities = torch.nn.functional.softmax(outputs, dim=1)[0]
@@ -303,12 +323,14 @@ async def _process_with_trained_model(file, temp_path, model_name):
             # 获取最高概率的类别
             _, predicted = torch.max(outputs, 1)
             confidence = probabilities[predicted.item()].item()
-        logger.info(f"预测完成，预测类别: {predicted.item()}, 置信度: {confidence}")
+        if logger.isEnabledFor(logging.INFO):
+            logger.info(f"预测完成，预测类别: {predicted.item()}, 置信度: {confidence}")
         
         # 获取预测结果
         role = idx_to_class.get(predicted.item(), "unknown")
         similarity = float(confidence)
-        logger.info(f"预测角色: {role}, 相似度: {similarity}")
+        if logger.isEnabledFor(logging.INFO):
+            logger.info(f"预测角色: {role}, 相似度: {similarity}")
         
         # 获取高概率的可能结果
         possible_roles = []
@@ -322,27 +344,31 @@ async def _process_with_trained_model(file, temp_path, model_name):
                     "role": class_name,
                     "probability": float(prob)
                 })
-        logger.info(f"高概率可能结果: {possible_roles}")
+        if logger.isEnabledFor(logging.INFO):
+            logger.info(f"高概率可能结果: {possible_roles}")
         
         # 标签生成
         attributes = []
         try:
-            logger.info("开始标签生成...")
+            if logger.isEnabledFor(logging.INFO):
+                logger.info("开始标签生成...")
             tagger = get_tagger()
             if tagger is not None:
-                attributes = tagger.generate_tags(temp_path)
-                logger.info(f"标签生成完成，生成 {len(attributes)} 个标签")
+                attributes = tagger.generate_tags(image_source)
+                if logger.isEnabledFor(logging.INFO):
+                    logger.info(f"标签生成完成，生成 {len(attributes)} 个标签")
             else:
-                logger.info("标签生成模块未初始化，跳过标签生成")
+                if logger.isEnabledFor(logging.INFO):
+                    logger.info("标签生成模块未初始化，跳过标签生成")
         except Exception as e:
             logger.error(f"标签生成失败: {e}")
             attributes = []
         
         # 处理图像特征
-        text_detections, keypoints, ai_predicted_role = _process_image_features(temp_path, file.content_type, attributes)
+        text_detections, keypoints, ai_predicted_role = _process_image_features(image_source, file.content_type, attributes)
         
         # 执行NSFW检测
-        nsfw_result = detect_nsfw(temp_path)
+        nsfw_result = detect_nsfw(image_source)
         
         # 构建结果
         result = {
@@ -390,15 +416,19 @@ async def _process_with_trained_model(file, temp_path, model_name):
         logger.error(f"异常堆栈: {traceback.format_exc()}")
         result = {"role": "unknown", "similarity": 0.0, "attributes": []}
         return result
+    finally:
+        # 清理内存
+        from src.backend.services.model_loader import cleanup_memory
+        cleanup_memory()
 
 
-def _process_with_traditional_model(file, temp_path, model_name):
+def _process_with_traditional_model(file, image_source, model_name):
     """
     使用传统模型处理图像
     
     Args:
         file: 上传的文件
-        temp_path: 临时文件路径
+        image_source: 图像路径或内存缓冲区(BytesIO)
         model_name: 模型名称
     
     Returns:
@@ -415,17 +445,19 @@ def _process_with_traditional_model(file, temp_path, model_name):
     predicted = None
     
     try:
-        logger.info("创建默认预训练模型: mobilenet_v2")
+        if logger.isEnabledFor(logging.INFO):
+            logger.info("创建默认预训练模型: mobilenet_v2")
         
         # 创建一个mobilenet_v2模型
         model = models.mobilenet_v2(pretrained=True)
         # 修改分类层，使其输出3个类别
         model.classifier[1] = nn.Linear(model.classifier[1].in_features, 3)
         model.eval()
-        logger.info("默认预训练模型创建成功")
+        if logger.isEnabledFor(logging.INFO):
+            logger.info("默认预训练模型创建成功")
         
         # 预处理图像
-        img = preprocess_image(temp_path)
+        img = preprocess_image(image_source)
         
         # 预测
         with torch.no_grad():
@@ -450,7 +482,8 @@ def _process_with_traditional_model(file, temp_path, model_name):
                     "role": class_name,
                     "probability": float(prob)
                 })
-        logger.info(f"高概率可能结果: {possible_roles}")
+        if logger.isEnabledFor(logging.INFO):
+            logger.info(f"高概率可能结果: {possible_roles}")
         
         # 获取预测结果
         role = class_names[predicted.item()]
@@ -459,22 +492,25 @@ def _process_with_traditional_model(file, temp_path, model_name):
         # 标签生成
         attributes = []
         try:
-            logger.info("开始标签生成...")
+            if logger.isEnabledFor(logging.INFO):
+                logger.info("开始标签生成...")
             tagger = get_tagger()
             if tagger is not None:
-                attributes = tagger.generate_tags(temp_path)
-                logger.info(f"标签生成完成，生成 {len(attributes)} 个标签")
+                attributes = tagger.generate_tags(image_source)
+                if logger.isEnabledFor(logging.INFO):
+                    logger.info(f"标签生成完成，生成 {len(attributes)} 个标签")
             else:
-                logger.info("标签生成模块未初始化，跳过标签生成")
+                if logger.isEnabledFor(logging.INFO):
+                    logger.info("标签生成模块未初始化，跳过标签生成")
         except Exception as e:
             logger.error(f"标签生成失败: {e}")
             attributes = []
         
         # 处理图像特征
-        text_detections, keypoints, ai_predicted_role = _process_image_features(temp_path, file.content_type, attributes)
+        text_detections, keypoints, ai_predicted_role = _process_image_features(image_source, file.content_type, attributes)
         
         # 执行NSFW检测
-        nsfw_result = detect_nsfw(temp_path)
+        nsfw_result = detect_nsfw(image_source)
         
         # 构建结果
         result = {
@@ -532,6 +568,9 @@ def _process_with_traditional_model(file, temp_path, model_name):
             del outputs
         if probabilities is not None:
             del probabilities
+        # 清理内存
+        from src.backend.services.model_loader import cleanup_memory
+        cleanup_memory()
         if predicted is not None:
             del predicted
         import gc
@@ -539,12 +578,12 @@ def _process_with_traditional_model(file, temp_path, model_name):
         logger.info("已释放模型和相关内存")
 
 
-def _process_image_features(temp_path, content_type, attributes):
+def _process_image_features(image_source, content_type, attributes):
     """
     处理图像特征
     
     Args:
-        temp_path: 临时文件路径
+        image_source: 图像路径或内存缓冲区(BytesIO)
         content_type: 文件类型
         attributes: 标签属性
     
@@ -555,16 +594,20 @@ def _process_image_features(temp_path, content_type, attributes):
     text_detections = []
     try:
         if content_type != "image/svg+xml":
-            logger.info("开始文本检测...")
+            if logger.isEnabledFor(logging.INFO):
+                logger.info("开始文本检测...")
             preprocessor = get_preprocessor()
             if preprocessor is not None:
-                text_detections = preprocessor.detect_text(temp_path)
-                logger.info(f"文本检测完成，检测到 {len(text_detections)} 个文本")
+                text_detections = preprocessor.detect_text(image_source)
+                if logger.isEnabledFor(logging.INFO):
+                    logger.info(f"文本检测完成，检测到 {len(text_detections)} 个文本")
             else:
-                logger.info("预处理模块未初始化，跳过文本检测")
+                if logger.isEnabledFor(logging.INFO):
+                    logger.info("预处理模块未初始化，跳过文本检测")
         else:
             text_detections = []
-            logger.info("SVG图像，跳过文本检测")
+            if logger.isEnabledFor(logging.INFO):
+                logger.info("SVG图像，跳过文本检测")
     except Exception as e:
         logger.error(f"文本检测失败: {e}")
         text_detections = []
@@ -573,16 +616,20 @@ def _process_image_features(temp_path, content_type, attributes):
     keypoints = []
     try:
         if content_type != "image/svg+xml":
-            logger.info("开始关键点检测...")
+            if logger.isEnabledFor(logging.INFO):
+                logger.info("开始关键点检测...")
             keypoint_detector = get_keypoint_detector()
             if keypoint_detector is not None:
-                keypoints = keypoint_detector.detect_keypoints(temp_path)
-                logger.info(f"关键点检测完成，检测到 {len(keypoints)} 个关键点")
+                keypoints = keypoint_detector.detect_keypoints(image_source)
+                if logger.isEnabledFor(logging.INFO):
+                    logger.info(f"关键点检测完成，检测到 {len(keypoints)} 个关键点")
             else:
-                logger.info("关键点检测模块未初始化，跳过关键点检测")
+                if logger.isEnabledFor(logging.INFO):
+                    logger.info("关键点检测模块未初始化，跳过关键点检测")
         else:
             keypoints = []
-            logger.info("SVG图像，跳过关键点检测")
+            if logger.isEnabledFor(logging.INFO):
+                logger.info("SVG图像，跳过关键点检测")
     except Exception as e:
         logger.error(f"关键点检测失败: {e}")
         keypoints = []
@@ -590,13 +637,16 @@ def _process_image_features(temp_path, content_type, attributes):
     # 角色预测
     ai_predicted_role = None
     try:
-        logger.info("开始角色预测...")
+        if logger.isEnabledFor(logging.INFO):
+            logger.info("开始角色预测...")
         role_predictor = get_role_predictor()
         if role_predictor is not None:
             ai_predicted_role = role_predictor.predict_role(attributes)
-            logger.info(f"角色预测完成，预测角色: {ai_predicted_role}")
+            if logger.isEnabledFor(logging.INFO):
+                logger.info(f"角色预测完成，预测角色: {ai_predicted_role}")
         else:
-            logger.info("角色预测模块未初始化，跳过角色预测")
+            if logger.isEnabledFor(logging.INFO):
+                logger.info("角色预测模块未初始化，跳过角色预测")
     except Exception as e:
         logger.error(f"角色预测失败: {e}")
         ai_predicted_role = None

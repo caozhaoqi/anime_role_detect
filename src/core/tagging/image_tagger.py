@@ -81,11 +81,11 @@ class ImageTagger:
             self.logger.error(f"加载模型失败: {e}")
             raise
     
-    def generate_tags(self, image_path, threshold=0.25, top_k=20):
+    def generate_tags(self, image_source, threshold=0.25, top_k=20):
         """生成图像标签
         
         Args:
-            image_path: 图像路径
+            image_source: 图像路径或内存缓冲区(BytesIO)
             threshold: 置信度阈值
             top_k: 返回前k个标签
         
@@ -97,7 +97,7 @@ class ImageTagger:
         
         try:
             # 加载图像
-            image = Image.open(image_path).convert('RGB')
+            image = Image.open(image_source).convert('RGB')
             
             # 处理图像和文本
             inputs = self.processor(

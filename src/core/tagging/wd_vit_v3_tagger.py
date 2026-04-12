@@ -28,6 +28,9 @@ logger = get_logger("wd_vit_v3_tagger")
 # 动态导入函数
 def import_torch_modules():
     global torch, AutoProcessor, AutoModelForImageClassification, CLIPProcessor, CLIPModel
+    # 设置环境变量
+    import os
+    os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
     import torch
     from transformers import AutoProcessor, AutoModelForImageClassification, CLIPProcessor, CLIPModel
 
@@ -41,15 +44,20 @@ class WDViTV3Tagger:
         # 禁用Core ML模式，避免锁竞争问题
         self.coreml_mode = False
         
-        # 直接使用CPU，避免MPS检查导致的锁竞争
-        self.device = "cpu"
+        # 自动选择设备
+        import_torch_modules()
+        global torch
+        self.device = device or torch.device('mps' if torch.backends.mps.is_available() else 'cuda' if torch.cuda.is_available() else 'cpu')
+        self.logger = get_logger("wd_vit_v3_tagger")
+        self.logger.info(f"WD Vit Tagger 使用设备: {self.device}")
+        self.logger.info(f"MPS可用: {torch.backends.mps.is_available()}")
+        self.logger.info(f"CUDA可用: {torch.cuda.is_available()}")
         self.wd_model = None
         self.wd_processor = None
         self.clip_model = None
         self.clip_processor = None
         self.id2label = {}
         self.num_id2label = {}
-        self.logger = get_logger("wd_vit_v3_tagger")
         
         self.logger.info("WD Vit Tagger 模块初始化完成，模型将在首次使用时加载")
         self.tags = [
@@ -94,8 +102,32 @@ class WDViTV3Tagger:
         Args:
             model_name: 模型名称
         """
-        # 不需要加载模型，使用简单标签生成方法
-        self.logger.info("使用简单标签生成方法，跳过模型加载")
+        try:
+            import_torch_modules()
+            global torch, AutoProcessor, AutoModelForImageClassification
+            
+            self.logger.info(f"加载WD Vit Tagger v3模型: {model_name}")
+            self.logger.info(f"使用设备: {self.device}")
+            
+            # 加载处理器和模型
+            self.wd_processor = AutoProcessor.from_pretrained(model_name)
+            self.wd_model = AutoModelForImageClassification.from_pretrained(model_name)
+            
+            # 将模型移到指定设备
+            self.wd_model.to(self.device)
+            self.wd_model.eval()
+            
+            # 获取标签映射
+            if hasattr(self.wd_model.config, 'id2label'):
+                self.id2label = self.wd_model.config.id2label
+                # 转换为数字索引映射
+                self.num_id2label = {int(k): v for k, v in self.id2label.items()}
+            
+            self.logger.info("WD Vit Tagger v3模型加载完成")
+        except Exception as e:
+            self.logger.error(f"加载模型失败: {e}")
+            # 加载失败时使用简单标签生成方法
+            self.logger.info("加载模型失败，使用简单标签生成方法")
     
     def _filter_tags(self, tags):
         """过滤标签，去除冗余和低质量的标签
@@ -173,14 +205,45 @@ class WDViTV3Tagger:
                 # 其他类型，尝试直接使用
                 self.logger.info(f"使用传入的对象，类型: {type(image)}")
             
-            # 使用简单标签生成方法，避免使用PyTorch
-            self.logger.debug("使用简单标签生成方法")
-            # 返回默认标签
-            tags = [{"tag": tag, "confidence": 0.5} for tag in self.tags[:10]]
-            # 过滤标签
-            filtered_tags = self._filter_tags(tags)
-            # 打印前10个标签
-            self.logger.info(f"简单标签生成方法 前10个标签: {filtered_tags[:10]}")
+            # 检查是否加载了模型
+            if self.wd_model is not None and self.wd_processor is not None:
+                # 使用PyTorch模型生成标签
+                self.logger.debug("使用PyTorch模型生成标签")
+                
+                # 预处理图像
+                inputs = self.wd_processor(images=image, return_tensors="pt").to(self.device)
+                
+                # 模型推理
+                with torch.no_grad():
+                    outputs = self.wd_model(**inputs)
+                
+                # 获取预测结果
+                logits = outputs.logits
+                probabilities = torch.nn.functional.softmax(logits, dim=1).squeeze().cpu().numpy()
+                
+                # 生成标签
+                tags = []
+                for i, prob in enumerate(probabilities):
+                    if prob >= threshold:
+                        if i in self.num_id2label:
+                            tag = self.num_id2label[i]
+                        else:
+                            tag = f"LABEL_{i}"
+                        tags.append({"tag": tag, "confidence": float(prob)})
+                
+                # 过滤标签
+                filtered_tags = self._filter_tags(tags)
+                # 打印前10个标签
+                self.logger.info(f"PyTorch模型 前10个标签: {filtered_tags[:10]}")
+            else:
+                # 使用简单标签生成方法
+                self.logger.debug("使用简单标签生成方法")
+                # 返回默认标签
+                tags = [{"tag": tag, "confidence": 0.5} for tag in self.tags[:10]]
+                # 过滤标签
+                filtered_tags = self._filter_tags(tags)
+                # 打印前10个标签
+                self.logger.info(f"简单标签生成方法 前10个标签: {filtered_tags[:10]}")
             
             return filtered_tags
         except Exception as e:
