@@ -32,19 +32,7 @@ except Exception as e:
 
 class GeneralClassification:
     """通用分类器类"""
-    
-    # 全局缓存
-    _instance_cache = None
-    
-    def __new__(cls, threshold=0.7, index_path=None, model=None):
-        """单例模式，避免重复初始化"""
-        # 如果model参数发生变化，返回一个新的实例
-        if hasattr(cls, '_instance_cache') and hasattr(cls._instance_cache, 'model') and cls._instance_cache.model != model:
-            cls._instance_cache = super(GeneralClassification, cls).__new__(cls)
-        elif cls._instance_cache is None:
-            cls._instance_cache = super(GeneralClassification, cls).__new__(cls)
-        return cls._instance_cache
-    
+
     def __init__(self, threshold=0.7, index_path=None, model=None):
         """初始化通用分类器"""
         if hasattr(self, 'is_initialized') and self.is_initialized and getattr(self, 'model', None) == model:
@@ -136,25 +124,16 @@ class GeneralClassification:
                 logger.warning("分类模块初始化失败，使用默认实现")
                 self.classifier = Classification(threshold=self.threshold)
             
-            # 5. 尝试初始化EfficientNet推理器（单独处理，非致命）
-            try:
-                if self.model:
-                    logger.info("初始化EfficientNet推理模型...")
-                    import traceback
-                    from core.classification.efficientnet_inference import EfficientNetInference
-                    # 构建模型路径
-                    base_model_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..', '..', 'models'))
-                    model_path = os.path.join(base_model_dir, self.model, 'model_best.pth')
-                    logger.info(f"使用指定模型: {model_path}")
-                    self.model_inference = EfficientNetInference(model_path=model_path)
-                    logger.info("EfficientNet推理模型初始化成功")
-                else:
-                    logger.info("未指定模型，跳过EfficientNet推理模型初始化")
-                    self.model_inference = None
-            except Exception as e:
-                logger.warning(f"EfficientNet模型初始化失败 (非致命): {e}")
-                logger.warning(f"错误堆栈: {traceback.format_exc()}")
-                self.model_inference = None
+            # 5. 暂时跳过EfficientNet推理器初始化，在需要时动态加载
+            logger.info("跳过EfficientNet推理模型初始化，在需要时动态加载")
+            self.model_inference = None
+            # 保存模型路径，供后续使用
+            if self.model:
+                base_model_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..', '..', 'models'))
+                self.model_path = os.path.join(base_model_dir, self.model, 'model_best.pth')
+                logger.info(f"保存模型路径: {self.model_path}")
+            else:
+                self.model_path = None
             
             # 6. 尝试初始化属性推理器（单独处理，非致命）
             try:
@@ -318,15 +297,29 @@ class GeneralClassification:
                 try:
                     logger.info("使用 EfficientNet 模型进行推理")
                     import traceback
-                    from core.classification.efficientnet_inference import EfficientNetInference
+                    import sys
+                    import importlib.util
+                    
                     # 构建模型路径
                     base_model_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..', 'models'))
                     model_path = os.path.join(base_model_dir, self.model, 'model_best.pth')
                     logger.info(f"使用指定模型: {model_path}")
-                    # 直接创建EfficientNetInference实例
-                    model_inference = EfficientNetInference(model_path=model_path)
+                    
+                    # 重用已初始化的模型实例
+                    if not hasattr(self, 'model_inference') or self.model_inference is None:
+                        # 动态导入EfficientNetInference类
+                        efficientnet_path = os.path.join(os.path.dirname(__file__), 'efficientnet_inference.py')
+                        spec = importlib.util.spec_from_file_location('efficientnet_inference', efficientnet_path)
+                        efficientnet_module = importlib.util.module_from_spec(spec)
+                        sys.modules['efficientnet_inference'] = efficientnet_module
+                        spec.loader.exec_module(efficientnet_module)
+                        
+                        # 创建EfficientNetInference实例
+                        self.model_inference = efficientnet_module.EfficientNetInference(model_path=model_path, enable_keypoint_detection=False)
+                        logger.info("EfficientNet 模型初始化成功")
+                    
                     # 使用标签辅助推理
-                    role, similarity, _ = model_inference.predict_with_tags(image_path)
+                    role, similarity, _ = self.model_inference.predict_with_tags(image_path)
                     feature = None # 模型推理不产生CLIP特征向量
                     logger.info("EfficientNet 模型推理成功")
                 except Exception as e:
@@ -721,17 +714,11 @@ class GeneralClassification:
 _global_classifier = None
 
 def get_classifier(index_path="role_index", model=None):
-    """获取全局分类器实例"""
-    global _global_classifier
+    """获取分类器实例"""
     # 构造索引文件的绝对路径
     abs_index_path = os.path.join(PROJECT_ROOT, index_path)
-    if _global_classifier is None:
-        _global_classifier = GeneralClassification(index_path=abs_index_path, model=model)
-    else:
-        # 如果已存在实例但指定了不同的模型，则重新初始化
-        if model and getattr(_global_classifier, 'model', None) != model:
-            _global_classifier = GeneralClassification(index_path=abs_index_path, model=model)
-    return _global_classifier
+    # 每次都创建新实例
+    return GeneralClassification(index_path=abs_index_path, model=model)
 
 def classify_image(image_path, use_model=False):
     """快速分类图像的便捷函数"""

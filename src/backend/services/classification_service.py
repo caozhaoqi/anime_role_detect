@@ -7,8 +7,8 @@ import sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..')))
 
 from src.core.classification.general_classification import get_classifier
-from src.backend.web.config.config import DEFAULT_INDEX_PATH
-from src.backend.web.models.coreml_model import coreml_model, classify_with_coreml
+from src.backend.config import DEFAULT_INDEX_PATH
+from src.backend.services.coreml_model import coreml_model, classify_with_coreml
 from src.core.log_fusion.log_recorder import record_classification_log
 
 # 使用全局日志系统
@@ -48,20 +48,26 @@ def classify_image(image_path, use_coreml=False, use_model=False, use_deepdanboo
     
     if use_coreml and coreml_model is not None:
         # 使用 Core ML 模型
-        logger.info("使用 Core ML 模型进行分类")
-        role, similarity, boxes = classify_with_coreml(image_path)
-        mode = 'Core ML模型 (Apple设备)'
-        # 记录分类日志
-        record_classification_log(
-            image_path=image_path,
-            role=role,
-            similarity=similarity,
-            feature=[],  # Core ML 模型不提供特征向量
-            boxes=boxes,
-            metadata={'mode': mode, 'use_coreml': True}
-        )
-        # 使用全局日志系统记录推理结果
-        log_inference(f"✅ 图像分类成功: {os.path.basename(image_path)}, 角色: {role}, 相似度: {similarity:.4f}, 模式: {mode}")
+        try:
+            logger.info("使用 Core ML 模型进行分类")
+            role, similarity, boxes = classify_with_coreml(image_path)
+            mode = 'Core ML模型 (Apple设备)'
+            # 记录分类日志
+            record_classification_log(
+                image_path=image_path,
+                role=role,
+                similarity=similarity,
+                feature=[],  # Core ML 模型不提供特征向量
+                boxes=boxes,
+                metadata={'mode': mode, 'use_coreml': True}
+            )
+            # 使用全局日志系统记录推理结果
+            log_inference(f"✅ 图像分类成功: {os.path.basename(image_path)}, 角色: {role}, 相似度: {similarity:.4f}, 模式: {mode}")
+        except Exception as e:
+            logger.error(f"Core ML 分类失败: {e}")
+            # 回退到默认模型
+            logger.info("Core ML 分类失败，回退到默认模型")
+            use_coreml = False
     elif use_deepdanbooru:
         # 使用集成DeepDanbooru的分类方法
         logger.info("使用集成DeepDanbooru的分类方法")

@@ -8,19 +8,14 @@ from collections import OrderedDict
 import numpy as np
 from concurrent.futures import ThreadPoolExecutor
 import time
-from src.core.keypoint.mediapipe_keypoint_detector import MediaPipeKeypointDetector
 
 class EfficientNetInference:
-    _instance = None
-    
     def __new__(cls, model_path=None, data_dir=None, enable_optimizations=True):
-        if cls._instance is None:
-            cls._instance = super(EfficientNetInference, cls).__new__(cls)
-            cls._instance.initialized = False
-        return cls._instance
+        return super(EfficientNetInference, cls).__new__(cls)
 
     def __init__(self, model_path=None, data_dir=None, enable_optimizations=True, enable_keypoint_detection=True):
-        if self.initialized and getattr(self, 'model_path', None) == model_path:
+        # 检查是否已经初始化并且模型路径相同
+        if hasattr(self, 'initialized') and self.initialized and getattr(self, 'model_path', None) == model_path:
             return
             
         self.device = torch.device("cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")
@@ -68,6 +63,7 @@ class EfficientNetInference:
         # 初始化关键点检测器
         if self.enable_keypoint_detection:
             try:
+                from src.core.keypoint.mediapipe_keypoint_detector import MediaPipeKeypointDetector
                 self.keypoint_detector = MediaPipeKeypointDetector()
                 print("关键点检测器初始化成功")
             except Exception as e:

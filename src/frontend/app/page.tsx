@@ -22,6 +22,11 @@ export default function AnimeRoleDetect() {
   const [copySuccess, setCopySuccess] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
+  const [isMacPlatform, setIsMacPlatform] = useState(false);
+  const [availableModels, setAvailableModels] = useState<string[]>([]);
+  const [selectedModel, setSelectedModel] = useState<string>("default");
+  const [useCoreML, setUseCoreML] = useState(false);
+  const [useAttributes, setUseAttributes] = useState(true);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const isMountedRef = useRef(false);
@@ -29,6 +34,17 @@ export default function AnimeRoleDetect() {
   // 组件挂载时执行
   useEffect(() => {
     isMountedRef.current = true;
+
+    // 检测平台
+    const platform = navigator.platform.toLowerCase();
+    const isMac = platform.includes('mac') || platform.includes('darwin');
+    setIsMacPlatform(isMac);
+    if (isMac) {
+      setUseCoreML(true);
+    }
+
+    // 获取可用模型列表
+    fetchAvailableModels();
 
     // 监听键盘事件
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -43,6 +59,21 @@ export default function AnimeRoleDetect() {
       window.removeEventListener('keydown', handleKeyDown);
     };
   }, []);
+
+  // 获取可用模型列表
+  const fetchAvailableModels = async () => {
+    try {
+      // 直接从后端API获取模型列表
+      const response = await axios.get('http://127.0.0.1:8000/api/models');
+      if (response.data.success) {
+        const models = response.data.models || [];
+        setAvailableModels(['default', ...models]);
+        console.log('可用模型:', models);
+      }
+    } catch (error) {
+      console.error('获取模型列表失败:', error);
+    }
+  };
 
   // 处理图片选择
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -150,10 +181,19 @@ export default function AnimeRoleDetect() {
         // 构建FormData
         const formData = new FormData();
         formData.append('file', selectedImage);
-        formData.append('use_model', 'true');
-        formData.append('use_attributes', 'true');
-        formData.append('model_name', 'default');
+        formData.append('use_coreml', useCoreML ? 'true' : 'false');
+        formData.append('use_model', selectedModel !== 'default' ? 'true' : 'false');
+        formData.append('use_attributes', useAttributes ? 'true' : 'false');
+        formData.append('model_name', selectedModel);
         formData.append('cache_bypass', Date.now().toString());
+
+        console.log('发送请求参数:', {
+          useCoreML,
+          useModel: selectedModel !== 'default',
+          useAttributes,
+          modelName: selectedModel,
+          isMacPlatform
+        });
 
         // 发送请求到后端API
         console.log('开始发送请求到API');
@@ -171,7 +211,7 @@ export default function AnimeRoleDetect() {
         const assistantMessage: Message = {
           id: Date.now().toString(),
           role: "assistant",
-          content: `识别完成！`,
+          content: `识别完成！${data.data.mode ? ` (使用 ${data.data.mode})` : ''}`,
           classification: {
             role: data.data.role || data.data.ai_predicted_role || data.data.predicted_role || "未知角色",
             similarity: data.data.similarity || 0,
@@ -216,7 +256,7 @@ export default function AnimeRoleDetect() {
         removeImage();
       }
     }
-  }, [inputText, selectedImage, imagePreview, isProcessing, removeImage]);
+  }, [inputText, selectedImage, imagePreview, isProcessing, removeImage, useCoreML, selectedModel, useAttributes]);
 
   // 处理键盘按键
   const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -279,8 +319,69 @@ export default function AnimeRoleDetect() {
       
       {/* 顶部导航栏 */}
       <header className={`sticky top-0 z-50 ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border-b transition-all duration-300`}>
-        <div className="container mx-auto px-6 py-4 flex items-center justify-center">
-          <h1 className="text-2xl font-semibold bg-gradient-to-r from-blue-500 to-purple-600 bg-clip-text text-transparent">动漫角色识别</h1>
+        <div className="container mx-auto px-6 py-4">
+          <div className="flex items-center justify-between">
+            <h1 className="text-2xl font-semibold bg-gradient-to-r from-blue-500 to-purple-600 bg-clip-text text-transparent">动漫角色识别</h1>
+            
+            {/* 模型选择和控制 */}
+            <div className="flex items-center space-x-4">
+              {/* 模型选择 */}
+              <div className="flex items-center space-x-2">
+                <label className="text-sm font-medium">模型:</label>
+                <select
+                  value={selectedModel}
+                  onChange={(e) => setSelectedModel(e.target.value)}
+                  className={`px-3 py-1.5 rounded-lg text-sm ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-gray-50 border-gray-200'} border focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                >
+                  {availableModels.map(model => (
+                    <option key={model} value={model}>
+                      {model === 'default' ? '默认 (CLIP)' : model}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              
+              {/* CoreML 开关 (仅 Mac 平台显示) */}
+              {isMacPlatform && (
+                <div className="flex items-center space-x-2">
+                  <label className="text-sm font-medium">CoreML:</label>
+                  <button
+                    onClick={() => setUseCoreML(!useCoreML)}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${useCoreML ? 'bg-blue-600' : 'bg-gray-300'}`}
+                  >
+                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${useCoreML ? 'translate-x-6' : 'translate-x-1'}`} />
+                  </button>
+                </div>
+              )}
+              
+              {/* 属性预测开关 */}
+              <div className="flex items-center space-x-2">
+                <label className="text-sm font-medium">属性:</label>
+                <button
+                  onClick={() => setUseAttributes(!useAttributes)}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${useAttributes ? 'bg-blue-600' : 'bg-gray-300'}`}
+                >
+                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${useAttributes ? 'translate-x-6' : 'translate-x-1'}`} />
+                </button>
+              </div>
+              
+              {/* 暗黑模式开关 */}
+              <button
+                onClick={() => setDarkMode(!darkMode)}
+                className={`p-2 rounded-lg ${darkMode ? 'bg-gray-700 text-yellow-400' : 'bg-gray-100 text-gray-600'} transition-colors`}
+                title={darkMode ? '切换到亮色模式' : '切换到暗黑模式'}
+              >
+                {darkMode ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+              </button>
+            </div>
+          </div>
+          
+          {/* 平台信息 */}
+          {isMacPlatform && useCoreML && (
+            <div className="mt-2 text-xs text-blue-600 dark:text-blue-400">
+              🍎 检测到 Mac 平台，已启用 CoreML 加速
+            </div>
+          )}
         </div>
       </header>
       

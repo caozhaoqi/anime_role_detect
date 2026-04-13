@@ -7,6 +7,7 @@ export async function POST(request: NextRequest) {
     const formData = await request.formData();
     console.log('FormData解析完成');
     const file = formData.get('file') as File;
+    const useCoreML = formData.get('use_coreml') as string;
     const useModel = formData.get('use_model') as string;
     const useAttributes = formData.get('use_attributes') as string;
     const modelName = formData.get('model_name') as string;
@@ -14,6 +15,7 @@ export async function POST(request: NextRequest) {
 
     console.log('请求参数:', {
       hasFile: !!file,
+      useCoreML: useCoreML,
       useModel: useModel,
       useAttributes: useAttributes,
       modelName: modelName,
@@ -28,6 +30,7 @@ export async function POST(request: NextRequest) {
     console.log('收到分类请求:', {
       fileName: file.name,
       fileSize: file.size,
+      useCoreML: useCoreML,
       useModel: useModel,
       useAttributes: useAttributes,
       modelName: modelName,
@@ -38,6 +41,10 @@ export async function POST(request: NextRequest) {
     console.log('准备转发请求到后端API:', backendUrl);
     const backendFormData = new FormData();
     backendFormData.append('file', file);
+
+    if (useCoreML === 'true') {
+      backendFormData.append('use_coreml', 'true');
+    }
 
     if (useModel === 'true') {
       backendFormData.append('use_model', 'true');

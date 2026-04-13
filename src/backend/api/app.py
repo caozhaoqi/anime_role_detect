@@ -55,6 +55,9 @@ logger = get_logger("api")
 async def classify_image(
     file: UploadFile = File(...),
     model_name: str = Form("default"),
+    use_coreml: bool = Form(False),
+    use_model: bool = Form(False),
+    use_attributes: bool = Form(False),
     cache_bypass: bool = Form(False)
 ):
     """
@@ -63,6 +66,9 @@ async def classify_image(
     Args:
         file: 上传的图像文件
         model_name: 模型名称
+        use_coreml: 是否使用 CoreML 模型（Mac 平台）
+        use_model: 是否使用专用模型
+        use_attributes: 是否使用属性预测
         cache_bypass: 是否绕过缓存
     
     Returns:
@@ -76,7 +82,7 @@ async def classify_image(
         load_models()
         
         # 处理图像
-        result = await process_single_image(file, model_name, cache_bypass)
+        result = await process_single_image(file, model_name, cache_bypass, use_coreml, use_model, use_attributes)
         
         # 构建响应
         response = {
@@ -97,6 +103,9 @@ async def classify_image(
 async def batch_classify_images(
     files: list[UploadFile] = File(...),
     model_name: str = Form("default"),
+    use_coreml: bool = Form(False),
+    use_model: bool = Form(False),
+    use_attributes: bool = Form(False),
     cache_bypass: bool = Form(False)
 ):
     """
@@ -105,6 +114,9 @@ async def batch_classify_images(
     Args:
         files: 上传的图像文件列表
         model_name: 模型名称
+        use_coreml: 是否使用 CoreML 模型（Mac 平台）
+        use_model: 是否使用专用模型
+        use_attributes: 是否使用属性预测
         cache_bypass: 是否绕过缓存
     
     Returns:
@@ -118,7 +130,7 @@ async def batch_classify_images(
         load_models()
         
         # 处理图像
-        results = await process_batch_images(files, model_name, cache_bypass)
+        results = await process_batch_images(files, model_name, cache_bypass, use_coreml, use_model, use_attributes)
         
         # 构建响应
         response = {
@@ -176,7 +188,7 @@ async def get_available_models():
     """
     # 检查models目录下的模型
     model_dirs = []
-    models_path = os.path.join(os.path.dirname(__file__), '..', '..', 'models')
+    models_path = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'models')
     if os.path.exists(models_path):
         model_dirs = [d for d in os.listdir(models_path) if os.path.isdir(os.path.join(models_path, d))]
     
