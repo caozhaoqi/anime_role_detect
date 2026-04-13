@@ -6,7 +6,10 @@
 import os
 import sys
 
-# 设置环境变量，避免锁竞争问题
+# 解决macOS上的Mutex锁失败问题
+os.environ["OBJC_DISABLE_INITIALIZE_FORK_SAFETY"] = "YES"
+
+# 设置环境变量，避免锁竞争问题和OpenMP冲突
 os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
 os.environ['MPS_HIGH_WATERMARK_RATIO'] = '0.0'
 os.environ['PYTORCH_MPS_HIGH_WATERMARK_RATIO'] = '0.0'
@@ -15,6 +18,7 @@ os.environ['MKL_NUM_THREADS'] = '1'
 os.environ['OPENBLAS_NUM_THREADS'] = '1'
 os.environ['VECLIB_MAXIMUM_THREADS'] = '1'
 os.environ['NUMEXPR_NUM_THREADS'] = '1'
+os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
 
 # 延迟导入torch
 import sys
@@ -42,13 +46,21 @@ get_logger = None
 
 # 动态导入函数
 def import_core_modules():
-    global Preprocessing, FeatureExtraction, WDViTV3Tagger, Classification, get_logger, torch
-    # 导入torch
+    global Preprocessing, FeatureExtraction, WDViTV3Tagger, Classification, get_logger, torch, detect_nsfw
+    # 导入torch并禁用MPS，避免锁竞争问题
     import torch
+    torch.backends.mps.is_available = lambda: False
+    torch.backends.mps.is_built = lambda: False
+    # 禁用MPS相关的环境变量
+    import os
+    os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
+    os.environ['MPS_HIGH_WATERMARK_RATIO'] = '0.0'
+    os.environ['PYTORCH_MPS_HIGH_WATERMARK_RATIO'] = '0.0'
     from src.core.preprocessing.preprocessing import Preprocessing
     from src.core.feature_extraction.feature_extraction import FeatureExtraction
     from src.core.tagging.wd_vit_v3_tagger import WDViTV3Tagger
     from src.core.classification.classification import Classification
+    from src.backend.services.nsfw_detector import detect_nsfw
     from src.core.logging.global_logger import get_logger
 
 # 初始化日志
@@ -140,48 +152,73 @@ async def predict_image(
         with open(temp_path, "wb") as f:
             f.write(content)
         
-        # 预处理图像
+        # [1] NSFW检测 → 如果检测到敏感内容，直接返回
+        logger.info("开始NSFW检测...")
+        nsfw_result = detect_nsfw(temp_path)
+        logger.info(f"NSFW检测结果: {nsfw_result}")
+        
+        if nsfw_result['is_nsfw']:
+            logger.warning("检测到敏感内容，直接返回")
+            return {
+                "role": "nsfw_detected",
+                "similarity": 0.0,
+                "attributes": [],
+                "keypoints": None,
+                "nsfw_status": nsfw_result
+            }
+        
+        # [2] 图像预处理（解码、缩放、归一化）
+        logger.info("开始图像预处理...")
         if preprocessor is None:
             preprocessor = Preprocessing()
         
         processed_image, _ = preprocessor.process(temp_path)
+        logger.info("图像预处理完成")
         
-        # 初始化特征提取器
+        # [3] 关键点检测（面部、手部、姿态）
+        logger.info("开始关键点检测...")
+        # 暂时禁用关键点检测，避免macOS上的Mutex锁竞争问题
+        keypoints = None
+        logger.info("关键点检测已暂时禁用")
+        
+        # [4] 特征提取 → 生成512维特征向量
+        logger.info("开始特征提取...")
         if feature_extractor is None:
             logger.info("初始化特征提取器...")
             try:
                 feature_extractor = FeatureExtraction()
-                logger.info("特征提取器初始化完成")
+                logger.info(f"特征提取器初始化完成，使用设备: {feature_extractor.device}")
             except Exception as e:
                 logger.error(f"特征提取器初始化失败: {e}")
                 raise HTTPException(status_code=500, detail=f"特征提取器初始化失败: {e}")
         
-        # 提取特征
         feature = feature_extractor.extract_features(processed_image)
+        logger.info("特征提取完成")
         
-        # 初始化标签生成器
-        if tagger is None:
-            logger.info("初始化标签生成器...")
-            try:
-                tagger = WDViTV3Tagger()
-                logger.info("标签生成器初始化完成")
-                # 加载模型
-                logger.info("加载标签生成模型...")
-                tagger.load_model()
-                logger.info("标签生成模型加载完成")
-            except Exception as e:
-                logger.error(f"标签生成器初始化失败: {e}")
-                tagger = None
-        
-        # 生成属性标签
+        # [5] 标签生成 → 生成图像标签
+        logger.info("开始标签生成...")
         attributes = []
-        if use_attributes and tagger:
-            try:
-                attributes = tagger.generate_tags(processed_image)
-            except Exception as e:
-                logger.error(f"标签生成失败: {e}")
+        if use_attributes:
+            if tagger is None:
+                logger.info("初始化标签生成器...")
+                try:
+                    tagger = WDViTV3Tagger()
+                    logger.info(f"标签生成器初始化完成，使用设备: {tagger.device}")
+                    # 暂时禁用模型加载，避免锁竞争问题
+                    logger.info("暂时禁用标签生成模型加载")
+                except Exception as e:
+                    logger.error(f"标签生成器初始化失败: {e}")
+                    tagger = None
+            
+            if tagger:
+                try:
+                    attributes = tagger.generate_tags(processed_image)
+                except Exception as e:
+                    logger.error(f"标签生成失败: {e}")
+        logger.info("标签生成完成")
         
-        # 初始化分类器
+        # [6] 角色分类 → 基于特征向量匹配角色
+        logger.info("开始角色分类...")
         if model_name not in model_cache:
             logger.info(f"初始化分类器: {model_name}")
             # 检查模型路径
@@ -192,9 +229,19 @@ async def predict_image(
                 model_name = "mobilenet_v2"  # 使用默认模型名称
                 logger.warning(f"模型路径不存在，使用默认模型: {model_name}")
             
-            classifier = Classification(index_path)
+            # 检查索引文件是否存在
+            faiss_path = f"{index_path}.faiss"
+            mapping_path = f"{index_path}_mapping.json"
+            if os.path.exists(faiss_path) and os.path.exists(mapping_path):
+                # 降低阈值，提高角色识别率
+                classifier = Classification(index_path, threshold=0.1)
+                logger.info(f"分类器初始化完成，模型: {model_name}, 阈值: 0.1")
+            else:
+                # 如果索引文件不存在，创建一个空的分类器
+                classifier = Classification(threshold=0.1)
+                logger.warning(f"索引文件不存在，创建空分类器: {model_name}, 阈值: 0.1")
+            
             model_cache[model_name] = classifier
-            logger.info(f"分类器初始化完成，模型: {model_name}")
         else:
             classifier = model_cache[model_name]
         
@@ -207,13 +254,16 @@ async def predict_image(
             logger.warning("分类器索引不存在，返回特征向量和未知角色")
             role = "unknown"
             similarity = 0.0
+        logger.info("角色分类完成")
         
-        # 构建响应
+        # [7] 返回结果：角色名称、标签、关键点、NSFW状态
         logger.info(f"准备返回结果: role={role}, similarity={similarity}, feature类型={type(feature)}, feature长度={len(feature) if hasattr(feature, '__len__') else 'N/A'}")
         result = {
             "role": role,
             "similarity": float(similarity),
             "attributes": attributes,
+            "keypoints": keypoints,
+            "nsfw_status": nsfw_result,
             "feature": feature.tolist() if hasattr(feature, 'tolist') else feature  # 返回特征向量供后端使用
         }
         logger.info(f"返回结果: {result}")
@@ -270,7 +320,7 @@ async def extract_features(
             logger.info("初始化特征提取器...")
             try:
                 feature_extractor = FeatureExtraction()
-                logger.info("特征提取器初始化完成")
+                logger.info(f"特征提取器初始化完成，使用设备: {feature_extractor.device}")
             except Exception as e:
                 logger.error(f"特征提取器初始化失败: {e}")
                 raise HTTPException(status_code=500, detail=f"特征提取器初始化失败: {e}")
@@ -338,7 +388,7 @@ async def detect_multiple_characters(
             logger.info("初始化特征提取器...")
             try:
                 feature_extractor = FeatureExtraction()
-                logger.info("特征提取器初始化完成")
+                logger.info(f"特征提取器初始化完成，使用设备: {feature_extractor.device}")
             except Exception as e:
                 logger.error(f"特征提取器初始化失败: {e}")
                 raise HTTPException(status_code=500, detail=f"特征提取器初始化失败: {e}")
@@ -348,7 +398,7 @@ async def detect_multiple_characters(
             logger.info("初始化标签生成器...")
             try:
                 tagger = WDViTV3Tagger()
-                logger.info("标签生成器初始化完成")
+                logger.info(f"标签生成器初始化完成，使用设备: {tagger.device}")
                 # 加载模型
                 logger.info("加载标签生成模型...")
                 tagger.load_model()

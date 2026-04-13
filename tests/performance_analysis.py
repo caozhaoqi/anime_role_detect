@@ -19,7 +19,7 @@ import random
 sys.path.append(str(Path(__file__).parent))
 
 # 配置
-API_URL = "http://localhost:8000/api/classify"
+API_URL = "http://localhost:8001/api/model/predict"
 DOWNLOADED_IMAGES_DIR = "./downloaded_images"  # 下载的图片目录
 NUM_REQUESTS = 10  # 测试请求次数
 SAMPLING_INTERVAL = 0.1  # 采样间隔（秒）

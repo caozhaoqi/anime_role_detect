@@ -276,14 +276,10 @@ class Classification:
         
         # 4. 调整阈值，使其更倾向于选择平均相似度高的角色
         threshold = self.threshold  # 使用构造函数中设置的阈值
-        if best_similarity >= threshold:
-            result = (best_role, best_similarity)
-            self._cache_result(feature, result)
-            return result
-        else:
-            result = ("unknown", best_similarity)
-            self._cache_result(feature, result)
-            return result
+        # 总是返回最相似的角色，即使相似度低于阈值
+        result = (best_role, best_similarity)
+        self._cache_result(feature, result)
+        return result
     
     def batch_classify(self, features, top_k=5):
         """批量分类特征向量

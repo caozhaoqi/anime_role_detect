@@ -11,8 +11,18 @@ import json
 from tqdm import tqdm
 import requests
 
-# 延迟导入torch和transformers模块
-torch = None
+# 禁用MPS，避免锁竞争问题
+import os
+os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
+os.environ['MPS_HIGH_WATERMARK_RATIO'] = '0.0'
+os.environ['PYTORCH_MPS_HIGH_WATERMARK_RATIO'] = '0.0'
+
+# 导入torch并禁用MPS
+import torch
+torch.backends.mps.is_available = lambda: False
+torch.backends.mps.is_built = lambda: False
+
+# 延迟导入transformers模块
 AutoProcessor = None
 AutoModelForImageClassification = None
 CLIPProcessor = None
@@ -28,10 +38,7 @@ logger = get_logger("wd_vit_v3_tagger")
 # 动态导入函数
 def import_torch_modules():
     global torch, AutoProcessor, AutoModelForImageClassification, CLIPProcessor, CLIPModel
-    # 设置环境变量
-    import os
-    os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
-    import torch
+    # 导入模块
     from transformers import AutoProcessor, AutoModelForImageClassification, CLIPProcessor, CLIPModel
 
 
@@ -44,14 +51,10 @@ class WDViTV3Tagger:
         # 禁用Core ML模式，避免锁竞争问题
         self.coreml_mode = False
         
-        # 自动选择设备
-        import_torch_modules()
-        global torch
-        self.device = device or torch.device('mps' if torch.backends.mps.is_available() else 'cuda' if torch.cuda.is_available() else 'cpu')
+        # 不使用torch，直接设置设备为CPU
+        self.device = 'cpu'
         self.logger = get_logger("wd_vit_v3_tagger")
         self.logger.info(f"WD Vit Tagger 使用设备: {self.device}")
-        self.logger.info(f"MPS可用: {torch.backends.mps.is_available()}")
-        self.logger.info(f"CUDA可用: {torch.cuda.is_available()}")
         self.wd_model = None
         self.wd_processor = None
         self.clip_model = None
@@ -59,7 +62,7 @@ class WDViTV3Tagger:
         self.id2label = {}
         self.num_id2label = {}
         
-        self.logger.info("WD Vit Tagger 模块初始化完成，模型将在首次使用时加载")
+        self.logger.info("WD Vit Tagger 模块初始化完成，使用默认标签列表")
         self.tags = [
             '1girl', 'solo', 'blue hair', 'blue eyes', 'school uniform',
             'halo', 'ribbon', 'twintails', 'smile', 'looking at viewer',

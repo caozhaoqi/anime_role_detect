@@ -221,15 +221,18 @@ class Preprocessing:
     def crop_character(self, image_path, boxes):
         """根据检测结果裁剪角色主体"""
         logger.debug(f"开始裁剪角色: {image_path}")
+        # 导入必要的模块
+        import cv2
+        import numpy as np
+        from PIL import Image
+        
         # 加载图像
         if image_path.lower().endswith(('.svg', '.webp')):
             # 使用PIL加载SVG和WebP文件
-            from PIL import Image
             img = Image.open(image_path)
             # 转换为RGB
             img = img.convert('RGB')
             # 转换为numpy数组
-            import numpy as np
             img_rgb = np.array(img)
         else:
             # 使用OpenCV加载其他格式
@@ -535,6 +538,11 @@ class Preprocessing:
         """完整的预处理流程"""
         logger.info(f"开始完整预处理流程: {image_path}")
         try:
+            # 导入必要的模块
+            import cv2
+            import numpy as np
+            from PIL import Image
+            
             # 检测角色
             boxes = self.detect_character(image_path)
             
@@ -549,29 +557,39 @@ class Preprocessing:
         except Exception as e:
             logger.error(f"预处理失败: {e}")
             # 如果处理失败，返回原始图像的标准化版本
-            if image_path.lower().endswith('.svg'):
-                # 使用PIL加载SVG文件
-                from PIL import Image
-                img = Image.open(image_path)
-                # 转换为RGB
-                img = img.convert('RGB')
-                # 转换为numpy数组
-                import numpy as np
-                img_rgb = np.array(img)
-                logger.warning("返回原始图像的标准化版本")
-                return self.normalize_image(img_rgb), []
-            else:
-                # 使用OpenCV加载其他格式
+            try:
                 import cv2
                 import numpy as np
-                img = cv2.imread(image_path)
-                if img is not None:
+                from PIL import Image
+                
+                if image_path.lower().endswith('.svg'):
+                    # 使用PIL加载SVG文件
+                    img = Image.open(image_path)
+                    # 转换为RGB
+                    img = img.convert('RGB')
+                    # 转换为numpy数组
+                    img_rgb = np.array(img)
                     logger.warning("返回原始图像的标准化版本")
-                    img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
                     return self.normalize_image(img_rgb), []
                 else:
-                    logger.error("无法加载图像，抛出异常")
-                    raise
+                    # 使用OpenCV加载其他格式
+                    img = cv2.imread(image_path)
+                    if img is not None:
+                        logger.warning("返回原始图像的标准化版本")
+                        img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+                        return self.normalize_image(img_rgb), []
+                    else:
+                        logger.error("无法加载图像，抛出异常")
+                        raise
+            except Exception as e2:
+                logger.error(f"加载原始图像失败: {e2}")
+                # 如果所有方法都失败，返回一个默认的空白图像
+                from PIL import Image
+                import numpy as np
+                default_img = Image.new('RGB', self.img_size, (255, 255, 255))
+                default_img_np = np.array(default_img)
+                logger.warning("返回默认空白图像")
+                return self.normalize_image(default_img_np), []
     
     def process_multiple_characters(self, image_path, max_characters=5):
         """处理图片中的多个角色"""
