@@ -73,31 +73,10 @@ class FeatureExtraction:
     
     def _load_model(self):
         """延迟加载模型"""
-        if self.model is None:
-            logger.info(f"加载CLIP模型: {self.model_name}")
-            # 导入必要的模块
-            import_torch_modules()
-            
-            # 加载模型和处理器
-            self.processor = CLIPProcessor.from_pretrained(self.model_name)
-            self.model = CLIPModel.from_pretrained(self.model_name)
-            
-            # 移动到设备
-            self.model.to(self.device)
-            
-            # 量化模型
-            if self.quantize:
-                try:
-                    self.model = torch.quantization.quantize_dynamic(
-                        self.model,
-                        {torch.nn.Linear},
-                        dtype=torch.qint8
-                    )
-                    logger.info("模型量化完成")
-                except Exception as e:
-                    logger.warning(f"模型量化失败: {e}")
-            
-            logger.info("CLIP模型加载完成")
+        # 由于使用简单特征提取方法，不需要加载CLIP模型
+        logger.debug("使用简单特征提取方法，跳过CLIP模型加载")
+        self.processor = None
+        self.model = None
 
     def extract_features(self, img):
         """提取图像特征"""
@@ -155,6 +134,11 @@ class FeatureExtraction:
                 features = features[:512]
             
             logger.debug(f"特征提取完成，特征形状: {features.shape}")
+            
+            # 清理内存
+            import gc
+            gc.collect()
+            
             return features
         except Exception as e:
             logger.error(f"特征提取失败: {e}")

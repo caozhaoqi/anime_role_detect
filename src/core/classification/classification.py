@@ -13,10 +13,10 @@ class Classification:
     _index_cache = {}
     # 结果缓存
     _result_cache = {}
-    # 缓存大小限制
-    _cache_size = 1000
+    # 缓存大小限制 - 减少缓存大小以降低内存使用
+    _cache_size = 100
     # 索引缓存大小限制
-    _index_cache_size = 5
+    _index_cache_size = 2
     
     def __init__(self, index_path=None, threshold=0.4):
         """初始化分类模块"""
@@ -124,21 +124,21 @@ class Classification:
             logger.info(f"索引缓存已满，移除最早的索引: {oldest_key}")
         
         logger.info(f"开始加载索引: {index_path}")
-        
-        # 直接使用提供的路径
-        faiss_path = index_path
-        mapping_path = index_path.replace(".faiss", "_mapping.json")
-        
+
+        # 确保路径有 .faiss 扩展名
+        faiss_path = index_path if index_path.endswith('.faiss') else f"{index_path}.faiss"
+        mapping_path = f"{index_path}_mapping.json" if not index_path.endswith('_mapping.json') else index_path
+
         # 加载Faiss索引
         self.index = faiss.read_index(faiss_path)
-        
+
         # 加载角色映射
         with open(mapping_path, "r", encoding="utf-8") as f:
             self.role_mapping = json.load(f)
         
         # 缓存索引和映射
-        self.__class__._index_cache[index_path] = (self.index, self.role_mapping)
-        
+        self.__class__._index_cache[faiss_path] = (self.index, self.role_mapping)
+
         logger.info(f"索引加载完成，角色数量: {len(self.role_mapping)}")
     
     def _get_feature_hash(self, feature):
@@ -253,8 +253,17 @@ class Classification:
             
             # 检查标签中是否包含角色相关信息
             for role, similarity in sorted_roles:
+                # 拼音到中文的映射
+                pinyin_to_chinese = {
+                    "ri4nai4": "日奈",
+                    "a1luo2na4": "阿罗娜"
+                }
+                
+                # 获取中文角色名
+                chinese_role = pinyin_to_chinese.get(role, role)
+                
                 # 检查日奈
-                if role == "日奈" and any('hina' in tag or '日奈' in tag for tag in tags_lower):
+                if (role == "日奈" or role == "ri4nai4") and any('hina' in tag or '日奈' in tag for tag in tags_lower):
                     result = ("日奈", similarity)
                     self._cache_result(feature, result)
                     return result
@@ -264,7 +273,7 @@ class Classification:
                     self._cache_result(feature, result)
                     return result
                 # 检查阿罗娜
-                elif role == "阿罗娜" and any('arona' in tag or '阿罗娜' in tag for tag in tags_lower):
+                elif (role == "阿罗娜" or role == "a1luo2na4") and any('arona' in tag or '阿罗娜' in tag for tag in tags_lower):
                     result = ("阿罗娜", similarity)
                     self._cache_result(feature, result)
                     return result
@@ -276,6 +285,17 @@ class Classification:
         
         # 4. 调整阈值，使其更倾向于选择平均相似度高的角色
         threshold = self.threshold  # 使用构造函数中设置的阈值
+        
+        # 5. 拼音到中文的映射
+        pinyin_to_chinese = {
+            "ri4nai4": "日奈",
+            "a1luo2na4": "阿罗娜"
+        }
+        
+        # 转换拼音为中文
+        if best_role in pinyin_to_chinese:
+            best_role = pinyin_to_chinese[best_role]
+        
         # 总是返回最相似的角色，即使相似度低于阈值
         result = (best_role, best_similarity)
         self._cache_result(feature, result)

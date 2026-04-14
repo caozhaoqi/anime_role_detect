@@ -1,0 +1,338 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+模型处理器
+
+负责各种模型处理操作
+"""
+
+import os
+import time
+import asyncio
+import aiohttp
+from src.core.logging.global_logger import get_logger
+from src.backend.services.model_loader import get_preprocessor, get_keypoint_detector, get_tagger, get_role_predictor
+from src.backend.services.nsfw_detector import detect_nsfw
+from .preprocessor import preprocess_image
+from .model_loader import load_trained_model
+from .feature_processor import process_image_features
+
+logger = get_logger("image_processor")
+
+# 从环境变量中读取配置
+USE_MODEL_SERVICE = False
+MODEL_SERVICE_URL = os.environ.get('MODEL_SERVICE_URL', 'http://localhost:8001')
+
+
+async def process_with_model_service(file, content, model_name):
+    """
+    使用模型服务处理图像
+    
+    Args:
+        file: 上传的文件
+        content: 文件内容
+        model_name: 模型名称
+    
+    Returns:
+        dict: 处理结果
+    """
+    temp_path = None
+    
+    try:
+        logger.info(f"使用模型服务: {MODEL_SERVICE_URL}")
+        
+        # 确定文件类型
+        content_type = file.content_type
+        if content_type is None:
+            ext = os.path.splitext(file.filename)[1].lower()
+            ext_to_content_type = {
+                '.jpg': 'image/jpeg',
+                '.jpeg': 'image/jpeg',
+                '.png': 'image/png',
+                '.gif': 'image/gif',
+                '.bmp': 'image/bmp',
+                '.svg': 'image/svg+xml'
+            }
+            content_type = ext_to_content_type.get(ext, 'application/octet-stream')
+        
+        # 发送请求到模型服务
+        logger.info(f"开始调用模型服务: {MODEL_SERVICE_URL}/api/model/predict")
+        logger.info(f"请求文件: {file.filename}, 大小: {len(content)}字节, 类型: {content_type}")
+        
+        # 使用aiohttp进行异步HTTP调用
+        async with aiohttp.ClientSession() as session:
+            # 构建multipart/form-data请求
+            form = aiohttp.FormData()
+            form.add_field('file', content, filename=file.filename, content_type=content_type)
+            form.add_field('model_name', model_name)
+            form.add_field('use_attributes', 'true')
+            
+            logger.info(f"准备发送请求到模型服务")
+            async with session.post(
+                f"{MODEL_SERVICE_URL}/api/model/predict",
+                data=form,
+                timeout=30
+            ) as response:
+                logger.info(f"模型服务响应状态码: {response.status}")
+                response.raise_for_status()
+                model_result = await response.json()
+                logger.info(f"模型服务返回数据: {model_result}")
+        
+        # 处理结果
+        role = model_result.get('role', 'unknown')
+        similarity = model_result.get('similarity', 0.0)
+        attributes = model_result.get('attributes', [])
+        feature = model_result.get('feature', None)
+        
+        logger.info(f"模型服务返回结果: role={role}, similarity={similarity}, has_feature={feature is not None}")
+        
+        # 保存临时文件用于其他处理
+        temp_path = f"temp/temp_{int(time.time())}_{file.filename}"
+        with open(temp_path, "wb") as f:
+            f.write(content)
+        
+        # 如果模型服务返回unknown且提供了特征向量，使用本地模型进行分类
+        if role == 'unknown' and feature is not None:
+            logger.info(f"模型服务返回unknown且提供了特征向量，role={role}, feature长度={len(feature) if feature else 'None'}")
+            # 加载训练好的模型
+            
+            model_info = load_trained_model(model_name)
+            logger.info(f"load_trained_model返回: {model_info}")
+            if model_info is not None:
+                model, class_to_idx = model_info
+                idx_to_class = {v: k for k, v in class_to_idx.items()}
+                
+                # 预处理图像
+                img = preprocess_image(temp_path)
+                
+                # 预测
+                import torch
+                with torch.no_grad():
+                    outputs = model(img)
+                    _, predicted = torch.max(outputs, 1)
+                    confidence = torch.nn.functional.softmax(outputs, dim=1)[0][predicted.item()].item()
+                
+                # 获取预测结果
+                role = idx_to_class.get(predicted.item(), "unknown")
+                similarity = float(confidence)
+                logger.info(f"本地模型分类结果: {role}, 相似度: {similarity:.4f}")
+        
+        # 处理图像特征
+        text_detections, keypoints, ai_predicted_role = process_image_features(temp_path, file.content_type, attributes)
+        
+        # 执行NSFW检测
+        nsfw_result = detect_nsfw(temp_path)
+        
+        # 构建结果
+        result = {
+            "role": role,
+            "similarity": similarity,
+            "possible_roles": [],
+            "attributes": attributes,
+            "text_detections": text_detections,
+            "keypoints": keypoints,
+            "ai_predicted_role": ai_predicted_role,
+            "nsfw": nsfw_result
+        }
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f"使用模型服务处理图像失败: {e}")
+        raise
+    finally:
+        # 清理临时文件
+        if temp_path and os.path.exists(temp_path):
+            try:
+                os.remove(temp_path)
+            except Exception as e:
+                logger.error(f"清理临时文件失败: {e}")
+
+
+async def process_with_local_model(file, content, model_name):
+    """
+    使用本地模型处理图像
+    
+    Args:
+        file: 上传的文件
+        content: 文件内容
+        model_name: 模型名称
+    
+    Returns:
+        dict: 处理结果
+    """
+    temp_path = None
+    
+    try:
+        logger.info(f"使用本地模型: {model_name}")
+        
+        # 保存临时文件
+        temp_path = f"temp/temp_{int(time.time())}_{file.filename}"
+        with open(temp_path, "wb") as f:
+            f.write(content)
+        
+        # 加载模型
+        role_predictor = get_role_predictor(model_name)
+        
+        # 预处理图像
+        img = preprocess_image(temp_path)
+        
+        # 预测
+        import torch
+        with torch.no_grad():
+            outputs = role_predictor(img)
+            _, predicted = torch.max(outputs, 1)
+            confidence = torch.nn.functional.softmax(outputs, dim=1)[0][predicted.item()].item()
+        
+        # 获取预测结果
+        class_names = ["unknown", "plana", "other"]
+        role = class_names[predicted.item()]
+        similarity = float(confidence)
+        
+        logger.info(f"本地模型分类结果: {role}, 相似度: {similarity:.4f}")
+        
+        # 处理图像特征
+        text_detections, keypoints, ai_predicted_role = process_image_features(temp_path, file.content_type, [])
+        
+        # 执行NSFW检测
+        nsfw_result = detect_nsfw(temp_path)
+        
+        # 构建结果
+        result = {
+            "role": role,
+            "similarity": similarity,
+            "possible_roles": [],
+            "attributes": [],
+            "text_detections": text_detections,
+            "keypoints": keypoints,
+            "ai_predicted_role": ai_predicted_role,
+            "nsfw": nsfw_result
+        }
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f"使用本地模型处理图像失败: {e}")
+        raise
+    finally:
+        # 清理临时文件
+        if temp_path and os.path.exists(temp_path):
+            try:
+                os.remove(temp_path)
+            except Exception as e:
+                logger.error(f"清理临时文件失败: {e}")
+
+
+async def process_with_trained_model(file, image_source, model_name):
+    """
+    使用训练好的模型处理图像
+    
+    Args:
+        file: 上传的文件
+        image_source: 图像来源
+        model_name: 模型名称
+    
+    Returns:
+        dict: 处理结果
+    """
+    try:
+        logger.info(f"使用训练好的模型: {model_name}")
+        
+        # 加载训练好的模型
+        model_info = load_trained_model(model_name)
+        
+        if model_info is None:
+            logger.warning(f"未找到训练好的模型: {model_name}")
+            return {
+                "role": "unknown",
+                "similarity": 0.0,
+                "possible_roles": [],
+                "attributes": [],
+                "text_detections": [],
+                "keypoints": [],
+                "ai_predicted_role": "unknown",
+                "nsfw": {"is_nsfw": False, "confidence": 0.0}
+            }
+        
+        model, class_to_idx = model_info
+        idx_to_class = {v: k for k, v in class_to_idx.items()}
+        
+        # 预处理图像
+        img = preprocess_image(image_source)
+        
+        # 预测
+        import torch
+        with torch.no_grad():
+            outputs = model(img)
+            _, predicted = torch.max(outputs, 1)
+            confidence = torch.nn.functional.softmax(outputs, dim=1)[0][predicted.item()].item()
+        
+        # 获取预测结果
+        role = idx_to_class.get(predicted.item(), "unknown")
+        similarity = float(confidence)
+        
+        logger.info(f"训练模型分类结果: {role}, 相似度: {similarity:.4f}")
+        
+        # 处理图像特征
+        text_detections, keypoints, ai_predicted_role = process_image_features(image_source, file.content_type, [])
+        
+        # 执行NSFW检测
+        nsfw_result = detect_nsfw(image_source)
+        
+        # 构建结果
+        result = {
+            "role": role,
+            "similarity": similarity,
+            "possible_roles": [],
+            "attributes": [],
+            "text_detections": text_detections,
+            "keypoints": keypoints,
+            "ai_predicted_role": ai_predicted_role,
+            "nsfw": nsfw_result
+        }
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f"使用训练模型处理图像失败: {e}")
+        raise
+
+
+def process_with_traditional_model(file, image_source, model_name):
+    """
+    使用传统模型处理图像
+    
+    Args:
+        file: 上传的文件
+        image_source: 图像来源
+        model_name: 模型名称
+    
+    Returns:
+        dict: 处理结果
+    """
+    try:
+        logger.info(f"使用传统模型: {model_name}")
+        
+        # 处理图像特征
+        text_detections, keypoints, ai_predicted_role = process_image_features(image_source, file.content_type, [])
+        
+        # 执行NSFW检测
+        nsfw_result = detect_nsfw(image_source)
+        
+        # 构建结果
+        result = {
+            "role": "unknown",
+            "similarity": 0.0,
+            "possible_roles": [],
+            "attributes": [],
+            "text_detections": text_detections,
+            "keypoints": keypoints,
+            "ai_predicted_role": ai_predicted_role,
+            "nsfw": nsfw_result
+        }
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f"使用传统模型处理图像失败: {e}")
+        raise

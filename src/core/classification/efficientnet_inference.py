@@ -10,7 +10,7 @@ from concurrent.futures import ThreadPoolExecutor
 import time
 
 class EfficientNetInference:
-    def __new__(cls, model_path=None, data_dir=None, enable_optimizations=True):
+    def __new__(cls, model_path=None, data_dir=None, enable_optimizations=True, enable_keypoint_detection=True):
         return super(EfficientNetInference, cls).__new__(cls)
 
     def __init__(self, model_path=None, data_dir=None, enable_optimizations=True, enable_keypoint_detection=True):
