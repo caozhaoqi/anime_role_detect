@@ -171,23 +171,42 @@ async def process_with_local_model(file, content, model_name):
         with open(temp_path, "wb") as f:
             f.write(content)
         
-        # 加载模型
-        role_predictor = get_role_predictor(model_name)
+        # 加载训练好的模型
+        model_info = load_trained_model(model_name)
         
-        # 预处理图像
-        img = preprocess_image(temp_path)
-        
-        # 预测
-        import torch
-        with torch.no_grad():
-            outputs = role_predictor(img)
-            _, predicted = torch.max(outputs, 1)
-            confidence = torch.nn.functional.softmax(outputs, dim=1)[0][predicted.item()].item()
-        
-        # 获取预测结果
-        class_names = ["unknown", "plana", "other"]
-        role = class_names[predicted.item()]
-        similarity = float(confidence)
+        if model_info is None:
+            logger.warning(f"未找到训练好的模型: {model_name}")
+            # 如果模型不存在，使用传统模型处理
+            text_detections, keypoints, ai_predicted_role = process_image_features(temp_path, file.content_type, [])
+            nsfw_result = detect_nsfw(temp_path)
+            logger.info(f"传统模型分类结果: {ai_predicted_role or 'unknown'}")
+            return {
+                "role": ai_predicted_role or "unknown",
+                "similarity": 0.0,
+                "possible_roles": [],
+                "attributes": [],
+                "text_detections": text_detections,
+                "keypoints": keypoints,
+                "ai_predicted_role": ai_predicted_role,
+                "nsfw": nsfw_result
+            }
+        else:
+            model, class_to_idx = model_info
+            idx_to_class = {v: k for k, v in class_to_idx.items()}
+            
+            # 预处理图像
+            img = preprocess_image(temp_path)
+            
+            # 预测
+            import torch
+            with torch.no_grad():
+                outputs = model(img)
+                _, predicted = torch.max(outputs, 1)
+                confidence = torch.nn.functional.softmax(outputs, dim=1)[0][predicted.item()].item()
+            
+            # 获取预测结果
+            role = idx_to_class.get(predicted.item(), "unknown")
+            similarity = float(confidence)
         
         logger.info(f"本地模型分类结果: {role}, 相似度: {similarity:.4f}")
         
@@ -223,7 +242,7 @@ async def process_with_local_model(file, content, model_name):
                 logger.error(f"清理临时文件失败: {e}")
 
 
-async def process_with_trained_model(file, image_source, model_name):
+def process_with_trained_model(file, image_source, model_name):
     """
     使用训练好的模型处理图像
     
@@ -243,15 +262,19 @@ async def process_with_trained_model(file, image_source, model_name):
         
         if model_info is None:
             logger.warning(f"未找到训练好的模型: {model_name}")
+            # 如果模型不存在，使用传统模型处理
+            text_detections, keypoints, ai_predicted_role = process_image_features(image_source, file.content_type, [])
+            nsfw_result = detect_nsfw(image_source)
+            logger.info(f"传统模型分类结果: {ai_predicted_role or 'unknown'}")
             return {
-                "role": "unknown",
+                "role": ai_predicted_role or "unknown",
                 "similarity": 0.0,
                 "possible_roles": [],
                 "attributes": [],
-                "text_detections": [],
-                "keypoints": [],
-                "ai_predicted_role": "unknown",
-                "nsfw": {"is_nsfw": False, "confidence": 0.0}
+                "text_detections": text_detections,
+                "keypoints": keypoints,
+                "ai_predicted_role": ai_predicted_role,
+                "nsfw": nsfw_result
             }
         
         model, class_to_idx = model_info

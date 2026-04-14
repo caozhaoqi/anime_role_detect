@@ -78,19 +78,10 @@ def load_keypoint_detector():
     """
     global keypoint_detector, MediaPipeKeypointDetector
     with load_models_lock:
-        if MediaPipeKeypointDetector is None:
-            try:
-                from src.core.keypoint.mediapipe_keypoint_detector import MediaPipeKeypointDetector
-                logger.info("关键点检测模块导入成功")
-            except Exception as e:
-                logger.error(f"关键点检测模块导入失败: {e}")
-        
-        if keypoint_detector is None and MediaPipeKeypointDetector is not None:
-            try:
-                keypoint_detector = MediaPipeKeypointDetector()
-                logger.info("关键点检测模块初始化成功")
-            except Exception as e:
-                logger.error(f"关键点检测模块初始化失败: {e}")
+        logger.info("关键点检测模块已禁用")
+        # 禁用关键点检测模块
+        keypoint_detector = None
+        MediaPipeKeypointDetector = None
 
 
 def load_tagger():
@@ -214,9 +205,12 @@ def get_tagger():
     return tagger
 
 
-def get_role_predictor():
+def get_role_predictor(model_name=None):
     """
     获取角色预测实例
+    
+    Args:
+        model_name: 模型名称（可选）
     
     Returns:
         角色预测实例

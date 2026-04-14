@@ -25,16 +25,12 @@ def load_trained_model(model_name):
     """
     try:
         # 模型文件路径
-        model_dir = f"models/trained/{model_name}"
-        model_path = os.path.join(model_dir, "model.pth")
+        model_dir = f"models/{model_name}"
+        model_path = os.path.join(model_dir, "model_best.pth")
         class_map_path = os.path.join(model_dir, "class_to_idx.json")
         
         if not os.path.exists(model_path):
             logger.warning(f"模型文件不存在: {model_path}")
-            return None
-        
-        if not os.path.exists(class_map_path):
-            logger.warning(f"类别映射文件不存在: {class_map_path}")
             return None
         
         # 加载模型
@@ -42,9 +38,15 @@ def load_trained_model(model_name):
         model.eval()
         
         # 加载类别映射
-        import json
-        with open(class_map_path, 'r', encoding='utf-8') as f:
-            class_to_idx = json.load(f)
+        class_to_idx = {}
+        if os.path.exists(class_map_path):
+            import json
+            with open(class_map_path, 'r', encoding='utf-8') as f:
+                class_to_idx = json.load(f)
+        else:
+            # 使用默认类别映射
+            class_to_idx = {"unknown": 0, "plana": 1, "other": 2}
+            logger.warning(f"类别映射文件不存在: {class_map_path}，使用默认类别映射")
         
         logger.info(f"成功加载模型: {model_name}")
         return model, class_to_idx

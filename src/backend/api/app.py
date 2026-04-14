@@ -3,6 +3,10 @@ from fastapi.middleware.cors import CORSMiddleware
 import os
 import time
 
+# 初始化日志记录器
+from src.core.logging.global_logger import get_logger
+logger = get_logger("api")
+
 # 设置Hugging Face和Keras缓存目录为项目目录
 hf_cache_dir = os.path.join(os.path.dirname(__file__), '..', '..', 'huggingface_cache')
 keras_cache_dir = os.path.join(os.path.dirname(__file__), '..', '..', 'keras_cache')
@@ -34,27 +38,35 @@ app.add_middleware(
 )
 
 # 导入监控中间件
-from src.backend.middleware.monitoring import monitoring_middleware, get_service_monitor
-app.middleware("http")(monitoring_middleware)
+try:
+    from src.backend.middleware.monitoring import monitoring_middleware, get_service_monitor
+    app.middleware("http")(monitoring_middleware)
+except Exception as e:
+    logger.error(f"导入监控中间件失败: {e}")
 
 # 导入图像处理服务
-from src.backend.services.image_processor import process_single_image, process_batch_images
+try:
+    from src.backend.services.image_processor import process_single_image, process_batch_images
+except Exception as e:
+    logger.error(f"导入图像处理服务失败: {e}")
 
 # 导入模型加载服务
-from src.backend.services.model_loader import load_models
+try:
+    from src.backend.services.model_loader import load_models
+except Exception as e:
+    logger.error(f"导入模型加载服务失败: {e}")
 
 # 导入缓存服务
-from src.backend.services.cache_service import init_cache_manager
-
-# 初始化日志记录器
-from src.core.logging.global_logger import get_logger
-logger = get_logger("api")
+try:
+    from src.backend.services.cache_service import init_cache_manager
+except Exception as e:
+    logger.error(f"导入缓存服务失败: {e}")
 
 
 @app.post("/api/classify")
 async def classify_image(
     file: UploadFile = File(...),
-    model_name: str = Form("default"),
+    model_name: str = Form("resnet50"),
     use_coreml: bool = Form(False),
     use_model: bool = Form(False),
     use_attributes: bool = Form(False),

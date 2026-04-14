@@ -64,7 +64,7 @@ async def process_single_image(file, model_name, cache_bypass=False, use_coreml=
         # 尝试从缓存获取结果
         cache_manager = get_cache_manager()
         if not cache_bypass:
-            cached_result = await cache_manager.get(cache_key)
+            cached_result = cache_manager.get(cache_key)
             if cached_result:
                 logger.info(f"从缓存获取结果: {cache_key}")
                 return cached_result
@@ -85,7 +85,11 @@ async def process_single_image(file, model_name, cache_bypass=False, use_coreml=
             try:
                 if use_coreml:
                     # CoreML处理逻辑
-                    result = await process_with_trained_model(file, temp_path, model_name)
+                    result = process_with_trained_model(file, temp_path, model_name)
+                    # 如果CoreML模型不存在，回退到本地模型
+                    if result.get('role') == 'unknown' and result.get('similarity') == 0.0:
+                        logger.info("CoreML模型不存在，回退到本地模型")
+                        result = await process_with_local_model(file, content, model_name)
                 else:
                     # 传统处理逻辑
                     result = process_with_traditional_model(file, temp_path, model_name)
@@ -98,7 +102,7 @@ async def process_single_image(file, model_name, cache_bypass=False, use_coreml=
                         logger.error(f"清理临时文件失败: {e}")
         
         # 缓存结果
-        await cache_manager.set(cache_key, result, expire=3600)
+        cache_manager.set(result, cache_key, ttl=3600)
         
         return result
         

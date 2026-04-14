@@ -8,7 +8,7 @@
 
 from PIL import Image
 from src.core.logging.global_logger import get_logger
-from src.utils.image_utils import get_image_transform
+from src.backend.services.cache_service import get_image_transform
 
 logger = get_logger("image_processor")
 

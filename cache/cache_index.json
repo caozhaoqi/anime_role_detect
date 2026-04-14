@@ -1,20 +1,8 @@
 {
   "image_processing_1c61a85c7cd0e672bfe42884b4d63be3_default": {
-    "created": "2026-04-13T17:45:51.906726",
-    "last_accessed": "2026-04-13T18:09:43.506815",
-    "ttl": 1800,
+    "created": "2026-04-14T18:04:31.757786",
+    "last_accessed": "2026-04-14T18:04:31.757786",
+    "ttl": 3600,
     "file": "337cd409ec9c44fe70e83ab3e910b51f.pkl"
-  },
-  "image_processing_1c61a85c7cd0e672bfe42884b4d63be3_resnet18": {
-    "created": "2026-04-13T17:54:40.495069",
-    "last_accessed": "2026-04-13T17:54:40.495069",
-    "ttl": 1800,
-    "file": "9354f15bfac3292497842946800f20b3.pkl"
-  },
-  "image_processing_1c61a85c7cd0e672bfe42884b4d63be3_efficientnet_b0": {
-    "created": "2026-04-13T18:02:47.728884",
-    "last_accessed": "2026-04-13T18:02:47.728884",
-    "ttl": 1800,
-    "file": "2770ce2ac51a028cc937c818da8a37f2.pkl"
   }
 }

@@ -64,7 +64,7 @@ export default function AnimeRoleDetect() {
   const fetchAvailableModels = async () => {
     try {
       // 直接从后端API获取模型列表
-      const response = await axios.get('http://127.0.0.1:8000/api/models');
+      const response = await axios.get('/api/models');
       if (response.data.success) {
         const models = response.data.models || [];
         setAvailableModels(['default', ...models]);
@@ -93,10 +93,10 @@ export default function AnimeRoleDetect() {
 
 
   // 移除图片
-  const removeImage = () => {
+  const removeImage = useCallback(() => {
     setSelectedImage(null);
     setImagePreview(null);
-  };
+  }, []);
 
   // 处理拖拽事件
   const [dragCounter, setDragCounter] = useState(0);
@@ -182,7 +182,7 @@ export default function AnimeRoleDetect() {
         const formData = new FormData();
         formData.append('file', selectedImage);
         formData.append('use_coreml', useCoreML ? 'true' : 'false');
-        formData.append('use_model', selectedModel !== 'default' ? 'true' : 'false');
+        formData.append('use_model', useCoreML ? 'false' : 'true');
         formData.append('use_attributes', useAttributes ? 'true' : 'false');
         formData.append('model_name', selectedModel);
         formData.append('cache_bypass', Date.now().toString());

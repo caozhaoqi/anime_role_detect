@@ -7,7 +7,7 @@
 """
 
 from src.core.logging.global_logger import get_logger
-from src.backend.services.model_loader import get_keypoint_detector, get_tagger
+from src.backend.services.model_loader import get_keypoint_detector, get_tagger, get_role_predictor
 
 logger = get_logger("image_processor")
 
@@ -29,24 +29,23 @@ def process_image_features(image_source, content_type, attributes):
     ai_predicted_role = "unknown"
     
     try:
-        # 检测关键点
-        keypoint_detector = get_keypoint_detector()
-        if keypoint_detector:
-            try:
-                keypoints = keypoint_detector.detect(image_source)
-                logger.info(f"关键点检测完成，检测到 {len(keypoints)} 个关键点")
-            except Exception as e:
-                logger.error(f"关键点检测失败: {e}")
-        
         # 标签检测
-        tagger = get_tagger()
-        if tagger:
+        tag_names = []
+        # 暂时禁用标签检测，避免锁竞争
+        logger.info("标签检测已禁用")
+        
+        # AI 角色预测
+        if tag_names:
             try:
-                tags = tagger.tag(image_source)
-                attributes.extend(tags)
-                logger.info(f"标签检测完成，检测到 {len(tags)} 个标签")
+                role_predictor = get_role_predictor()
+                if role_predictor:
+                    try:
+                        ai_predicted_role = role_predictor.predict_role(tag_names)
+                        logger.info(f"AI 角色预测完成: {ai_predicted_role}")
+                    except Exception as e:
+                        logger.error(f"AI 角色预测失败: {e}")
             except Exception as e:
-                logger.error(f"标签检测失败: {e}")
+                logger.error(f"加载角色预测模块失败: {e}")
         
         # 这里可以添加其他特征处理逻辑
         

@@ -19,8 +19,12 @@ from .preprocessors import (
     get_data_preprocessor,
 )
 
+# 保持向后兼容性：添加 Preprocessing 作为 ImagePreprocessor 的别名
+Preprocessing = ImagePreprocessor
+
 __all__ = [
     'ImagePreprocessor',
+    'Preprocessing',  # 向后兼容
     'DataPreprocessor',
     'preprocess_image',
     'preprocess_data',

@@ -51,21 +51,14 @@ def classify_image(image_path, use_model=False):
     """
     try:
         if use_model:
-            # 使用训练好的模型
-            model = get_role_predictor()
-            if model:
-                from src.backend.services.processor.preprocessor import preprocess_image
-                img = preprocess_image(image_path)
-                
-                import torch
-                with torch.no_grad():
-                    outputs = model(img)
-                    _, predicted = torch.max(outputs, 1)
-                    confidence = torch.nn.functional.softmax(outputs, dim=1)[0][predicted.item()].item()
-                
-                class_names = ["unknown", "plana", "other"]
-                role = class_names[predicted.item()]
-                return [(role, confidence)]
+            # 使用AI角色预测器
+            role_predictor = get_role_predictor()
+            if role_predictor:
+                # 从图像中提取标签
+                from src.backend.services.processor.feature_processor import process_image_features
+                attributes = []
+                text_detections, keypoints, ai_predicted_role = process_image_features(image_path, "image/jpeg", attributes)
+                return [(ai_predicted_role or "unknown", 1.0)]
         
         # 使用CLIP分类器
         classifier = get_classifier()
@@ -88,26 +81,19 @@ def classify_pil_image(pil_image, use_model=False):
     """
     try:
         if use_model:
-            # 使用训练好的模型
-            model = get_role_predictor()
-            if model:
-                from src.backend.services.processor.preprocessor import preprocess_image
+            # 使用AI角色预测器
+            role_predictor = get_role_predictor()
+            if role_predictor:
+                # 从图像中提取标签
                 import io
                 img_io = io.BytesIO()
                 pil_image.save(img_io, format='PNG')
                 img_io.seek(0)
                 
-                img = preprocess_image(img_io)
-                
-                import torch
-                with torch.no_grad():
-                    outputs = model(img)
-                    _, predicted = torch.max(outputs, 1)
-                    confidence = torch.nn.functional.softmax(outputs, dim=1)[0][predicted.item()].item()
-                
-                class_names = ["unknown", "plana", "other"]
-                role = class_names[predicted.item()]
-                return [(role, confidence)]
+                from src.backend.services.processor.feature_processor import process_image_features
+                attributes = []
+                text_detections, keypoints, ai_predicted_role = process_image_features(img_io, "image/png", attributes)
+                return [(ai_predicted_role or "unknown", 1.0)]
         
         # 使用CLIP分类器
         classifier = get_classifier()
