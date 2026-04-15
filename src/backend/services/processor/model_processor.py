@@ -115,7 +115,11 @@ async def process_with_model_service(file, content, model_name):
                 # 获取预测结果
                 role = idx_to_class.get(predicted.item(), "unknown")
                 similarity = float(confidence)
-                logger.info(f"本地模型分类结果: {role}, 相似度: {similarity:.4f}")
+                
+                # 转换为中文角色名
+                chinese_role = _get_chinese_role_name(role)
+                
+                logger.info(f"本地模型分类结果: {role} -> {chinese_role}, 相似度: {similarity:.4f}")
         
         # 处理图像特征
         text_detections, keypoints, ai_predicted_role = process_image_features(temp_path, file.content_type, attributes)
@@ -123,15 +127,18 @@ async def process_with_model_service(file, content, model_name):
         # 执行NSFW检测
         nsfw_result = detect_nsfw(temp_path)
         
+        # 转换为中文角色名
+        chinese_role = _get_chinese_role_name(role)
+        
         # 构建结果
         result = {
-            "role": role,
+            "role": chinese_role,
             "similarity": similarity,
             "possible_roles": [],
             "attributes": attributes,
             "text_detections": text_detections,
             "keypoints": keypoints,
-            "ai_predicted_role": ai_predicted_role,
+            "ai_predicted_role": _get_chinese_role_name(ai_predicted_role),
             "nsfw": nsfw_result
         }
         
@@ -181,13 +188,13 @@ async def process_with_local_model(file, content, model_name):
             nsfw_result = detect_nsfw(temp_path)
             logger.info(f"传统模型分类结果: {ai_predicted_role or 'unknown'}")
             return {
-                "role": ai_predicted_role or "unknown",
+                "role": _get_chinese_role_name(ai_predicted_role or "unknown"),
                 "similarity": 0.0,
                 "possible_roles": [],
                 "attributes": [],
                 "text_detections": text_detections,
                 "keypoints": keypoints,
-                "ai_predicted_role": ai_predicted_role,
+                "ai_predicted_role": _get_chinese_role_name(ai_predicted_role),
                 "nsfw": nsfw_result
             }
         else:
@@ -207,8 +214,11 @@ async def process_with_local_model(file, content, model_name):
             # 获取预测结果
             role = idx_to_class.get(predicted.item(), "unknown")
             similarity = float(confidence)
+            
+            # 转换为中文角色名
+            chinese_role = _get_chinese_role_name(role)
         
-        logger.info(f"本地模型分类结果: {role}, 相似度: {similarity:.4f}")
+        logger.info(f"本地模型分类结果: {role} -> {chinese_role}, 相似度: {similarity:.4f}")
         
         # 处理图像特征
         text_detections, keypoints, ai_predicted_role = process_image_features(temp_path, file.content_type, [])
@@ -218,13 +228,13 @@ async def process_with_local_model(file, content, model_name):
         
         # 构建结果
         result = {
-            "role": role,
+            "role": chinese_role,
             "similarity": similarity,
             "possible_roles": [],
             "attributes": [],
             "text_detections": text_detections,
             "keypoints": keypoints,
-            "ai_predicted_role": ai_predicted_role,
+            "ai_predicted_role": _get_chinese_role_name(ai_predicted_role),
             "nsfw": nsfw_result
         }
         
@@ -240,6 +250,26 @@ async def process_with_local_model(file, content, model_name):
                 os.remove(temp_path)
             except Exception as e:
                 logger.error(f"清理临时文件失败: {e}")
+
+
+def _get_chinese_role_name(role_name):
+    """
+    将英文/拼音角色名转换为中文
+    
+    Args:
+        role_name: 英文/拼音角色名
+    
+    Returns:
+        str: 中文角色名
+    """
+    role_mapping = {
+        "a1luo2na4": "阿罗娜",
+        "ri4nai4": "日奈",
+        "unknown": "未知",
+        "plana": "普拉娜",
+        "other": "其他"
+    }
+    return role_mapping.get(role_name, role_name)
 
 
 def process_with_trained_model(file, image_source, model_name):
@@ -267,13 +297,13 @@ def process_with_trained_model(file, image_source, model_name):
             nsfw_result = detect_nsfw(image_source)
             logger.info(f"传统模型分类结果: {ai_predicted_role or 'unknown'}")
             return {
-                "role": ai_predicted_role or "unknown",
+                "role": _get_chinese_role_name(ai_predicted_role or "unknown"),
                 "similarity": 0.0,
                 "possible_roles": [],
                 "attributes": [],
                 "text_detections": text_detections,
                 "keypoints": keypoints,
-                "ai_predicted_role": ai_predicted_role,
+                "ai_predicted_role": _get_chinese_role_name(ai_predicted_role),
                 "nsfw": nsfw_result
             }
         
@@ -294,7 +324,10 @@ def process_with_trained_model(file, image_source, model_name):
         role = idx_to_class.get(predicted.item(), "unknown")
         similarity = float(confidence)
         
-        logger.info(f"训练模型分类结果: {role}, 相似度: {similarity:.4f}")
+        # 转换为中文角色名
+        chinese_role = _get_chinese_role_name(role)
+        
+        logger.info(f"训练模型分类结果: {role} -> {chinese_role}, 相似度: {similarity:.4f}")
         
         # 处理图像特征
         text_detections, keypoints, ai_predicted_role = process_image_features(image_source, file.content_type, [])
@@ -304,13 +337,13 @@ def process_with_trained_model(file, image_source, model_name):
         
         # 构建结果
         result = {
-            "role": role,
+            "role": chinese_role,
             "similarity": similarity,
             "possible_roles": [],
             "attributes": [],
             "text_detections": text_detections,
             "keypoints": keypoints,
-            "ai_predicted_role": ai_predicted_role,
+            "ai_predicted_role": _get_chinese_role_name(ai_predicted_role),
             "nsfw": nsfw_result
         }
         

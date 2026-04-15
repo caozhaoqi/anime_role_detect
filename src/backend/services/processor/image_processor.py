@@ -71,9 +71,13 @@ async def process_single_image(file, model_name, cache_bypass=False, use_coreml=
         
         # 处理图像
         if use_model and not use_coreml:
-            if os.environ.get('USE_MODEL_SERVICE', 'False').lower() == 'true':
+            use_model_service = os.environ.get('USE_MODEL_SERVICE', 'False').lower() == 'true'
+            logger.info(f"USE_MODEL_SERVICE: {use_model_service}")
+            if use_model_service:
+                logger.info("使用模型服务处理图像")
                 result = await process_with_model_service(file, content, model_name)
             else:
+                logger.info("使用本地模型处理图像")
                 result = await process_with_local_model(file, content, model_name)
         else:
             # 保存临时文件

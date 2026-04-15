@@ -114,7 +114,7 @@ async def classify_image(
 @app.post("/api/batch_classify")
 async def batch_classify_images(
     files: list[UploadFile] = File(...),
-    model_name: str = Form("default"),
+    model_name: str = Form("resnet50"),
     use_coreml: bool = Form(False),
     use_model: bool = Form(False),
     use_attributes: bool = Form(False),
