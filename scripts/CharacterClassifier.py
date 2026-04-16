@@ -82,7 +82,7 @@ class CharacterClassifier:
         page_info = self.fetch_character_data(character_name)
         
         if not page_info:
-            return "未在数据库中找到该角色，或角色名不准确。"
+            return "未在数据库中找到该角色，或角色名不准确。", [], "未找到角色"
 
         # 提取文本和分类标签（Metadata）
         extract_text = page_info.get("extract", "")
@@ -116,11 +116,11 @@ class CharacterClassifier:
         print(f"综合特征得分: {score}")
 
         if score >= 4.0:
-            return f"✅ 判定结果：【{character_name}】 属于 萝莉 分类。"
+            return f"✅ 判定结果：【{character_name}】 属于 萝莉 分类。", matched_tags, "萝莉"
         elif score > 0:
-            return f"❓ 判定结果：【{character_name}】 可能具有部分萝莉特征，但证据不足。"
+            return f"❓ 判定结果：【{character_name}】 可能具有部分萝莉特征，但证据不足。", matched_tags, "可能具有部分萝莉特征"
         else:
-            return f"❌ 判定结果：【{character_name}】 不属于 萝莉 分类。"
+            return f"❌ 判定结果：【{character_name}】 不属于 萝莉 分类。", matched_tags, "不属于萝莉"
 
 
 def load_keywords_from_specific_file(file_path):
@@ -200,27 +200,70 @@ def load_all_keywords():
 # 测试脚本
 if __name__ == "__main__":
     classifier = CharacterClassifier()
-
-    # if choice == "1":
-        # file_path = input("请输入文件路径（默认: /Users/caozhaoqi/PycharmProjects/anime_role_detect/auto_spider_img/lolis/loli_characters.txt）: ").strip()
-        # if not file_path:
-        # file_path = "/Users/caozhaoqi/PycharmProjects/anime_role_detect/auto_spider_img/lolis/loli_characters.txt"
-        # characters = load_keywords_from_specific_file(file_path)
-    # elif choice == "2":
-    test_characters = load_all_characters_from_directory(AUTO_SPIDER_DIR)
-    # else:
-    #     # 默认加载所有角色关键词
-    #     characters = load_all_keywords()
     
-    # if not characters:
-    #     print("没有找到角色关键词")
-    #     return
+    # 加载loli_characters.txt文件中的角色
+    file_path = "/Users/caozhaoqi/PycharmProjects/anime_role_detect/auto_spider_img/lolis/loli_characters.txt"
+    characters = load_keywords_from_specific_file(file_path)
     
+    if not characters:
+        print("没有找到角色关键词")
+        exit()
     
-    # 你可以在这里替换为你想要测试的角色名
-    # test_characters = ["可莉", "雷电将军", "伊莉雅丝菲尔·冯·爱因兹贝伦", "初音未来"]
+    # 分类结果统计
+    results = {
+        "萝莉": 0,
+        "可能具有部分萝莉特征": 0,
+        "不属于萝莉": 0,
+        "未找到角色": 0
+    }
     
-    for name in test_characters:
-        result = classifier.classify(name)
+    # 按分类存储角色
+    classified_characters = {
+        "萝莉": [],
+        "可能具有部分萝莉特征": [],
+        "不属于萝莉": [],
+        "未找到角色": []
+    }
+    
+    # 对每个角色进行分类
+    for name in characters:
+        result, tags, category = classifier.classify(name)
         print(result)
         print("-" * 40)
+        
+        # 统计结果
+        results[category] += 1
+        classified_characters[category].append((name, tags))
+    
+    # 输出统计结果
+    print("=" * 80)
+    print("分类结果统计:")
+    for key, value in results.items():
+        print(f"{key}: {value}")
+    print("=" * 80)
+    
+    # 将结果输出为txt文件
+    output_dir = "/Users/caozhaoqi/PycharmProjects/anime_role_detect/auto_spider_img/lolis/classified"
+    import os
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+    
+    # 输出总结果
+    with open(os.path.join(output_dir, "classification_results.txt"), "w", encoding="utf-8") as f:
+        f.write("分类结果统计:\n")
+        for key, value in results.items():
+            f.write(f"{key}: {value}\n")
+        f.write("\n详细分类结果:\n")
+        for category, chars in classified_characters.items():
+            f.write(f"\n{category}:\n")
+            for char_name, tags in chars:
+                f.write(f"  {char_name} - 特征: {tags if tags else '无'}\n")
+    
+    # 按分类输出到不同文件
+    for category, chars in classified_characters.items():
+        if chars:
+            with open(os.path.join(output_dir, f"{category}.txt"), "w", encoding="utf-8") as f:
+                for char_name, tags in chars:
+                    f.write(f"{char_name}\n")
+    
+    print(f"分类结果已输出到 {output_dir} 目录")
