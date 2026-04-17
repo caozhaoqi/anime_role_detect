@@ -47,7 +47,10 @@ class AIRolePredictor:
             self.model_name = os.environ.get('MODEL_NAME', 'deepseek-ai/DeepSeek-R1-0528-Qwen3-8B')
             
             # 尝试从项目根目录的.env文件读取配置
-            project_env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../../..', '.env')
+            # 使用绝对路径
+            project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            project_env_path = os.path.join(project_root, '.env')
+            logger.info(f"尝试读取 .env 文件: {project_env_path}")
             if os.path.exists(project_env_path):
                 logger.info(f"从 {project_env_path} 读取 API 配置")
                 with open(project_env_path, 'r') as f:
@@ -56,11 +59,16 @@ class AIRolePredictor:
                         if line and not line.startswith('#'):
                             key, value = line.split('=', 1)
                             if key == 'OPENAI_API_KEY':
-                                self.api_key = value
+                                self.api_key = value.strip()
+                                logger.info("成功读取 OPENAI_API_KEY")
                             elif key == 'OPENAI_API_BASE':
-                                self.api_base = value
+                                self.api_base = value.strip()
+                                logger.info(f"成功读取 OPENAI_API_BASE: {self.api_base}")
                             elif key == 'MODEL_NAME':
-                                self.model_name = value
+                                self.model_name = value.strip()
+                                logger.info(f"成功读取 MODEL_NAME: {self.model_name}")
+            else:
+                logger.warning(f".env 文件不存在: {project_env_path}")
             
             if not self.api_key:
                 logger.warning("未设置 OPENAI_API_KEY 环境变量，将使用模拟响应")
@@ -170,7 +178,7 @@ class AIRolePredictor:
         
         logger.info(f"调用 AI API - 模型: {self.model_name}")
         # 添加超时时间，避免无限期等待
-        response = requests.post(self.api_url, headers=headers, json=data, timeout=5)  # 减少超时时间到5秒
+        response = requests.post(self.api_url, headers=headers, json=data, timeout=30)  # 增加超时时间到30秒
         response.raise_for_status()
         
         result = response.json()

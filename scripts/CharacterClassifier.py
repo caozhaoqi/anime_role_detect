@@ -5,7 +5,11 @@ import os
 class CharacterClassifier:
     def __init__(self):
         # 萌娘百科 API 地址
-        self.api_url = "https://zh.moegirl.org.cn/api.php"
+        self.moegirl_api_url = "https://zh.moegirl.org.cn/api.php"
+        
+        # 维基百科 API 地址
+        self.wikipedia_api_url = "https://zh.wikipedia.org/w/api.php"
+        self.wikipedia_en_api_url = "https://en.wikipedia.org/w/api.php"
         
         # 定义 NLP 关键词权重字典 (特征工程)
         self.keywords_weights = {
@@ -30,32 +34,99 @@ class CharacterClassifier:
             "成年女性": -3.0
         }
 
-    def fetch_character_data(self, character_name):
+    def fetch_from_moegirl(self, character_name):
         """
-        利用网络爬虫与API技术，获取角色的元数据和百科文本。
+        从萌娘百科获取角色数据
         """
         params = {
             "action": "query",
             "prop": "extracts|categories",
             "titles": character_name,
             "format": "json",
-            "exintro": True,      # 只获取摘要部分
-            "explaintext": True,  # 返回纯文本而非HTML
-            "cllimit": "max"      # 获取最大数量的分类标签
+            "exintro": True,
+            "explaintext": True,
+            "cllimit": "max"
         }
         
         try:
-            response = requests.get(self.api_url, params=params, timeout=10)
+            response = requests.get(self.moegirl_api_url, params=params, timeout=10)
             data = response.json()
             pages = data.get("query", {}).get("pages", {})
             
             for page_id, page_info in pages.items():
                 if page_id == "-1":
-                    return None # 未找到该角色
+                    return None
                 return page_info
         except Exception as e:
-            print(f"网络请求错误: {e}")
+            print(f"萌娘百科请求错误: {e}")
             return None
+    
+    def fetch_from_wikipedia(self, character_name, lang="zh"):
+        """
+        从维基百科获取角色数据
+        
+        Args:
+            character_name: 角色名称
+            lang: 语言，默认为中文
+        """
+        api_url = self.wikipedia_api_url if lang == "zh" else self.wikipedia_en_api_url
+        
+        params = {
+            "action": "query",
+            "prop": "extracts",
+            "titles": character_name,
+            "format": "json",
+            "exintro": True,
+            "explaintext": True
+        }
+        
+        try:
+            response = requests.get(api_url, params=params, timeout=10)
+            data = response.json()
+            
+            # 检查API响应是否有效
+            if "query" not in data:
+                print(f"维基百科({lang})API响应无效: {data}")
+                return None
+            
+            pages = data.get("query", {}).get("pages", {})
+            
+            for page_id, page_info in pages.items():
+                if page_id == "-1":
+                    return None
+                # 添加分类信息（空列表）
+                page_info["categories"] = []
+                return page_info
+        except Exception as e:
+            print(f"维基百科({lang})请求错误: {e}")
+            return None
+    
+    def fetch_character_data(self, character_name):
+        """
+        综合从多个数据源获取角色数据
+        优先级：萌娘百科 -> 中文维基百科 -> 英文维基百科
+        """
+        # 1. 首先尝试萌娘百科
+        page_info = self.fetch_from_moegirl(character_name)
+        if page_info:
+            print(f"从萌娘百科找到角色: {character_name}")
+            return page_info
+        
+        # 2. 尝试中文维基百科
+        page_info = self.fetch_from_wikipedia(character_name, lang="zh")
+        if page_info:
+            print(f"从中文维基百科找到角色: {character_name}")
+            return page_info
+        
+        # 3. 尝试英文维基百科
+        page_info = self.fetch_from_wikipedia(character_name, lang="en")
+        if page_info:
+            print(f"从英文维基百科找到角色: {character_name}")
+            return page_info
+        
+        # 4. 所有数据源都未找到
+        print(f"所有数据源都未找到角色: {character_name}")
+        return None
 
     def analyze_height(self, text):
         """
