@@ -74,7 +74,7 @@ def check_dependencies():
     return True
 
 
-def start_api_service(host: str = '0.0.0.0', port: int = 8000, reload: bool = False):
+def start_api_service(host: str = '0.0.0.0', port: int = 8001, reload: bool = False):
     """
     启动API服务
     
@@ -118,7 +118,7 @@ def start_api_service(host: str = '0.0.0.0', port: int = 8000, reload: bool = Fa
         logger.error(f"API服务启动失败: {e}")
 
 
-def check_api_status(host: str = 'localhost', port: int = 8000, timeout: int = 30) -> bool:
+def check_api_status(host: str = 'localhost', port: int = 8001, timeout: int = 30) -> bool:
     """
     检查API服务状态
     
@@ -156,7 +156,7 @@ def main():
     """
     parser = argparse.ArgumentParser(description='API服务启动脚本')
     parser.add_argument('--host', type=str, default='0.0.0.0', help='主机地址')
-    parser.add_argument('--port', type=int, default=8000, help='端口号')
+    parser.add_argument('--port', type=int, default=8001, help='端口号')
     parser.add_argument('--reload', action='store_true', help='启用热重载')
     parser.add_argument('--check', action='store_true', help='检查服务状态')
     parser.add_argument('--verbose', action='store_true', help='启用详细日志')

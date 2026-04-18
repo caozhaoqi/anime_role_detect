@@ -42,20 +42,15 @@ def load_trained_model(model_name):
             return None
         
         # 加载模型
-        try:
-            # 尝试使用 weights_only=False 加载完整模型
-            checkpoint = torch.load(model_path, map_location=torch.device('cpu'), weights_only=False)
-        except Exception as e:
-            # 如果失败，尝试使用 weights_only=True 加载
-            logger.warning(f"使用 weights_only=False 加载模型失败: {e}")
-            checkpoint = torch.load(model_path, map_location=torch.device('cpu'), weights_only=True)
+        # 只使用 weights_only=False 加载完整模型，因为模型文件包含完整的模型结构
+        checkpoint = torch.load(model_path, map_location=torch.device('cpu'), weights_only=False)
         
         # 加载类别映射
         class_to_idx = {}
         
         # 1. 首先尝试从模型文件中加载class_to_idx
         try:
-            if 'class_to_idx' in checkpoint:
+            if isinstance(checkpoint, dict) and 'class_to_idx' in checkpoint:
                 class_to_idx = checkpoint['class_to_idx']
                 logger.info(f"从模型文件加载了类别映射: {len(class_to_idx)} 个类别")
         except Exception as e:

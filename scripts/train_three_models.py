@@ -247,8 +247,14 @@ def save_model(model, model_type, class_to_idx, accuracy):
     full_model_path = os.path.join(model_dir, 'model_full.pth')
     torch.save(model, full_model_path)
     
+    # 保存类别映射为JSON文件
+    class_map_path = os.path.join(model_dir, 'class_to_idx.json')
+    with open(class_map_path, 'w', encoding='utf-8') as f:
+        json.dump(class_to_idx, f, ensure_ascii=False, indent=2)
+    
     logger.info(f"模型已保存到: {model_path}")
     logger.info(f"完整模型已保存到: {full_model_path}")
+    logger.info(f"类别映射已保存到: {class_map_path}")
     
     return model_path
 
