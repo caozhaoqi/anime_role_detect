@@ -9,7 +9,7 @@
 import os
 import hashlib
 from src.core.logging.global_logger import get_logger
-from src.backend.services.cache_service import get_cache_manager
+from src.services.cache_service import get_cache_manager
 from .model_processor import process_with_model_service, process_with_local_model, process_with_trained_model, process_with_traditional_model
 
 logger = get_logger("image_processor")

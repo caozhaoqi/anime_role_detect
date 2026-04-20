@@ -11,8 +11,8 @@ import time
 import asyncio
 import aiohttp
 from src.core.logging.global_logger import get_logger
-from src.backend.services.model_loader import get_preprocessor, get_keypoint_detector, get_tagger, get_role_predictor
-from src.backend.services.nsfw_detector import detect_nsfw
+from src.services.processor.model_loader import get_preprocessor, get_keypoint_detector, get_tagger, get_role_predictor
+from src.services.nsfw_detector import detect_nsfw
 from .preprocessor import preprocess_image
 from .model_loader import load_trained_model
 from .feature_processor import process_image_features

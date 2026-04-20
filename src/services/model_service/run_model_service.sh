@@ -21,4 +21,4 @@ export GPU_ENABLED="true"
 
 # 启动模型服务
 echo "启动模型服务..."
-python3 src/backend/services/model_service/app.py
+python3 src/services/model_service/app.py

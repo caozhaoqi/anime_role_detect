@@ -60,7 +60,7 @@ def import_core_modules():
     from src.core.feature_extraction.feature_extraction import FeatureExtraction
     from src.core.tagging.wd_vit_v3_tagger import WDViTV3Tagger
     from src.core.classification.classification import Classification
-    from src.backend.services.nsfw_detector import detect_nsfw
+    from src.services.nsfw_detector import detect_nsfw
     from src.core.logging.global_logger import get_logger
 
 # 初始化日志

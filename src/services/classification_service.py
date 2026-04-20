@@ -7,8 +7,8 @@ import sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..')))
 
 from src.core.classification.general_classification import get_classifier
-from src.backend.config import DEFAULT_INDEX_PATH
-from src.backend.services.coreml_model import coreml_model, classify_with_coreml
+from src.config.config import DEFAULT_INDEX_PATH
+from src.services.coreml_model import coreml_model, classify_with_coreml
 from src.core.log_fusion.log_recorder import record_classification_log
 
 # 使用全局日志系统

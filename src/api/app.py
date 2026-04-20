@@ -39,26 +39,26 @@ app.add_middleware(
 
 # 导入监控中间件
 try:
-    from src.backend.middleware.monitoring import monitoring_middleware, get_service_monitor
+    from src.middleware.monitoring import monitoring_middleware, get_service_monitor
     app.middleware("http")(monitoring_middleware)
 except Exception as e:
     logger.error(f"导入监控中间件失败: {e}")
 
 # 导入图像处理服务
 try:
-    from src.backend.services.image_processor import process_single_image, process_batch_images
+    from src.services.processor.image_processor import process_single_image, process_batch_images
 except Exception as e:
     logger.error(f"导入图像处理服务失败: {e}")
 
 # 导入模型加载服务
 try:
-    from src.backend.services.model_loader import load_models
+    from src.services.processor.model_loader import load_models
 except Exception as e:
     logger.error(f"导入模型加载服务失败: {e}")
 
 # 导入缓存服务
 try:
-    from src.backend.services.cache_service import init_cache_manager
+    from src.services.cache_service import init_cache_manager
 except Exception as e:
     logger.error(f"导入缓存服务失败: {e}")
 

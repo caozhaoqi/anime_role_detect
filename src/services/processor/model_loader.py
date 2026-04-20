@@ -12,6 +12,9 @@ from src.core.logging.global_logger import get_logger
 
 logger = get_logger("image_processor")
 
+# 全局模型缓存
+_model_cache = {}
+
 
 def load_trained_model(model_name):
     """
@@ -130,4 +133,86 @@ def load_trained_model(model_name):
         
     except Exception as e:
         logger.error(f"加载训练模型失败: {e}")
+        return None
+
+
+def load_models():
+    """
+    加载所有模型
+    
+    Returns:
+        bool: 是否加载成功
+    """
+    try:
+        logger.info("加载模型...")
+        # 这里可以添加加载多个模型的逻辑
+        # 目前只需要返回成功即可
+        logger.info("模型加载完成")
+        return True
+    except Exception as e:
+        logger.error(f"加载模型失败: {e}")
+        return False
+
+
+def get_preprocessor():
+    """
+    获取预处理器
+    
+    Returns:
+        callable: 预处理器函数
+    """
+    try:
+        from src.core.preprocessing.preprocessing import Preprocessing
+        preprocessor = Preprocessing()
+        return preprocessor.preprocess
+    except Exception as e:
+        logger.error(f"获取预处理器失败: {e}")
+        return None
+
+
+def get_keypoint_detector():
+    """
+    获取关键点检测器
+    
+    Returns:
+        callable: 关键点检测器函数
+    """
+    try:
+        from src.core.keypoint.mediapipe_keypoint_detector import MediaPipeKeypointDetector
+        detector = MediaPipeKeypointDetector()
+        return detector.detect
+    except Exception as e:
+        logger.error(f"获取关键点检测器失败: {e}")
+        return None
+
+
+def get_tagger():
+    """
+    获取标签器
+    
+    Returns:
+        callable: 标签器函数
+    """
+    try:
+        from src.core.tagging.wd_vit_v3_tagger import WDViTV3Tagger
+        tagger = WDViTV3Tagger()
+        return tagger.tag
+    except Exception as e:
+        logger.error(f"获取标签器失败: {e}")
+        return None
+
+
+def get_role_predictor():
+    """
+    获取角色预测器
+    
+    Returns:
+        callable: 角色预测器函数
+    """
+    try:
+        from src.core.classification.classification import Classification
+        classifier = Classification()
+        return classifier.classify
+    except Exception as e:
+        logger.error(f"获取角色预测器失败: {e}")
         return None

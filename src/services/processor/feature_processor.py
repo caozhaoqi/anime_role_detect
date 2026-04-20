@@ -7,7 +7,7 @@
 """
 
 from src.core.logging.global_logger import get_logger
-from src.backend.services.model_loader import get_keypoint_detector, get_tagger, get_role_predictor
+from src.services.processor.model_loader import get_keypoint_detector, get_tagger, get_role_predictor
 
 logger = get_logger("image_processor")
 
