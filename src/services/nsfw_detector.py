@@ -4,14 +4,117 @@
 NSFW检测服务
 负责检测图像是否包含敏感内容
 基于 https://gitee.com/caozhaoqi/nsfw_model_img 项目实现
-使用基于规则的NSFW检测
+使用PyTorch实现NSFW检测，同时支持TensorFlow Serving作为备用
 """
 
 import os
 import sys
+import requests
+import json
 from src.core.logging.global_logger import get_logger
 
 logger = get_logger("nsfw_detector")
+
+# TensorFlow Serving 配置
+TF_SERVING_URL = "http://localhost:8501/v1/models/nsfw_model:predict"
+
+# 导入PyTorch实现
+try:
+    from .nsfw_detector_pytorch import detect_nsfw_with_pytorch
+    PYTORCH_AVAILABLE = True
+except Exception as e:
+    logger.warning(f"PyTorch实现加载失败: {e}")
+    PYTORCH_AVAILABLE = False
+
+
+def detect_nsfw_with_tf_serving(image_source):
+    """
+    使用 TensorFlow Serving 进行 NSFW 检测
+    
+    Args:
+        image_source: 图像路径或内存缓冲区(BytesIO)
+    
+    Returns:
+        dict: NSFW检测结果
+    """
+    try:
+        logger.info(f"使用 TensorFlow Serving 进行NSFW检测: {TF_SERVING_URL}")
+        
+        # 预处理图像
+        from PIL import Image
+        import numpy as np
+        
+        # 加载图像
+        img = Image.open(image_source).convert('RGB')
+        
+        # 调整大小
+        img = img.resize((224, 224))
+        
+        # 转换为数组
+        img_array = np.array(img)
+        
+        # 归一化
+        img_array = img_array / 255.0
+        
+        # 添加批次维度
+        img_array = np.expand_dims(img_array, axis=0)
+        
+        # 构建请求数据
+        request_data = {
+            "instances": img_array.tolist()
+        }
+        
+        # 发送请求
+        response = requests.post(TF_SERVING_URL, json=request_data, timeout=30)
+        
+        if response.status_code == 200:
+            result = response.json()
+            logger.info(f"TensorFlow Serving 检测结果: {result}")
+            
+            if "predictions" in result and len(result["predictions"]) > 0:
+                scores = result["predictions"][0]
+                
+                # 标签顺序
+                labels = ['drawings', 'hentai', 'neutral', 'porn', 'sexy']
+                
+                # 构建结果字典
+                details = {}
+                for i, label in enumerate(labels):
+                    details[label] = float(scores[i])
+                
+                # 确定最高概率的类别
+                max_score = float(max(scores))
+                max_index = np.argmax(scores)
+                predicted_label = labels[max_index]
+                
+                # 判断是否为NSFW
+                nsfw_categories = ['porn', 'sexy', 'hentai']
+                is_nsfw = predicted_label in nsfw_categories and max_score > 0.5
+                
+                # 计算皮肤比例（模拟值，实际由模型决定）
+                skin_ratio = 0.0
+                if predicted_label in ['porn', 'sexy']:
+                    skin_ratio = max_score
+                
+                logger.info(f"NSFW检测完成，类别: {predicted_label}, 置信度: {max_score:.4f}, is_nsfw: {is_nsfw}")
+                
+                return {
+                    'is_nsfw': is_nsfw,
+                    'skin_ratio': float(skin_ratio),
+                    'details': details
+                }
+            else:
+                logger.error(f"TensorFlow Serving 返回格式错误: {result}")
+        else:
+            logger.error(f"TensorFlow Serving 请求失败，状态码: {response.status_code}")
+            logger.error(f"响应内容: {response.text}")
+    except Exception as e:
+        logger.error(f"TensorFlow Serving 检测失败: {e}")
+        import traceback
+        logger.error(f"异常堆栈: {traceback.format_exc()}")
+    
+    # 失败时返回None
+    return None
 
 
 def detect_nsfw(image_source):
@@ -38,90 +141,24 @@ def detect_nsfw(image_source):
                 'skin_ratio': 0.0
             }
         
-        # 使用基于规则的NSFW检测
-        if isinstance(image_source, str):
-            logger.info(f"使用基于规则的NSFW检测: {image_source}")
+        # 尝试使用 PyTorch 进行检测
+        if PYTORCH_AVAILABLE:
+            logger.info("尝试使用PyTorch进行NSFW检测")
+            torch_result = detect_nsfw_with_pytorch(image_source)
+            if torch_result is not None:
+                return torch_result
+            logger.warning("PyTorch检测失败，尝试使用TensorFlow Serving")
         else:
-            logger.info("使用基于规则的NSFW检测: 内存缓冲区")
+            logger.warning("PyTorch不可用，尝试使用TensorFlow Serving")
         
-        try:
-            from PIL import Image
-            import numpy as np
-            
-            # 加载图像
-            img = Image.open(image_source).convert('RGB')
-            img_array = np.array(img)
-            
-            # 定义皮肤颜色范围（HSL）
-            # 这些值是基于经验设置的，可能需要根据实际情况调整
-            def rgb_to_hsl(r, g, b):
-                r, g, b = r/255.0, g/255.0, b/255.0
-                max_val = max(r, g, b)
-                min_val = min(r, g, b)
-                h, s, l = 0, 0, (max_val + min_val) / 2
-                
-                if max_val != min_val:
-                    d = max_val - min_val
-                    s = d / (2 - max_val - min_val) if l > 0.5 else d / (max_val + min_val)
-                    if max_val == r:
-                        h = (g - b) / d + (6 if g < b else 0)
-                    elif max_val == g:
-                        h = (b - r) / d + 2
-                    else:
-                        h = (r - g) / d + 4
-                    h /= 6
-                
-                return h, s, l
-            
-            # 统计皮肤颜色像素数量
-            skin_pixels = 0
-            total_pixels = img_array.shape[0] * img_array.shape[1]
-            
-            for i in range(img_array.shape[0]):
-                for j in range(img_array.shape[1]):
-                    r, g, b = img_array[i, j]
-                    h, s, l = rgb_to_hsl(r, g, b)
-                    
-                    # 皮肤颜色的HSL范围
-                    if (0.0 <= h <= 0.1 or 0.9 <= h <= 1.0) and 0.1 <= s <= 0.3 and 0.4 <= l <= 0.7:
-                        skin_pixels += 1
-            
-            # 计算皮肤颜色像素比例
-            skin_ratio = skin_pixels / total_pixels
-            
-            # 判断是否为NSFW
-            is_nsfw = skin_ratio > 0.3
-            
-            # 构建检测结果
-            scores = {
-                'neutral': 1.0 - skin_ratio,
-                'porn': skin_ratio * 0.5,
-                'sexy': skin_ratio * 0.3,
-                'hentai': skin_ratio * 0.1,
-                'drawings': (1.0 - skin_ratio) * 0.5
-            }
-            
-            # 确定最高概率的类别
-            max_score = 0
-            predicted_label = 'neutral'
-            for label, score in scores.items():
-                if score > max_score:
-                    max_score = score
-                    predicted_label = label
-            
-            # 输出详细日志
-            logger.info(f"NSFW检测完成，类别: {predicted_label}, 置信度: {max_score:.4f}, is_nsfw: {is_nsfw}")
-            logger.info(f"NSFW检测详细结果: {scores}")
-            
-            return {
-                'is_nsfw': is_nsfw,
-                'skin_ratio': float(skin_ratio),
-                'details': scores
-            }
-        except Exception as e:
-            logger.error(f"基于规则的NSFW检测失败: {e}")
-            import traceback
-            logger.error(f"异常堆栈: {traceback.format_exc()}")
+        # 尝试使用 TensorFlow Serving 进行检测
+        tf_result = detect_nsfw_with_tf_serving(image_source)
+        if tf_result is not None:
+            return tf_result
+        
+        # 所有方法都失败时，使用基于规则的检测
+        logger.warning("所有检测方法都失败，使用基于规则的NSFW检测")
+        return rule_based_detection(image_source)
     except Exception as e:
         logger.error(f"NSFW检测失败: {e}")
         import traceback
@@ -133,3 +170,93 @@ def detect_nsfw(image_source):
         'is_nsfw': False,
         'skin_ratio': 0.0
     }
+
+
+def rule_based_detection(image_source):
+    """
+    基于规则的NSFW检测（作为备用）
+    
+    Args:
+        image_source: 图像路径或内存缓冲区
+    
+    Returns:
+        dict: NSFW检测结果
+    """
+    try:
+        from PIL import Image
+        import numpy as np
+        
+        # 加载图像
+        img = Image.open(image_source).convert('RGB')
+        img_array = np.array(img)
+        
+        # 定义皮肤颜色范围（HSL）
+        def rgb_to_hsl(r, g, b):
+            r, g, b = r/255.0, g/255.0, b/255.0
+            max_val = max(r, g, b)
+            min_val = min(r, g, b)
+            h, s, l = 0, 0, (max_val + min_val) / 2
+            
+            if max_val != min_val:
+                d = max_val - min_val
+                s = d / (2 - max_val - min_val) if l > 0.5 else d / (max_val + min_val)
+                if max_val == r:
+                    h = (g - b) / d + (6 if g < b else 0)
+                elif max_val == g:
+                    h = (b - r) / d + 2
+                else:
+                    h = (r - g) / d + 4
+                h /= 6
+            
+            return h, s, l
+        
+        # 统计皮肤颜色像素数量
+        skin_pixels = 0
+        total_pixels = img_array.shape[0] * img_array.shape[1]
+        
+        for i in range(img_array.shape[0]):
+            for j in range(img_array.shape[1]):
+                r, g, b = img_array[i, j]
+                h, s, l = rgb_to_hsl(r, g, b)
+                
+                # 皮肤颜色的HSL范围
+                if (0.0 <= h <= 0.1 or 0.9 <= h <= 1.0) and 0.1 <= s <= 0.3 and 0.4 <= l <= 0.7:
+                    skin_pixels += 1
+        
+        # 计算皮肤颜色像素比例
+        skin_ratio = skin_pixels / total_pixels
+        
+        # 判断是否为NSFW
+        is_nsfw = skin_ratio > 0.3
+        
+        # 构建检测结果
+        scores = {
+            'neutral': 1.0 - skin_ratio,
+            'porn': skin_ratio * 0.5,
+            'sexy': skin_ratio * 0.3,
+            'hentai': skin_ratio * 0.1,
+            'drawings': (1.0 - skin_ratio) * 0.5
+        }
+        
+        # 确定最高概率的类别
+        max_score = 0
+        predicted_label = 'neutral'
+        for label, score in scores.items():
+            if score > max_score:
+                max_score = score
+                predicted_label = label
+        
+        # 输出详细日志
+        logger.info(f"基于规则的NSFW检测完成，类别: {predicted_label}, 置信度: {max_score:.4f}, is_nsfw: {is_nsfw}")
+        
+        return {
+            'is_nsfw': is_nsfw,
+            'skin_ratio': float(skin_ratio),
+            'details': scores
+        }
+    except Exception as e:
+        logger.error(f"基于规则的NSFW检测失败: {e}")
+        return {
+            'is_nsfw': False,
+            'skin_ratio': 0.0
+        }

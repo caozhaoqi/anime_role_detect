@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
       cacheBypass: cacheBypass
     });
 
-    const backendUrl = 'http://127.0.0.1:8001/api/classify';
+    const backendUrl = 'http://127.0.0.1:8000/api/classify';
     console.log('准备转发请求到后端API:', backendUrl);
     const backendFormData = new FormData();
     backendFormData.append('file', file);

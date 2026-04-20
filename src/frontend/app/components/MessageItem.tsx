@@ -10,6 +10,22 @@ interface MessageItemProps {
 }
 
 const MessageItem: React.FC<MessageItemProps> = ({ message, darkMode, handleCopyMessage, handleDownloadMessage }) => {
+  const getCategoryInfo = (key: string) => {
+    const categoryMap: Record<string, { label: string; color: string; bgColor: string }> = {
+      'drawings': { label: '绘画', color: 'text-purple-500', bgColor: 'bg-purple-500' },
+      'hentai': { label: '色情动漫', color: 'text-pink-500', bgColor: 'bg-pink-500' },
+      'neutral': { label: '正常', color: 'text-gray-500', bgColor: 'bg-gray-500' },
+      'porn': { label: '色情', color: 'text-red-500', bgColor: 'bg-red-500' },
+      'sexy': { label: '性感', color: 'text-orange-500', bgColor: 'bg-orange-500' }
+    };
+    return categoryMap[key] || { label: key, color: 'text-blue-500', bgColor: 'bg-blue-500' };
+  };
+
+  const getHighestCategory = (details?: Record<string, number>): string => {
+    if (!details) return 'unknown';
+    return Object.entries(details).reduce((a, b) => Number(a[1]) > Number(b[1]) ? a : b)[0];
+  };
+
   return (
     <div
       key={message.id}
@@ -164,18 +180,25 @@ const MessageItem: React.FC<MessageItemProps> = ({ message, darkMode, handleCopy
           {message.nsfw && (
             <div className="mt-4 space-y-3 animate-fade-in">
               <div className="flex items-center space-x-2">
-                <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
-                <h4 className="font-semibold text-sm">NSFW检测</h4>
+                <div className={`w-2 h-2 rounded-full ${message.nsfw.is_nsfw ? "bg-red-500 animate-pulse" : "bg-green-500"}`} />
+                <h4 className="font-semibold text-sm">NSFW 内容检测</h4>
+                <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                  message.nsfw.is_nsfw
+                    ? 'bg-red-100 text-red-600 dark:bg-red-900/50 dark:text-red-400'
+                    : 'bg-green-100 text-green-600 dark:bg-green-900/50 dark:text-green-400'
+                }`}>
+                  {message.nsfw.is_nsfw ? "⚠️ 包含敏感内容" : "✅ 安全内容"}
+                </span>
               </div>
-              <div className={`grid grid-cols-2 gap-3 ${darkMode ? 'text-gray-100' : 'text-gray-900'}`}>
-                <div className={`p-3 ${darkMode ? 'bg-gray-600' : 'bg-gray-200'} rounded-lg transform hover:scale-[1.02] transition-transform`}>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">是否NSFW</p>
+              <div className={`grid grid-cols-3 gap-3 ${darkMode ? 'text-gray-100' : 'text-gray-900'}`}>
+                <div className={`p-3 ${message.nsfw.is_nsfw ? 'bg-red-900/20 border border-red-800' : darkMode ? 'bg-gray-600' : 'bg-gray-200'} rounded-lg transform hover:scale-[1.02] transition-transform`}>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">检测结果</p>
                   <div className="flex items-center space-x-2">
                     <p className="text-sm font-medium">
-                      {message.nsfw.is_nsfw ? "是" : "否"}
+                      {message.nsfw.is_nsfw ? "NSFW" : "安全"}
                     </p>
                     <div
-                      className={`w-2 h-2 rounded-full ${message.nsfw.is_nsfw ? "bg-red-500" : "bg-green-500"}`}
+                      className={`w-2 h-2 rounded-full ${message.nsfw.is_nsfw ? "bg-red-500 animate-pulse" : "bg-green-500"}`}
                     />
                   </div>
                 </div>
@@ -183,19 +206,49 @@ const MessageItem: React.FC<MessageItemProps> = ({ message, darkMode, handleCopy
                   <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">皮肤比例</p>
                   <p className="text-sm font-medium">{(message.nsfw.skin_ratio * 100).toFixed(1)}%</p>
                 </div>
+                <div className={`p-3 ${darkMode ? 'bg-gray-600' : 'bg-gray-200'} rounded-lg transform hover:scale-[1.02] transition-transform`}>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">预测类别</p>
+                  <p className="text-sm font-medium">
+                    {getCategoryInfo(getHighestCategory(message.nsfw.details)).label}
+                  </p>
+                </div>
               </div>
               {message.nsfw.details && (
                 <div className="mt-3 space-y-2">
-                  <h5 className="text-xs text-gray-500 dark:text-gray-400">详细结果</h5>
-                  <div className="flex flex-wrap gap-2">
-                    {Object.entries(message.nsfw.details).map(([key, value]) => (
-                      <span
-                        key={key}
-                        className={`px-4 py-2 ${darkMode ? 'bg-blue-900/50 text-blue-400' : 'bg-blue-100 text-blue-600'} rounded-full text-sm font-medium transform hover:scale-105 transition-transform`}
-                      >
-                        {key}: {(Number(value) * 100).toFixed(1)}%
-                      </span>
-                    ))}
+                  <h5 className="text-xs text-gray-500 dark:text-gray-400">各类别概率分布</h5>
+                  <div className="space-y-2">
+                    {Object.entries(message.nsfw.details)
+                      .sort(([, a], [, b]) => Number(b) - Number(a))
+                      .map(([key, value]) => {
+                        const percentage = (Number(value) * 100).toFixed(1);
+                        const categoryInfo = getCategoryInfo(key);
+                        const details = message.nsfw?.details;
+                        const isHighest = details ? key === getHighestCategory(details) : false;
+                        const isUnsafe = key === 'porn' || key === 'sexy' || key === 'hentai';
+
+                        return (
+                          <div key={key} className="space-y-1">
+                            <div className="flex justify-between items-center">
+                              <span className={`text-xs font-medium ${
+                                isUnsafe ? categoryInfo.color : (darkMode ? 'text-gray-300' : 'text-gray-700')
+                              }`}>
+                                {categoryInfo.label}
+                              </span>
+                              <span className={`text-xs font-medium ${
+                                isHighest ? 'text-blue-500 dark:text-blue-400' : ''
+                              }`}>
+                                {percentage}%
+                              </span>
+                            </div>
+                            <div className={`h-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-full overflow-hidden`}>
+                              <div
+                                className={`h-full ${categoryInfo.bgColor} rounded-full transition-all duration-500`}
+                                style={{ width: `${percentage}%` }}
+                              />
+                            </div>
+                          </div>
+                        );
+                      })}
                   </div>
                 </div>
               )}
