@@ -66,7 +66,7 @@ except Exception as e:
 @app.post("/api/classify")
 async def classify_image(
     file: UploadFile = File(...),
-    model_name: str = Form("resnet50"),
+    model_name: str = Form("resnet18_loli8"),
     use_coreml: bool = Form(False),
     use_model: bool = Form(False),
     use_attributes: bool = Form(False),
@@ -114,7 +114,7 @@ async def classify_image(
 @app.post("/api/batch_classify")
 async def batch_classify_images(
     files: list[UploadFile] = File(...),
-    model_name: str = Form("resnet50"),
+    model_name: str = Form("resnet18_loli8"),
     use_coreml: bool = Form(False),
     use_model: bool = Form(False),
     use_attributes: bool = Form(False),
@@ -200,9 +200,18 @@ async def get_available_models():
     """
     # 检查models目录下的模型
     model_dirs = []
-    models_path = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'models')
+    # 从项目根目录开始计算路径：src/api -> src -> 项目根目录 -> models
+    models_path = os.path.join(os.path.dirname(__file__), '..', '..', 'models')
+    # 规范化路径
+    models_path = os.path.normpath(models_path)
+    logger.info(f"查找模型路径: {models_path}")
+    logger.info(f"路径是否存在: {os.path.exists(models_path)}")
+    
     if os.path.exists(models_path):
         model_dirs = [d for d in os.listdir(models_path) if os.path.isdir(os.path.join(models_path, d))]
+        logger.info(f"找到模型目录: {model_dirs}")
+    else:
+        logger.warning(f"模型目录不存在: {models_path}")
     
     return {
         "success": True,

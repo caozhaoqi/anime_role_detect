@@ -4,5 +4,29 @@
     "last_accessed": "2026-04-20T17:33:39.671060",
     "ttl": 3600,
     "file": "56300bfa0febb43e111d69576507d8c3.pkl"
+  },
+  "image_processing_8db7701ada129d867819b8f9eb91d0e9_resnet50": {
+    "created": "2026-04-20T17:38:51.429500",
+    "last_accessed": "2026-04-20T17:38:51.429500",
+    "ttl": 3600,
+    "file": "1b6802632f48c2cb02f25b1d179dfeb7.pkl"
+  },
+  "image_processing_10c030c2c726eb20cc8321cfc48f885b_resnet18_loli8": {
+    "created": "2026-04-20T17:40:18.152008",
+    "last_accessed": "2026-04-20T17:40:18.152008",
+    "ttl": 3600,
+    "file": "2a1bb44205e3a33edfed5cbc489bf9a5.pkl"
+  },
+  "image_processing_7ad3f80ef1eff3a0140168cc4a68220a_resnet18_loli8": {
+    "created": "2026-04-20T17:40:52.495368",
+    "last_accessed": "2026-04-20T17:40:52.495368",
+    "ttl": 3600,
+    "file": "21d1e0b45173b5d3f6b663b856c40a0e.pkl"
+  },
+  "image_processing_6170ddf8b4cf0dcf023f8a3da6cb8c6a_resnet18_loli8": {
+    "created": "2026-04-20T17:41:44.748606",
+    "last_accessed": "2026-04-20T17:41:44.748606",
+    "ttl": 3600,
+    "file": "d001ea23e9d65b13683c97d6e6e14795.pkl"
   }
 }
