@@ -1,50 +1,8 @@
 {
-  "image_processing_6170ddf8b4cf0dcf023f8a3da6cb8c6a_resnet18_loli8": {
-    "created": "2026-04-20T20:50:46.276240",
-    "last_accessed": "2026-04-20T20:50:46.276240",
+  "image_processing_d0dce48fffcdab400521887f926c6eb0_mobilenet_v2_loli8": {
+    "created": "2026-04-21T16:37:20.424127",
+    "last_accessed": "2026-04-21T16:37:20.424127",
     "ttl": 3600,
-    "file": "d001ea23e9d65b13683c97d6e6e14795.pkl"
-  },
-  "image_processing_6170ddf8b4cf0dcf023f8a3da6cb8c6a_mobilenet_v2_loli8": {
-    "created": "2026-04-20T20:45:05.636695",
-    "last_accessed": "2026-04-20T20:45:05.636695",
-    "ttl": 3600,
-    "file": "4d31e7ed1f9e8c364eacd13636ca8f48.pkl"
-  },
-  "image_processing_6170ddf8b4cf0dcf023f8a3da6cb8c6a_efficientnet_b0_loli8": {
-    "created": "2026-04-20T20:29:37.647757",
-    "last_accessed": "2026-04-20T20:29:37.647757",
-    "ttl": 3600,
-    "file": "566587b3aec163798d04a5afa3172ab7.pkl"
-  },
-  "image_processing_ffd0b35dec1f38de2977788c9dabef12_default": {
-    "created": "2026-04-20T20:48:39.878052",
-    "last_accessed": "2026-04-20T20:48:39.878052",
-    "ttl": 3600,
-    "file": "dff0791179e55f8c14993bdb8b0fcc89.pkl"
-  },
-  "image_processing_3623a829f7002d917d67345045675ee6_resnet18": {
-    "created": "2026-04-20T20:49:45.562489",
-    "last_accessed": "2026-04-20T20:49:45.562489",
-    "ttl": 3600,
-    "file": "271ee856b18963d722cdc882912f15e3.pkl"
-  },
-  "image_processing_873ddb2aa5426227f26ebe6409ec31a0_default": {
-    "created": "2026-04-20T20:54:42.759250",
-    "last_accessed": "2026-04-20T20:54:42.759250",
-    "ttl": 3600,
-    "file": "ebfc43f67c1985c0f6a6d71d9e221905.pkl"
-  },
-  "image_processing_d0dce48fffcdab400521887f926c6eb0_default": {
-    "created": "2026-04-20T20:55:54.340933",
-    "last_accessed": "2026-04-20T20:55:54.340933",
-    "ttl": 3600,
-    "file": "3289755aa8a54c19f4234b831e08f6a0.pkl"
-  },
-  "image_processing_63800c5689ffbc3d35b245bf28d56108_mobilenet_v2_loli8": {
-    "created": "2026-04-20T21:05:10.356898",
-    "last_accessed": "2026-04-20T21:05:10.356898",
-    "ttl": 3600,
-    "file": "74ec78e96179bea8178197697151089b.pkl"
+    "file": "358da979033f6402a8a882bee21de4ad.pkl"
   }
 }

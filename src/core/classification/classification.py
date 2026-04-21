@@ -127,7 +127,8 @@ class Classification:
 
         # 确保路径有 .faiss 扩展名
         faiss_path = index_path if index_path.endswith('.faiss') else f"{index_path}.faiss"
-        mapping_path = f"{index_path}_mapping.json" if not index_path.endswith('_mapping.json') else index_path
+        # 构建映射路径：移除 .faiss 扩展名，然后添加 _mapping.json
+        mapping_path = faiss_path.replace('.faiss', '_mapping.json')
 
         # 加载Faiss索引
         self.index = faiss.read_index(faiss_path)

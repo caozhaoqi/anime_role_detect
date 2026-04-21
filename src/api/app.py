@@ -1,6 +1,12 @@
+import sys
+import os
+
+# 添加项目根目录到Python路径
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
+sys.path.insert(0, project_root)
+
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-import os
 import time
 
 # 初始化日志记录器
@@ -19,7 +25,7 @@ os.makedirs(keras_cache_dir, exist_ok=True)
 
 # 从环境变量中读取配置
 USE_MODEL_SERVICE = os.environ.get('USE_MODEL_SERVICE', 'false').lower() == 'true'
-MODEL_SERVICE_URL = os.environ.get('MODEL_SERVICE_URL', 'http://localhost:8001')
+MODEL_SERVICE_URL = os.environ.get('MODEL_SERVICE_URL', 'http://localhost:8000')
 
 # 创建FastAPI应用实例
 app = FastAPI(

@@ -16,11 +16,21 @@ import os
 os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
 os.environ['MPS_HIGH_WATERMARK_RATIO'] = '0.0'
 os.environ['PYTORCH_MPS_HIGH_WATERMARK_RATIO'] = '0.0'
+os.environ['OMP_NUM_THREADS'] = '1'
+os.environ['MKL_NUM_THREADS'] = '1'
+os.environ['OPENBLAS_NUM_THREADS'] = '1'
+os.environ['VECLIB_MAXIMUM_THREADS'] = '1'
+os.environ['NUMEXPR_NUM_THREADS'] = '1'
+os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
+os.environ['OBJC_DISABLE_INITIALIZE_FORK_SAFETY'] = 'YES'
 
 # 导入torch并禁用MPS
 import torch
 torch.backends.mps.is_available = lambda: False
 torch.backends.mps.is_built = lambda: False
+
+# 设置单线程模式
+torch.set_num_threads(1)
 
 # 延迟导入transformers模块
 AutoProcessor = None
@@ -38,6 +48,7 @@ logger = get_logger("wd_vit_v3_tagger")
 # 动态导入函数
 def import_torch_modules():
     global torch, AutoProcessor, AutoModelForImageClassification, CLIPProcessor, CLIPModel
+    
     # 导入模块
     from transformers import AutoProcessor, AutoModelForImageClassification, CLIPProcessor, CLIPModel
 
@@ -104,7 +115,18 @@ class WDViTV3Tagger:
         
         Args:
             model_name: 模型名称
+        
+        Returns:
+            bool: 模型加载是否成功
         """
+        import platform
+        import os
+        
+        # 检查是否是 macOS 环境
+        # if platform.system() == 'Darwin':
+        #     self.logger.info("检测到 macOS 环境，跳过 PyTorch 模型加载，使用默认标签")
+        #     return False
+        
         try:
             import_torch_modules()
             global torch, AutoProcessor, AutoModelForImageClassification
@@ -127,10 +149,12 @@ class WDViTV3Tagger:
                 self.num_id2label = {int(k): v for k, v in self.id2label.items()}
             
             self.logger.info("WD Vit Tagger v3模型加载完成")
+            return True
         except Exception as e:
             self.logger.error(f"加载模型失败: {e}")
             # 加载失败时使用简单标签生成方法
             self.logger.info("加载模型失败，使用简单标签生成方法")
+            return False
     
     def _filter_tags(self, tags):
         """过滤标签，去除冗余和低质量的标签
@@ -162,12 +186,12 @@ class WDViTV3Tagger:
                 continue
             
             # 跳过置信度过低的标签
-            if confidence < 0.1:
+            if confidence < 0.2:
                 continue
             
             # 跳过过于通用的标签
             generic_tags = {'anime', 'cartoon', 'digital art', 'illustration', '3d'}
-            if tag in generic_tags and confidence < 0.5:
+            if tag in generic_tags and confidence < 0.6:
                 continue
             
             # 去重
@@ -179,13 +203,13 @@ class WDViTV3Tagger:
         filtered_tags.sort(key=lambda x: x['confidence'], reverse=True)
         
         # 限制标签数量
-        max_tags = 20
+        max_tags = 15
         if len(filtered_tags) > max_tags:
             filtered_tags = filtered_tags[:max_tags]
         
         return filtered_tags
     
-    def generate_tags(self, image, threshold=0.05):
+    def generate_tags(self, image, threshold=0.2):
         """生成图像标签
         
         Args:
@@ -199,14 +223,14 @@ class WDViTV3Tagger:
             # 检查image是否为Image对象
             if isinstance(image, Image.Image):
                 # 已经是Image对象，直接使用
-                self.logger.info("使用传入的Image对象")
+                self.logger.debug("使用传入的Image对象")
             elif isinstance(image, str):
                 # 是图像路径，加载图像
                 image = Image.open(image).convert('RGB')
-                self.logger.info(f"加载图像成功: {image}")
+                self.logger.debug(f"加载图像成功: {image}")
             else:
                 # 其他类型，尝试直接使用
-                self.logger.info(f"使用传入的对象，类型: {type(image)}")
+                self.logger.debug(f"使用传入的对象，类型: {type(image)}")
             
             # 检查是否加载了模型
             if self.wd_model is not None and self.wd_processor is not None:
@@ -237,7 +261,7 @@ class WDViTV3Tagger:
                 # 过滤标签
                 filtered_tags = self._filter_tags(tags)
                 # 打印前10个标签
-                self.logger.info(f"PyTorch模型 前10个标签: {filtered_tags[:10]}")
+                self.logger.info(f"PyTorch模型 前10个标签: {[t['tag'] for t in filtered_tags[:10]]}")
             else:
                 # 使用简单标签生成方法
                 self.logger.debug("使用简单标签生成方法")
@@ -246,7 +270,7 @@ class WDViTV3Tagger:
                 # 过滤标签
                 filtered_tags = self._filter_tags(tags)
                 # 打印前10个标签
-                self.logger.info(f"简单标签生成方法 前10个标签: {filtered_tags[:10]}")
+                self.logger.info(f"简单标签生成方法 前10个标签: {[t['tag'] for t in filtered_tags[:10]]}")
             
             return filtered_tags
         except Exception as e:
@@ -254,7 +278,7 @@ class WDViTV3Tagger:
             # 发生错误时，返回默认标签
             return [{"tag": tag, "confidence": 0.5} for tag in self.tags[:10]]
     
-    def batch_generate_tags(self, image_dir, output_file, threshold=0.05):
+    def batch_generate_tags(self, image_dir, output_file, threshold=0.2):
         """批量生成标签
         
         Args:

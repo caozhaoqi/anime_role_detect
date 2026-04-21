@@ -32,11 +32,15 @@ from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 
 # 添加项目根目录到Python路径
-project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../../..'))
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..'))
 sys.path.insert(0, project_root)
 print(f"添加到Python路径: {project_root}")
 print(f"当前工作目录: {os.getcwd()}")
 print(f"Python路径: {sys.path}")
+
+# 添加项目根目录到Python路径（备用方案）
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
 # 延迟导入核心模块，避免启动时的锁竞争
 Preprocessing = None
 FeatureExtraction = None
@@ -172,7 +176,10 @@ async def predict_image(
         if preprocessor is None:
             preprocessor = Preprocessing()
         
-        processed_image, _ = preprocessor.process(temp_path)
+        processed_image = preprocessor.preprocess(temp_path)
+        if processed_image is None:
+            logger.error("图像预处理失败")
+            raise HTTPException(status_code=500, detail="图像预处理失败")
         logger.info("图像预处理完成")
         
         # [3] 关键点检测（面部、手部、姿态）
@@ -204,8 +211,13 @@ async def predict_image(
                 try:
                     tagger = WDViTV3Tagger()
                     logger.info(f"标签生成器初始化完成，使用设备: {tagger.device}")
-                    # 暂时禁用模型加载，避免锁竞争问题
-                    logger.info("暂时禁用标签生成模型加载")
+                    # 加载标签生成模型
+                    logger.info("加载标签生成模型...")
+                    model_loaded = tagger.load_model()
+                    if model_loaded:
+                        logger.info("标签生成模型加载成功")
+                    else:
+                        logger.warning("标签生成模型加载失败，将使用默认标签")
                 except Exception as e:
                     logger.error(f"标签生成器初始化失败: {e}")
                     tagger = None
@@ -313,7 +325,10 @@ async def extract_features(
         if preprocessor is None:
             preprocessor = Preprocessing()
         
-        processed_image, _ = preprocessor.process(temp_path)
+        processed_image = preprocessor.preprocess(temp_path)
+        if processed_image is None:
+            logger.error("图像预处理失败")
+            raise HTTPException(status_code=500, detail="图像预处理失败")
         
         # 初始化特征提取器
         if feature_extractor is None:
@@ -347,7 +362,7 @@ async def extract_features(
             except Exception as e:
                 logger.error(f"删除临时文件失败: {e}")
 
-# 多角色检测
+# 多角色检测（暂时禁用，因为需要实现 process_multiple_characters 方法）
 @app.post("/api/model/detect-multiple")
 async def detect_multiple_characters(
     file: UploadFile = File(...),
@@ -450,13 +465,44 @@ async def detect_multiple_characters(
             except Exception as e:
                 logger.error(f"删除临时文件失败: {e}")
 
+# 兼容前端的分类端点
+@app.post("/api/classify")
+async def classify_image(
+    file: UploadFile = File(...),
+    use_coreml: bool = Form(False),
+    use_model: bool = Form(True),
+    use_attributes: bool = Form(True),
+    model_name: str = Form("mobilenet_v2"),
+    cache_bypass: bool = Form(False)
+):
+    """
+    分类图像（兼容前端调用）
+    
+    Args:
+        file: 上传的图像文件
+        use_coreml: 是否使用CoreML
+        use_model: 是否使用模型
+        use_attributes: 是否使用属性
+        model_name: 模型名称
+        cache_bypass: 是否绕过缓存
+    
+    Returns:
+        分类结果
+    """
+    # 调用现有的预测函数
+    return await predict_image(
+        file=file,
+        model_name=model_name,
+        use_attributes=use_attributes
+    )
+
 # 主函数
 if __name__ == "__main__":
     import argparse
     
     parser = argparse.ArgumentParser(description="模型服务")
     parser.add_argument("--host", type=str, default="0.0.0.0", help="服务主机")
-    parser.add_argument("--port", type=int, default=8001, help="服务端口")
+    parser.add_argument("--port", type=int, default=8000, help="服务端口")
     parser.add_argument("--workers", type=int, default=1, help="工作进程数")
     
     args = parser.parse_args()
