@@ -50,16 +50,8 @@ get_logger = None
 
 # 动态导入函数
 def import_core_modules():
-    global Preprocessing, FeatureExtraction, WDViTV3Tagger, Classification, get_logger, torch, detect_nsfw
-    # 导入torch并禁用MPS，避免锁竞争问题
-    import torch
-    torch.backends.mps.is_available = lambda: False
-    torch.backends.mps.is_built = lambda: False
-    # 禁用MPS相关的环境变量
-    import os
-    os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
-    os.environ['MPS_HIGH_WATERMARK_RATIO'] = '0.0'
-    os.environ['PYTORCH_MPS_HIGH_WATERMARK_RATIO'] = '0.0'
+    global Preprocessing, FeatureExtraction, WDViTV3Tagger, Classification, get_logger, detect_nsfw
+    # 只导入非PyTorch依赖的模块
     from src.core.preprocessing.preprocessing import Preprocessing
     from src.core.feature_extraction.feature_extraction import FeatureExtraction
     from src.core.tagging.wd_vit_v3_tagger import WDViTV3Tagger
@@ -70,6 +62,59 @@ def import_core_modules():
 # 初始化日志
 import_core_modules()
 logger = get_logger("model_service")
+
+# 添加线程锁
+import threading
+torch_import_lock = threading.Lock()
+model_init_lock = threading.Lock()
+
+# 延迟导入torch
+def import_torch():
+    """延迟导入torch，避免启动时的锁竞争问题"""
+    global torch
+    with torch_import_lock:
+        if 'torch' not in globals():
+            import torch
+            # 完全禁用MPS，避免锁竞争问题
+            torch.backends.mps.is_available = lambda: False
+            torch.backends.mps.is_built = lambda: False
+            torch.cuda.is_available = lambda: False
+            # 禁用MPS相关的环境变量
+            import os
+            os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
+            os.environ['MPS_HIGH_WATERMARK_RATIO'] = '0.0'
+            os.environ['PYTORCH_MPS_HIGH_WATERMARK_RATIO'] = '0.0'
+            os.environ['TORCH_MPS_HIGH_WATERMARK_RATIO'] = '0.0'
+            logger.info("PyTorch已导入，MPS已禁用")
+
+# 模型加载装饰器
+def safe_model_load(func):
+    """安全的模型加载装饰器"""
+    async def wrapper(*args, **kwargs):
+        try:
+            # 确保torch已导入
+            if 'torch' not in globals():
+                import_torch()
+            return await func(*args, **kwargs)
+        except Exception as e:
+            logger.error(f"模型加载失败: {e}")
+            import traceback
+            logger.error(f"异常堆栈: {traceback.format_exc()}")
+            # 返回降级结果
+            return {
+                "role": "unknown",
+                "similarity": 0.0,
+                "tags": ["anime", "digital art"],
+                "nsfw": {
+                    "is_nsfw": False,
+                    "details": {}
+                }
+            }
+    # 保留原始函数的元数据
+    wrapper.__name__ = func.__name__
+    wrapper.__doc__ = func.__doc__
+    wrapper.__module__ = func.__module__
+    return wrapper
 
 # 初始化FastAPI应用
 app = FastAPI(
@@ -101,7 +146,7 @@ async def init_models():
     global preprocessor, feature_extractor, tagger
     
     try:
-        # 只初始化预处理器，特征提取器和标签生成器在第一次请求时初始化
+        # 只初始化预处理器，其他组件在第一次请求时初始化
         logger.info("初始化预处理器...")
         preprocessor = Preprocessing()
         logger.info("预处理器初始化完成")
@@ -110,6 +155,12 @@ async def init_models():
         logger.info("模型服务启动完成，其他模型将在第一次请求时自动初始化")
     except Exception as e:
         logger.error(f"模型初始化失败: {e}")
+
+# 根路径，重定向到文档
+@app.get("/")
+async def root():
+    """根路径"""
+    return {"message": "Model Service", "docs": "/docs"}
 
 # 启动事件
 @app.on_event("startup")
@@ -148,6 +199,10 @@ async def predict_image(
     temp_path = None
     
     try:
+        # 安全导入torch，避免锁竞争问题
+        if 'torch' not in globals():
+            import_torch()
+        
         # 读取文件内容
         content = await file.read()
         
@@ -174,7 +229,9 @@ async def predict_image(
         # [2] 图像预处理（解码、缩放、归一化）
         logger.info("开始图像预处理...")
         if preprocessor is None:
-            preprocessor = Preprocessing()
+            with model_init_lock:
+                if preprocessor is None:
+                    preprocessor = Preprocessing()
         
         processed_image = preprocessor.preprocess(temp_path)
         if processed_image is None:
@@ -191,13 +248,15 @@ async def predict_image(
         # [4] 特征提取 → 生成512维特征向量
         logger.info("开始特征提取...")
         if feature_extractor is None:
-            logger.info("初始化特征提取器...")
-            try:
-                feature_extractor = FeatureExtraction()
-                logger.info(f"特征提取器初始化完成，使用设备: {feature_extractor.device}")
-            except Exception as e:
-                logger.error(f"特征提取器初始化失败: {e}")
-                raise HTTPException(status_code=500, detail=f"特征提取器初始化失败: {e}")
+            with model_init_lock:
+                if feature_extractor is None:
+                    logger.info("初始化特征提取器...")
+                    try:
+                        feature_extractor = FeatureExtraction()
+                        logger.info(f"特征提取器初始化完成，使用设备: {feature_extractor.device}")
+                    except Exception as e:
+                        logger.error(f"特征提取器初始化失败: {e}")
+                        raise HTTPException(status_code=500, detail=f"特征提取器初始化失败: {e}")
         
         feature = feature_extractor.extract_features(processed_image)
         logger.info("特征提取完成")
@@ -207,20 +266,22 @@ async def predict_image(
         attributes = []
         if use_attributes:
             if tagger is None:
-                logger.info("初始化标签生成器...")
-                try:
-                    tagger = WDViTV3Tagger()
-                    logger.info(f"标签生成器初始化完成，使用设备: {tagger.device}")
-                    # 加载标签生成模型
-                    logger.info("加载标签生成模型...")
-                    model_loaded = tagger.load_model()
-                    if model_loaded:
-                        logger.info("标签生成模型加载成功")
-                    else:
-                        logger.warning("标签生成模型加载失败，将使用默认标签")
-                except Exception as e:
-                    logger.error(f"标签生成器初始化失败: {e}")
-                    tagger = None
+                with model_init_lock:
+                    if tagger is None:
+                        logger.info("初始化标签生成器...")
+                        try:
+                            tagger = WDViTV3Tagger()
+                            logger.info(f"标签生成器初始化完成，使用设备: {tagger.device}")
+                            # 加载标签生成模型
+                            logger.info("加载标签生成模型...")
+                            model_loaded = tagger.load_model()
+                            if model_loaded:
+                                logger.info("标签生成模型加载成功")
+                            else:
+                                logger.warning("标签生成模型加载失败，将使用默认标签")
+                        except Exception as e:
+                            logger.error(f"标签生成器初始化失败: {e}")
+                            tagger = None
             
             if tagger:
                 try:
@@ -285,7 +346,18 @@ async def predict_image(
         raise
     except Exception as e:
         logger.error(f"模型预测失败: {e}")
-        raise HTTPException(status_code=500, detail=f"模型预测失败: {e}")
+        import traceback
+        logger.error(f"异常堆栈: {traceback.format_exc()}")
+        # 返回复降级结果，避免服务崩溃
+        return {
+            "role": "unknown",
+            "similarity": 0.0,
+            "tags": ["anime", "digital art"],
+            "nsfw": {
+                "is_nsfw": False,
+                "details": {}
+            }
+        }
     finally:
         # 清理临时文件
         if temp_path and os.path.exists(temp_path):

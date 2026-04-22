@@ -22,14 +22,14 @@ import sys
 print(f"Python路径: {sys.path[:3]}")
 
 try:
-    from core.logging.global_logger import get_logger
+    from src.core.logging.global_logger import get_logger
     print("导入成功")
 except ImportError as e:
     print(f"导入失败: {e}")
     # 尝试使用绝对路径
     try:
         import importlib.util
-        spec = importlib.util.spec_from_file_location("global_logger", os.path.join(project_root, "core", "logging", "global_logger.py"))
+        spec = importlib.util.spec_from_file_location("global_logger", os.path.join(project_root, "src", "core", "logging", "global_logger.py"))
         global_logger = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(global_logger)
         get_logger = global_logger.get_logger
@@ -89,7 +89,7 @@ def start_api_service(host: str = '0.0.0.0', port: int = 8001, reload: bool = Fa
     cmd = [
         sys.executable,
         '-m', 'uvicorn',
-        'src.backend.api.app:app',
+        'src.api.app:app',
         '--host', host,
         '--port', str(port),
         '--workers', '1',  # 减少到1个工作线程，避免锁竞争问题

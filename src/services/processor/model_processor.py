@@ -20,7 +20,7 @@ from .feature_processor import process_image_features
 logger = get_logger("image_processor")
 
 # 从环境变量中读取配置
-USE_MODEL_SERVICE = False
+USE_MODEL_SERVICE = os.environ.get('USE_MODEL_SERVICE', 'True').lower() == 'true'
 MODEL_SERVICE_URL = os.environ.get('MODEL_SERVICE_URL', 'http://localhost:8001')
 
 

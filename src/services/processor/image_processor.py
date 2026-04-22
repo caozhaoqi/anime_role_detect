@@ -106,7 +106,7 @@ async def process_single_image(file, model_name, cache_bypass=False, use_coreml=
                         logger.error(f"清理临时文件失败: {e}")
         
         # 缓存结果
-        cache_manager.set(result, cache_key, ttl=3600)
+        cache_manager.set(cache_key, result, ttl=3600)
         
         return result
         

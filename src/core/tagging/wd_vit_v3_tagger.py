@@ -123,9 +123,9 @@ class WDViTV3Tagger:
         import os
         
         # 检查是否是 macOS 环境
-        # if platform.system() == 'Darwin':
-        #     self.logger.info("检测到 macOS 环境，跳过 PyTorch 模型加载，使用默认标签")
-        #     return False
+        if platform.system() == 'Darwin':
+            self.logger.info("检测到 macOS 环境，跳过 PyTorch 模型加载，使用默认标签")
+            return False
         
         try:
             import_torch_modules()

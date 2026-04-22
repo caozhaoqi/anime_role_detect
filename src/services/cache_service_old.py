@@ -7,14 +7,14 @@
 
 import threading
 from src.core.logging.global_logger import get_logger
+from src.services.cache_service.cache_factory import get_cache_factory
 
 logger = get_logger("cache_service")
 
-# 延迟初始化缓存管理器
-cache_manager = None
-CacheManager = None
+# 延迟初始化缓存工厂
+cache_factory = None
 
-# 添加线程锁，用于保护缓存管理器的初始化过程
+# 添加线程锁，用于保护缓存工厂的初始化过程
 cache_init_lock = threading.Lock()
 
 # 模型缓存字典，支持版本管理
@@ -31,19 +31,12 @@ def init_cache_manager():
     """
     初始化缓存管理器
     """
-    global cache_manager, CacheManager
+    global cache_factory
     with cache_init_lock:
-        if cache_manager is None:
-            # 延迟导入CacheManager
-            if CacheManager is None:
-                from src.utils.cache_manager import CacheManager
-            # 优化缓存配置：减少内存缓存大小，缩短过期时间，避免内存占用过高
-            cache_manager = CacheManager(
-                max_memory_size=100,  # 减少内存缓存大小
-                max_file_size=500,    # 减少文件缓存大小
-                default_ttl=1800      # 缩短默认过期时间到30分钟
-            )
-            logger.info("缓存管理器初始化成功")
+        if cache_factory is None:
+            # 初始化缓存工厂
+            cache_factory = get_cache_factory()
+            logger.info("缓存工厂初始化成功")
 
 
 def get_cache_manager():
@@ -53,10 +46,10 @@ def get_cache_manager():
     Returns:
         缓存管理器实例
     """
-    global cache_manager
-    if cache_manager is None:
+    global cache_factory
+    if cache_factory is None:
         init_cache_manager()
-    return cache_manager
+    return cache_factory
 
 
 def get_image_transform():
@@ -83,3 +76,15 @@ def get_image_transform():
         ])
     
     return transform_cache[transform_key]
+
+
+def get_cache_stats():
+    """
+    获取缓存统计信息
+    
+    Returns:
+        缓存统计信息
+    """
+    cache_factory = get_cache_manager()
+    return cache_factory.get_stats()
+

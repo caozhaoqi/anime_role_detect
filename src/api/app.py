@@ -24,8 +24,8 @@ os.makedirs(hf_cache_dir, exist_ok=True)
 os.makedirs(keras_cache_dir, exist_ok=True)
 
 # 从环境变量中读取配置
-USE_MODEL_SERVICE = os.environ.get('USE_MODEL_SERVICE', 'false').lower() == 'true'
-MODEL_SERVICE_URL = os.environ.get('MODEL_SERVICE_URL', 'http://localhost:8000')
+USE_MODEL_SERVICE = os.environ.get('USE_MODEL_SERVICE', 'true').lower() == 'true'
+MODEL_SERVICE_URL = os.environ.get('MODEL_SERVICE_URL', 'http://localhost:8001')
 
 # 创建FastAPI应用实例
 app = FastAPI(
@@ -42,6 +42,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# 导入错误处理
+from src.core.error.error_handler import global_exception_handler
+app.add_exception_handler(Exception, global_exception_handler)
+
 
 # 导入监控中间件
 try:
@@ -114,7 +119,13 @@ async def classify_image(
         logger.error(f"分类图像失败: {e}")
         import traceback
         logger.error(f"异常堆栈: {traceback.format_exc()}")
-        raise HTTPException(status_code=500, detail=str(e))
+        from src.core.error.error_handler import raise_app_error
+        from src.core.error.error_codes import ErrorCode
+        raise_app_error(
+            error_code=ErrorCode.CLASSIFICATION_FAILED,
+            status_code=500,
+            detail=str(e)
+        )
 
 
 @app.post("/api/batch_classify")
@@ -162,7 +173,13 @@ async def batch_classify_images(
         logger.error(f"批量分类图像失败: {e}")
         import traceback
         logger.error(f"异常堆栈: {traceback.format_exc()}")
-        raise HTTPException(status_code=500, detail=str(e))
+        from src.core.error.error_handler import raise_app_error
+        from src.core.error.error_codes import ErrorCode
+        raise_app_error(
+            error_code=ErrorCode.CLASSIFICATION_FAILED,
+            status_code=500,
+            detail=str(e)
+        )
 
 
 @app.get("/api/health")
