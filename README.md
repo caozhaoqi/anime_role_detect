@@ -89,7 +89,6 @@ The backend API service will run at `http://127.0.0.1:8000`.
 # Enter frontend directory
 cd src/frontend
 
-
 # Install dependencies (first run)
 npm install
 

@@ -204,14 +204,79 @@ async def classify_image(
     use_model: bool = Form(True),
     use_attributes: bool = Form(True),
     model_name: str = Form("mobilenet_v2"),
-    cache_bypass: bool = Form(False)
+    cache_bypass: bool = Form(False),
+    multi_role: bool = Form(False)
 ):
     """分类图像"""
-    return await predict_image(
-        file=file,
-        model_name=model_name,
-        use_attributes=use_attributes
-    )
+    if multi_role:
+        return await predict_multi_role(file, model_name, use_attributes)
+    else:
+        return await predict_image(
+            file=file,
+            model_name=model_name,
+            use_attributes=use_attributes
+        )
+
+# 多角色检测端点
+@app.post("/api/classify/multi-role")
+async def predict_multi_role(
+    file: UploadFile = File(...),
+    model_name: str = Form("mobilenet_v2"),
+    use_attributes: bool = Form(True)
+):
+    """多角色检测"""
+    try:
+        # 读取文件内容
+        content = await file.read()
+        
+        # 保存临时文件
+        import tempfile
+        with tempfile.NamedTemporaryFile(suffix=os.path.splitext(file.filename)[1], delete=False) as temp_file:
+            temp_file.write(content)
+            temp_path = temp_file.name
+        
+        try:
+            # 导入多角色检测器
+            from src.core.detection.multi_role_detection import MultiRoleDetector
+            
+            # 初始化检测器
+            detector = MultiRoleDetector(model_name=model_name)
+            
+            # 检测角色
+            results = detector.detect_roles(temp_path)
+            
+            # 处理结果
+            processed_results = []
+            for result in results:
+                processed_results.append({
+                    "role": result.get("role", "unknown"),
+                    "similarity": float(result.get("similarity", 0.0)),
+                    "tags": result.get("attributes", []),
+                    "bbox": result.get("bbox", {}),
+                    "confidence": float(result.get("confidence", 0.0))
+                })
+            
+            # 返回结果
+            return {
+                "roles": processed_results,
+                "count": len(processed_results),
+                "nsfw": {"is_nsfw": False, "details": {}},
+                "model_used": model_name
+            }
+        finally:
+            # 清理临时文件
+            if os.path.exists(temp_path):
+                try:
+                    os.remove(temp_path)
+                except Exception as e:
+                    logger.error(f"清理临时文件失败: {e}")
+    except Exception as e:
+        logger.error(f"多角色检测失败: {e}")
+        return {
+            "roles": [],
+            "count": 0,
+            "nsfw": {"is_nsfw": False, "details": {}}
+        }
 
 # 主函数
 if __name__ == "__main__":

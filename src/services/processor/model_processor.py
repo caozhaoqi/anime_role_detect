@@ -24,7 +24,7 @@ USE_MODEL_SERVICE = os.environ.get('USE_MODEL_SERVICE', 'True').lower() == 'true
 MODEL_SERVICE_URL = os.environ.get('MODEL_SERVICE_URL', 'http://localhost:8001')
 
 
-async def process_with_model_service(file, content, model_name):
+async def process_with_model_service(file, content, model_name, multi_role=False):
     """
     使用模型服务处理图像
     
@@ -32,6 +32,7 @@ async def process_with_model_service(file, content, model_name):
         file: 上传的文件
         content: 文件内容
         model_name: 模型名称
+        multi_role: 是否使用多角色检测
     
     Returns:
         dict: 处理结果
@@ -39,7 +40,7 @@ async def process_with_model_service(file, content, model_name):
     temp_path = None
     
     try:
-        logger.info(f"使用模型服务: {MODEL_SERVICE_URL}")
+        logger.info(f"使用模型服务: {MODEL_SERVICE_URL}, 多角色: {multi_role}")
         
         # 确定文件类型
         content_type = file.content_type
@@ -56,7 +57,13 @@ async def process_with_model_service(file, content, model_name):
             content_type = ext_to_content_type.get(ext, 'application/octet-stream')
         
         # 发送请求到模型服务
-        logger.info(f"开始调用模型服务: {MODEL_SERVICE_URL}/api/model/predict")
+        if multi_role:
+            endpoint = f"{MODEL_SERVICE_URL}/api/classify/multi-role"
+            logger.info(f"开始调用模型服务(多角色): {endpoint}")
+        else:
+            endpoint = f"{MODEL_SERVICE_URL}/api/model/predict"
+            logger.info(f"开始调用模型服务: {endpoint}")
+        
         logger.info(f"请求文件: {file.filename}, 大小: {len(content)}字节, 类型: {content_type}")
         
         # 使用aiohttp进行异步HTTP调用
@@ -69,7 +76,7 @@ async def process_with_model_service(file, content, model_name):
             
             logger.info(f"准备发送请求到模型服务")
             async with session.post(
-                f"{MODEL_SERVICE_URL}/api/model/predict",
+                endpoint,
                 data=form,
                 timeout=30
             ) as response:
@@ -78,71 +85,99 @@ async def process_with_model_service(file, content, model_name):
                 model_result = await response.json()
                 logger.info(f"模型服务返回数据: {model_result}")
         
-        # 处理结果
-        role = model_result.get('role', 'unknown')
-        similarity = model_result.get('similarity', 0.0)
-        attributes = model_result.get('attributes', [])
-        tags = model_result.get('tags', [])
-        feature = model_result.get('feature', None)
-        
-        logger.info(f"模型服务返回结果: role={role}, similarity={similarity}, has_feature={feature is not None}")
-        
-        # 保存临时文件用于其他处理
-        temp_path = f"temp/temp_{int(time.time())}_{file.filename}"
-        with open(temp_path, "wb") as f:
-            f.write(content)
-        
-        # 如果模型服务返回unknown且提供了特征向量，使用本地模型进行分类
-        if role == 'unknown' and feature is not None:
-            logger.info(f"模型服务返回unknown且提供了特征向量，role={role}, feature长度={len(feature) if feature else 'None'}")
-            # 加载训练好的模型
+        if multi_role:
+            # 处理多角色结果
+            roles = model_result.get('roles', [])
+            count = model_result.get('count', 0)
+            nsfw = model_result.get('nsfw', {"is_nsfw": False, "details": {}})
             
-            model_info = load_trained_model(model_name)
-            logger.info(f"load_trained_model返回: {model_info}")
-            if model_info is not None:
-                model, class_to_idx = model_info
-                idx_to_class = {v: k for k, v in class_to_idx.items()}
+            # 保存临时文件用于其他处理
+            temp_path = f"temp/temp_{int(time.time())}_{file.filename}"
+            with open(temp_path, "wb") as f:
+                f.write(content)
+            
+            # 处理图像特征
+            text_detections, keypoints, ai_predicted_role = process_image_features(temp_path, file.content_type, [])
+            
+            # 执行NSFW检测
+            nsfw_result = detect_nsfw(temp_path)
+            
+            # 构建结果
+            result = {
+                "roles": roles,
+                "count": count,
+                "text_detections": text_detections,
+                "keypoints": keypoints,
+                "ai_predicted_role": _get_chinese_role_name(ai_predicted_role),
+                "nsfw": nsfw_result
+            }
+        else:
+            # 处理单角色结果
+            # 处理结果
+            role = model_result.get('role', 'unknown')
+            similarity = model_result.get('similarity', 0.0)
+            attributes = model_result.get('attributes', [])
+            tags = model_result.get('tags', [])
+            feature = model_result.get('feature', None)
+            
+            logger.info(f"模型服务返回结果: role={role}, similarity={similarity}, has_feature={feature is not None}")
+            
+            # 保存临时文件用于其他处理
+            temp_path = f"temp/temp_{int(time.time())}_{file.filename}"
+            with open(temp_path, "wb") as f:
+                f.write(content)
+            
+            # 如果模型服务返回unknown且提供了特征向量，使用本地模型进行分类
+            if role == 'unknown' and feature is not None:
+                logger.info(f"模型服务返回unknown且提供了特征向量，role={role}, feature长度={len(feature) if feature else 'None'}")
+                # 加载训练好的模型
                 
-                # 预处理图像
-                img = preprocess_image(temp_path)
-                
-                # 预测
-                import torch
-                with torch.no_grad():
-                    outputs = model(img)
-                    _, predicted = torch.max(outputs, 1)
-                    confidence = torch.nn.functional.softmax(outputs, dim=1)[0][predicted.item()].item()
-                
-                # 获取预测结果
-                role = idx_to_class.get(predicted.item(), "unknown")
-                similarity = float(confidence)
-                
-                # 转换为中文角色名
-                chinese_role = _get_chinese_role_name(role)
-                
-                logger.info(f"本地模型分类结果: {role} -> {chinese_role}, 相似度: {similarity:.4f}")
-        
-        # 处理图像特征
-        text_detections, keypoints, ai_predicted_role = process_image_features(temp_path, file.content_type, attributes)
-        
-        # 执行NSFW检测
-        nsfw_result = detect_nsfw(temp_path)
-        
-        # 转换为中文角色名
-        chinese_role = _get_chinese_role_name(role)
-        
-        # 构建结果
-        result = {
-            "role": chinese_role,
-            "similarity": similarity,
-            "possible_roles": [],
-            "attributes": attributes,
-            "tags": tags,
-            "text_detections": text_detections,
-            "keypoints": keypoints,
-            "ai_predicted_role": _get_chinese_role_name(ai_predicted_role),
-            "nsfw": nsfw_result
-        }
+                model_info = load_trained_model(model_name)
+                logger.info(f"load_trained_model返回: {model_info}")
+                if model_info is not None:
+                    model, class_to_idx = model_info
+                    idx_to_class = {v: k for k, v in class_to_idx.items()}
+                    
+                    # 预处理图像
+                    img = preprocess_image(temp_path)
+                    
+                    # 预测
+                    import torch
+                    with torch.no_grad():
+                        outputs = model(img)
+                        _, predicted = torch.max(outputs, 1)
+                        confidence = torch.nn.functional.softmax(outputs, dim=1)[0][predicted.item()].item()
+                    
+                    # 获取预测结果
+                    role = idx_to_class.get(predicted.item(), "unknown")
+                    similarity = float(confidence)
+                    
+                    # 转换为中文角色名
+                    chinese_role = _get_chinese_role_name(role)
+                    
+                    logger.info(f"本地模型分类结果: {role} -> {chinese_role}, 相似度: {similarity:.4f}")
+            
+            # 处理图像特征
+            text_detections, keypoints, ai_predicted_role = process_image_features(temp_path, file.content_type, attributes)
+            
+            # 执行NSFW检测
+            nsfw_result = detect_nsfw(temp_path)
+            
+            # 转换为中文角色名
+            chinese_role = _get_chinese_role_name(role)
+            
+            # 构建结果
+            result = {
+                "role": chinese_role,
+                "similarity": similarity,
+                "possible_roles": [],
+                "attributes": attributes,
+                "tags": tags,
+                "text_detections": text_detections,
+                "keypoints": keypoints,
+                "ai_predicted_role": _get_chinese_role_name(ai_predicted_role),
+                "nsfw": nsfw_result
+            }
         
         return result
         

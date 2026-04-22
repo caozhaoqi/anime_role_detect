@@ -57,7 +57,7 @@ except Exception as e:
 
 # 导入图像处理服务
 try:
-    from src.services.processor.image_processor import process_single_image, process_batch_images
+    from src.services.processor.image_processor import process_single_image, process_batch_images, process_multi_role_image
 except Exception as e:
     logger.error(f"导入图像处理服务失败: {e}")
 
@@ -81,7 +81,9 @@ async def classify_image(
     use_coreml: bool = Form(False),
     use_model: bool = Form(True),
     use_attributes: bool = Form(True),
-    cache_bypass: bool = Form(False)
+    cache_bypass: bool = Form(False),
+    multi_role: bool = Form(False),
+    use_deepdanbooru: bool = Form(True)
 ):
     """
     分类图像中的角色
@@ -93,6 +95,8 @@ async def classify_image(
         use_model: 是否使用专用模型
         use_attributes: 是否使用属性预测
         cache_bypass: 是否绕过缓存
+        multi_role: 是否使用多角色检测
+        use_deepdanbooru: 是否使用DeepDanbooru标签提取
     
     Returns:
         dict: 分类结果
@@ -105,7 +109,10 @@ async def classify_image(
         load_models()
         
         # 处理图像
-        result = await process_single_image(file, model_name, cache_bypass, use_coreml, use_model, use_attributes)
+        if multi_role:
+            result = await process_multi_role_image(file, model_name, cache_bypass, use_coreml, use_model, use_attributes, use_deepdanbooru)
+        else:
+            result = await process_single_image(file, model_name, cache_bypass, use_coreml, use_model, use_attributes, use_deepdanbooru)
         
         # 构建响应
         response = {
@@ -128,6 +135,43 @@ async def classify_image(
         )
 
 
+@app.post("/api/classify/multi-role")
+async def multi_role_classify_image(
+    file: UploadFile = File(...),
+    model_name: str = Form("resnet18_loli8"),
+    use_coreml: bool = Form(False),
+    use_model: bool = Form(True),
+    use_attributes: bool = Form(True),
+    cache_bypass: bool = Form(False),
+    use_deepdanbooru: bool = Form(True)
+):
+    """
+    多角色检测
+    
+    Args:
+        file: 上传的图像文件
+        model_name: 模型名称
+        use_coreml: 是否使用 CoreML 模型（Mac 平台）
+        use_model: 是否使用专用模型
+        use_attributes: 是否使用属性预测
+        cache_bypass: 是否绕过缓存
+        use_deepdanbooru: 是否使用DeepDanbooru标签提取
+    
+    Returns:
+        dict: 多角色检测结果
+    """
+    return await classify_image(
+        file=file,
+        model_name=model_name,
+        use_coreml=use_coreml,
+        use_model=use_model,
+        use_attributes=use_attributes,
+        cache_bypass=cache_bypass,
+        multi_role=True,
+        use_deepdanbooru=use_deepdanbooru
+    )
+
+
 @app.post("/api/batch_classify")
 async def batch_classify_images(
     files: list[UploadFile] = File(...),
@@ -135,7 +179,9 @@ async def batch_classify_images(
     use_coreml: bool = Form(False),
     use_model: bool = Form(False),
     use_attributes: bool = Form(False),
-    cache_bypass: bool = Form(False)
+    cache_bypass: bool = Form(False),
+    use_deepdanbooru: bool = Form(True),
+    max_concurrency: int = Form(4)
 ):
     """
     批量分类图像中的角色
@@ -147,6 +193,8 @@ async def batch_classify_images(
         use_model: 是否使用专用模型
         use_attributes: 是否使用属性预测
         cache_bypass: 是否绕过缓存
+        use_deepdanbooru: 是否使用DeepDanbooru标签提取
+        max_concurrency: 最大并发数
     
     Returns:
         list: 分类结果列表
@@ -158,14 +206,31 @@ async def batch_classify_images(
         # 加载模型
         load_models()
         
+        # 限制并发数范围
+        max_concurrency = max(1, min(max_concurrency, 10))  # 限制在1-10之间
+        
         # 处理图像
-        results = await process_batch_images(files, model_name, cache_bypass, use_coreml, use_model, use_attributes)
+        results = await process_batch_images(
+            files, 
+            model_name, 
+            cache_bypass=cache_bypass, 
+            use_coreml=use_coreml, 
+            use_model=use_model, 
+            use_attributes=use_attributes,
+            use_deepdanbooru=use_deepdanbooru,
+            max_concurrency=max_concurrency
+        )
         
         # 构建响应
         response = {
             "success": True,
             "data": results,
-            "message": f"成功处理 {len(results)} 个图像"
+            "message": f"成功处理 {len(results)} 个图像",
+            "stats": {
+                "total_files": len(files),
+                "success_count": sum(1 for r in results if r.get('success', False)),
+                "max_concurrency": max_concurrency
+            }
         }
         
         return response
