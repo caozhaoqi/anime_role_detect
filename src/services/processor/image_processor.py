@@ -70,8 +70,9 @@ async def process_single_image(file, model_name, cache_bypass=False, use_coreml=
                 return cached_result
         
         # 处理图像
+        logger.info(f"process_single_image 参数: use_model={use_model}, use_coreml={use_coreml}, model_name={model_name}")
         if use_model and not use_coreml:
-            use_model_service = os.environ.get('USE_MODEL_SERVICE', 'False').lower() == 'true'
+            use_model_service = os.environ.get('USE_MODEL_SERVICE', 'True').lower() == 'true'
             logger.info(f"USE_MODEL_SERVICE: {use_model_service}")
             if use_model_service:
                 logger.info("使用模型服务处理图像")

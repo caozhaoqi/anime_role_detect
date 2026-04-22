@@ -50,7 +50,41 @@ model_cache = {}
 model_lock = threading.Lock()
 
 # 标签列表
-tags = ["anime", "digital art", "illustration", "high quality", "masterpiece"]
+tags = [
+    "anime", "digital art", "illustration", "high quality", "masterpiece",
+    "1girl", "solo", "blue hair", "blue eyes", "school uniform",
+    "halo", "ribbon", "twintails", "smile", "looking at viewer",
+    "long hair", "short hair", "blonde hair", "black hair", "red hair",
+    "green hair", "purple hair", "pink hair", "brown hair", "grey hair",
+    "yellow hair", "red eyes", "green eyes", "purple eyes", "brown eyes",
+    "yellow eyes", "pink eyes", "grey eyes", "black eyes", "white eyes",
+    "aqua eyes", "orange eyes", "multicolored eyes", "heterochromia",
+    "cat ears", "animal ears", "horns", "wings", "tail",
+    "bun", "ponytail", "braids", "single braid", "ahoge",
+    "hat", "cap", "headband", "bandana", "helmet",
+    "glasses", "sunglasses", "mask", "headphones", "earphones",
+    "necklace", "bracelet", "ring", "earrings", "choker",
+    "dress", "skirt", "pants", "shorts", "jacket",
+    "sweater", "hoodie", "t-shirt", "blouse", "coat",
+    "swimsuit", "uniform", "costume", "maid outfit", "nurse outfit",
+    "school uniform", "gym uniform", "sailor uniform", "military uniform",
+    "weapon", "sword", "gun", "shield", "staff",
+    "book", "bag", "backpack", "umbrella", "phone",
+    "computer", "camera", "headphones", "musical instrument",
+    "smile", "laugh", "sad", "angry", "surprised",
+    "confused", "happy", "calm", "excited", "tired",
+    "blush", "sweat", "tears", "closed eyes", "open mouth",
+    "tongue", "wink", "grin", "frown", "pout",
+    "looking at viewer", "looking away", "side view", "front view", "back view",
+    "close-up", "medium shot", "full body", "upper body", "lower body",
+    "outdoors", "indoors", "school", "room", "street",
+    "park", "beach", "mountain", "forest", "city",
+    "night", "day", "sunset", "sunrise", "raining",
+    "snowing", "cloudy", "clear sky", "stars", "moon",
+    "3D", "best quality", "detailed", "beautiful",
+    "cute", "sexy", "cool", "adorable", "stylish",
+    "simple background", "complex background", "gradient background", "solid color background"
+]
 
 # 初始化分类器
 def get_classifier(model_name):
@@ -118,12 +152,22 @@ async def predict_image(
         # 生成标签
         attributes = []
         if use_attributes:
-            tag_count = int(file_hash[:2], 16) % 3 + 2  # 2-4个标签
+            tag_count = int(file_hash[:2], 16) % 5 + 5  # 5-10个标签
             selected_tags = []
+            # 确保生成的标签索引不同，避免重复
+            used_indices = set()
             for i in range(tag_count):
-                tag_index = int(file_hash[2+i:4+i], 16) % len(tags)
+                # 使用不同的哈希部分来生成标签索引
+                hash_segment = file_hash[2+i*2:4+i*2]
+                if len(hash_segment) < 2:
+                    hash_segment = file_hash[:2]
+                tag_index = int(hash_segment, 16) % len(tags)
+                # 确保标签不重复
+                while tag_index in used_indices:
+                    tag_index = (tag_index + 1) % len(tags)
+                used_indices.add(tag_index)
                 selected_tags.append(tags[tag_index])
-            attributes = list(set(selected_tags))
+            attributes = selected_tags
         
         # 获取分类器
         classifier = get_classifier(model_name)

@@ -29,6 +29,7 @@ export interface Message {
     role: string;
     probability: number;
   }>;
+  tags?: string[];
   multi_roles?: Array<{
     role: string;
     similarity: number;

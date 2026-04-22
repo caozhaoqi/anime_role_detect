@@ -82,6 +82,7 @@ async def process_with_model_service(file, content, model_name):
         role = model_result.get('role', 'unknown')
         similarity = model_result.get('similarity', 0.0)
         attributes = model_result.get('attributes', [])
+        tags = model_result.get('tags', [])
         feature = model_result.get('feature', None)
         
         logger.info(f"模型服务返回结果: role={role}, similarity={similarity}, has_feature={feature is not None}")
@@ -136,6 +137,7 @@ async def process_with_model_service(file, content, model_name):
             "similarity": similarity,
             "possible_roles": [],
             "attributes": attributes,
+            "tags": tags,
             "text_detections": text_detections,
             "keypoints": keypoints,
             "ai_predicted_role": _get_chinese_role_name(ai_predicted_role),
@@ -232,6 +234,7 @@ async def process_with_local_model(file, content, model_name):
             "similarity": similarity,
             "possible_roles": [],
             "attributes": [],
+            "tags": ['digital art', 'anime', 'character'],  # 默认标签
             "text_detections": text_detections,
             "keypoints": keypoints,
             "ai_predicted_role": _get_chinese_role_name(ai_predicted_role),
@@ -341,6 +344,7 @@ def process_with_trained_model(file, image_source, model_name):
             "similarity": similarity,
             "possible_roles": [],
             "attributes": [],
+            "tags": ['digital art', 'anime', 'character'],  # 默认标签
             "text_detections": text_detections,
             "keypoints": keypoints,
             "ai_predicted_role": _get_chinese_role_name(ai_predicted_role),

@@ -255,6 +255,25 @@ const MessageItem: React.FC<MessageItemProps> = ({ message, darkMode, handleCopy
             </div>
           )}
 
+          {message.tags && message.tags.length > 0 && (
+            <div className="mt-4 space-y-3 animate-fade-in">
+              <div className="flex items-center space-x-2">
+                <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+                <h4 className="font-semibold text-sm">标签</h4>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {message.tags.map((tag, index) => (
+                  <span
+                    key={index}
+                    className={`px-4 py-2 ${darkMode ? 'bg-purple-900/50 text-purple-400' : 'bg-purple-100 text-purple-600'} rounded-full text-sm font-medium transform hover:scale-105 transition-transform`}
+                  >
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
           {message.possible_roles && message.possible_roles.length > 0 && (
             <div className="mt-4 space-y-3 animate-fade-in">
               <div className="flex items-center space-x-2">

@@ -79,8 +79,8 @@ async def classify_image(
     file: UploadFile = File(...),
     model_name: str = Form("resnet18_loli8"),
     use_coreml: bool = Form(False),
-    use_model: bool = Form(False),
-    use_attributes: bool = Form(False),
+    use_model: bool = Form(True),
+    use_attributes: bool = Form(True),
     cache_bypass: bool = Form(False)
 ):
     """

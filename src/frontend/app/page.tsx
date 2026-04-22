@@ -218,6 +218,7 @@ export default function AnimeRoleDetect() {
             confidence: data.data.confidence || "medium",
           },
           attributes: data.data.attributes || [],
+          tags: data.data.tags || [],
           ai_predicted_role: data.data.ai_predicted_role,
           nsfw: data.data.nsfw,
           possible_roles: data.data.possible_roles,
