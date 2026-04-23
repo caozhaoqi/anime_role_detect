@@ -196,7 +196,8 @@ def get_tagger():
     try:
         from src.core.tagging.wd_vit_v3_tagger import WDViTV3Tagger
         tagger = WDViTV3Tagger()
-        return tagger.tag
+        tagger.load_model()
+        return tagger.generate_tags
     except Exception as e:
         logger.error(f"获取标签器失败: {e}")
         return None

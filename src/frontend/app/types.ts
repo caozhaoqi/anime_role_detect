@@ -59,3 +59,31 @@ export interface Model {
   description?: string;
   available?: boolean;
 }
+
+export interface User {
+  username: string;
+  role: string;
+}
+
+export interface LoginRequest {
+  username: string;
+  password: string;
+}
+
+export interface LoginResponse {
+  success: boolean;
+  message: string;
+  data?: {
+    access_token: string;
+    refresh_token: string;
+    username: string;
+    role: string;
+  };
+}
+
+export interface AuthState {
+  isAuthenticated: boolean;
+  user: User | null;
+  accessToken: string | null;
+  refreshToken: string | null;
+}

@@ -64,9 +64,20 @@ export async function POST(request: NextRequest) {
 
     console.log('开始发送请求到后端API...');
     try {
+      // 提取并转发Authorization头
+      const authHeader = request.headers.get('authorization');
+      console.log('接收到的Authorization头:', authHeader);
+      
+      const headers: HeadersInit = {};
+      if (authHeader) {
+        headers['Authorization'] = authHeader;
+        console.log('转发Authorization头到后端');
+      }
+      
       const response = await fetch(backendUrl, {
         method: 'POST',
         body: backendFormData,
+        headers: headers,
       });
       console.log('后端API响应状态:', response.status);
 

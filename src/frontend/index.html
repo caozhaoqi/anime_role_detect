@@ -298,6 +298,105 @@
             color: #2c3e50;
         }
         
+        /* 登录表单样式 */
+        .login-section {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+        }
+        
+        .login-section h2 {
+            margin-bottom: 20px;
+            color: #2c3e50;
+            text-align: center;
+        }
+        
+        .login-section .form-group {
+            margin-bottom: 20px;
+        }
+        
+        .login-section .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #2c3e50;
+            font-weight: bold;
+        }
+        
+        .login-section .form-group input {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 16px;
+            box-sizing: border-box;
+        }
+        
+        .login-section .form-group input:focus {
+            outline: none;
+            border-color: #3498db;
+            box-shadow: 0 0 5px rgba(52, 152, 219, 0.3);
+        }
+        
+        .login-section .form-group button {
+            width: 100%;
+            padding: 12px;
+            background-color: #3498db;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        
+        .login-section .form-group button:hover {
+            background-color: #2980b9;
+        }
+        
+        .login-section .form-group button:disabled {
+            background-color: #95a5a6;
+            cursor: not-allowed;
+        }
+        
+        .user-info {
+            background: #f0f8ff;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .user-info .user-details {
+            flex: 1;
+        }
+        
+        .user-info .user-details span {
+            font-weight: bold;
+            color: #2c3e50;
+        }
+        
+        .user-info .logout-btn {
+            padding: 8px 16px;
+            background-color: #e74c3c;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        
+        .user-info .logout-btn:hover {
+            background-color: #c0392b;
+        }
+        
+        .hidden {
+            display: none !important;
+        }
+    </style>    
         /* 流程检测结果样式 */
         .detection-process {
             margin-top: 30px;
@@ -340,8 +439,34 @@
     <div class="container">
         <h1>角色识别系统</h1>
         
+        <!-- 登录表单 -->
+        <div class="login-section" id="login-section">
+            <h2>用户登录</h2>
+            <div class="form-group">
+                <label for="username">用户名</label>
+                <input type="text" id="username" placeholder="请输入用户名" required>
+            </div>
+            <div class="form-group">
+                <label for="password">密码</label>
+                <input type="password" id="password" placeholder="请输入密码" required>
+            </div>
+            <div class="form-group">
+                <button id="login-btn">登录 <span class="loading" id="login-loading"></span></button>
+            </div>
+            <div class="error-message" id="login-error"></div>
+        </div>
+        
+        <!-- 用户信息 -->
+        <div class="user-info hidden" id="user-info">
+            <div class="user-details">
+                <span>用户：</span><span id="user-username"></span>
+                <span>角色：</span><span id="user-role"></span>
+            </div>
+            <button class="logout-btn" id="logout-btn">退出登录</button>
+        </div>
+        
         <!-- 单张图片上传 -->
-        <div class="upload-section">
+        <div class="upload-section hidden" id="upload-section">
             <h2>单张图片识别</h2>
             <div class="form-group">
                 <label for="image">选择图片</label>
@@ -392,7 +517,7 @@
         </div>
         
         <!-- 批量上传 -->
-        <div class="batch-section">
+        <div class="batch-section hidden" id="batch-section">
             <h2>批量图片识别</h2>
             <div class="form-group">
                 <label for="batch-images">选择多张图片</label>
@@ -415,7 +540,23 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script>
         // 全局变量
-        const API_BASE_URL = 'http://localhost:8001/api';
+        const API_BASE_URL = 'http://localhost:8000/api';
+        
+        // 登录相关DOM元素
+        const loginSection = document.getElementById('login-section');
+        const usernameInput = document.getElementById('username');
+        const passwordInput = document.getElementById('password');
+        const loginBtn = document.getElementById('login-btn');
+        const loginLoading = document.getElementById('login-loading');
+        const loginError = document.getElementById('login-error');
+        
+        const userInfo = document.getElementById('user-info');
+        const userUsername = document.getElementById('user-username');
+        const userRole = document.getElementById('user-role');
+        const logoutBtn = document.getElementById('logout-btn');
+        
+        const uploadSection = document.getElementById('upload-section');
+        const batchSection = document.getElementById('batch-section');
         
         // DOM元素
         const imageInput = document.getElementById('image');
@@ -437,24 +578,153 @@
         const batchLoading = document.getElementById('batch-loading');
         const batchResults = document.getElementById('batch-results');
         
+        // Token管理
+        let accessToken = localStorage.getItem('accessToken') || null;
+        let refreshToken = localStorage.getItem('refreshToken') || null;
+        let currentUser = JSON.parse(localStorage.getItem('currentUser') || 'null');
+        
         // 初始化
         function init() {
             // 隐藏加载动画
             loading.style.display = 'none';
             batchLoading.style.display = 'none';
+            loginLoading.style.display = 'none';
             
             // 绑定事件
             predictBtn.addEventListener('click', handlePredict);
             batchPredictBtn.addEventListener('click', handleBatchPredict);
+            loginBtn.addEventListener('click', handleLogin);
+            logoutBtn.addEventListener('click', handleLogout);
             
-            // 加载模型列表
-            loadModels();
+            // 检查登录状态
+            if (accessToken && currentUser) {
+                showLoggedInState();
+                loadModels();
+            } else {
+                showLoginState();
+            }
+        }
+        
+        // 显示登录状态
+        function showLoggedInState() {
+            loginSection.classList.add('hidden');
+            userInfo.classList.remove('hidden');
+            uploadSection.classList.remove('hidden');
+            batchSection.classList.remove('hidden');
+            
+            userUsername.textContent = currentUser.username;
+            userRole.textContent = currentUser.role;
+        }
+        
+        // 显示登录表单
+        function showLoginState() {
+            loginSection.classList.remove('hidden');
+            userInfo.classList.add('hidden');
+            uploadSection.classList.add('hidden');
+            batchSection.classList.add('hidden');
+        }
+        
+        // 处理登录
+        async function handleLogin() {
+            const username = usernameInput.value.trim();
+            const password = passwordInput.value.trim();
+            
+            if (!username || !password) {
+                showLoginError('请输入用户名和密码');
+                return;
+            }
+            
+            loginBtn.disabled = true;
+            loginLoading.style.display = 'inline-block';
+            hideLoginError();
+            
+            try {
+                const formData = new FormData();
+                formData.append('username', username);
+                formData.append('password', password);
+                
+                const response = await fetch(`${API_BASE_URL}/auth/login`, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    // 保存token和用户信息
+                    accessToken = result.data.access_token;
+                    refreshToken = result.data.refresh_token;
+                    currentUser = {
+                        username: result.data.username,
+                        role: result.data.role
+                    };
+                    
+                    localStorage.setItem('accessToken', accessToken);
+                    localStorage.setItem('refreshToken', refreshToken);
+                    localStorage.setItem('currentUser', JSON.stringify(currentUser));
+                    
+                    showLoggedInState();
+                    loadModels();
+                } else {
+                    showLoginError(result.message || '登录失败');
+                }
+            } catch (error) {
+                console.error('登录失败:', error);
+                showLoginError('登录失败，请稍后重试');
+            } finally {
+                loginBtn.disabled = false;
+                loginLoading.style.display = 'none';
+            }
+        }
+        
+        // 处理登出
+        function handleLogout() {
+            accessToken = null;
+            refreshToken = null;
+            currentUser = null;
+            
+            localStorage.removeItem('accessToken');
+            localStorage.removeItem('refreshToken');
+            localStorage.removeItem('currentUser');
+            
+            showLoginState();
+            
+            // 清空表单
+            usernameInput.value = '';
+            passwordInput.value = '';
+            
+            // 清空结果
+            resultSection.style.display = 'none';
+            batchResults.innerHTML = '';
+        }
+        
+        // 显示登录错误
+        function showLoginError(message) {
+            loginError.textContent = message;
+            loginError.style.display = 'block';
+        }
+        
+        // 隐藏登录错误
+        function hideLoginError() {
+            loginError.style.display = 'none';
+        }
+        
+        // 获取认证头
+        function getAuthHeaders() {
+            const headers = {};
+            if (accessToken) {
+                headers['Authorization'] = `Bearer ${accessToken}`;
+            }
+            return headers;
         }
         
         // 加载模型列表
         async function loadModels() {
             try {
-                const response = await fetch(`${API_BASE_URL}/models`);
+                const headers = getAuthHeaders();
+                const response = await fetch(`${API_BASE_URL}/models`, {
+                    headers: headers
+                });
                 if (!response.ok) {
                     throw new Error('加载模型列表失败');
                 }
@@ -521,8 +791,10 @@
                 }
                 
                 // 发送请求
+                const headers = getAuthHeaders();
                 const response = await fetch(endpoint, {
                     method: 'POST',
+                    headers: headers,
                     body: formData
                 });
                 
@@ -573,8 +845,10 @@
                 formData.append('model', model);
                 
                 // 发送请求
+                const headers = getAuthHeaders();
                 const response = await fetch(`${API_BASE_URL}/predict_batch`, {
                     method: 'POST',
+                    headers: headers,
                     body: formData
                 });
                 

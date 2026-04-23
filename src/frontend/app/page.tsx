@@ -1,12 +1,22 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Bot, User, X, Sparkles, Upload, Copy, Download, CheckCircle, Menu, Moon, Sun, Trash2, RotateCcw, RotateCw, Crop, Check, ArrowLeft } from "lucide-react";
-import { Message } from "./types";
+import { Bot, User, X, Sparkles, Upload, Copy, Download, CheckCircle, Menu, Moon, Sun, Trash2, RotateCcw, RotateCw, Crop, Check, ArrowLeft, LogOut } from "lucide-react";
+import { Message, AuthState } from "./types";
 import axios from 'axios';
 import MessageItem from './components/MessageItem';
+import Login from './components/Login';
 
 export default function AnimeRoleDetect() {
+  const [authState, setAuthState] = useState<AuthState>({
+    isAuthenticated: false,
+    user: null,
+    accessToken: null,
+    refreshToken: null
+  });
+  const [isLoginLoading, setIsLoginLoading] = useState(false);
+  const [loginError, setLoginError] = useState<string | null>(null);
+  
   const [messages, setMessages] = useState<Message[]>([
     {
       id: "1",
@@ -36,6 +46,29 @@ export default function AnimeRoleDetect() {
   useEffect(() => {
     isMountedRef.current = true;
 
+    // 检查登录状态
+    const savedAccessToken = localStorage.getItem('accessToken');
+    const savedRefreshToken = localStorage.getItem('refreshToken');
+    const savedUser = localStorage.getItem('currentUser');
+    
+    console.log('组件挂载时，检查localStorage:', {
+      savedAccessToken: savedAccessToken,
+      savedRefreshToken: savedRefreshToken,
+      savedUser: savedUser
+    });
+    
+    if (savedAccessToken && savedRefreshToken && savedUser) {
+      console.log('从localStorage加载登录状态');
+      setAuthState({
+        isAuthenticated: true,
+        user: JSON.parse(savedUser),
+        accessToken: savedAccessToken,
+        refreshToken: savedRefreshToken
+      });
+    } else {
+      console.log('localStorage中没有登录信息，用户未登录');
+    }
+
     // 检测平台
     const platform = navigator.platform.toLowerCase();
     const isMac = platform.includes('mac') || platform.includes('darwin');
@@ -45,7 +78,9 @@ export default function AnimeRoleDetect() {
     }
 
     // 获取可用模型列表
-    fetchAvailableModels();
+    if (savedAccessToken) {
+      fetchAvailableModels();
+    }
 
     // 监听键盘事件
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -64,8 +99,8 @@ export default function AnimeRoleDetect() {
   // 获取可用模型列表
   const fetchAvailableModels = async () => {
     try {
-      // 直接从后端API获取模型列表
-      const response = await axios.get('/api/models');
+      const headers = authState.accessToken ? { Authorization: `Bearer ${authState.accessToken}` } : {};
+      const response = await axios.get('/api/models', { headers });
       if (response.data.success) {
         const models = response.data.models || [];
         setAvailableModels(['default', ...models]);
@@ -74,6 +109,85 @@ export default function AnimeRoleDetect() {
     } catch (error) {
       console.error('获取模型列表失败:', error);
     }
+  };
+
+  // 处理登录
+  const handleLogin = async (username: string, password: string) => {
+    setIsLoginLoading(true);
+    setLoginError(null);
+    
+    try {
+      const formData = new FormData();
+      formData.append('username', username);
+      formData.append('password', password);
+      
+      console.log('发送登录请求到:', '/api/auth/login');
+      const response = await axios.post('/api/auth/login', formData);
+      console.log('登录响应:', response.data);
+      
+      if (response.data.success) {
+        const { access_token, refresh_token, username: userName, role } = response.data.data;
+        
+        console.log('登录成功，获取到token:', access_token);
+        
+        const user = { username: userName, role };
+        
+        setAuthState({
+          isAuthenticated: true,
+          user,
+          accessToken: access_token,
+          refreshToken: refresh_token
+        });
+        
+        console.log('设置authState后，检查localStorage:', {
+          accessToken: access_token,
+          refreshToken: refresh_token,
+          user: user
+        });
+        
+        localStorage.setItem('accessToken', access_token);
+        localStorage.setItem('refreshToken', refresh_token);
+        localStorage.setItem('currentUser', JSON.stringify(user));
+        
+        console.log('localStorage设置完成，现在获取:', {
+          accessToken: localStorage.getItem('accessToken'),
+          refreshToken: localStorage.getItem('refreshToken'),
+          currentUser: localStorage.getItem('currentUser')
+        });
+        
+        fetchAvailableModels();
+      } else {
+        setLoginError(response.data.message || '登录失败');
+      }
+    } catch (error) {
+      console.error('登录失败:', error);
+      setLoginError('登录失败，请稍后重试');
+    } finally {
+      setIsLoginLoading(false);
+    }
+  };
+
+  // 处理登出
+  const handleLogout = () => {
+    setAuthState({
+      isAuthenticated: false,
+      user: null,
+      accessToken: null,
+      refreshToken: null
+    });
+    
+    localStorage.removeItem('accessToken');
+    localStorage.removeItem('refreshToken');
+    localStorage.removeItem('currentUser');
+    
+    setMessages([
+      {
+        id: "1",
+        role: "assistant",
+        content: "你好！我是动漫角色识别助手。请上传一张动漫角色图片，我将尝试识别出这个角色。",
+        timestamp: Date.now(),
+      },
+    ]);
   };
 
   // 处理图片选择
@@ -203,12 +317,20 @@ export default function AnimeRoleDetect() {
 
         // 发送请求到后端API
         console.log('开始发送请求到API');
+        console.log('authState:', authState);
+        console.log('accessToken存在:', !!authState.accessToken);
         const endpoint = multiRole ? '/api/classify/multi-role' : '/api/classify';
         console.log(`使用端点: ${endpoint}`);
+        const headers: any = {};
+        if (authState.accessToken) {
+          headers['Authorization'] = `Bearer ${authState.accessToken}`;
+          console.log('添加Authorization头:', headers['Authorization']);
+        } else {
+          console.log('没有accessToken，无法添加Authorization头');
+        }
+        console.log('最终请求头:', headers);
         const response = await axios.post(endpoint, formData, {
-          headers: {
-            'Content-Type': 'multipart/form-data',
-          },
+          headers: headers,
         });
 
         console.log('API响应:', response.data);
@@ -292,7 +414,7 @@ export default function AnimeRoleDetect() {
         removeImage();
       }
     }
-  }, [inputText, selectedImage, imagePreview, isProcessing, removeImage, useCoreML, selectedModel, useAttributes]);
+  }, [inputText, selectedImage, imagePreview, isProcessing, removeImage, useCoreML, selectedModel, useAttributes, authState]);
 
   // 处理键盘按键
   const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -337,6 +459,15 @@ export default function AnimeRoleDetect() {
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
+      {!authState.isAuthenticated ? (
+        <Login 
+          darkMode={darkMode} 
+          onLogin={handleLogin} 
+          isLoading={isLoginLoading} 
+          error={loginError} 
+        />
+      ) : (
+        <>
       {/* 拖拽上传覆盖层 */}
       {isDragging && (
         <div className="fixed inset-0 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm flex items-center justify-center z-[9999] border-2 border-dashed border-blue-500 rounded-lg animate-pulse">
@@ -359,8 +490,35 @@ export default function AnimeRoleDetect() {
           <div className="flex items-center justify-between">
             <h1 className="text-2xl font-semibold bg-gradient-to-r from-blue-500 to-purple-600 bg-clip-text text-transparent">动漫角色识别</h1>
             
-            {/* 模型选择和控制 */}
-            <div className="flex items-center space-x-4">
+            {/* 用户信息 */}
+            {authState.user && (
+              <div className={`flex items-center space-x-4 px-4 py-2 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>
+                <div className="flex items-center space-x-2">
+                  <User className="h-5 w-5 text-blue-500" />
+                  <span className={`text-sm font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                    {authState.user.username}
+                  </span>
+                  <span className={`text-xs px-2 py-1 rounded-full ${
+                    authState.user.role === 'admin' 
+                      ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' 
+                      : 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
+                  }`}>
+                    {authState.user.role}
+                  </span>
+                </div>
+                <button
+                  onClick={handleLogout}
+                  className={`p-2 rounded-lg ${darkMode ? 'hover:bg-gray-600' : 'hover:bg-gray-200'} transition-colors`}
+                  title="退出登录"
+                >
+                  <LogOut className="h-5 w-5 text-red-500" />
+                </button>
+              </div>
+            )}
+          </div>
+          
+          {/* 模型选择和控制 */}
+          <div className="flex items-center space-x-4">
               {/* 模型选择 */}
               <div className="flex items-center space-x-2">
                 <label className="text-sm font-medium">模型:</label>
@@ -421,7 +579,6 @@ export default function AnimeRoleDetect() {
                 {darkMode ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
               </button>
             </div>
-          </div>
           
           {/* 平台信息 */}
           {isMacPlatform && useCoreML && (
@@ -546,6 +703,8 @@ export default function AnimeRoleDetect() {
           <p className="mt-1">基于深度学习的动漫角色识别系统</p>
         </div>
       </footer>
+        </>
+      )}
     </div>
   );
 }

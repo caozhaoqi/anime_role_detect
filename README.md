@@ -52,6 +52,7 @@ The Character Classification System is an AI-based image recognition tool specif
 - Faiss
 - EfficientNet-B0
 - Requests (for DeepDanbooru API integration)
+- Node.js 16+ (for frontend)
 
 ### Install Dependencies
 
@@ -69,16 +70,16 @@ pip3 install torch torchvision transformers ultralytics faiss-cpu Pillow efficie
 
 ```bash
 # Start model service
-python3 src/backend/services/model_service/app.py
+python3 -m uvicorn src.services.model_service.app:app --host 0.0.0.0 --port 8888
 ```
 
-The model service will run at `http://127.0.0.1:8001`.
+The model service will run at `http://127.0.0.1:8888`.
 
 #### 2. Start Backend API Service
 
 ```bash
 # Start backend API service
-python3 src/backend/api/run_api.py
+python3 -m uvicorn src.api.app:app --host 0.0.0.0 --port 8000
 ```
 
 The backend API service will run at `http://127.0.0.1:8000`.
@@ -96,7 +97,7 @@ npm install
 npm run dev
 ```
 
-The frontend service will run at `http://localhost:3000`.
+The frontend service will run at `http://localhost:3001`.
 
 ## 📁 Project Structure
 
@@ -105,11 +106,17 @@ anime_role_detect/
 ├── data/                  # Dataset directory
 ├── models/                # Model storage directory
 ├── src/                   # Source code
-│   ├── backend/           # Backend code
+│   ├── api/               # API service code
 │   ├── core/              # Core functionality
-│   ├── data/              # Data-related code
 │   ├── frontend/          # Frontend code
-│   ├── models/            # Model-related code
+│   │   ├── app/           # Next.js application
+│   │   ├── components/     # React components
+│   │   └── pages/          # Next.js pages
+│   ├── middleware/        # Middleware
+│   ├── services/          # Service layer
+│   │   ├── model_service/  # Model service
+│   │   ├── auth_service/   # Authentication service
+│   │   └── cache_service/  # Cache service
 │   ├── config/            # Configuration files
 │   ├── scripts/           # Utility scripts
 │   └── utils/             # Utility functions
@@ -131,37 +138,43 @@ flowchart TD
     subgraph Frontend Layer
         A[Web Interface] --> B[Next.js Application]
         B --> C[API Client]
+        B --> D[User Authentication]
     end
     
     subgraph API Layer
-        D[Backend API] --> E[Request Handler]
-        E --> F[Cache Manager]
-        F --> G[Response Builder]
+        E[API Service] --> F[Request Handler]
+        F --> G[Authentication Middleware]
+        G --> H[Cache Manager]
+        H --> I[Response Builder]
     end
     
     subgraph Service Layer
-        H[Model Service] --> I[Feature Extraction]
-        I --> J[Model Inference]
-        J --> K[Attribute Prediction]
-        K --> L[NSFW Detection]
+        J[Model Service] --> K[Feature Extraction]
+        K --> L[Model Inference]
+        L --> M[Attribute Prediction]
+        N[Auth Service] --> O[Token Management]
+        P[Cache Service] --> Q[Redis Integration]
     end
     
     subgraph Core Layer
-        M[Preprocessing] --> N[Classification]
-        N --> O[Tagging]
-        O --> P[Keypoint Detection]
+        R[Preprocessing] --> S[Classification]
+        S --> T[Tagging]
+        T --> U[Keypoint Detection]
+        V[NSFW Detection] --> W[Content Filtering]
     end
     
     subgraph Data Layer
-        Q[Spider System] --> R[URL Collection]
-        R --> S[Image Download]
-        S --> T[Data Storage]
+        X[Spider System] --> Y[URL Collection]
+        Y --> Z[Image Download]
+        Z --> AA[Data Storage]
     end
     
-    C --> D
-    G --> H
-    L --> M
-    T --> N
+    C --> E
+    D --> N
+    I --> J
+    J --> R
+    W --> S
+    AA --> S
 ```
 
 ### Data Flow Diagram
@@ -172,13 +185,22 @@ The data flow through the system follows a clear path from image upload to resul
 sequenceDiagram
     participant User as User
     participant Frontend as Frontend
-    participant API as Backend API
+    participant API as API Service
+    participant Auth as Auth Service
     participant ModelService as Model Service
     participant Core as Core Services
     participant NSFW as NSFW Detection
     
+    User->>Frontend: Login
+    Frontend->>API: POST /api/auth/login
+    API->>Auth: Verify Credentials
+    Auth->>API: Return Token
+    API->>Frontend: Return Token
+    
     User->>Frontend: Upload Image
-    Frontend->>API: POST /api/classify
+    Frontend->>API: POST /api/classify (with token)
+    API->>Auth: Validate Token
+    Auth->>API: Token Valid
     API->>ModelService: Request Prediction
     ModelService->>Core: Preprocess Image
     Core->>NSFW: NSFW Content Detection
@@ -196,31 +218,48 @@ sequenceDiagram
 The system architecture is designed to support distributed deployment, with each service able to run independently on different servers:
 
 1. **Frontend Layer**:
-   - Next.js application with responsive design
-   - User interface for image upload and result display
-   - API client for communicating with backend
+   - Next.js application with responsive design and dark mode support
+   - User interface for image upload, model selection, and result display
+   - User authentication interface with login form
+   - API client for communicating with backend services
+   - Real-time feedback and progress indicators
 
 2. **API Layer**:
-   - FastAPI-based RESTful API
+   - FastAPI-based RESTful API running on port 8000
    - Request handling and response building
+   - Authentication middleware for token validation
    - Cache management for improved performance
+   - Error handling and logging
+   - Route management for different endpoints
 
 3. **Service Layer**:
-   - Model service for core prediction functionality
-   - Feature extraction and model inference
-   - Attribute prediction and text detection
-   - NSFW detection for content filtering
+   - **Model Service** (port 8888):
+     - Core prediction functionality
+     - Feature extraction and model inference
+     - Attribute prediction and text detection
+     - Model loading and management
+   - **Auth Service**:
+     - User authentication and authorization
+     - JWT token generation and validation
+     - User role management
+   - **Cache Service**:
+     - Redis integration for distributed caching
+     - Local memory caching for frequently accessed data
+     - Cache invalidation strategies
 
 4. **Core Layer**:
    - Preprocessing and image validation
    - Classification models and algorithms
    - Tagging and keypoint detection
+   - NSFW detection for content filtering
+   - Image processing utilities
 
 5. **Data Layer**:
    - Spider system for data collection
    - URL collection and filtering
    - Image download and storage
    - Data organization and management
+   - Dataset preparation for model training
 
 This layered architecture allows for easy scaling and maintenance, with each layer responsible for specific functionality. The services communicate through well-defined API interfaces, enabling independent deployment and scaling.
 
@@ -306,7 +345,7 @@ curl -X POST -F "file=@path/to/image.jpg" -F "use_model=true" -F "use_attributes
 curl -X POST -F "file=@path/to/image.jpg" -F "model_name=efficientnet_b0" http://127.0.0.1:8000/api/classify/multi-role
 ```
 
-## � Documentation
+## 📚 Documentation
 
 For detailed technical documentation, please refer to the `docs/` directory:
 

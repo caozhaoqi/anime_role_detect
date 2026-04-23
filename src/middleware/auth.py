@@ -38,8 +38,8 @@ async def auth_middleware(request: Request, call_next):
         "/api/models",
         "/api/auth/login",
         "/api/auth/refresh",
-        "/api/classify",
-        "/api/classify/multi-model",
+        # "/api/classify",
+        # "/api/classify/multi-model",
         "/api/feedback"
     ]
     

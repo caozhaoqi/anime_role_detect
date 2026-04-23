@@ -69,16 +69,16 @@ pip3 install torch torchvision transformers ultralytics faiss-cpu Pillow efficie
 
 ```bash
 # 启动模型服务
-python3 src/backend/services/model_service/app.py
+python3 -m uvicorn src.services.model_service.app:app --host 0.0.0.0 --port 8888
 ```
 
-模型服务将在 `http://127.0.0.1:8001` 上运行。
+模型服务将在 `http://127.0.0.1:8888` 上运行。
 
 #### 2. 启动后端API服务
 
 ```bash
 # 启动后端API服务
-python3 src/backend/api/run_api.py
+python3 -m uvicorn src.api.app:app --host 0.0.0.0 --port 8000
 ```
 
 后端API服务将在 `http://127.0.0.1:8000` 上运行。
@@ -96,7 +96,7 @@ npm install
 npm run dev
 ```
 
-前端服务将在 `http://localhost:3000` 上运行。
+前端服务将在 `http://localhost:3001` 上运行。
 
 ## 📁 项目结构
 
@@ -105,11 +105,17 @@ anime_role_detect/
 ├── data/                  # 数据集目录
 ├── models/                # 模型存储目录
 ├── src/                   # 源代码
-│   ├── backend/           # 后端代码
+│   ├── api/               # API服务代码
 │   ├── core/              # 核心功能
-│   ├── data/              # 数据相关代码
 │   ├── frontend/          # 前端代码
-│   ├── models/            # 模型相关代码
+│   │   ├── app/           # Next.js应用
+│   │   ├── components/     # React组件
+│   │   └── pages/          # Next.js页面
+│   ├── middleware/        # 中间件
+│   ├── services/          # 服务层
+│   │   ├── model_service/  # 模型服务
+│   │   ├── auth_service/   # 认证服务
+│   │   └── cache_service/  # 缓存服务
 │   ├── config/            # 配置文件
 │   ├── scripts/           # 实用脚本
 │   └── utils/             # 工具函数
@@ -131,37 +137,43 @@ flowchart TD
     subgraph 前端层
         A[Web界面] --> B[Next.js应用]
         B --> C[API客户端]
+        B --> D[用户认证]
     end
     
     subgraph API层
-        D[后端API] --> E[请求处理器]
-        E --> F[缓存管理器]
-        F --> G[响应构建器]
+        E[API服务] --> F[请求处理器]
+        F --> G[认证中间件]
+        G --> H[缓存管理器]
+        H --> I[响应构建器]
     end
     
     subgraph 服务层
-        H[模型服务] --> I[特征提取]
-        I --> J[模型推理]
-        J --> K[属性预测]
-        K --> L[NSFW检测]
+        J[模型服务] --> K[特征提取]
+        K --> L[模型推理]
+        L --> M[属性预测]
+        N[认证服务] --> O[令牌管理]
+        P[缓存服务] --> Q[Redis集成]
     end
     
     subgraph 核心层
-        M[预处理] --> N[分类]
-        N --> O[标签生成]
-        O --> P[关键点检测]
+        R[预处理] --> S[分类]
+        S --> T[标签生成]
+        T --> U[关键点检测]
+        V[NSFW检测] --> W[内容过滤]
     end
     
     subgraph 数据层
-        Q[爬虫系统] --> R[URL收集]
-        R --> S[图片下载]
-        S --> T[数据存储]
+        X[爬虫系统] --> Y[URL收集]
+        Y --> Z[图片下载]
+        Z --> AA[数据存储]
     end
     
-    C --> D
-    G --> H
-    L --> M
-    T --> N
+    C --> E
+    D --> N
+    I --> J
+    J --> R
+    W --> S
+    AA --> S
 ```
 
 ### 数据流图
@@ -172,13 +184,22 @@ flowchart TD
 sequenceDiagram
     participant 用户 as 用户
     participant 前端 as 前端
-    participant API as 后端API
+    participant API as API服务
+    participant 认证服务 as 认证服务
     participant 模型服务 as 模型服务
     participant 核心服务 as 核心服务
     participant NSFW as NSFW检测
     
+    用户->>前端: 登录
+    前端->>API: POST /api/auth/login
+    API->>认证服务: 验证凭据
+    认证服务->>API: 返回令牌
+    API->>前端: 返回令牌
+    
     用户->>前端: 上传图片
-    前端->>API: POST /api/classify
+    前端->>API: POST /api/classify (带令牌)
+    API->>认证服务: 验证令牌
+    认证服务->>API: 令牌有效
     API->>模型服务: 请求预测
     模型服务->>核心服务: 预处理图片
     核心服务->>NSFW: NSFW内容检测
@@ -196,31 +217,48 @@ sequenceDiagram
 系统架构设计支持分布式部署，每个服务可以在不同的服务器上独立运行：
 
 1. **前端层**：
-   - 响应式设计的Next.js应用
-   - 用于图片上传和结果显示的用户界面
-   - 与后端通信的API客户端
+   - 响应式设计的Next.js应用，支持暗色模式
+   - 用于图片上传、模型选择和结果显示的用户界面
+   - 用户认证界面，包含登录表单
+   - 与后端服务通信的API客户端
+   - 实时反馈和进度指示器
 
 2. **API层**：
-   - 基于FastAPI的RESTful API
+   - 基于FastAPI的RESTful API，运行在8000端口
    - 请求处理和响应构建
+   - 用于令牌验证的认证中间件
    - 缓存管理以提高性能
+   - 错误处理和日志记录
+   - 不同端点的路由管理
 
 3. **服务层**：
-   - 核心预测功能的模型服务
-   - 特征提取和模型推理
-   - 属性预测和文本检测
-   - NSFW检测用于内容过滤
+   - **模型服务**（8888端口）：
+     - 核心预测功能
+     - 特征提取和模型推理
+     - 属性预测和文本检测
+     - 模型加载和管理
+   - **认证服务**：
+     - 用户认证和授权
+     - JWT令牌生成和验证
+     - 用户角色管理
+   - **缓存服务**：
+     - Redis集成用于分布式缓存
+     - 本地内存缓存用于频繁访问的数据
+     - 缓存失效策略
 
 4. **核心层**：
    - 预处理和图片验证
    - 分类模型和算法
    - 标签生成和关键点检测
+   - NSFW检测用于内容过滤
+   - 图片处理工具
 
 5. **数据层**：
    - 用于数据收集的爬虫系统
    - URL收集和过滤
    - 图片下载和存储
    - 数据组织和管理
+   - 模型训练的数据集准备
 
 这种分层架构便于系统的扩展和维护，每层负责特定的功能。服务之间通过定义良好的API接口进行通信，实现独立部署和扩展。
 
@@ -267,7 +305,7 @@ sequenceDiagram
 
 ### Web界面使用
 
-1. 打开浏览器，访问 `http://localhost:3000`
+1. 打开浏览器，访问 `http://localhost:3001`
 2. 从下拉菜单中选择一个模型（默认：EfficientNet-B0）
 3. 如果要检测图像中的多个角色，请勾选"多角色识别"复选框
 4. 上传要识别的角色图片
@@ -306,7 +344,7 @@ curl -X POST -F "file=@path/to/image.jpg" -F "use_model=true" -F "use_attributes
 curl -X POST -F "file=@path/to/image.jpg" -F "model_name=efficientnet_b0" http://127.0.0.1:8000/api/classify/multi-role
 ```
 
-## � 文档
+## 📚 文档
 
 详细技术文档请参考 `docs/` 目录：
 

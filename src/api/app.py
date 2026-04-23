@@ -66,10 +66,10 @@ from src.services.auth_service import init_auth_service, authenticate_user, crea
 from src.middleware.auth import auth_middleware, get_current_user, get_current_admin
 
 # 导入认证中间件
-# try:
-#     app.middleware("http")(auth_middleware)
-# except Exception as e:
-#     logger.error(f"导入认证中间件失败: {e}")
+try:
+    app.middleware("http")(auth_middleware)
+except Exception as e:
+    logger.error(f"导入认证中间件失败: {e}")
 
 # 导入图像处理服务
 try:
