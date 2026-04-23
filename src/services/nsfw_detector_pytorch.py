@@ -139,14 +139,34 @@ def detect_nsfw_with_pytorch(image_source):
             max_index = np.argmax(scores)
             predicted_label = LABELS[max_index]
             
-            # 判断是否为NSFW
+            # 调整NSFW判断阈值
             nsfw_categories = ['porn', 'sexy', 'hentai']
-            is_nsfw = predicted_label in nsfw_categories and max_score > 0.5
             
-            # 计算皮肤比例（模拟值，实际由模型决定）
+            # 基于类别设置不同的阈值
+            thresholds = {
+                'porn': 0.4,
+                'sexy': 0.6,
+                'hentai': 0.5
+            }
+            
+            # 判断是否为NSFW
+            is_nsfw = False
+            if predicted_label in nsfw_categories:
+                threshold = thresholds.get(predicted_label, 0.5)
+                is_nsfw = max_score > threshold
+            
+            # 计算综合NSFW得分
+            nsfw_score = 0
+            for category in nsfw_categories:
+                nsfw_score += details.get(category, 0)
+            nsfw_score = min(nsfw_score, 1.0)
+            
+            # 改进皮肤比例计算
             skin_ratio = 0.0
             if predicted_label in ['porn', 'sexy']:
-                skin_ratio = max_score
+                # 结合置信度和类别权重计算皮肤比例
+                skin_ratio = max_score * 0.8 + (details.get('sexy', 0) * 0.2)
+            skin_ratio = min(skin_ratio, 1.0)
             
             logger.info(f"NSFW检测完成，类别: {predicted_label}, 置信度: {max_score:.4f}, is_nsfw: {is_nsfw}")
             logger.info(f"NSFW检测详细结果: {details}")
@@ -154,6 +174,7 @@ def detect_nsfw_with_pytorch(image_source):
             return {
                 'is_nsfw': is_nsfw,
                 'skin_ratio': float(skin_ratio),
+                'nsfw_score': float(nsfw_score),
                 'details': details
             }
         except Exception as e:

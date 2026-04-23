@@ -87,20 +87,41 @@ def detect_nsfw_with_tf_serving(image_source):
                 max_index = np.argmax(scores)
                 predicted_label = labels[max_index]
                 
-                # 判断是否为NSFW
+                # 调整NSFW判断阈值
                 nsfw_categories = ['porn', 'sexy', 'hentai']
-                is_nsfw = predicted_label in nsfw_categories and max_score > 0.5
                 
-                # 计算皮肤比例（模拟值，实际由模型决定）
+                # 基于类别设置不同的阈值
+                thresholds = {
+                    'porn': 0.4,
+                    'sexy': 0.6,
+                    'hentai': 0.5
+                }
+                
+                # 判断是否为NSFW
+                is_nsfw = False
+                if predicted_label in nsfw_categories:
+                    threshold = thresholds.get(predicted_label, 0.5)
+                    is_nsfw = max_score > threshold
+                
+                # 计算综合NSFW得分
+                nsfw_score = 0
+                for category in nsfw_categories:
+                    nsfw_score += details.get(category, 0)
+                nsfw_score = min(nsfw_score, 1.0)
+                
+                # 改进皮肤比例计算
                 skin_ratio = 0.0
                 if predicted_label in ['porn', 'sexy']:
-                    skin_ratio = max_score
+                    # 结合置信度和类别权重计算皮肤比例
+                    skin_ratio = max_score * 0.8 + (details.get('sexy', 0) * 0.2)
+                skin_ratio = min(skin_ratio, 1.0)
                 
                 logger.info(f"NSFW检测完成，类别: {predicted_label}, 置信度: {max_score:.4f}, is_nsfw: {is_nsfw}")
                 
                 return {
                     'is_nsfw': is_nsfw,
                     'skin_ratio': float(skin_ratio),
+                    'nsfw_score': float(nsfw_score),
                     'details': details
                 }
             else:
@@ -226,8 +247,15 @@ def rule_based_detection(image_source):
         # 计算皮肤颜色像素比例
         skin_ratio = skin_pixels / total_pixels
         
-        # 判断是否为NSFW
-        is_nsfw = skin_ratio > 0.3
+        # 调整NSFW判断阈值
+        # 基于皮肤比例设置动态阈值
+        if skin_ratio > 0.5:
+            is_nsfw = True
+        elif skin_ratio > 0.3:
+            # 中等皮肤比例，需要进一步判断
+            is_nsfw = True
+        else:
+            is_nsfw = False
         
         # 构建检测结果
         scores = {
@@ -237,6 +265,13 @@ def rule_based_detection(image_source):
             'hentai': skin_ratio * 0.1,
             'drawings': (1.0 - skin_ratio) * 0.5
         }
+        
+        # 计算综合NSFW得分
+        nsfw_categories = ['porn', 'sexy', 'hentai']
+        nsfw_score = 0
+        for category in nsfw_categories:
+            nsfw_score += scores.get(category, 0)
+        nsfw_score = min(nsfw_score, 1.0)
         
         # 确定最高概率的类别
         max_score = 0
@@ -252,6 +287,7 @@ def rule_based_detection(image_source):
         return {
             'is_nsfw': is_nsfw,
             'skin_ratio': float(skin_ratio),
+            'nsfw_score': float(nsfw_score),
             'details': scores
         }
     except Exception as e:

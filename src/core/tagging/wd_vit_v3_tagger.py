@@ -73,41 +73,53 @@ class WDViTV3Tagger:
         self.id2label = {}
         self.num_id2label = {}
         
-        self.logger.info("WD Vit Tagger 模块初始化完成，使用默认标签列表")
+        self.logger.info("WD Vit Tagger 模块初始化完成，使用扩展标签列表")
         self.tags = [
-            '1girl', 'solo', 'blue hair', 'blue eyes', 'school uniform',
-            'halo', 'ribbon', 'twintails', 'smile', 'looking at viewer',
-            'long hair', 'short hair', 'blonde hair', 'black hair', 'red hair',
-            'green hair', 'purple hair', 'pink hair', 'brown hair', 'grey hair',
-            'yellow hair', 'red eyes', 'green eyes', 'purple eyes', 'brown eyes',
-            'yellow eyes', 'pink eyes', 'grey eyes', 'black eyes', 'white eyes',
-            'aqua eyes', 'orange eyes', 'multicolored eyes', 'heterochromia',
-            'cat ears', 'animal ears', 'horns', 'wings', 'tail',
-            'bun', 'ponytail', 'braids', 'single braid', 'ahoge',
-            'hat', 'cap', 'headband', 'bandana', 'helmet',
-            'glasses', 'sunglasses', 'mask', 'headphones', 'earphones',
-            'necklace', 'bracelet', 'ring', 'earrings', 'choker',
-            'dress', 'skirt', 'pants', 'shorts', 'jacket',
-            'sweater', 'hoodie', 't-shirt', 'blouse', 'coat',
-            'swimsuit', 'uniform', 'costume', 'maid outfit', 'nurse outfit',
-            'school uniform', 'gym uniform', 'sailor uniform', 'military uniform',
-            'weapon', 'sword', 'gun', 'shield', 'staff',
-            'book', 'bag', 'backpack', 'umbrella', 'phone',
-            'computer', 'camera', 'headphones', 'musical instrument',
-            'smile', 'laugh', 'sad', 'angry', 'surprised',
-            'confused', 'happy', 'calm', 'excited', 'tired',
-            'blush', 'sweat', 'tears', 'closed eyes', 'open mouth',
-            'tongue', 'wink', 'grin', 'frown', 'pout',
-            'looking at viewer', 'looking away', 'side view', 'front view', 'back view',
-            'close-up', 'medium shot', 'full body', 'upper body', 'lower body',
-            'outdoors', 'indoors', 'school', 'room', 'street',
-            'park', 'beach', 'mountain', 'forest', 'city',
-            'night', 'day', 'sunset', 'sunrise', 'raining',
-            'snowing', 'cloudy', 'clear sky', 'stars', 'moon',
-            'anime', 'cartoon', 'digital art', 'illustration', '3D',
-            'high quality', 'masterpiece', 'best quality', 'detailed', 'beautiful',
-            'cute', 'sexy', 'cool', 'adorable', 'stylish',
-            'simple background', 'complex background', 'gradient background', 'solid color background'
+            # 角色数量
+            '1girl', '2girls', '3girls', '4+girls', '1boy', '2boys', '3boys', '4+boys', 'solo', 'group',
+            
+            # 头发特征
+            'long hair', 'medium hair', 'short hair', 'very short hair', 'twintails', 'ponytail', 'bun', 'braids', 'single braid', 'ahoge',
+            'blue hair', 'blonde hair', 'black hair', 'red hair', 'green hair', 'purple hair', 'pink hair', 'brown hair', 'grey hair', 'yellow hair',
+            'white hair', 'silver hair', 'aqua hair', 'orange hair', 'multicolored hair', 'gradient hair', 'streaked hair',
+            
+            # 眼睛特征
+            'blue eyes', 'red eyes', 'green eyes', 'purple eyes', 'brown eyes', 'yellow eyes', 'pink eyes', 'grey eyes', 'black eyes', 'white eyes',
+            'aqua eyes', 'orange eyes', 'multicolored eyes', 'heterochromia', 'large eyes', 'small eyes', 'closed eyes', 'wink',
+            
+            # 面部特征
+            'smile', 'laugh', 'sad', 'angry', 'surprised', 'confused', 'happy', 'calm', 'excited', 'tired',
+            'blush', 'sweat', 'tears', 'open mouth', 'tongue', 'grin', 'frown', 'pout', 'looking at viewer', 'looking away',
+            
+            # 头部装饰
+            'cat ears', 'animal ears', 'horns', 'wings', 'tail', 'hat', 'cap', 'headband', 'bandana', 'helmet',
+            'glasses', 'sunglasses', 'mask', 'headphones', 'earphones', 'ribbon', 'bow', 'flower',
+            
+            # 服装
+            'dress', 'skirt', 'pants', 'shorts', 'jacket', 'sweater', 'hoodie', 't-shirt', 'blouse', 'coat',
+            'swimsuit', 'uniform', 'costume', 'maid outfit', 'nurse outfit', 'school uniform', 'gym uniform', 'sailor uniform', 'military uniform',
+            'casual', 'formal', 'traditional', 'fantasy', 'sci-fi',
+            
+            # 配饰
+            'necklace', 'bracelet', 'ring', 'earrings', 'choker', 'scarf', 'gloves', 'bag', 'backpack', 'umbrella',
+            'weapon', 'sword', 'gun', 'shield', 'staff', 'book', 'phone', 'computer', 'camera', 'musical instrument',
+            
+            # 姿势和视角
+            'standing', 'sitting', 'lying', 'kneeling', 'walking', 'running', 'jumping', 'dancing', 'fighting',
+            'side view', 'front view', 'back view', 'close-up', 'medium shot', 'full body', 'upper body', 'lower body',
+            
+            # 场景
+            'outdoors', 'indoors', 'school', 'room', 'street', 'park', 'beach', 'mountain', 'forest', 'city',
+            'night', 'day', 'sunset', 'sunrise', 'raining', 'snowing', 'cloudy', 'clear sky', 'stars', 'moon',
+            
+            # 艺术风格
+            'anime', 'cartoon', 'digital art', 'illustration', '3D', 'manga style', 'realistic', 'chibi',
+            
+            # 质量标签
+            'high quality', 'masterpiece', 'best quality', 'detailed', 'beautiful', 'cute', 'sexy', 'cool', 'adorable', 'stylish',
+            
+            # 背景
+            'simple background', 'complex background', 'gradient background', 'solid color background', 'scenery', 'urban', 'natural'
         ]
     
     def load_model(self, model_name="SmilingWolf/wd-vit-tagger-v3"):
@@ -172,6 +184,23 @@ class WDViTV3Tagger:
         filtered_tags = []
         tag_set = set()
         
+        # 标签类别分组
+        tag_categories = {
+            'character_count': {'1girl', '2girls', '3girls', '4+girls', '1boy', '2boys', '3boys', '4+boys', 'solo', 'group'},
+            'hair_length': {'long hair', 'medium hair', 'short hair', 'very short hair'},
+            'hair_color': {'blue hair', 'blonde hair', 'black hair', 'red hair', 'green hair', 'purple hair', 'pink hair', 'brown hair', 'grey hair', 'yellow hair', 'white hair', 'silver hair', 'aqua hair', 'orange hair'},
+            'eye_color': {'blue eyes', 'red eyes', 'green eyes', 'purple eyes', 'brown eyes', 'yellow eyes', 'pink eyes', 'grey eyes', 'black eyes', 'white eyes', 'aqua eyes', 'orange eyes'},
+            'expression': {'smile', 'laugh', 'sad', 'angry', 'surprised', 'confused', 'happy', 'calm', 'excited', 'tired'},
+            'pose': {'standing', 'sitting', 'lying', 'kneeling', 'walking', 'running', 'jumping'},
+            'view': {'side view', 'front view', 'back view', 'close-up', 'medium shot', 'full body'},
+            'scene': {'outdoors', 'indoors', 'school', 'room', 'street', 'park', 'beach'},
+            'time': {'night', 'day', 'sunset', 'sunrise'},
+            'quality': {'high quality', 'masterpiece', 'best quality', 'detailed', 'beautiful'}
+        }
+        
+        # 已选择的类别标签
+        selected_categories = {}
+        
         # 移除重复标签
         for tag_info in tags:
             tag = tag_info['tag'].strip().lower()
@@ -194,6 +223,27 @@ class WDViTV3Tagger:
             if tag in generic_tags and confidence < 0.6:
                 continue
             
+            # 类别冲突处理
+            skip_tag = False
+            for category, category_tags in tag_categories.items():
+                if tag in category_tags:
+                    if category in selected_categories:
+                        # 只保留置信度更高的标签
+                        existing_confidence = selected_categories[category]['confidence']
+                        if confidence <= existing_confidence:
+                            skip_tag = True
+                        else:
+                            # 移除旧标签
+                            old_tag = selected_categories[category]['tag']
+                            if old_tag in tag_set:
+                                tag_set.remove(old_tag)
+                                filtered_tags = [t for t in filtered_tags if t['tag'] != old_tag]
+                    selected_categories[category] = {'tag': tag, 'confidence': confidence}
+                    break
+            
+            if skip_tag:
+                continue
+            
             # 去重
             if tag not in tag_set:
                 tag_set.add(tag)
@@ -202,12 +252,35 @@ class WDViTV3Tagger:
         # 按置信度排序
         filtered_tags.sort(key=lambda x: x['confidence'], reverse=True)
         
-        # 限制标签数量
-        max_tags = 15
-        if len(filtered_tags) > max_tags:
-            filtered_tags = filtered_tags[:max_tags]
+        # 平衡不同类别的标签
+        category_count = {}
+        balanced_tags = []
         
-        return filtered_tags
+        for tag_info in filtered_tags:
+            tag = tag_info['tag']
+            category = None
+            
+            for cat, cat_tags in tag_categories.items():
+                if tag in cat_tags:
+                    category = cat
+                    break
+            
+            if category:
+                if category not in category_count:
+                    category_count[category] = 0
+                if category_count[category] < 2:  # 每个类别最多2个标签
+                    balanced_tags.append(tag_info)
+                    category_count[category] += 1
+            else:
+                # 非分类标签直接添加
+                balanced_tags.append(tag_info)
+        
+        # 限制标签数量
+        max_tags = 20
+        if len(balanced_tags) > max_tags:
+            balanced_tags = balanced_tags[:max_tags]
+        
+        return balanced_tags
     
     def generate_tags(self, image, threshold=0.2):
         """生成图像标签

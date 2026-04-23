@@ -11,6 +11,92 @@
             box-sizing: border-box;
         }
         
+        /* 开关按钮样式 */
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 60px;
+            height: 34px;
+        }
+        
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+        }
+        
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 26px;
+            width: 26px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+        }
+        
+        input:checked + .slider {
+            background-color: #3498db;
+        }
+        
+        input:focus + .slider {
+            box-shadow: 0 0 1px #3498db;
+        }
+        
+        input:checked + .slider:before {
+            transform: translateX(26px);
+        }
+        
+        /* 圆角滑块 */
+        .slider.round {
+            border-radius: 34px;
+        }
+        
+        .slider.round:before {
+            border-radius: 50%;
+        }
+        
+        /* 多角色检测结果样式 */
+        .multi-role-results {
+            margin-top: 20px;
+        }
+        
+        .multi-role-results h3 {
+            margin-bottom: 15px;
+            color: #2c3e50;
+        }
+        
+        .role-item {
+            background: #f9f9f9;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 15px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        
+        .role-item h4 {
+            margin-bottom: 10px;
+            color: #3498db;
+            font-size: 16px;
+        }
+        
+        .role-item p {
+            margin: 5px 0;
+            color: #555;
+        }
+        
         body {
             font-family: Arial, sans-serif;
             background-color: #f5f5f5;
@@ -269,6 +355,16 @@
                 </select>
             </div>
             <div class="form-group">
+                <label>多角色检测</label>
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <label class="switch">
+                        <input type="checkbox" id="multiRoleToggle">
+                        <span class="slider round"></span>
+                    </label>
+                    <span>启用多角色检测</span>
+                </div>
+            </div>
+            <div class="form-group">
                 <button id="predict-btn">预测 <span class="loading" id="loading"></span></button>
             </div>
             <div class="error-message" id="error-message"></div>
@@ -319,11 +415,12 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script>
         // 全局变量
-        const API_BASE_URL = 'http://localhost:8000/api';
+        const API_BASE_URL = 'http://localhost:8001/api';
         
         // DOM元素
         const imageInput = document.getElementById('image');
         const modelSelect = document.getElementById('model');
+        const multiRoleToggle = document.getElementById('multiRoleToggle');
         const predictBtn = document.getElementById('predict-btn');
         const loading = document.getElementById('loading');
         const errorMessage = document.getElementById('error-message');
@@ -392,6 +489,7 @@
             }
             
             const model = modelSelect.value;
+            const isMultiRole = multiRoleToggle.checked;
             
             // 显示加载动画
             predictBtn.disabled = true;
@@ -410,9 +508,20 @@
                 const formData = new FormData();
                 formData.append('file', file);
                 formData.append('model_name', model);
+                formData.append('use_coreml', 'false');
+                formData.append('use_model', 'true');
+                formData.append('use_attributes', 'true');
+                formData.append('cache_bypass', 'true');
+                formData.append('use_deepdanbooru', 'true');
+                
+                // 确定API端点
+                let endpoint = `${API_BASE_URL}/classify`;
+                if (isMultiRole) {
+                    endpoint = `${API_BASE_URL}/classify/multi-role`;
+                }
                 
                 // 发送请求
-                const response = await fetch(`${API_BASE_URL}/classify`, {
+                const response = await fetch(endpoint, {
                     method: 'POST',
                     body: formData
                 });
@@ -424,7 +533,7 @@
                 const result = await response.json();
                 
                 // 显示结果
-                displayResult(result);
+                displayResult(result, isMultiRole);
             } catch (error) {
                 showError(`预测失败: ${error.message}`);
             } finally {
@@ -487,101 +596,109 @@
         }
         
         // 显示结果
-        function displayResult(result) {
+        function displayResult(result, isMultiRole) {
             resultSection.style.display = 'block';
             
-            predictedClass.textContent = `预测结果: ${result.role}`;
-            confidence.textContent = `相似度: ${(result.similarity * 100).toFixed(2)}%`;
-            
-            // 显示Top 5结果 (使用当前结果作为唯一结果)
-            top5Results.innerHTML = '';
-            const top5 = [{"class": result.role, "confidence": result.similarity}];
-            top5.forEach(item => {
-                const div = document.createElement('div');
-                div.className = 'top5-item';
-                div.innerHTML = `
-                    <span class="top5-class">${item.class}</span>
-                    <span class="top5-confidence">${(item.confidence * 100).toFixed(2)}%</span>
-                `;
-                top5Results.appendChild(div);
-            });
-            
-            // 显示标签属性
-            if (result.attributes && result.attributes.length > 0) {
-                const attributesDiv = document.createElement('div');
-                attributesDiv.className = 'attributes';
-                attributesDiv.innerHTML = `
-                    <h3>标签属性</h3>
-                    <div class="attributes-list">${result.attributes.join(', ')}</div>
-                `;
-                top5Results.appendChild(attributesDiv);
-            }
-            
-            // 显示关键点信息
-            if (result.keypoints) {
-                const keypointsDiv = document.createElement('div');
-                keypointsDiv.className = 'keypoints';
+            if (isMultiRole) {
+                // 多角色检测结果
+                const data = result.data;
+                predictedClass.textContent = `多角色检测结果`;
+                confidence.textContent = `检测到 ${data.count} 个角色`;
                 
-                let keypointsInfo = '';
-                if (result.keypoints.face) {
-                    keypointsInfo += `<p><strong>面部关键点:</strong> 检测到 ${result.keypoints.face.length} 个面部</p>`;
-                }
-                if (result.keypoints.hands) {
-                    keypointsInfo += `<p><strong>手部关键点:</strong> 检测到 ${result.keypoints.hands.length} 只手</p>`;
-                }
-                if (result.keypoints.pose) {
-                    keypointsInfo += `<p><strong>姿态关键点:</strong> 检测到身体姿态</p>`;
-                }
+                // 显示多角色结果
+                top5Results.innerHTML = '';
                 
-                if (keypointsInfo) {
-                    keypointsDiv.innerHTML = `
-                        <h3>关键点检测</h3>
-                        ${keypointsInfo}
+                if (data.roles && data.roles.length > 0) {
+                    const multiRoleDiv = document.createElement('div');
+                    multiRoleDiv.className = 'multi-role-results';
+                    multiRoleDiv.innerHTML = `
+                        <h3>检测到的角色</h3>
                     `;
-                    top5Results.appendChild(keypointsDiv);
+                    
+                    data.roles.forEach(role => {
+                        const roleDiv = document.createElement('div');
+                        roleDiv.className = 'role-item';
+                        roleDiv.innerHTML = `
+                            <h4>角色 ${role.id}</h4>
+                            <p><strong>名称:</strong> ${role.role}</p>
+                            <p><strong>相似度:</strong> ${(role.similarity * 100).toFixed(2)}%</p>
+                            <p><strong>置信度:</strong> ${(role.confidence * 100).toFixed(2)}%</p>
+                            <p><strong>位置:</strong> ${JSON.stringify(role.box)}</p>
+                            ${role.attributes && role.attributes.length > 0 ? `
+                                <p><strong>属性:</strong> ${role.attributes.map(attr => attr.tag).join(', ')}</p>
+                            ` : ''}
+                        `;
+                        multiRoleDiv.appendChild(roleDiv);
+                    });
+                    
+                    top5Results.appendChild(multiRoleDiv);
+                } else {
+                    top5Results.innerHTML = '<p>未检测到角色</p>';
                 }
+                
+                // 显示NSFW信息
+                if (data.nsfw) {
+                    const nsfwDiv = document.createElement('div');
+                    nsfwDiv.className = 'nsfw-info';
+                    nsfwDiv.innerHTML = `
+                        <h3>NSFW检测</h3>
+                        <p><strong>是否包含敏感内容:</strong> ${data.nsfw.is_nsfw ? '是' : '否'}</p>
+                        <p><strong>皮肤比例:</strong> ${(data.nsfw.skin_ratio * 100).toFixed(2)}%</p>
+                        <p><strong>NSFW评分:</strong> ${(data.nsfw.nsfw_score * 100).toFixed(2)}%</p>
+                    `;
+                    top5Results.appendChild(nsfwDiv);
+                }
+                
+                // 不绘制图表
+                if (window.confidenceChartInstance) {
+                    window.confidenceChartInstance.destroy();
+                }
+            } else {
+                // 单角色检测结果
+                const data = result.data;
+                predictedClass.textContent = `预测结果: ${data.role}`;
+                confidence.textContent = `相似度: ${(data.similarity * 100).toFixed(2)}%`;
+                
+                // 显示Top 5结果 (使用当前结果作为唯一结果)
+                top5Results.innerHTML = '';
+                const top5 = [{"class": data.role, "confidence": data.similarity}];
+                top5.forEach(item => {
+                    const div = document.createElement('div');
+                    div.className = 'top5-item';
+                    div.innerHTML = `
+                        <span class="top5-class">${item.class}</span>
+                        <span class="top5-confidence">${(item.confidence * 100).toFixed(2)}%</span>
+                    `;
+                    top5Results.appendChild(div);
+                });
+                
+                // 显示标签属性
+                if (data.attributes && data.attributes.length > 0) {
+                    const attributesDiv = document.createElement('div');
+                    attributesDiv.className = 'attributes';
+                    attributesDiv.innerHTML = `
+                        <h3>标签属性</h3>
+                        <div class="attributes-list">${data.attributes.map(attr => attr.tag).join(', ')}</div>
+                    `;
+                    top5Results.appendChild(attributesDiv);
+                }
+                
+                // 显示NSFW信息
+                if (data.nsfw) {
+                    const nsfwDiv = document.createElement('div');
+                    nsfwDiv.className = 'nsfw-info';
+                    nsfwDiv.innerHTML = `
+                        <h3>NSFW检测</h3>
+                        <p><strong>是否包含敏感内容:</strong> ${data.nsfw.is_nsfw ? '是' : '否'}</p>
+                        <p><strong>皮肤比例:</strong> ${(data.nsfw.skin_ratio * 100).toFixed(2)}%</p>
+                        <p><strong>NSFW评分:</strong> ${(data.nsfw.nsfw_score * 100).toFixed(2)}%</p>
+                    `;
+                    top5Results.appendChild(nsfwDiv);
+                }
+                
+                // 绘制置信度图表
+                drawConfidenceChart(top5);
             }
-            
-            // 显示流程检测结果
-            if (result.detection_process) {
-                const processDiv = document.createElement('div');
-                processDiv.className = 'detection-process';
-                processDiv.innerHTML = `
-                    <h3>流程检测结果</h3>
-                    <div class="process-steps">
-                        <div class="process-step">
-                            <h4>1. 内容检测</h4>
-                            <p><strong>NSFW检测:</strong> ${result.detection_process.content_detection.nsfw.is_nsfw ? '包含敏感内容' : '不包含敏感内容'} (皮肤比例: ${(result.detection_process.content_detection.nsfw.skin_ratio * 100).toFixed(2)}%)</p>
-                            <p><strong>OCR检测:</strong> ${result.detection_process.content_detection.ocr.status} (检测到 ${result.detection_process.content_detection.ocr.text_detections.length} 个文本)</p>
-                        </div>
-                        <div class="process-step">
-                            <h4>2. 分类检测</h4>
-                            <p><strong>状态:</strong> ${result.detection_process.classification.status}</p>
-                            <p><strong>角色:</strong> ${result.detection_process.classification.role}</p>
-                            <p><strong>相似度:</strong> ${(result.detection_process.classification.similarity * 100).toFixed(2)}%</p>
-                        </div>
-                        <div class="process-step">
-                            <h4>3. 标签输出</h4>
-                            <p><strong>状态:</strong> ${result.detection_process.tag_output.status}</p>
-                            <p><strong>标签数量:</strong> ${result.detection_process.tag_output.attributes.length}</p>
-                        </div>
-                        <div class="process-step">
-                            <h4>4. 关键点检测</h4>
-                            <p><strong>状态:</strong> ${result.detection_process.keypoint_detection.status}</p>
-                            <p><strong>关键点数量:</strong> ${result.detection_process.keypoint_detection.keypoints.length}</p>
-                        </div>
-                        <div class="process-step">
-                            <h4>5. 角色预测</h4>
-                            <p><strong>状态:</strong> ${result.detection_process.role_prediction.status}</p>
-                            <p><strong>预测角色:</strong> ${result.detection_process.role_prediction.predicted_role}</p>
-                        </div>
-                    </div>
-                `;
-                top5Results.appendChild(processDiv);
-            }
-            
-            // 绘制置信度图表
-            drawConfidenceChart(top5);
         }
         
         // 显示批量结果

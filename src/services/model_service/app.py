@@ -157,7 +157,7 @@ async def init_models():
         logger.error(f"模型初始化失败: {e}")
 
 # 根路径，重定向到文档
-@app.get("/")
+@app.get("/model_service")
 async def root():
     """根路径"""
     return {"message": "Model Service", "docs": "/docs"}
@@ -434,7 +434,7 @@ async def extract_features(
             except Exception as e:
                 logger.error(f"删除临时文件失败: {e}")
 
-# 多角色检测（暂时禁用，因为需要实现 process_multiple_characters 方法）
+# 多角色检测
 @app.post("/api/model/detect-multiple")
 async def detect_multiple_characters(
     file: UploadFile = File(...),
@@ -463,12 +463,10 @@ async def detect_multiple_characters(
         with open(temp_path, "wb") as f:
             f.write(content)
         
-        # 初始化预处理器
-        if preprocessor is None:
-            preprocessor = Preprocessing()
-        
-        # 处理多个角色
-        characters = preprocessor.process_multiple_characters(temp_path, max_characters=max_characters)
+        # 使用MultiRoleDetector进行多角色检测
+        from src.core.detection.multi_role_detection import MultiRoleDetector
+        detector = MultiRoleDetector(model_name="mobilenet_v2")
+        detection_results = detector.detect_roles(temp_path)
         
         # 初始化特征提取器
         if feature_extractor is None:
@@ -494,33 +492,39 @@ async def detect_multiple_characters(
                 logger.error(f"标签生成器初始化失败: {e}")
                 tagger = None
         
-        # 为每个角色提取特征和生成标签
+        # 为每个检测到的角色生成标签
         results = []
-        for i, char in enumerate(characters):
-            # 提取特征
-            feature = feature_extractor.extract_features(char['image'])
+        for i, detection in enumerate(detection_results[:max_characters]):
+            role = detection.get("role", "unknown")
+            similarity = detection.get("similarity", 0.0)
+            bbox = detection.get("bbox", {})
+            confidence = detection.get("confidence", 0.0)
+            attributes = detection.get("attributes", [])
             
-            # 生成属性标签
-            attributes = []
-            if tagger:
+            # 如果没有属性标签，使用tagger生成
+            if not attributes and tagger:
                 try:
-                    attributes = tagger.generate_tags(char['image'])
+                    # 从检测结果中获取裁剪的角色图像
+                    role_image = detection.get("cropped_image")
+                    if role_image is not None:
+                        attributes = tagger.generate_tags(role_image)
                 except Exception as e:
                     logger.error(f"标签生成失败: {e}")
             
             # 构建角色结果
             results.append({
                 "id": i + 1,
-                "box": char['box'],
-                "confidence": char['confidence'],
-                "attributes": attributes,
-                "feature": feature.tolist() if hasattr(feature, 'tolist') else feature
+                "role": role,
+                "similarity": float(similarity),
+                "box": bbox,
+                "confidence": float(confidence),
+                "attributes": attributes
             })
         
         # 构建响应
         response = {
-            "total_characters": len(results),
-            "characters": results
+            "roles": results,
+            "count": len(results)
         }
         
         return response
@@ -528,6 +532,8 @@ async def detect_multiple_characters(
         raise
     except Exception as e:
         logger.error(f"多角色检测失败: {e}")
+        import traceback
+        logger.error(f"异常堆栈: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=f"多角色检测失败: {e}")
     finally:
         # 清理临时文件
@@ -574,7 +580,7 @@ if __name__ == "__main__":
     
     parser = argparse.ArgumentParser(description="模型服务")
     parser.add_argument("--host", type=str, default="0.0.0.0", help="服务主机")
-    parser.add_argument("--port", type=int, default=8000, help="服务端口")
+    parser.add_argument("--port", type=int, default=8888, help="服务端口")
     parser.add_argument("--workers", type=int, default=1, help="工作进程数")
     
     args = parser.parse_args()

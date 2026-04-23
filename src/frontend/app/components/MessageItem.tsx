@@ -23,7 +23,9 @@ const MessageItem: React.FC<MessageItemProps> = ({ message, darkMode, handleCopy
 
   const getHighestCategory = (details?: Record<string, number>): string => {
     if (!details) return 'unknown';
-    return Object.entries(details).reduce((a, b) => Number(a[1]) > Number(b[1]) ? a : b)[0];
+    const entries = Object.entries(details);
+    if (entries.length === 0) return 'unknown';
+    return entries.reduce((a, b) => Number(a[1]) > Number(b[1]) ? a : b)[0];
   };
 
   return (

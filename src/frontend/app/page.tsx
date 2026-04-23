@@ -27,6 +27,7 @@ export default function AnimeRoleDetect() {
   const [selectedModel, setSelectedModel] = useState<string>("default");
   const [useCoreML, setUseCoreML] = useState(false);
   const [useAttributes, setUseAttributes] = useState(true);
+  const [multiRole, setMultiRole] = useState(false);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const isMountedRef = useRef(false);
@@ -182,7 +183,7 @@ export default function AnimeRoleDetect() {
         const formData = new FormData();
         formData.append('file', selectedImage);
         formData.append('use_coreml', useCoreML ? 'true' : 'false');
-        formData.append('use_model', useCoreML ? 'false' : 'true');
+        formData.append('use_model', (selectedModel !== 'default') ? 'true' : 'false');
         formData.append('use_attributes', useAttributes ? 'true' : 'false');
         formData.append('model_name', selectedModel);
         formData.append('cache_bypass', Date.now().toString());
@@ -192,12 +193,19 @@ export default function AnimeRoleDetect() {
           useModel: selectedModel !== 'default',
           useAttributes,
           modelName: selectedModel,
-          isMacPlatform
+          isMacPlatform,
+          multiRole: multiRole
         });
+        
+        // 确保use_model参数正确设置
+        const useModelValue = selectedModel !== 'default' ? 'true' : 'false';
+        console.log('useModelValue:', useModelValue);
 
         // 发送请求到后端API
         console.log('开始发送请求到API');
-        const response = await axios.post('/api/classify', formData, {
+        const endpoint = multiRole ? '/api/classify/multi-role' : '/api/classify';
+        console.log(`使用端点: ${endpoint}`);
+        const response = await axios.post(endpoint, formData, {
           headers: {
             'Content-Type': 'multipart/form-data',
           },
@@ -208,24 +216,51 @@ export default function AnimeRoleDetect() {
         const data = response.data;
 
         // 构建助手消息
-        const assistantMessage: Message = {
-          id: Date.now().toString(),
-          role: "assistant",
-          content: `识别完成！${data.data.mode ? ` (使用 ${data.data.mode})` : ''}`,
-          classification: {
-            role: data.data.role || data.data.ai_predicted_role || data.data.predicted_role || "未知角色",
-            similarity: data.data.similarity || 0,
-            confidence: data.data.confidence || "medium",
-          },
-          attributes: data.data.attributes || [],
-          tags: data.data.tags || [],
-          ai_predicted_role: data.data.ai_predicted_role,
-          nsfw: data.data.nsfw,
-          possible_roles: data.data.possible_roles,
-          thoughts: ["正在分析图片...", "正在提取特征...", "正在匹配角色...", "识别完成！"],
-          isThinkingFinished: true,
-          timestamp: Date.now(),
-        };
+        let assistantMessage: Message;
+        
+        if (multiRole) {
+          // 多角色检测结果
+          const roles = data.data.roles || [];
+          const count = data.data.count || 0;
+          
+          assistantMessage = {
+            id: Date.now().toString(),
+            role: "assistant",
+            content: `多角色识别完成！检测到 ${count} 个角色`,
+            multi_roles: roles.map((role: any, index: number) => ({
+              id: role.id || index + 1,
+              role: role.role || "未知角色",
+              similarity: role.similarity || 0,
+              confidence: role.confidence || 0,
+              box: role.box || {},
+              attributes: role.attributes || []
+            })),
+            nsfw: data.data.nsfw,
+            thoughts: ["正在分析图片...", "正在检测多个角色...", "正在提取特征...", "识别完成！"],
+            isThinkingFinished: true,
+            timestamp: Date.now(),
+          };
+        } else {
+          // 单角色检测结果
+          assistantMessage = {
+            id: Date.now().toString(),
+            role: "assistant",
+            content: `识别完成！${data.data.mode ? ` (使用 ${data.data.mode})` : ''}`,
+            classification: {
+              role: data.data.role || data.data.ai_predicted_role || data.data.predicted_role || "未知角色",
+              similarity: data.data.similarity || 0,
+              confidence: data.data.confidence || "medium",
+            },
+            attributes: data.data.attributes || [],
+            tags: data.data.tags || [],
+            ai_predicted_role: data.data.ai_predicted_role,
+            nsfw: data.data.nsfw,
+            possible_roles: data.data.possible_roles,
+            thoughts: ["正在分析图片...", "正在提取特征...", "正在匹配角色...", "识别完成！"],
+            isThinkingFinished: true,
+            timestamp: Date.now(),
+          };
+        }
 
         // 更新消息列表，移除处理中消息，添加助手消息
         setMessages(prev => {
@@ -363,6 +398,17 @@ export default function AnimeRoleDetect() {
                   className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${useAttributes ? 'bg-blue-600' : 'bg-gray-300'}`}
                 >
                   <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${useAttributes ? 'translate-x-6' : 'translate-x-1'}`} />
+                </button>
+              </div>
+              
+              {/* 多角色检测开关 */}
+              <div className="flex items-center space-x-2">
+                <label className="text-sm font-medium">多角色:</label>
+                <button
+                  onClick={() => setMultiRole(!multiRole)}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${multiRole ? 'bg-blue-600' : 'bg-gray-300'}`}
+                >
+                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${multiRole ? 'translate-x-6' : 'translate-x-1'}`} />
                 </button>
               </div>
               

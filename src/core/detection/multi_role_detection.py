@@ -93,10 +93,12 @@ class MultiRoleDetector:
         try:
             # 模型路径映射
             model_paths = {
-                "mobilenet_v2": "models/incremental/model_best.pth",
-                "efficientnet_b0": "models/incremental_efficientnet_b0/model_best.pth",
-                "efficientnet_b3": "models/incremental_efficientnet_b3/model_best.pth",
-                "resnet50": "models/incremental_resnet50/model_best.pth"
+                "mobilenet_v2": "models/mobilenet_v2/model_best.pth",
+                "efficientnet_b0": "models/efficientnet_b0/model_best.pth",
+                "resnet18": "models/resnet18/model_best.pth",
+                "resnet18_loli8": "models/resnet18_loli8/model_best.pth",
+                "mobilenet_v2_loli8": "models/mobilenet_v2_loli8/model_best.pth",
+                "efficientnet_b0_loli8": "models/efficientnet_b0_loli8/model_best.pth"
             }
             
             # 处理默认模型
@@ -107,8 +109,14 @@ class MultiRoleDetector:
             
             # 检查模型是否存在
             if model_name not in model_paths:
-                logger.error(f"不支持的模型类型: {model_name}")
-                return
+                # 尝试提取基础模型名称
+                base_model_name = model_name.split('_loli8')[0]
+                if base_model_name in model_paths:
+                    logger.info(f"使用基础模型 {base_model_name} 替代 {model_name}")
+                    model_name = base_model_name
+                else:
+                    logger.error(f"不支持的模型类型: {model_name}")
+                    return
             
             model_path = model_paths[model_name]
             
@@ -154,6 +162,9 @@ class MultiRoleDetector:
                 )
             elif model_name == 'resnet50':
                 self.model = models.resnet50(pretrained=False)
+                self.model.fc = torch.nn.Linear(self.model.fc.in_features, len(self.class_to_idx))
+            elif 'resnet18' in model_name:
+                self.model = models.resnet18(pretrained=False)
                 self.model.fc = torch.nn.Linear(self.model.fc.in_features, len(self.class_to_idx))
             
             # 加载模型权重
@@ -230,11 +241,44 @@ class MultiRoleDetector:
             logger.info("加载图像")
             image = Image.open(image_path).convert('RGB')
             image_np = np.array(image)
-            logger.info(f"图像加载成功，大小: {image.size}")
+            logger.info(f"图像加载成功，大小: {image.size}, 形状: {image_np.shape}")
+            
+            # 初始化模型
+            logger.info("初始化模型")
+            self._load_trained_model()
+            logger.info(f"模型加载状态: model={self.model is not None}, class_to_idx={self.class_to_idx is not None}")
             
             # 直接使用人脸检测，避免YOLOv8模型的段错误问题
             logger.info("使用人脸检测")
             results = self._detect_roles_with_face_detection(image_path, image_np)
+            
+            # 如果人脸检测失败，尝试直接返回一个默认结果
+            if len(results) == 0:
+                logger.info("人脸检测未发现角色，尝试使用整个图像进行检测")
+                # 使用整个图像作为角色
+                role_image = image
+                
+                # 分类角色
+                if self.model is not None and self.class_to_idx is not None:
+                    role, similarity = self._classify_role(role_image)
+                else:
+                    role = "Unknown"
+                    similarity = 0.0
+                
+                # 添加到结果
+                results.append({
+                    "role": role,
+                    "similarity": float(similarity),
+                    "attributes": [],
+                    "bbox": {
+                        "x1": 0,
+                        "y1": 0,
+                        "x2": int(image_np.shape[1]),
+                        "y2": int(image_np.shape[0])
+                    },
+                    "confidence": 0.5  # 默认置信度
+                })
+                logger.info(f"添加默认角色检测结果: {role}, 相似度: {similarity}")
         except Exception as e:
             logger.error(f"检测角色失败: {e}")
         
@@ -299,11 +343,15 @@ class MultiRoleDetector:
             # 转换为灰度图
             gray = cv2.cvtColor(image_np, cv2.COLOR_RGB2GRAY)
             
-            # 检测人脸
-            faces = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30))
+            # 检测人脸 - 调整参数以提高检测率
+            faces = face_cascade.detectMultiScale(gray, scaleFactor=1.05, minNeighbors=3, minSize=(20, 20), maxSize=(200, 200))
+            
+            logger.info(f"人脸检测完成，检测到 {len(faces)} 个人脸")
             
             # 处理检测结果
-            for (x, y, w, h) in faces:
+            for i, (x, y, w, h) in enumerate(faces):
+                logger.info(f"检测到人脸 {i+1}: x={x}, y={y}, w={w}, h={h}")
+                
                 # 扩展边界框，包含更多的头部区域
                 x1 = max(0, x - int(w * 0.2))
                 y1 = max(0, y - int(h * 0.3))
@@ -332,10 +380,10 @@ class MultiRoleDetector:
                     "similarity": float(similarity),
                     "attributes": attributes,
                     "bbox": {
-                        "x1": x1,
-                        "y1": y1,
-                        "x2": x2,
-                        "y2": y2
+                        "x1": int(x1),
+                        "y1": int(y1),
+                        "x2": int(x2),
+                        "y2": int(y2)
                     },
                     "confidence": 0.9  # 人脸检测的置信度
                 })

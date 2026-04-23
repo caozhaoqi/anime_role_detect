@@ -107,7 +107,7 @@ def start_api_service(host: str = '0.0.0.0', port: int = 8001, reload: bool = Fa
     
     # 设置模型服务环境变量
     env['USE_MODEL_SERVICE'] = "true"
-    env['MODEL_SERVICE_URL'] = "http://localhost:8001"
+    env['MODEL_SERVICE_URL'] = "http://localhost:8888"
     
     # 启动服务
     try:

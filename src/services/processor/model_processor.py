@@ -21,7 +21,7 @@ logger = get_logger("image_processor")
 
 # 从环境变量中读取配置
 USE_MODEL_SERVICE = os.environ.get('USE_MODEL_SERVICE', 'True').lower() == 'true'
-MODEL_SERVICE_URL = os.environ.get('MODEL_SERVICE_URL', 'http://localhost:8001')
+MODEL_SERVICE_URL = os.environ.get('MODEL_SERVICE_URL', 'http://localhost:8888')
 
 
 async def process_with_model_service(file, content, model_name, multi_role=False):
@@ -58,7 +58,7 @@ async def process_with_model_service(file, content, model_name, multi_role=False
         
         # 发送请求到模型服务
         if multi_role:
-            endpoint = f"{MODEL_SERVICE_URL}/api/classify/multi-role"
+            endpoint = f"{MODEL_SERVICE_URL}/api/model/detect-multiple"
             logger.info(f"开始调用模型服务(多角色): {endpoint}")
         else:
             endpoint = f"{MODEL_SERVICE_URL}/api/model/predict"
@@ -67,23 +67,28 @@ async def process_with_model_service(file, content, model_name, multi_role=False
         logger.info(f"请求文件: {file.filename}, 大小: {len(content)}字节, 类型: {content_type}")
         
         # 使用aiohttp进行异步HTTP调用
-        async with aiohttp.ClientSession() as session:
-            # 构建multipart/form-data请求
-            form = aiohttp.FormData()
-            form.add_field('file', content, filename=file.filename, content_type=content_type)
-            form.add_field('model_name', model_name)
-            form.add_field('use_attributes', 'true')
-            
-            logger.info(f"准备发送请求到模型服务")
-            async with session.post(
-                endpoint,
-                data=form,
-                timeout=30
-            ) as response:
-                logger.info(f"模型服务响应状态码: {response.status}")
-                response.raise_for_status()
-                model_result = await response.json()
-                logger.info(f"模型服务返回数据: {model_result}")
+        try:
+            async with aiohttp.ClientSession() as session:
+                # 构建multipart/form-data请求
+                form = aiohttp.FormData()
+                form.add_field('file', content, filename=file.filename, content_type=content_type)
+                form.add_field('model_name', model_name)
+                form.add_field('use_attributes', 'true')
+                
+                logger.info(f"准备发送请求到模型服务")
+                async with session.post(
+                    endpoint,
+                    data=form,
+                    timeout=30
+                ) as response:
+                    logger.info(f"模型服务响应状态码: {response.status}")
+                    response.raise_for_status()
+                    model_result = await response.json()
+                    logger.info(f"模型服务返回数据: {model_result}")
+        except Exception as e:
+            logger.error(f"模型服务请求失败: {e}")
+            # 直接返回包含错误信息的字典
+            return {"error": str(e)}
         
         if multi_role:
             # 处理多角色结果

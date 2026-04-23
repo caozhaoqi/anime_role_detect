@@ -24,14 +24,17 @@ os.makedirs(hf_cache_dir, exist_ok=True)
 os.makedirs(keras_cache_dir, exist_ok=True)
 
 # 从环境变量中读取配置
-USE_MODEL_SERVICE = os.environ.get('USE_MODEL_SERVICE', 'true').lower() == 'true'
-MODEL_SERVICE_URL = os.environ.get('MODEL_SERVICE_URL', 'http://localhost:8001')
+USE_MODEL_SERVICE = os.environ.get('USE_MODEL_SERVICE', 'True').lower() == 'True'
+MODEL_SERVICE_URL = os.environ.get('MODEL_SERVICE_URL', 'http://localhost:8888')
 
 # 创建FastAPI应用实例
 app = FastAPI(
     title="Anime Role Detect API",
-    description="Anime role detection API",
-    version="1.0.0"
+    description="Anime role detection API - 用于检测和分类动画角色的API服务",
+    version="1.0.0",
+    docs_url="/api/docs",
+    redoc_url="/api/redoc",
+    openapi_url="/api/openapi.json"
 )
 
 # 配置CORS
@@ -306,3 +309,206 @@ async def get_available_models():
         "models": model_dirs,
         "default_model": "default"
     }
+
+
+@app.get("/api/docs/info")
+async def get_api_docs():
+    """
+    获取API文档信息
+    
+    Returns:
+        dict: API文档信息
+    """
+    return {
+        "success": True,
+        "api_name": "Anime Role Detect API",
+        "version": "1.0.0",
+        "description": "用于检测和分类动画角色的API服务",
+        "endpoints": [
+            {
+                "path": "/api/classify",
+                "method": "POST",
+                "description": "分类图像中的角色",
+                "parameters": [
+                    {"name": "file", "type": "UploadFile", "required": True, "description": "上传的图像文件"},
+                    {"name": "model_name", "type": "string", "default": "resnet18_loli8", "description": "模型名称"},
+                    {"name": "use_coreml", "type": "bool", "default": False, "description": "是否使用CoreML模型（Mac平台）"},
+                    {"name": "use_model", "type": "bool", "default": True, "description": "是否使用专用模型"},
+                    {"name": "use_attributes", "type": "bool", "default": True, "description": "是否使用属性预测"},
+                    {"name": "cache_bypass", "type": "bool", "default": False, "description": "是否绕过缓存"},
+                    {"name": "multi_role", "type": "bool", "default": False, "description": "是否使用多角色检测"},
+                    {"name": "use_deepdanbooru", "type": "bool", "default": True, "description": "是否使用DeepDanbooru标签提取"}
+                ],
+                "response": {
+                    "success": "bool",
+                    "data": "object",
+                    "message": "string"
+                }
+            },
+            {
+                "path": "/api/classify/multi-role",
+                "method": "POST",
+                "description": "多角色检测",
+                "parameters": [
+                    {"name": "file", "type": "UploadFile", "required": True, "description": "上传的图像文件"},
+                    {"name": "model_name", "type": "string", "default": "resnet18_loli8", "description": "模型名称"},
+                    {"name": "use_coreml", "type": "bool", "default": False, "description": "是否使用CoreML模型（Mac平台）"},
+                    {"name": "use_model", "type": "bool", "default": True, "description": "是否使用专用模型"},
+                    {"name": "use_attributes", "type": "bool", "default": True, "description": "是否使用属性预测"},
+                    {"name": "cache_bypass", "type": "bool", "default": False, "description": "是否绕过缓存"},
+                    {"name": "use_deepdanbooru", "type": "bool", "default": True, "description": "是否使用DeepDanbooru标签提取"}
+                ],
+                "response": {
+                    "success": "bool",
+                    "data": "object",
+                    "message": "string"
+                }
+            },
+            {
+                "path": "/api/batch_classify",
+                "method": "POST",
+                "description": "批量分类图像中的角色",
+                "parameters": [
+                    {"name": "files", "type": "list[UploadFile]", "required": True, "description": "上传的图像文件列表"},
+                    {"name": "model_name", "type": "string", "default": "resnet18_loli8", "description": "模型名称"},
+                    {"name": "use_coreml", "type": "bool", "default": False, "description": "是否使用CoreML模型（Mac平台）"},
+                    {"name": "use_model", "type": "bool", "default": False, "description": "是否使用专用模型"},
+                    {"name": "use_attributes", "type": "bool", "default": False, "description": "是否使用属性预测"},
+                    {"name": "cache_bypass", "type": "bool", "default": False, "description": "是否绕过缓存"},
+                    {"name": "use_deepdanbooru", "type": "bool", "default": True, "description": "是否使用DeepDanbooru标签提取"},
+                    {"name": "max_concurrency", "type": "int", "default": 4, "description": "最大并发数"}
+                ],
+                "response": {
+                    "success": "bool",
+                    "data": "list",
+                    "message": "string",
+                    "stats": "object"
+                }
+            },
+            {
+                "path": "/api/health",
+                "method": "GET",
+                "description": "健康检查",
+                "response": {
+                    "status": "string",
+                    "service": "string",
+                    "version": "string",
+                    "timestamp": "number"
+                }
+            },
+            {
+                "path": "/api/monitoring",
+                "method": "GET",
+                "description": "获取监控信息",
+                "response": {
+                    "status": "string",
+                    "monitoring": "object"
+                }
+            },
+            {
+                "path": "/api/models",
+                "method": "GET",
+                "description": "获取可用的模型列表",
+                "response": {
+                    "success": "bool",
+                    "models": "list",
+                    "default_model": "string"
+                }
+            },
+            {
+                "path": "/api/feedback",
+                "method": "POST",
+                "description": "提交用户反馈",
+                "parameters": [
+                    {"name": "feedback_type", "type": "string", "required": True, "description": "反馈类型: bug, suggestion, question, other"},
+                    {"name": "message", "type": "string", "required": True, "description": "反馈内容"},
+                    {"name": "image_id", "type": "string", "default": "", "description": "相关图像ID"},
+                    {"name": "contact", "type": "string", "default": "", "description": "联系方式"}
+                ],
+                "response": {
+                    "success": "bool",
+                    "message": "string",
+                    "feedback_id": "string"
+                }
+            },
+            {
+                "path": "/api/docs/info",
+                "method": "GET",
+                "description": "获取API文档信息",
+                "response": {
+                    "success": "bool",
+                    "api_name": "string",
+                    "version": "string",
+                    "description": "string",
+                    "endpoints": "list"
+                }
+            }
+        ],
+        "documentation": {
+            "swagger_ui": "/api/docs",
+            "redoc": "/api/redoc",
+            "openapi_json": "/api/openapi.json"
+        }
+    }
+
+
+@app.post("/api/feedback")
+async def submit_feedback(
+    feedback_type: str = Form(..., description="反馈类型: bug, suggestion, question, other"),
+    message: str = Form(..., description="反馈内容"),
+    image_id: str = Form("", description="相关图像ID"),
+    contact: str = Form("", description="联系方式")
+):
+    """
+    提交用户反馈
+    
+    Args:
+        feedback_type: 反馈类型
+        message: 反馈内容
+        image_id: 相关图像ID
+        contact: 联系方式
+    
+    Returns:
+        dict: 反馈提交结果
+    """
+    try:
+        # 验证反馈类型
+        valid_types = ['bug', 'suggestion', 'question', 'other']
+        if feedback_type not in valid_types:
+            return {
+                "success": False,
+                "message": f"无效的反馈类型，有效值: {', '.join(valid_types)}"
+            }
+        
+        # 生成反馈ID
+        import uuid
+        import time
+        feedback_id = f"fb_{int(time.time())}_{str(uuid.uuid4())[:8]}"
+        
+        # 保存反馈
+        feedback_data = {
+            "id": feedback_id,
+            "type": feedback_type,
+            "message": message,
+            "image_id": image_id,
+            "contact": contact,
+            "timestamp": time.time()
+        }
+        
+        # 记录日志
+        logger.info(f"收到用户反馈: {feedback_data}")
+        
+        # 这里可以添加保存到数据库或文件的逻辑
+        # 暂时只记录日志
+        
+        return {
+            "success": True,
+            "message": "反馈提交成功",
+            "feedback_id": feedback_id
+        }
+    except Exception as e:
+        logger.error(f"提交反馈失败: {e}")
+        return {
+            "success": False,
+            "message": "反馈提交失败，请稍后重试"
+        }
