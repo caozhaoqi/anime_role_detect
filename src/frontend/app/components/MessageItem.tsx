@@ -134,19 +134,26 @@ const MessageItem: React.FC<MessageItemProps> = ({ message, darkMode, handleCopy
             </div>
           )}
 
-          {message.text_detections && message.text_detections.length > 0 && (
+          {/* 只有当消息包含图片或识别结果时才显示文本检测 */}
+          {(message.image || message.classification || message.multi_roles || message.attributes) && (
             <div className="mt-4 space-y-3 animate-fade-in">
               <div className="flex items-center space-x-2">
                 <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
                 <h4 className="font-semibold text-sm">文本检测</h4>
               </div>
-              <div className="space-y-2">
-                {message.text_detections.map((text, index) => (
-                  <div key={index} className={`p-3 ${darkMode ? 'bg-gray-600' : 'bg-gray-200'} rounded-lg transform hover:scale-[1.02] transition-transform`}>
-                    <p className="text-sm font-medium">{text.text}</p>
-                  </div>
-                ))}
-              </div>
+              {message.text_detections && message.text_detections.length > 0 ? (
+                <div className="space-y-2">
+                  {message.text_detections.map((text, index) => (
+                    <div key={index} className={`p-3 ${darkMode ? 'bg-gray-600' : 'bg-gray-200'} rounded-lg transform hover:scale-[1.02] transition-transform`}>
+                      <p className="text-sm font-medium">{text.text}</p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className={`p-3 ${darkMode ? 'bg-gray-600' : 'bg-gray-200'} rounded-lg`}>
+                  <p className="text-sm font-medium">图片中无文字</p>
+                </div>
+              )}
             </div>
           )}
 

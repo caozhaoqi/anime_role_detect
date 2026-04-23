@@ -8,8 +8,104 @@
 
 from src.core.logging.global_logger import get_logger
 from src.services.processor.model_loader import get_keypoint_detector, get_tagger, get_role_predictor
+from src.core.ocr.easyocr_detector import detect_text as ocr_detect_text
 
 logger = get_logger("image_processor")
+
+
+def convert_numpy_types(obj):
+    """
+    将numpy类型转换为普通Python类型
+    
+    Args:
+        obj: 要转换的对象
+    
+    Returns:
+        转换后的对象
+    """
+    import numpy as np
+    if isinstance(obj, np.integer):
+        return int(obj)
+    elif isinstance(obj, np.floating):
+        return float(obj)
+    elif isinstance(obj, np.ndarray):
+        return obj.tolist()
+    elif isinstance(obj, dict):
+        return {key: convert_numpy_types(value) for key, value in obj.items()}
+    elif isinstance(obj, list):
+        return [convert_numpy_types(item) for item in obj]
+    else:
+        return obj
+
+
+def generate_image_summary(text_detections, tags, role_info, attributes, nsfw_status):
+    """
+    生成图片内容的一句话总结
+    
+    Args:
+        text_detections: 文本检测结果
+        tags: 图像标签
+        role_info: 角色信息
+        attributes: 属性信息
+        nsfw_status: NSFW状态
+    
+    Returns:
+        str: 图片内容的一句话总结
+    """
+    try:
+        # 转换numpy类型
+        text_detections = convert_numpy_types(text_detections)
+        tags = convert_numpy_types(tags)
+        role_info = convert_numpy_types(role_info)
+        attributes = convert_numpy_types(attributes)
+        nsfw_status = convert_numpy_types(nsfw_status)
+        
+        summary_parts = []
+        
+        # 添加角色信息
+        if role_info and hasattr(role_info, 'role') and role_info.role:
+            summary_parts.append(f"图片中是{role_info.role}")
+        elif role_info and isinstance(role_info, dict) and role_info.get('role'):
+            summary_parts.append(f"图片中是{role_info.get('role')}")
+        else:
+            summary_parts.append("图片中是一个动漫角色")
+        
+        # 添加文本信息
+        if text_detections and len(text_detections) > 0:
+            texts = [detection['text'] for detection in text_detections if detection.get('text')]
+            if texts:
+                if len(texts) == 1:
+                    summary_parts.append(f"，包含文字'{texts[0]}'")
+                else:
+                    summary_parts.append(f"，包含{len(texts)}处文字")
+        
+        # 添加属性信息
+        if attributes and len(attributes) > 0:
+            attribute_names = [attr['tag'] for attr in attributes if attr.get('tag')]
+            if attribute_names:
+                if len(attribute_names) <= 3:
+                    summary_parts.append(f"，具有{', '.join(attribute_names)}等特征")
+                else:
+                    summary_parts.append(f"，具有{len(attribute_names)}个特征")
+        
+        # 添加NSFW警告
+        if nsfw_status and (hasattr(nsfw_status, 'is_nsfw') and nsfw_status.is_nsfw):
+            summary_parts.append("，包含敏感内容")
+        elif nsfw_status and isinstance(nsfw_status, dict) and nsfw_status.get('is_nsfw'):
+            summary_parts.append("，包含敏感内容")
+        
+        # 组合成一句话
+        if summary_parts:
+            summary = ''.join(summary_parts) + "。"
+            # 确保总结长度适中
+            if len(summary) > 100:
+                summary = summary[:97] + "..."
+            return summary
+        else:
+            return "这是一张动漫角色图片。"
+    except Exception as e:
+        logger.error(f"生成图片总结失败: {e}")
+        return "这是一张动漫角色图片。"
 
 
 def process_image_features(image_source, content_type, attributes):
@@ -41,6 +137,13 @@ def process_image_features(image_source, content_type, attributes):
                 logger.warning("标签检测器未加载")
         except Exception as e:
             logger.error(f"标签检测失败: {e}")
+        
+        # OCR 文字检测
+        try:
+            text_detections = ocr_detect_text(image_source)
+            logger.info(f"OCR 文字检测完成，检测到 {len(text_detections)} 个文本区域")
+        except Exception as e:
+            logger.error(f"OCR 文字检测失败: {e}")
         
         # AI 角色预测
         if tag_names:

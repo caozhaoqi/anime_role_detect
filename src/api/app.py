@@ -101,6 +101,13 @@ from src.services.model_version_service import init_model_version_service, get_m
 # 导入多模型服务
 from src.services.multi_model_service import init_multi_model_service, process_with_multiple_models, add_model, remove_model, set_fusion_strategy, get_model_configs, get_fusion_strategy, get_multi_model_service
 
+# 导入识别记录服务
+from src.services.recognition_service import get_recognition_service
+from src.models.recognition_record import RecognitionRecordCreate
+
+# 导入特征处理器
+from src.services.processor.feature_processor import generate_image_summary, convert_numpy_types
+
 
 @app.post("/api/classify")
 async def classify_image(
@@ -111,7 +118,8 @@ async def classify_image(
     use_attributes: bool = Form(True),
     cache_bypass: bool = Form(False),
     multi_role: bool = Form(False),
-    use_deepdanbooru: bool = Form(True)
+    use_deepdanbooru: bool = Form(True),
+    current_user: dict = Depends(get_current_user)
 ):
     """
     分类图像中的角色
@@ -130,6 +138,9 @@ async def classify_image(
         dict: 分类结果
     """
     try:
+        # 记录开始时间
+        start_time = time.time()
+        
         # 初始化缓存管理器
         init_cache_manager()
         
@@ -156,6 +167,40 @@ async def classify_image(
             result = await process_multi_role_image(file, model_name, cache_bypass, use_coreml, use_model, use_attributes, use_deepdanbooru)
         else:
             result = await process_single_image(file, model_name, cache_bypass, use_coreml, use_model, use_attributes, use_deepdanbooru)
+        
+        # 计算处理时间
+        processing_time = time.time() - start_time
+        
+        # 生成图片总结
+        summary = generate_image_summary(
+            text_detections=result.get("text_detections", []),
+            tags=result.get("tags", []),
+            role_info=result.get("role_info") or result.get("classification") or result.get("ai_predicted_role"),
+            attributes=result.get("attributes", []),
+            nsfw_status=result.get("nsfw")
+        )
+        
+        # 将总结添加到结果中
+        result["summary"] = summary
+        
+        # 转换numpy类型
+        result = convert_numpy_types(result)
+        
+        # 存储识别记录
+        recognition_service = get_recognition_service()
+        record = RecognitionRecordCreate(
+            user_id=current_user.get("sub"),
+            username=current_user.get("sub"),
+            image_filename=file.filename,
+            image_path="",  # 实际项目中应该存储文件路径
+            recognition_result=result,
+            model_used=model_name,
+            processing_time=processing_time,
+            is_multi_role=multi_role,
+            nsfw_status=result.get("nsfw", {}).get("is_nsfw", False),
+            detected_text=len(result.get("text_detections", [])) > 0
+        )
+        recognition_service.create_record(record)
         
         # 构建响应
         response = {
@@ -1176,4 +1221,77 @@ async def set_multi_model_strategy(
         return {
             "success": False,
             "message": "设置融合策略失败，请稍后重试"
+        }
+
+
+@app.get("/api/history")
+async def get_recognition_history(current_user: dict = Depends(get_current_user)):
+    """
+    获取用户的识别历史记录
+    
+    Returns:
+        dict: 识别历史记录列表
+    """
+    try:
+        recognition_service = get_recognition_service()
+        records = recognition_service.get_records_by_user(current_user.get("sub"))
+        
+        # 转换为响应格式
+        records_data = []
+        for record in records:
+            records_data.append({
+                "id": record.id,
+                "image_filename": record.image_filename,
+                "model_used": record.model_used,
+                "processing_time": record.processing_time,
+                "is_multi_role": record.is_multi_role,
+                "nsfw_status": record.nsfw_status,
+                "detected_text": record.detected_text,
+                "recognition_result": record.recognition_result,
+                "timestamp": record.timestamp.isoformat() if record.timestamp else None
+            })
+        
+        return {
+            "success": True,
+            "message": "获取识别历史成功",
+            "data": records_data
+        }
+    except Exception as e:
+        logger.error(f"获取识别历史失败: {e}")
+        return {
+            "success": False,
+            "message": "获取识别历史失败，请稍后重试"
+        }
+
+
+@app.delete("/api/history/{record_id}")
+async def delete_recognition_record(record_id: str, current_user: dict = Depends(get_current_user)):
+    """
+    删除识别记录
+    
+    Args:
+        record_id: 记录ID
+    
+    Returns:
+        dict: 删除结果
+    """
+    try:
+        recognition_service = get_recognition_service()
+        success = recognition_service.delete_record(record_id)
+        
+        if success:
+            return {
+                "success": True,
+                "message": "删除记录成功"
+            }
+        else:
+            return {
+                "success": False,
+                "message": "记录不存在"
+            }
+    except Exception as e:
+        logger.error(f"删除记录失败: {e}")
+        return {
+            "success": False,
+            "message": "删除记录失败，请稍后重试"
         }

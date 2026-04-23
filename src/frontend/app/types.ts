@@ -45,6 +45,9 @@ export interface Message {
     };
     confidence: number;
   }>;
+  role_info?: any;
+  model_name?: string;
+  summary?: string;
   thoughts?: string[];
   isThinking?: boolean;
   isThinkingFinished?: boolean;

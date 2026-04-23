@@ -1,11 +1,12 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Bot, User, X, Sparkles, Upload, Copy, Download, CheckCircle, Menu, Moon, Sun, Trash2, RotateCcw, RotateCw, Crop, Check, ArrowLeft, LogOut } from "lucide-react";
+import { Bot, User, X, Sparkles, Upload, Copy, Download, CheckCircle, Menu, Moon, Sun, Trash2, RotateCcw, RotateCw, Crop, Check, ArrowLeft, LogOut, History, Eye } from "lucide-react";
 import { Message, AuthState } from "./types";
 import axios from 'axios';
 import MessageItem from './components/MessageItem';
 import Login from './components/Login';
+import HistoryPanel from './components/HistoryPanel';
 
 export default function AnimeRoleDetect() {
   const [authState, setAuthState] = useState<AuthState>({
@@ -16,6 +17,9 @@ export default function AnimeRoleDetect() {
   });
   const [isLoginLoading, setIsLoginLoading] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
+  
+  const [showHistory, setShowHistory] = useState(false);
+  const [selectedRecord, setSelectedRecord] = useState<any>(null);
   
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -253,6 +257,34 @@ export default function AnimeRoleDetect() {
     }
   };
 
+  // 处理历史记录查看
+  const handleViewRecord = useCallback((record: any) => {
+    setSelectedRecord(record);
+    setShowHistory(false);
+    
+    // 转换历史记录为消息格式
+    const assistantMessage: Message = {
+      id: `history-${record.id}`,
+      role: 'assistant',
+      content: `历史识别结果：${record.image_filename}`,
+      image: null,
+      tags: record.recognition_result.tags || [],
+      attributes: record.recognition_result.attributes || [],
+      text_detections: record.recognition_result.text_detections || [],
+      nsfw: record.recognition_result.nsfw,
+      role_info: record.recognition_result.role_info || null,
+      model_name: record.model_used,
+      timestamp: record.timestamp
+    };
+    
+    setMessages([assistantMessage]);
+  }, []);
+
+  // 处理历史记录删除
+  const handleDeleteRecord = useCallback((recordId: string) => {
+    // 已在 HistoryPanel 组件中处理删除逻辑
+  }, []);
+
   // 处理发送消息
   const handleSend = useCallback(async () => {
     if ((!inputText.trim() && !selectedImage) || isProcessing) {
@@ -348,7 +380,7 @@ export default function AnimeRoleDetect() {
           assistantMessage = {
             id: Date.now().toString(),
             role: "assistant",
-            content: `多角色识别完成！检测到 ${count} 个角色`,
+            content: data.data.summary || `多角色识别完成！检测到 ${count} 个角色`,
             multi_roles: roles.map((role: any, index: number) => ({
               id: role.id || index + 1,
               role: role.role || "未知角色",
@@ -357,7 +389,10 @@ export default function AnimeRoleDetect() {
               box: role.box || {},
               attributes: role.attributes || []
             })),
+            tags: data.data.tags || [],
+            text_detections: data.data.text_detections || [],
             nsfw: data.data.nsfw,
+            summary: data.data.summary,
             thoughts: ["正在分析图片...", "正在检测多个角色...", "正在提取特征...", "识别完成！"],
             isThinkingFinished: true,
             timestamp: Date.now(),
@@ -367,7 +402,7 @@ export default function AnimeRoleDetect() {
           assistantMessage = {
             id: Date.now().toString(),
             role: "assistant",
-            content: `识别完成！${data.data.mode ? ` (使用 ${data.data.mode})` : ''}`,
+            content: data.data.summary || `识别完成！${data.data.mode ? ` (使用 ${data.data.mode})` : ''}`,
             classification: {
               role: data.data.role || data.data.ai_predicted_role || data.data.predicted_role || "未知角色",
               similarity: data.data.similarity || 0,
@@ -375,9 +410,11 @@ export default function AnimeRoleDetect() {
             },
             attributes: data.data.attributes || [],
             tags: data.data.tags || [],
+            text_detections: data.data.text_detections || [],
             ai_predicted_role: data.data.ai_predicted_role,
             nsfw: data.data.nsfw,
             possible_roles: data.data.possible_roles,
+            summary: data.data.summary,
             thoughts: ["正在分析图片...", "正在提取特征...", "正在匹配角色...", "识别完成！"],
             isThinkingFinished: true,
             timestamp: Date.now(),
@@ -596,6 +633,15 @@ export default function AnimeRoleDetect() {
                 </button>
               </div>
               
+              {/* 历史记录按钮 */}
+              <button
+                onClick={() => setShowHistory(!showHistory)}
+                className={`p-2 rounded-lg ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'} transition-colors ${showHistory ? 'text-blue-500' : ''}`}
+                title="查看历史记录"
+              >
+                <History className="h-5 w-5" />
+              </button>
+              
               {/* 暗黑模式开关 */}
               <button
                 onClick={() => setDarkMode(!darkMode)}
@@ -617,7 +663,7 @@ export default function AnimeRoleDetect() {
       
       <div className="flex-1 flex overflow-hidden">
         {/* 主内容区 */}
-        <main className="flex-1 overflow-y-auto">
+        <main className={`flex-1 overflow-y-auto transition-all duration-300 ${showHistory ? 'md:ml-96' : ''}`}>
           <div className="flex-1 overflow-y-auto">
             <div className="container mx-auto px-4 md:px-6 py-6 md:py-8">
               <div className={`w-full ${darkMode ? 'bg-gray-800' : 'bg-white'} rounded-xl shadow-lg border ${darkMode ? 'border-gray-700' : 'border-gray-200'} transform transition-all duration-300 hover:shadow-xl`}>
@@ -718,6 +764,19 @@ export default function AnimeRoleDetect() {
             </div>
           </div>
         </main>
+        
+        {/* 历史记录面板 */}
+        {showHistory && (
+          <div className="fixed right-0 top-[6rem] bottom-0 w-full md:w-96 bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 shadow-lg z-40 transform transition-transform duration-300 ease-in-out">
+            <div className="h-full overflow-y-auto">
+              <HistoryPanel 
+                darkMode={darkMode}
+                onViewRecord={handleViewRecord}
+                onDeleteRecord={handleDeleteRecord}
+              />
+            </div>
+          </div>
+        )}
       </div>
       
 
