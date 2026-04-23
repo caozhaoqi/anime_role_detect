@@ -390,15 +390,41 @@ export default function AnimeRoleDetect() {
           return [...newMessages, assistantMessage];
         });
 
-      } catch (error) {
+      } catch (error: any) {
         console.error('API请求失败:', error);
 
         // 构建错误消息
+        let errorContent = "识别过程中出现错误，请重试。";
+        let errorTitle = "识别失败";
+
+        // 处理401认证错误
+        if (error.response && error.response.status === 401) {
+          errorContent = "认证已过期，请重新登录。";
+          errorTitle = "认证失败";
+          // 清除过期的认证状态
+          setAuthState({
+            isAuthenticated: false,
+            user: null,
+            accessToken: null,
+            refreshToken: null
+          });
+          // 清除localStorage
+          localStorage.removeItem('accessToken');
+          localStorage.removeItem('refreshToken');
+          localStorage.removeItem('currentUser');
+        } else if (error.response) {
+          // 其他服务器错误
+          errorContent = error.response.data?.detail || error.response.data?.error || errorContent;
+        } else if (error.message) {
+          // 网络错误等
+          errorContent = error.message;
+        }
+
         const errorMessage: Message = {
           id: Date.now().toString(),
           role: "assistant",
-          content: "识别失败",
-          error: "识别过程中出现错误，请重试。",
+          content: errorTitle,
+          error: errorContent,
           timestamp: Date.now(),
         };
 

@@ -34,8 +34,8 @@ def process_image_features(image_source, content_type, attributes):
         try:
             tagger = get_tagger()
             if tagger:
-                tag_results = tagger.predict(image_source)
-                tag_names = [tag['tag'] for tag in tag_results if tag['score'] > 0.5]
+                tag_results = tagger(image_source)
+                tag_names = [tag['tag'] for tag in tag_results if tag['confidence'] > 0.5]
                 logger.info(f"标签检测完成，提取到 {len(tag_names)} 个标签")
             else:
                 logger.warning("标签检测器未加载")

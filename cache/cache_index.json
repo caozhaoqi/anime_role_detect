@@ -16,5 +16,11 @@
     "last_accessed": "2026-04-23T17:35:28.384775",
     "ttl": 3600,
     "file": "78dd35386a94ed3ae6416b7b495aa205.pkl"
+  },
+  "image_processing_1c61a85c7cd0e672bfe42884b4d63be3_default": {
+    "created": "2026-04-23T17:59:25.661685",
+    "last_accessed": "2026-04-23T17:59:25.661685",
+    "ttl": 3600,
+    "file": "337cd409ec9c44fe70e83ab3e910b51f.pkl"
   }
 }
