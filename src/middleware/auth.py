@@ -40,7 +40,8 @@ async def auth_middleware(request: Request, call_next):
         "/api/auth/refresh",
         # "/api/classify",
         # "/api/classify/multi-model",
-        "/api/feedback"
+        "/api/feedback",
+        "/api/config"
     ]
     
     # 检查是否需要认证

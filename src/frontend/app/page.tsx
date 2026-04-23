@@ -1,12 +1,14 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Bot, User, X, Sparkles, Upload, Copy, Download, CheckCircle, Menu, Moon, Sun, Trash2, RotateCcw, RotateCw, Crop, Check, ArrowLeft, LogOut, History, Eye } from "lucide-react";
+import { Bot, User, X, Sparkles, Upload, Copy, Download, CheckCircle, Menu, Moon, Sun, Trash2, RotateCcw, RotateCw, Crop, Check, ArrowLeft, LogOut, History, Eye, Settings, Save, RefreshCw } from "lucide-react";
 import { Message, AuthState } from "./types";
 import axios from 'axios';
 import MessageItem from './components/MessageItem';
 import Login from './components/Login';
 import HistoryPanel from './components/HistoryPanel';
+import ConfigManager from './config/ConfigManager';
+import ConfigPanel from './components/ConfigPanel';
 
 export default function AnimeRoleDetect() {
   const [authState, setAuthState] = useState<AuthState>({
@@ -42,6 +44,8 @@ export default function AnimeRoleDetect() {
   const [useCoreML, setUseCoreML] = useState(false);
   const [useAttributes, setUseAttributes] = useState(true);
   const [multiRole, setMultiRole] = useState(false);
+  const [showConfig, setShowConfig] = useState(false);
+  const [config, setConfig] = useState(ConfigManager.getConfig());
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const isMountedRef = useRef(false);
@@ -49,6 +53,18 @@ export default function AnimeRoleDetect() {
   // 组件挂载时执行
   useEffect(() => {
     isMountedRef.current = true;
+
+    // 从配置加载初始值
+    const appConfig = ConfigManager.getConfig();
+    setConfig(appConfig);
+    
+    // 设置暗黑模式
+    const savedDarkMode = localStorage.getItem('darkMode');
+    if (savedDarkMode !== null) {
+      setDarkMode(savedDarkMode === 'true');
+    } else {
+      setDarkMode(appConfig.ui.theme === 'dark');
+    }
 
     // 检查登录状态
     const savedAccessToken = localStorage.getItem('accessToken');
@@ -77,19 +93,20 @@ export default function AnimeRoleDetect() {
     const platform = navigator.platform.toLowerCase();
     const isMac = platform.includes('mac') || platform.includes('darwin');
     setIsMacPlatform(isMac);
-    if (isMac) {
+    if (isMac && appConfig.features.enableCoremlSwitch) {
       setUseCoreML(true);
     }
 
     // 获取可用模型列表
-    if (savedAccessToken) {
+    if (savedAccessToken && appConfig.features.enableModelSelection) {
       fetchAvailableModels();
     }
 
     // 监听键盘事件
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        // 可以添加其他快捷键处理
+        setShowHistory(false);
+        setShowConfig(false);
       }
     };
 
@@ -514,6 +531,19 @@ export default function AnimeRoleDetect() {
     URL.revokeObjectURL(url);
   }, []);
 
+  // 处理配置更新
+  const handleConfigUpdate = useCallback((newConfig: any) => {
+    setConfig(newConfig);
+    ConfigManager.updateConfig(newConfig);
+  }, []);
+
+  // 处理暗黑模式切换
+  const handleDarkModeToggle = useCallback(() => {
+    const newDarkMode = !darkMode;
+    setDarkMode(newDarkMode);
+    localStorage.setItem('darkMode', newDarkMode.toString());
+  }, [darkMode]);
+
   return (
     <div 
       className={`flex flex-col h-screen font-sans overflow-hidden ${darkMode ? 'bg-gray-900 text-gray-100' : 'bg-white text-gray-900'}`}
@@ -550,8 +580,43 @@ export default function AnimeRoleDetect() {
       {/* 顶部导航栏 */}
       <header className={`sticky top-0 z-50 ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border-b transition-all duration-300`}>
         <div className="container mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            <h1 className="text-2xl font-semibold bg-gradient-to-r from-blue-500 to-purple-600 bg-clip-text text-transparent">动漫角色识别</h1>
+          {/* 顶部行：标题和左侧按钮 */}
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center space-x-4">
+              <h1 className="text-2xl font-semibold bg-gradient-to-r from-blue-500 to-purple-600 bg-clip-text text-transparent">动漫角色识别</h1>
+              
+              {/* 左侧按钮组 */}
+              <div className="flex items-center space-x-2">
+                {/* 历史记录按钮 */}
+                {config.features.enableHistoryPanel && (
+                  <button
+                    onClick={() => setShowHistory(!showHistory)}
+                    className={`p-2 rounded-lg ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'} transition-colors ${showHistory ? 'text-blue-500' : ''}`}
+                    title="查看历史记录"
+                  >
+                    <History className="h-5 w-5" />
+                  </button>
+                )}
+                
+                {/* 配置按钮 */}
+                <button
+                  onClick={() => setShowConfig(!showConfig)}
+                  className={`p-2 rounded-lg ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'} transition-colors ${showConfig ? 'text-blue-500' : ''}`}
+                  title="配置"
+                >
+                  <Settings className="h-5 w-5" />
+                </button>
+                
+                {/* 暗黑模式开关 */}
+                <button
+                  onClick={handleDarkModeToggle}
+                  className={`p-2 rounded-lg ${darkMode ? 'bg-gray-700 text-yellow-400' : 'bg-gray-100 text-gray-600'} transition-colors`}
+                  title={darkMode ? '切换到亮色模式' : '切换到暗黑模式'}
+                >
+                  {darkMode ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+                </button>
+              </div>
+            </div>
             
             {/* 用户信息 */}
             {authState.user && (
@@ -580,26 +645,28 @@ export default function AnimeRoleDetect() {
             )}
           </div>
           
-          {/* 模型选择和控制 */}
-          <div className="flex items-center space-x-4">
+          {/* 功能开关行 */}
+          <div className="flex flex-wrap items-center gap-4">
               {/* 模型选择 */}
-              <div className="flex items-center space-x-2">
-                <label className="text-sm font-medium">模型:</label>
-                <select
-                  value={selectedModel}
-                  onChange={(e) => setSelectedModel(e.target.value)}
-                  className={`px-3 py-1.5 rounded-lg text-sm ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-gray-50 border-gray-200'} border focus:outline-none focus:ring-2 focus:ring-blue-500`}
-                >
-                  {availableModels.map(model => (
-                    <option key={model} value={model}>
-                      {model === 'default' ? '默认 (CLIP)' : model}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              {config.features.enableModelSelection && (
+                <div className="flex items-center space-x-2">
+                  <label className="text-sm font-medium">模型:</label>
+                  <select
+                    value={selectedModel}
+                    onChange={(e) => setSelectedModel(e.target.value)}
+                    className={`px-3 py-1.5 rounded-lg text-sm ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-gray-50 border-gray-200'} border focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                  >
+                    {availableModels.map(model => (
+                      <option key={model} value={model}>
+                        {model === 'default' ? '默认 (CLIP)' : model}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
               
               {/* CoreML 开关 (仅 Mac 平台显示) */}
-              {isMacPlatform && (
+              {isMacPlatform && config.features.enableCoremlSwitch && (
                 <div className="flex items-center space-x-2">
                   <label className="text-sm font-medium">CoreML:</label>
                   <button
@@ -612,44 +679,30 @@ export default function AnimeRoleDetect() {
               )}
               
               {/* 属性预测开关 */}
-              <div className="flex items-center space-x-2">
-                <label className="text-sm font-medium">属性:</label>
-                <button
-                  onClick={() => setUseAttributes(!useAttributes)}
-                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${useAttributes ? 'bg-blue-600' : 'bg-gray-300'}`}
-                >
-                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${useAttributes ? 'translate-x-6' : 'translate-x-1'}`} />
-                </button>
-              </div>
+              {config.features.enableAttributesSwitch && (
+                <div className="flex items-center space-x-2">
+                  <label className="text-sm font-medium">属性:</label>
+                  <button
+                    onClick={() => setUseAttributes(!useAttributes)}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${useAttributes ? 'bg-blue-600' : 'bg-gray-300'}`}
+                  >
+                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${useAttributes ? 'translate-x-6' : 'translate-x-1'}`} />
+                  </button>
+                </div>
+              )}
               
               {/* 多角色检测开关 */}
-              <div className="flex items-center space-x-2">
-                <label className="text-sm font-medium">多角色:</label>
-                <button
-                  onClick={() => setMultiRole(!multiRole)}
-                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${multiRole ? 'bg-blue-600' : 'bg-gray-300'}`}
-                >
-                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${multiRole ? 'translate-x-6' : 'translate-x-1'}`} />
-                </button>
-              </div>
-              
-              {/* 历史记录按钮 */}
-              <button
-                onClick={() => setShowHistory(!showHistory)}
-                className={`p-2 rounded-lg ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'} transition-colors ${showHistory ? 'text-blue-500' : ''}`}
-                title="查看历史记录"
-              >
-                <History className="h-5 w-5" />
-              </button>
-              
-              {/* 暗黑模式开关 */}
-              <button
-                onClick={() => setDarkMode(!darkMode)}
-                className={`p-2 rounded-lg ${darkMode ? 'bg-gray-700 text-yellow-400' : 'bg-gray-100 text-gray-600'} transition-colors`}
-                title={darkMode ? '切换到亮色模式' : '切换到暗黑模式'}
-              >
-                {darkMode ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
-              </button>
+              {config.features.enableMultiRoleSwitch && (
+                <div className="flex items-center space-x-2">
+                  <label className="text-sm font-medium">多角色:</label>
+                  <button
+                    onClick={() => setMultiRole(!multiRole)}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${multiRole ? 'bg-blue-600' : 'bg-gray-300'}`}
+                  >
+                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${multiRole ? 'translate-x-6' : 'translate-x-1'}`} />
+                  </button>
+                </div>
+              )}
             </div>
           
           {/* 平台信息 */}
@@ -773,6 +826,19 @@ export default function AnimeRoleDetect() {
                 darkMode={darkMode}
                 onViewRecord={handleViewRecord}
                 onDeleteRecord={handleDeleteRecord}
+              />
+            </div>
+          </div>
+        )}
+        
+        {/* 配置面板 */}
+        {showConfig && (
+          <div className="fixed right-0 top-[6rem] bottom-0 w-full md:w-96 bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 shadow-lg z-40 transform transition-transform duration-300 ease-in-out">
+            <div className="h-full overflow-y-auto">
+              <ConfigPanel 
+                darkMode={darkMode}
+                config={config}
+                onConfigUpdate={handleConfigUpdate}
               />
             </div>
           </div>

@@ -1,0 +1,305 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+批量下载图片脚本
+根据批次配置文件下载图片
+"""
+
+import os
+import requests
+from PIL import Image
+import io
+import time
+import random
+import logging
+import json
+import argparse
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
+# 配置日志
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('batch_download_images.log'),
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger(__name__)
+
+# 全局配置
+GLOBAL_CONFIG = {
+    'download_dir': './data/role_images',
+    'url_dir': './spider_image_system/data/img_url',
+    'max_workers': 5,
+    'timeout': 15,
+    'delay': 0.5,
+    'min_resolution': [800, 800],
+    'max_retries': 3
+}
+
+# 创建下载目录
+os.makedirs(GLOBAL_CONFIG['download_dir'], exist_ok=True)
+
+def load_config(config_path):
+    """加载配置文件"""
+    try:
+        with open(config_path, 'r', encoding='utf-8') as f:
+            config = json.load(f)
+        return config
+    except Exception as e:
+        logger.error(f"加载配置文件失败: {e}")
+        return None
+
+def is_valid_image(content, min_resolution=(800, 800)):
+    """检查是否为有效图片"""
+    try:
+        img = Image.open(io.BytesIO(content))
+        img.verify()
+        
+        # 检查分辨率
+        img = Image.open(io.BytesIO(content))
+        width, height = img.size
+        if width < min_resolution[0] or height < min_resolution[1]:
+            return False, f"分辨率不足 ({width}x{height})"
+        
+        return True, ""
+    except Exception as e:
+        return False, str(e)
+
+def download_image(url, save_dir, role_name, timeout=15, min_resolution=(800, 800)):
+    """下载单张图片"""
+    retries = 0
+    while retries < GLOBAL_CONFIG['max_retries']:
+        try:
+            headers = {
+                'User-Agent': random.choice([
+                    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Edge/120.0.0.0',
+                    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15'
+                ]),
+                'Referer': 'https://www.google.com/'
+            }
+            
+            response = requests.get(url, headers=headers, timeout=timeout)
+            
+            if response.status_code == 200:
+                is_valid, message = is_valid_image(response.content, min_resolution)
+                if is_valid:
+                    # 生成文件名
+                    url_hash = abs(hash(url)) % 1000000
+                    filename = f"{url_hash:06d}.jpg"
+                    filepath = os.path.join(save_dir, filename)
+                    
+                    # 避免重复下载
+                    if os.path.exists(filepath):
+                        return False, "文件已存在"
+                    
+                    # 保存图片
+                    with open(filepath, 'wb') as f:
+                        f.write(response.content)
+                    
+                    return True, f"{filename}"
+                else:
+                    return False, f"无效图片: {message}"
+            else:
+                return False, f"HTTP {response.status_code}"
+                
+        except Exception as e:
+            retries += 1
+            if retries >= GLOBAL_CONFIG['max_retries']:
+                return False, str(e)
+            time.sleep(1)  # 重试前延迟
+
+def process_role(role_config, batch_config):
+    """处理单个角色"""
+    try:
+        role_name = role_config['name']
+        target_count = role_config['target_count']
+        
+        # 创建角色目录
+        role_dir = os.path.join(GLOBAL_CONFIG['download_dir'], role_name)
+        os.makedirs(role_dir, exist_ok=True)
+        
+        # 统计现有图片数量
+        existing_images = len([f for f in os.listdir(role_dir) if f.endswith(('.jpg', '.jpeg', '.png'))])
+        if existing_images >= target_count:
+            logger.info(f"角色 {role_name} 已有 {existing_images} 张图片，达到目标数量，跳过下载")
+            return role_name, 0, 0
+        
+        # 查找URL文件
+        url_file = os.path.join(GLOBAL_CONFIG['url_dir'], f"{role_name}_img.txt")
+        if not os.path.exists(url_file):
+            logger.warning(f"角色 {role_name} 的URL文件不存在: {url_file}")
+            return role_name, 0, 0
+        
+        # 读取URL文件
+        with open(url_file, 'r', encoding='utf-8') as f:
+            urls = [line.strip() for line in f if line.strip()]
+        
+        # 过滤无效URL
+        valid_urls = []
+        for url in urls:
+            # 跳过SVG和图标文件
+            if url.endswith('.svg') or 'icon' in url.lower():
+                continue
+            # 只保留图片文件
+            if any(ext in url.lower() for ext in ['.jpg', '.jpeg', '.png', '.gif', '.webp']):
+                valid_urls.append(url)
+        
+        # 限制下载数量
+        need_images = target_count - existing_images
+        download_urls = valid_urls[:need_images]
+        
+        if not download_urls:
+            logger.warning(f"角色 {role_name} 没有可下载的图片链接")
+            return role_name, 0, 0
+        
+        logger.info(f"开始下载角色 {role_name} 的图片，共 {len(download_urls)} 个链接，目标 {target_count} 张")
+        
+        # 下载图片
+        success_count = 0
+        fail_count = 0
+        
+        # 获取质量要求
+        min_resolution = batch_config.get('quality_requirements', {}).get('min_resolution', GLOBAL_CONFIG['min_resolution'])
+        
+        for url in download_urls:
+            success, message = download_image(url, role_dir, role_name, GLOBAL_CONFIG['timeout'], min_resolution)
+            if success:
+                success_count += 1
+                logger.info(f"角色 {role_name}: 下载成功 ({success_count}/{len(download_urls)}) - {message}")
+            else:
+                fail_count += 1
+                logger.warning(f"角色 {role_name}: 下载失败 ({fail_count}/{len(download_urls)}) - {message}")
+            
+            # 延迟，避免请求过于频繁
+            time.sleep(GLOBAL_CONFIG['delay'])
+        
+        # 检查最终数量
+        final_count = existing_images + success_count
+        logger.info(f"角色 {role_name}: 下载完成，成功 {success_count} 张，失败 {fail_count} 张，总计 {final_count}/{target_count} 张")
+        return role_name, success_count, fail_count
+        
+    except Exception as e:
+        logger.error(f"处理角色 {role_config['name']} 时出错: {e}")
+        return role_config['name'], 0, 0
+
+def process_batch(batch_config):
+    """处理单个批次"""
+    batch_id = batch_config['batch_id']
+    batch_name = batch_config['name']
+    
+    logger.info("=" * 60)
+    logger.info(f"开始处理批次 {batch_id}: {batch_name}")
+    logger.info("=" * 60)
+    
+    # 按优先级排序角色
+    roles = sorted(batch_config['roles'], key=lambda x: 0 if x['priority'] == 'high' else 1)
+    
+    results = {}
+    total_success = 0
+    total_fail = 0
+    
+    for role_config in roles:
+        role_name, success, fail = process_role(role_config, batch_config)
+        if success > 0 or fail > 0:
+            results[role_name] = {'success': success, 'fail': fail}
+            total_success += success
+            total_fail += fail
+        
+        # 角色间延迟
+        time.sleep(2)
+    
+    logger.info("=" * 60)
+    logger.info(f"批次 {batch_id}: {batch_name} 处理完成")
+    logger.info(f"成功下载 {total_success} 张图片，失败 {total_fail} 张")
+    logger.info("=" * 60)
+    
+    return results, total_success, total_fail
+
+def main():
+    """主函数"""
+    parser = argparse.ArgumentParser(description='批量下载图片脚本')
+    parser.add_argument('--config', default='batch_config.json', help='配置文件路径')
+    parser.add_argument('--batch', type=int, help='指定批次ID')
+    parser.add_argument('--role', help='指定角色名称')
+    
+    args = parser.parse_args()
+    
+    print("=" * 60)
+    print("批量下载图片脚本")
+    print("=" * 60)
+    
+    # 加载配置
+    config = load_config(args.config)
+    if not config:
+        return
+    
+    # 更新全局配置
+    if 'global_settings' in config:
+        GLOBAL_CONFIG.update(config['global_settings'])
+    
+    # 确保下载目录存在
+    os.makedirs(GLOBAL_CONFIG['download_dir'], exist_ok=True)
+    
+    # 处理指定批次
+    if args.batch:
+        batch_config = None
+        for batch in config['batch_plan']:
+            if batch['batch_id'] == args.batch:
+                batch_config = batch
+                break
+        
+        if not batch_config:
+            logger.error(f"批次 {args.batch} 不存在")
+            return
+        
+        process_batch(batch_config)
+    
+    # 处理指定角色
+    elif args.role:
+        found = False
+        for batch in config['batch_plan']:
+            for role in batch['roles']:
+                if role['name'] == args.role:
+                    process_role(role, batch)
+                    found = True
+                    break
+            if found:
+                break
+        
+        if not found:
+            logger.error(f"角色 {args.role} 不存在于配置中")
+    
+    # 处理所有批次
+    else:
+        total_results = {}
+        total_success_all = 0
+        total_fail_all = 0
+        
+        for batch_config in config['batch_plan']:
+            results, success, fail = process_batch(batch_config)
+            total_results.update(results)
+            total_success_all += success
+            total_fail_all += fail
+        
+        # 输出总结果
+        print("\n" + "=" * 60)
+        print("全部批次处理完成")
+        print("=" * 60)
+        print(f"成功处理 {len(total_results)} 个角色")
+        print(f"共下载 {total_success_all} 张图片，失败 {total_fail_all} 张")
+        
+        if total_results:
+            print("\n角色下载统计:")
+            for role_name, stats in total_results.items():
+                print(f"  {role_name}: 成功 {stats['success']} 张, 失败 {stats['fail']} 张")
+        
+        print(f"\n图片已保存到: {GLOBAL_CONFIG['download_dir']}")
+    
+    print("=" * 60)
+
+if __name__ == "__main__":
+    main()

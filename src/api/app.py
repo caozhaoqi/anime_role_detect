@@ -231,7 +231,8 @@ async def multi_role_classify_image(
     use_model: bool = Form(True),
     use_attributes: bool = Form(True),
     cache_bypass: bool = Form(False),
-    use_deepdanbooru: bool = Form(True)
+    use_deepdanbooru: bool = Form(True),
+    current_user: dict = Depends(get_current_user)
 ):
     """
     多角色检测
@@ -256,7 +257,8 @@ async def multi_role_classify_image(
         use_attributes=use_attributes,
         cache_bypass=cache_bypass,
         multi_role=True,
-        use_deepdanbooru=use_deepdanbooru
+        use_deepdanbooru=use_deepdanbooru,
+        current_user=current_user
     )
 
 
@@ -1294,4 +1296,103 @@ async def delete_recognition_record(record_id: str, current_user: dict = Depends
         return {
             "success": False,
             "message": "删除记录失败，请稍后重试"
+        }
+
+
+# 配置API端点 - 不需要认证
+from fastapi import Request
+
+@app.get("/api/config")
+async def get_config(request: Request):
+    """
+    获取前端配置信息
+    
+    Returns:
+        dict: 前端配置信息
+    """
+    try:
+        # 从项目配置中读取前端配置
+        import json
+        import os
+        
+        # 读取前端配置文件
+        config_path = os.path.join(os.path.dirname(__file__), '../frontend/app/config/config.json')
+        
+        if os.path.exists(config_path):
+            with open(config_path, 'r', encoding='utf-8') as f:
+                frontend_config = json.load(f)
+        else:
+            # 使用默认配置
+            frontend_config = {
+                "ui": {
+                    "theme": "light",
+                    "enableDarkMode": True,
+                    "animateTransitions": True,
+                    "showPlatformInfo": True,
+                    "enableNotifications": True
+                },
+                "features": {
+                    "enableModelSelection": True,
+                    "enableCoremlSwitch": True,
+                    "enableAttributesSwitch": True,
+                    "enableMultiRoleSwitch": True,
+                    "enableHistoryPanel": True,
+                    "enableDragDrop": True,
+                    "enableCopyDownload": True,
+                    "enableImagePreview": True
+                },
+                "api": {
+                    "baseUrl": "/api",
+                    "timeout": 30000,
+                    "retryCount": 3,
+                    "retryDelay": 1000
+                },
+                "messages": {
+                    "welcomeMessage": "你好！我是动漫角色识别助手。请上传一张动漫角色图片，我将尝试识别出这个角色。",
+                    "processingMessage": "正在识别...",
+                    "errorMessage": "识别过程中出现错误，请重试。",
+                    "successMessage": "识别完成！",
+                    "loginSuccessMessage": "登录成功！",
+                    "loginErrorMessage": "登录失败，请检查用户名和密码。"
+                },
+                "validation": {
+                    "maxImageSize": 10485760,
+                    "allowedFormats": ["image/jpeg", "image/png", "image/gif", "image/webp"],
+                    "minImageDimension": 100
+                },
+                "appearance": {
+                    "primaryColor": "#3b82f6",
+                    "secondaryColor": "#8b5cf6",
+                    "accentColor": "#ec4899",
+                    "successColor": "#10b981",
+                    "warningColor": "#f59e0b",
+                    "errorColor": "#ef4444",
+                    "fontFamily": "sans-serif",
+                    "borderRadius": "0.5rem",
+                    "shadow": "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)"
+                },
+                "layout": {
+                    "sidebarWidth": "280px",
+                    "headerHeight": "6rem",
+                    "footerHeight": "4rem",
+                    "contentPadding": "1.5rem"
+                },
+                "animations": {
+                    "duration": 300,
+                    "easing": "ease-in-out",
+                    "enableHoverEffects": True,
+                    "enableLoadingAnimations": True
+                }
+            }
+        
+        return {
+            "success": True,
+            "message": "获取配置成功",
+            "data": frontend_config
+        }
+    except Exception as e:
+        logger.error(f"获取配置失败: {e}")
+        return {
+            "success": False,
+            "message": "获取配置失败，请稍后重试"
         }
