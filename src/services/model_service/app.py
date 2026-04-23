@@ -50,14 +50,17 @@ get_logger = None
 
 # 动态导入函数
 def import_core_modules():
-    global Preprocessing, FeatureExtraction, WDViTV3Tagger, Classification, get_logger, detect_nsfw
+    global Preprocessing, FeatureExtraction, WDViTV3Tagger, Classification, get_logger
     # 只导入非PyTorch依赖的模块
     from src.core.preprocessing.preprocessing import Preprocessing
     from src.core.feature_extraction.feature_extraction import FeatureExtraction
     from src.core.tagging.wd_vit_v3_tagger import WDViTV3Tagger
     from src.core.classification.classification import Classification
-    from src.services.nsfw_detector import detect_nsfw
     from src.core.logging.global_logger import get_logger
+
+# 使用统一配置
+from src.core.config.service_config import get_service_config
+config = get_service_config()
 
 # 初始化日志
 import_core_modules()
@@ -104,11 +107,7 @@ def safe_model_load(func):
             return {
                 "role": "unknown",
                 "similarity": 0.0,
-                "tags": ["anime", "digital art"],
-                "nsfw": {
-                    "is_nsfw": False,
-                    "details": {}
-                }
+                "tags": ["anime", "digital art"]
             }
     # 保留原始函数的元数据
     wrapper.__name__ = func.__name__
@@ -210,23 +209,8 @@ async def predict_image(
         temp_path = f"temp_{int(time.time())}_{file.filename}"
         with open(temp_path, "wb") as f:
             f.write(content)
-        
-        # [1] NSFW检测 → 如果检测到敏感内容，直接返回
-        logger.info("开始NSFW检测...")
-        nsfw_result = detect_nsfw(temp_path)
-        logger.info(f"NSFW检测结果: {nsfw_result}")
-        
-        if nsfw_result['is_nsfw']:
-            logger.warning("检测到敏感内容，直接返回")
-            return {
-                "role": "nsfw_detected",
-                "similarity": 0.0,
-                "attributes": [],
-                "keypoints": None,
-                "nsfw_status": nsfw_result
-            }
-        
-        # [2] 图像预处理（解码、缩放、归一化）
+
+        # [1] 图像预处理（解码、缩放、归一化）
         logger.info("开始图像预处理...")
         if preprocessor is None:
             with model_init_lock:
@@ -364,8 +348,7 @@ async def predict_image(
             "similarity": float(similarity),
             "attributes": attributes,
             "keypoints": keypoints,
-            "nsfw_status": nsfw_result,
-            "feature": feature.tolist() if hasattr(feature, 'tolist') else feature  # 返回特征向量供后端使用
+            "feature": feature.tolist() if hasattr(feature, 'tolist') else feature
         }
         logger.info(f"返回结果: {result}")
         
@@ -380,11 +363,7 @@ async def predict_image(
         return {
             "role": "unknown",
             "similarity": 0.0,
-            "tags": ["anime", "digital art"],
-            "nsfw": {
-                "is_nsfw": False,
-                "details": {}
-            }
+            "tags": ["anime", "digital art"]
         }
     finally:
         # 清理临时文件
@@ -605,14 +584,14 @@ async def classify_image(
 # 主函数
 if __name__ == "__main__":
     import argparse
-    
+
     parser = argparse.ArgumentParser(description="模型服务")
-    parser.add_argument("--host", type=str, default="0.0.0.0", help="服务主机")
-    parser.add_argument("--port", type=int, default=8888, help="服务端口")
+    parser.add_argument("--host", type=str, default=config.MODEL_SERVICE_HOST, help="服务主机")
+    parser.add_argument("--port", type=int, default=config.MODEL_SERVICE_PORT, help="服务端口")
     parser.add_argument("--workers", type=int, default=1, help="工作进程数")
-    
+
     args = parser.parse_args()
-    
+
     # 启动服务
     uvicorn.run(
         "app:app",

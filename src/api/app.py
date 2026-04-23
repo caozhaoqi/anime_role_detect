@@ -5,7 +5,8 @@ import os
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
 sys.path.insert(0, project_root)
 
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Depends
+from typing import Optional
 from fastapi.middleware.cors import CORSMiddleware
 import time
 
@@ -13,19 +14,21 @@ import time
 from src.core.logging.global_logger import get_logger
 logger = get_logger("api")
 
-# 设置Hugging Face和Keras缓存目录为项目目录
-hf_cache_dir = os.path.join(os.path.dirname(__file__), '..', '..', 'huggingface_cache')
-keras_cache_dir = os.path.join(os.path.dirname(__file__), '..', '..', 'keras_cache')
-os.environ['HF_HOME'] = hf_cache_dir
-os.environ['KERAS_HOME'] = keras_cache_dir
+# 使用统一配置
+from src.core.config.service_config import get_service_config
+config = get_service_config()
+
+# 设置Hugging Face和Keras缓存目录
+os.environ['HF_HOME'] = config.HF_CACHE_DIR
+os.environ['KERAS_HOME'] = config.KERAS_CACHE_DIR
 
 # 创建缓存目录
-os.makedirs(hf_cache_dir, exist_ok=True)
-os.makedirs(keras_cache_dir, exist_ok=True)
+os.makedirs(config.HF_CACHE_DIR, exist_ok=True)
+os.makedirs(config.KERAS_CACHE_DIR, exist_ok=True)
 
-# 从环境变量中读取配置
-USE_MODEL_SERVICE = os.environ.get('USE_MODEL_SERVICE', 'True').lower() == 'True'
-MODEL_SERVICE_URL = os.environ.get('MODEL_SERVICE_URL', 'http://localhost:8888')
+# 从统一配置中读取（兼容环境变量）
+USE_MODEL_SERVICE = config.USE_MODEL_SERVICE
+MODEL_SERVICE_URL = config.MODEL_SERVICE_URL
 
 # 创建FastAPI应用实例
 app = FastAPI(
@@ -58,6 +61,16 @@ try:
 except Exception as e:
     logger.error(f"导入监控中间件失败: {e}")
 
+# 导入认证服务
+from src.services.auth_service import init_auth_service, authenticate_user, create_access_token, create_refresh_token, verify_token
+from src.middleware.auth import auth_middleware, get_current_user, get_current_admin
+
+# 导入认证中间件
+# try:
+#     app.middleware("http")(auth_middleware)
+# except Exception as e:
+#     logger.error(f"导入认证中间件失败: {e}")
+
 # 导入图像处理服务
 try:
     from src.services.processor.image_processor import process_single_image, process_batch_images, process_multi_role_image
@@ -71,10 +84,22 @@ except Exception as e:
     logger.error(f"导入模型加载服务失败: {e}")
 
 # 导入缓存服务
-try:
-    from src.services.cache_service import init_cache_manager
-except Exception as e:
-    logger.error(f"导入缓存服务失败: {e}")
+from src.services.cache_service import init_cache_manager, get_cache_stats
+
+# 导入监控服务
+from src.services.monitoring_service import init_monitoring_service, get_monitoring_service, monitor_request
+
+# 导入消息队列服务
+from src.services.message_queue_service import init_message_queue_service, send_message
+
+# 导入熔断器服务
+from src.services.circuit_breaker_service import init_circuit_breaker_service, execute_with_fallback
+
+# 导入模型版本管理服务
+from src.services.model_version_service import init_model_version_service, get_model_versions, get_model_path, register_model, enable_ab_test, disable_ab_test, get_ab_test_config, select_model_for_ab_test, update_model_description, delete_model_version
+
+# 导入多模型服务
+from src.services.multi_model_service import init_multi_model_service, process_with_multiple_models, add_model, remove_model, set_fusion_strategy, get_model_configs, get_fusion_strategy, get_multi_model_service
 
 
 @app.post("/api/classify")
@@ -107,6 +132,21 @@ async def classify_image(
     try:
         # 初始化缓存管理器
         init_cache_manager()
+        
+        # 初始化监控服务
+        init_monitoring_service()
+        
+        # 初始化消息队列服务
+        init_message_queue_service()
+        
+        # 初始化熔断器服务
+        init_circuit_breaker_service()
+        
+        # 初始化模型版本管理服务
+        init_model_version_service()
+        
+        # 初始化多模型服务
+        init_multi_model_service()
         
         # 加载模型
         load_models()
@@ -205,6 +245,21 @@ async def batch_classify_images(
     try:
         # 初始化缓存管理器
         init_cache_manager()
+        
+        # 初始化监控服务
+        init_monitoring_service()
+        
+        # 初始化消息队列服务
+        init_message_queue_service()
+        
+        # 初始化熔断器服务
+        init_circuit_breaker_service()
+        
+        # 初始化模型版本管理服务
+        init_model_version_service()
+        
+        # 初始化多模型服务
+        init_multi_model_service()
         
         # 加载模型
         load_models()
@@ -511,4 +566,614 @@ async def submit_feedback(
         return {
             "success": False,
             "message": "反馈提交失败，请稍后重试"
+        }
+
+
+@app.post("/api/auth/login")
+async def login(
+    username: str = Form(..., description="用户名"),
+    password: str = Form(..., description="密码")
+):
+    """
+    用户登录
+    
+    Args:
+        username: 用户名
+        password: 密码
+    
+    Returns:
+        dict: 登录结果，包含访问令牌和刷新令牌
+    """
+    try:
+        # 初始化认证服务
+        init_auth_service()
+        
+        # 验证用户
+        user = authenticate_user(username, password)
+        if not user:
+            return {
+                "success": False,
+                "message": "用户名或密码错误"
+            }
+        
+        # 创建访问令牌和刷新令牌
+        access_token = create_access_token(data={"sub": username, "role": user.get("role")})
+        refresh_token = create_refresh_token(data={"sub": username})
+        
+        return {
+            "success": True,
+            "message": "登录成功",
+            "data": {
+                "access_token": access_token,
+                "refresh_token": refresh_token,
+                "username": username,
+                "role": user.get("role")
+            }
+        }
+    except Exception as e:
+        logger.error(f"登录失败: {e}")
+        return {
+            "success": False,
+            "message": "登录失败，请稍后重试"
+        }
+
+
+@app.post("/api/auth/refresh")
+async def refresh_token(
+    refresh_token: str = Form(..., description="刷新令牌")
+):
+    """
+    刷新访问令牌
+    
+    Args:
+        refresh_token: 刷新令牌
+    
+    Returns:
+        dict: 刷新结果，包含新的访问令牌
+    """
+    try:
+        # 验证刷新令牌
+        payload = verify_token(refresh_token)
+        if not payload or payload.get("type") != "refresh":
+            return {
+                "success": False,
+                "message": "无效的刷新令牌"
+            }
+        
+        # 获取用户名
+        username = payload.get("sub")
+        if not username:
+            return {
+                "success": False,
+                "message": "无效的刷新令牌"
+            }
+        
+        # 初始化认证服务
+        from src.services.auth_service import get_auth_service
+        auth_service = get_auth_service()
+        
+        # 获取用户信息
+        user = auth_service.users.get(username)
+        if not user:
+            return {
+                "success": False,
+                "message": "用户不存在"
+            }
+        
+        # 创建新的访问令牌
+        new_access_token = create_access_token(data={"sub": username, "role": user.get("role")})
+        
+        return {
+            "success": True,
+            "message": "令牌刷新成功",
+            "data": {
+                "access_token": new_access_token
+            }
+        }
+    except Exception as e:
+        logger.error(f"刷新令牌失败: {e}")
+        return {
+            "success": False,
+            "message": "刷新令牌失败，请稍后重试"
+        }
+
+
+@app.get("/api/auth/me")
+async def get_current_user_info(current_user: dict = Depends(get_current_user)):
+    """
+    获取当前用户信息
+    
+    Returns:
+        dict: 当前用户信息
+    """
+    try:
+        return {
+            "success": True,
+            "message": "获取用户信息成功",
+            "data": {
+                "username": current_user.get("sub"),
+                "role": current_user.get("role")
+            }
+        }
+    except Exception as e:
+        logger.error(f"获取用户信息失败: {e}")
+        return {
+            "success": False,
+            "message": "获取用户信息失败，请稍后重试"
+        }
+
+
+@app.get("/api/admin/test")
+async def admin_test(current_admin: dict = Depends(get_current_admin)):
+    """
+    管理员测试端点
+    
+    Returns:
+        dict: 测试结果
+    """
+    try:
+        return {
+            "success": True,
+            "message": "管理员访问成功",
+            "data": {
+                "username": current_admin.get("sub"),
+                "role": current_admin.get("role")
+            }
+        }
+    except Exception as e:
+        logger.error(f"管理员测试失败: {e}")
+        return {
+            "success": False,
+            "message": "管理员测试失败，请稍后重试"
+        }
+
+
+@app.get("/api/model-versions")
+async def get_model_versions_list(model_name: Optional[str] = None):
+    """
+    获取模型版本列表
+    
+    Args:
+        model_name: 模型名称（可选）
+    
+    Returns:
+        dict: 模型版本列表
+    """
+    try:
+        versions = get_model_versions(model_name)
+        return {
+            "success": True,
+            "message": "获取模型版本成功",
+            "data": versions
+        }
+    except Exception as e:
+        logger.error(f"获取模型版本失败: {e}")
+        return {
+            "success": False,
+            "message": "获取模型版本失败，请稍后重试"
+        }
+
+
+@app.post("/api/model-versions/register")
+async def register_model_version(
+    model_name: str = Form(..., description="模型名称"),
+    version: str = Form(..., description="模型版本"),
+    path: str = Form(..., description="模型路径"),
+    description: str = Form("", description="模型描述"),
+    current_admin: dict = Depends(get_current_admin)
+):
+    """
+    注册模型版本
+    
+    Args:
+        model_name: 模型名称
+        version: 模型版本
+        path: 模型路径
+        description: 模型描述
+    
+    Returns:
+        dict: 注册结果
+    """
+    try:
+        success = register_model(model_name, version, path, description)
+        if success:
+            return {
+                "success": True,
+                "message": "模型版本注册成功"
+            }
+        else:
+            return {
+                "success": False,
+                "message": "模型版本注册失败"
+            }
+    except Exception as e:
+        logger.error(f"注册模型版本失败: {e}")
+        return {
+            "success": False,
+            "message": "注册模型版本失败，请稍后重试"
+        }
+
+
+@app.get("/api/model-versions/path")
+async def get_model_version_path(
+    model_name: str = Form(..., description="模型名称"),
+    version: str = Form("latest", description="模型版本")
+):
+    """
+    获取模型路径
+    
+    Args:
+        model_name: 模型名称
+        version: 模型版本（默认latest）
+    
+    Returns:
+        dict: 模型路径
+    """
+    try:
+        path = get_model_path(model_name, version)
+        if path:
+            return {
+                "success": True,
+                "message": "获取模型路径成功",
+                "data": {
+                    "path": path
+                }
+            }
+        else:
+            return {
+                "success": False,
+                "message": "模型路径不存在"
+            }
+    except Exception as e:
+        logger.error(f"获取模型路径失败: {e}")
+        return {
+            "success": False,
+            "message": "获取模型路径失败，请稍后重试"
+        }
+
+
+@app.post("/api/model-versions/ab-test/enable")
+async def enable_ab_test_endpoint(
+    test_models: str = Form(..., description="测试模型列表，格式: model1:v1,model2:v2"),
+    weights: str = Form(..., description="权重列表，格式: 0.3,0.7"),
+    control_model: str = Form(..., description="对照组模型"),
+    current_admin: dict = Depends(get_current_admin)
+):
+    """
+    启用A/B测试
+    
+    Args:
+        test_models: 测试模型列表，格式: model1:v1,model2:v2
+        weights: 权重列表，格式: 0.3,0.7
+        control_model: 对照组模型
+    
+    Returns:
+        dict: 启用结果
+    """
+    try:
+        # 解析测试模型列表
+        test_models_list = []
+        for model_str in test_models.split(","):
+            if ":" in model_str:
+                model_name, version = model_str.split(":")
+                test_models_list.append((model_name.strip(), version.strip()))
+        
+        # 解析权重列表
+        weights_list = [float(w.strip()) for w in weights.split(",")]
+        
+        # 启用A/B测试
+        enable_ab_test(test_models_list, weights_list, control_model)
+        
+        return {
+            "success": True,
+            "message": "A/B测试启用成功"
+        }
+    except Exception as e:
+        logger.error(f"启用A/B测试失败: {e}")
+        return {
+            "success": False,
+            "message": "启用A/B测试失败，请稍后重试"
+        }
+
+
+@app.post("/api/model-versions/ab-test/disable")
+async def disable_ab_test_endpoint(current_admin: dict = Depends(get_current_admin)):
+    """
+    禁用A/B测试
+    
+    Returns:
+        dict: 禁用结果
+    """
+    try:
+        disable_ab_test()
+        return {
+            "success": True,
+            "message": "A/B测试禁用成功"
+        }
+    except Exception as e:
+        logger.error(f"禁用A/B测试失败: {e}")
+        return {
+            "success": False,
+            "message": "禁用A/B测试失败，请稍后重试"
+        }
+
+
+@app.get("/api/model-versions/ab-test/config")
+async def get_ab_test_config_endpoint():
+    """
+    获取A/B测试配置
+    
+    Returns:
+        dict: A/B测试配置
+    """
+    try:
+        config = get_ab_test_config()
+        return {
+            "success": True,
+            "message": "获取A/B测试配置成功",
+            "data": config
+        }
+    except Exception as e:
+        logger.error(f"获取A/B测试配置失败: {e}")
+        return {
+            "success": False,
+            "message": "获取A/B测试配置失败，请稍后重试"
+        }
+
+
+@app.get("/api/model-versions/ab-test/select")
+async def select_model_for_ab_test_endpoint():
+    """
+    为A/B测试选择模型
+    
+    Returns:
+        dict: 选择的模型
+    """
+    try:
+        model_name, version = select_model_for_ab_test()
+        return {
+            "success": True,
+            "message": "选择模型成功",
+            "data": {
+                "model_name": model_name,
+                "version": version
+            }
+        }
+    except Exception as e:
+        logger.error(f"选择模型失败: {e}")
+        return {
+            "success": False,
+            "message": "选择模型失败，请稍后重试"
+        }
+
+
+@app.post("/api/model-versions/update-description")
+async def update_model_description_endpoint(
+    model_name: str = Form(..., description="模型名称"),
+    version: str = Form(..., description="模型版本"),
+    description: str = Form(..., description="模型描述"),
+    current_admin: dict = Depends(get_current_admin)
+):
+    """
+    更新模型描述
+    
+    Args:
+        model_name: 模型名称
+        version: 模型版本
+        description: 模型描述
+    
+    Returns:
+        dict: 更新结果
+    """
+    try:
+        success = update_model_description(model_name, version, description)
+        if success:
+            return {
+                "success": True,
+                "message": "模型描述更新成功"
+            }
+        else:
+            return {
+                "success": False,
+                "message": "模型描述更新失败"
+            }
+    except Exception as e:
+        logger.error(f"更新模型描述失败: {e}")
+        return {
+            "success": False,
+            "message": "更新模型描述失败，请稍后重试"
+        }
+
+
+@app.post("/api/model-versions/delete")
+async def delete_model_version_endpoint(
+    model_name: str = Form(..., description="模型名称"),
+    version: str = Form(..., description="模型版本"),
+    current_admin: dict = Depends(get_current_admin)
+):
+    """
+    删除模型版本
+    
+    Args:
+        model_name: 模型名称
+        version: 模型版本
+    
+    Returns:
+        dict: 删除结果
+    """
+    try:
+        success = delete_model_version(model_name, version)
+        if success:
+            return {
+                "success": True,
+                "message": "模型版本删除成功"
+            }
+        else:
+            return {
+                "success": False,
+                "message": "模型版本删除失败"
+            }
+    except Exception as e:
+        logger.error(f"删除模型版本失败: {e}")
+        return {
+            "success": False,
+            "message": "删除模型版本失败，请稍后重试"
+        }
+
+
+@app.post("/api/classify/multi-model")
+async def multi_model_classify_image(
+    file: UploadFile = File(...),
+    multi_role: bool = Form(False)
+):
+    """
+    使用多个模型进行分类
+    
+    Args:
+        file: 上传的图像文件
+        multi_role: 是否使用多角色检测
+    
+    Returns:
+        dict: 多模型融合的分类结果
+    """
+    try:
+        # 读取文件内容
+        content = await file.read()
+        
+        # 使用多模型处理
+        result = await get_multi_model_service().process_with_multiple_models(file, content, multi_role)
+        
+        # 构建响应
+        response = {
+            "success": True,
+            "data": result,
+            "message": "多模型分类成功"
+        }
+        
+        return response
+    except Exception as e:
+        logger.error(f"多模型分类失败: {e}")
+        import traceback
+        logger.error(f"异常堆栈: {traceback.format_exc()}")
+        from src.core.error.error_handler import raise_app_error
+        from src.core.error.error_codes import ErrorCode
+        raise_app_error(
+            error_code=ErrorCode.CLASSIFICATION_FAILED,
+            status_code=500,
+            detail=str(e)
+        )
+
+
+@app.get("/api/multi-model/config")
+async def get_multi_model_config():
+    """
+    获取多模型配置
+    
+    Returns:
+        dict: 多模型配置
+    """
+    try:
+        configs = get_model_configs()
+        strategy = get_fusion_strategy()
+        return {
+            "success": True,
+            "message": "获取多模型配置成功",
+            "data": {
+                "models": configs,
+                "fusion_strategy": strategy
+            }
+        }
+    except Exception as e:
+        logger.error(f"获取多模型配置失败: {e}")
+        return {
+            "success": False,
+            "message": "获取多模型配置失败，请稍后重试"
+        }
+
+
+@app.post("/api/multi-model/add")
+async def add_multi_model(
+    model_name: str = Form(..., description="模型名称"),
+    model_type: str = Form(..., description="模型类型 (local 或 service)"),
+    weight: float = Form(..., description="模型权重"),
+    current_admin: dict = Depends(get_current_admin)
+):
+    """
+    添加模型到多模型集成
+    
+    Args:
+        model_name: 模型名称
+        model_type: 模型类型 (local 或 service)
+        weight: 模型权重
+    
+    Returns:
+        dict: 添加结果
+    """
+    try:
+        add_model(model_name, model_type, weight)
+        return {
+            "success": True,
+            "message": "模型添加成功"
+        }
+    except Exception as e:
+        logger.error(f"添加模型失败: {e}")
+        return {
+            "success": False,
+            "message": "添加模型失败，请稍后重试"
+        }
+
+
+@app.post("/api/multi-model/remove")
+async def remove_multi_model(
+    model_name: str = Form(..., description="模型名称"),
+    current_admin: dict = Depends(get_current_admin)
+):
+    """
+    从多模型集成中移除模型
+    
+    Args:
+        model_name: 模型名称
+    
+    Returns:
+        dict: 移除结果
+    """
+    try:
+        remove_model(model_name)
+        return {
+            "success": True,
+            "message": "模型移除成功"
+        }
+    except Exception as e:
+        logger.error(f"移除模型失败: {e}")
+        return {
+            "success": False,
+            "message": "移除模型失败，请稍后重试"
+        }
+
+
+@app.post("/api/multi-model/strategy")
+async def set_multi_model_strategy(
+    strategy: str = Form(..., description="融合策略 (weighted_average, majority_vote, max_confidence)"),
+    current_admin: dict = Depends(get_current_admin)
+):
+    """
+    设置多模型融合策略
+    
+    Args:
+        strategy: 融合策略 (weighted_average, majority_vote, max_confidence)
+    
+    Returns:
+        dict: 设置结果
+    """
+    try:
+        set_fusion_strategy(strategy)
+        return {
+            "success": True,
+            "message": "融合策略设置成功"
+        }
+    except Exception as e:
+        logger.error(f"设置融合策略失败: {e}")
+        return {
+            "success": False,
+            "message": "设置融合策略失败，请稍后重试"
         }

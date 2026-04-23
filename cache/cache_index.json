@@ -1,14 +1,8 @@
 {
-  "image_processing_e91a2607b710ab74ec49ce3d4fa31682_multi_role_resnet18_loli8": {
-    "created": "2026-04-23T11:27:50.478364",
-    "last_accessed": "2026-04-23T11:27:50.478364",
+  "image_processing_6170ddf8b4cf0dcf023f8a3da6cb8c6a_multi_role_resnet18_loli8": {
+    "created": "2026-04-23T14:06:37.743239",
+    "last_accessed": "2026-04-23T14:06:37.743239",
     "ttl": 3600,
-    "file": "0c27249e5d0fbce6c2ac6b71ed079c88.pkl"
-  },
-  "image_processing_6170ddf8b4cf0dcf023f8a3da6cb8c6a_multi_role_efficientnet_b0": {
-    "created": "2026-04-23T11:36:21.267985",
-    "last_accessed": "2026-04-23T11:36:21.267985",
-    "ttl": 3600,
-    "file": "eb1b31b40bf5ba2cac2803b2ffcea26c.pkl"
+    "file": "de4be924f097cfd336c53f4ef636c20b.pkl"
   }
 }

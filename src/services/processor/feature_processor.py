@@ -31,8 +31,16 @@ def process_image_features(image_source, content_type, attributes):
     try:
         # 标签检测
         tag_names = []
-        # 暂时禁用标签检测，避免锁竞争
-        logger.info("标签检测已禁用")
+        try:
+            tagger = get_tagger()
+            if tagger:
+                tag_results = tagger.predict(image_source)
+                tag_names = [tag['tag'] for tag in tag_results if tag['score'] > 0.5]
+                logger.info(f"标签检测完成，提取到 {len(tag_names)} 个标签")
+            else:
+                logger.warning("标签检测器未加载")
+        except Exception as e:
+            logger.error(f"标签检测失败: {e}")
         
         # AI 角色预测
         if tag_names:

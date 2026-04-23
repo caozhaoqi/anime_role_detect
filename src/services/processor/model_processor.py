@@ -14,20 +14,24 @@ import numpy as np
 from src.core.logging.global_logger import get_logger
 from src.services.processor.model_loader import get_preprocessor, get_keypoint_detector, get_tagger, get_role_predictor
 from src.services.nsfw_detector import detect_nsfw
+from src.services.circuit_breaker_service import execute_with_fallback
 from .preprocessor import preprocess_image
 from .model_loader import load_trained_model
 from .feature_processor import process_image_features
 
 logger = get_logger("image_processor")
 
-# 从环境变量中读取配置
-USE_MODEL_SERVICE = os.environ.get('USE_MODEL_SERVICE', 'True').lower() == 'true'
-MODEL_SERVICE_URL = os.environ.get('MODEL_SERVICE_URL', 'http://localhost:8888')
+# 使用统一配置
+from src.core.config.service_config import get_service_config
+config = get_service_config()
+
+USE_MODEL_SERVICE = config.USE_MODEL_SERVICE
+MODEL_SERVICE_URL = config.MODEL_SERVICE_URL
 
 
-async def process_with_model_service(file, content, model_name, multi_role=False):
+async def _call_model_service(file, content, model_name, multi_role=False):
     """
-    使用模型服务处理图像
+    调用模型服务
     
     Args:
         file: 上传的文件
@@ -68,28 +72,23 @@ async def process_with_model_service(file, content, model_name, multi_role=False
         logger.info(f"请求文件: {file.filename}, 大小: {len(content)}字节, 类型: {content_type}")
         
         # 使用aiohttp进行异步HTTP调用
-        try:
-            async with aiohttp.ClientSession() as session:
-                # 构建multipart/form-data请求
-                form = aiohttp.FormData()
-                form.add_field('file', content, filename=file.filename, content_type=content_type)
-                form.add_field('model_name', model_name)
-                form.add_field('use_attributes', 'true')
-                
-                logger.info(f"准备发送请求到模型服务")
-                async with session.post(
-                    endpoint,
-                    data=form,
-                    timeout=30
-                ) as response:
-                    logger.info(f"模型服务响应状态码: {response.status}")
-                    response.raise_for_status()
-                    model_result = await response.json()
-                    logger.info(f"模型服务返回数据: {model_result}")
-        except Exception as e:
-            logger.error(f"模型服务请求失败: {e}")
-            # 直接返回包含错误信息的字典
-            return {"error": str(e)}
+        async with aiohttp.ClientSession() as session:
+            # 构建multipart/form-data请求
+            form = aiohttp.FormData()
+            form.add_field('file', content, filename=file.filename, content_type=content_type)
+            form.add_field('model_name', model_name)
+            form.add_field('use_attributes', 'true')
+            
+            logger.info(f"准备发送请求到模型服务")
+            async with session.post(
+                endpoint,
+                data=form,
+                timeout=30
+            ) as response:
+                logger.info(f"模型服务响应状态码: {response.status}")
+                response.raise_for_status()
+                model_result = await response.json()
+                logger.info(f"模型服务返回数据: {model_result}")
         
         if multi_role:
             # 处理多角色结果
@@ -207,9 +206,6 @@ async def process_with_model_service(file, content, model_name, multi_role=False
         
         return result
         
-    except Exception as e:
-        logger.error(f"使用模型服务处理图像失败: {e}")
-        raise
     finally:
         # 清理临时文件
         if temp_path and os.path.exists(temp_path):
@@ -217,6 +213,52 @@ async def process_with_model_service(file, content, model_name, multi_role=False
                 os.remove(temp_path)
             except Exception as e:
                 logger.error(f"清理临时文件失败: {e}")
+
+async def _model_service_fallback(file, content, model_name, multi_role=False):
+    """
+    模型服务降级策略
+    
+    Args:
+        file: 上传的文件
+        content: 文件内容
+        model_name: 模型名称
+        multi_role: 是否使用多角色检测
+    
+    Returns:
+        dict: 降级处理结果
+    """
+    logger.warning(f"模型服务不可用，使用本地模型处理: {model_name}")
+    return await process_with_local_model(file, content, model_name)
+
+async def process_with_model_service(file, content, model_name, multi_role=False):
+    """
+    使用模型服务处理图像
+    
+    Args:
+        file: 上传的文件
+        content: 文件内容
+        model_name: 模型名称
+        multi_role: 是否使用多角色检测
+    
+    Returns:
+        dict: 处理结果
+    """
+    try:
+        # 使用熔断器调用模型服务
+        result = await execute_with_fallback(
+            name=f"model_service_{'multi' if multi_role else 'single'}",
+            func=_call_model_service,
+            fallback=_model_service_fallback,
+            file=file,
+            content=content,
+            model_name=model_name,
+            multi_role=multi_role
+        )
+        return result
+    except Exception as e:
+        logger.error(f"使用模型服务处理图像失败: {e}")
+        # 最终降级到本地模型
+        return await process_with_local_model(file, content, model_name)
 
 
 async def process_with_local_model(file, content, model_name):

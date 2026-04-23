@@ -1,0 +1,109 @@
+version: '3.8'
+
+services:
+  # API服务
+  api-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+      - ./models:/app/models
+      - ./logs:/app/logs
+    environment:
+      - PYTHONUNBUFFERED=1
+      - HF_HOME=/app/cache/huggingface
+      - KERAS_HOME=/app/cache/keras
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=
+      - REDIS_DB=0
+      - CACHE_TTL=3600
+      - LOCAL_CACHE_SIZE=1000
+      - USE_MODEL_SERVICE=true
+      - MODEL_SERVICE_HOST=model-service
+      - MODEL_SERVICE_PORT=8888
+    depends_on:
+      - redis
+      - model-service
+    networks:
+      - anime-role-detect-network
+
+  # 模型服务
+  model-service:
+    build:
+      context: .
+      dockerfile: Dockerfile.model
+    ports:
+      - "8888:8888"
+    volumes:
+      - .:/app
+      - ./models:/app/models
+      - ./logs:/app/logs
+    environment:
+      - PYTHONUNBUFFERED=1
+      - HF_HOME=/app/cache/huggingface
+      - KERAS_HOME=/app/cache/keras
+    networks:
+      - anime-role-detect-network
+
+  # Redis服务
+  redis:
+    image: redis:7.0
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - anime-role-detect-network
+
+  # RabbitMQ服务
+  rabbitmq:
+    image: rabbitmq:3.11-management
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    environment:
+      - RABBITMQ_DEFAULT_USER=guest
+      - RABBITMQ_DEFAULT_PASS=guest
+    networks:
+      - anime-role-detect-network
+
+  # Prometheus服务
+  prometheus:
+    image: prom/prometheus:v2.43.0
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus-data:/prometheus
+    networks:
+      - anime-role-detect-network
+
+  # Grafana服务
+  grafana:
+    image: grafana/grafana:9.5.0
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    networks:
+      - anime-role-detect-network
+    depends_on:
+      - prometheus
+
+volumes:
+  redis-data:
+  rabbitmq-data:
+  prometheus-data:
+  grafana-data:
+
+networks:
+  anime-role-detect-network:
+    driver: bridge
