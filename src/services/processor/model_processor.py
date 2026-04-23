@@ -10,6 +10,7 @@ import os
 import time
 import asyncio
 import aiohttp
+import numpy as np
 from src.core.logging.global_logger import get_logger
 from src.services.processor.model_loader import get_preprocessor, get_keypoint_detector, get_tagger, get_role_predictor
 from src.services.nsfw_detector import detect_nsfw
@@ -96,6 +97,26 @@ async def process_with_model_service(file, content, model_name, multi_role=False
             count = model_result.get('count', 0)
             nsfw = model_result.get('nsfw', {"is_nsfw": False, "details": {}})
             
+            # 处理角色信息，确保numpy类型转换为Python原生类型
+            processed_roles = []
+            for role in roles:
+                # 确保bbox中的值都是Python原生类型
+                bbox = role.get("bbox", {})
+                processed_bbox = {}
+                for key, value in bbox.items():
+                    if isinstance(value, (np.integer, np.floating)):
+                        processed_bbox[key] = float(value) if isinstance(value, np.floating) else int(value)
+                    else:
+                        processed_bbox[key] = value
+                
+                processed_roles.append({
+                    "role": role.get("role", "unknown"),
+                    "similarity": float(role.get("similarity", 0.0)),
+                    "tags": role.get("tags", []),
+                    "bbox": processed_bbox,
+                    "confidence": float(role.get("confidence", 0.0))
+                })
+            
             # 保存临时文件用于其他处理
             temp_path = f"temp/temp_{int(time.time())}_{file.filename}"
             with open(temp_path, "wb") as f:
@@ -109,7 +130,7 @@ async def process_with_model_service(file, content, model_name, multi_role=False
             
             # 构建结果
             result = {
-                "roles": roles,
+                "roles": processed_roles,
                 "count": count,
                 "text_detections": text_detections,
                 "keypoints": keypoints,

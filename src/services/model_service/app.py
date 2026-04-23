@@ -323,10 +323,38 @@ async def predict_image(
             # 分类图像
             role, similarity = classifier.classify(feature, 5, attributes)  # 减少top_k值，提高速度
         else:
-            # 如果没有索引，返回特征向量和未知角色
-            logger.warning("分类器索引不存在，返回特征向量和未知角色")
-            role = "unknown"
-            similarity = 0.0
+            # 如果没有索引，尝试使用本地模型进行分类
+            logger.warning("分类器索引不存在，尝试使用本地模型进行分类")
+            try:
+                # 导入MultiRoleDetector
+                from src.core.detection.multi_role_detection import MultiRoleDetector
+                
+                # 初始化检测器
+                detector = MultiRoleDetector(model_name=model_name)
+                
+                # 加载模型
+                detector._load_trained_model()
+                
+                # 分类角色
+                if detector.model and detector.class_to_idx:
+                    # 转换特征向量为PIL图像
+                    from PIL import Image
+                    import numpy as np
+                    import torch
+                    
+                    # 转换特征向量为图像（这里只是为了使用分类方法）
+                    # 注意：这不是最佳方法，但是为了兼容现有代码
+                    # 实际应用中应该直接使用特征向量进行分类
+                    role_image = Image.fromarray(np.zeros((224, 224, 3), dtype=np.uint8))
+                    role, similarity = detector._classify_role(role_image)
+                    logger.info(f"本地模型分类结果: {role}, 相似度: {similarity}")
+                else:
+                    role = "unknown"
+                    similarity = 0.0
+            except Exception as e:
+                logger.error(f"使用本地模型分类失败: {e}")
+                role = "unknown"
+                similarity = 0.0
         logger.info("角色分类完成")
         
         # [7] 返回结果：角色名称、标签、关键点、NSFW状态

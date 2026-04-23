@@ -126,11 +126,37 @@ class MultiRoleDetector:
                 return
             
             # 加载模型数据
-            model_data = torch.load(model_path, map_location=torch.device('cpu'), weights_only=True)
+            model_data = torch.load(model_path, map_location=torch.device('cpu'), weights_only=False)
             self.class_to_idx = model_data.get('class_to_idx', {})
             
+            # 尝试直接加载完整模型
+            model_full_path = model_path.replace('model_best.pth', 'model_full.pth')
+            if os.path.exists(model_full_path):
+                logger.info(f"尝试加载完整模型文件: {model_full_path}")
+                try:
+                    full_model = torch.load(model_full_path, map_location=torch.device('cpu'), weights_only=False)
+                    if isinstance(full_model, torch.nn.Module):
+                        self.model = full_model
+                        logger.info("成功加载完整模型")
+                        self.model.eval()
+                        
+                        # 优化模型推理
+                        if torch.cuda.is_available():
+                            self.model = self.model.cuda()
+                            logger.info(f"模型 {model_name} 已移至GPU")
+                        
+                        logger.info(f"模型 {model_name} 加载成功")
+                        return
+                    else:
+                        logger.error(f"完整模型文件格式不正确: {type(full_model)}")
+                except Exception as e:
+                    logger.error(f"加载完整模型失败: {e}")
+            
+            # 如果无法加载完整模型，则尝试创建模型并加载权重
+            logger.info(f"创建模型并加载权重: {model_name}")
+            
             # 加载模型
-            if model_name == 'mobilenet_v2':
+            if 'mobilenet_v2' in model_name:
                 self.model = models.mobilenet_v2(pretrained=False)
                 self.model.classifier = torch.nn.Sequential(
                     torch.nn.Dropout(p=0.3),
@@ -140,7 +166,7 @@ class MultiRoleDetector:
                     torch.nn.Dropout(p=0.15),
                     torch.nn.Linear(512, len(self.class_to_idx))
                 )
-            elif model_name == 'efficientnet_b0':
+            elif 'efficientnet_b0' in model_name:
                 self.model = models.efficientnet_b0(pretrained=False)
                 self.model.classifier = torch.nn.Sequential(
                     torch.nn.Dropout(p=0.3),
@@ -168,7 +194,11 @@ class MultiRoleDetector:
                 self.model.fc = torch.nn.Linear(self.model.fc.in_features, len(self.class_to_idx))
             
             # 加载模型权重
-            self.model.load_state_dict(model_data['model_state_dict'])
+            if 'model_state_dict' in model_data:
+                self.model.load_state_dict(model_data['model_state_dict'])
+                logger.info("成功加载模型权重")
+            else:
+                logger.error(f"模型文件中没有model_state_dict键")
             self.model.eval()
             
             # 优化模型推理
@@ -279,6 +309,22 @@ class MultiRoleDetector:
                     "confidence": 0.5  # 默认置信度
                 })
                 logger.info(f"添加默认角色检测结果: {role}, 相似度: {similarity}")
+            
+            # 确保至少返回一个结果
+            if len(results) == 0:
+                logger.info("所有检测方法都失败，返回默认角色")
+                results.append({
+                    "role": "Unknown",
+                    "similarity": 0.0,
+                    "attributes": [],
+                    "bbox": {
+                        "x1": 0,
+                        "y1": 0,
+                        "x2": int(image_np.shape[1]),
+                        "y2": int(image_np.shape[0])
+                    },
+                    "confidence": 0.1  # 最低置信度
+                })
         except Exception as e:
             logger.error(f"检测角色失败: {e}")
         
@@ -368,7 +414,7 @@ class MultiRoleDetector:
                     attributes = []
                 
                 # 分类角色
-                if self.model is not None and self.extractor is not None:
+                if self.model is not None and self.class_to_idx is not None:
                     role, similarity = self._classify_role(role_image)
                 else:
                     role = "Unknown"

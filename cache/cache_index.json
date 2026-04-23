@@ -1,32 +1,14 @@
 {
-  "image_processing_63800c5689ffbc3d35b245bf28d56108_multi_role_default": {
-    "created": "2026-04-23T09:44:45.018346",
-    "last_accessed": "2026-04-23T09:44:45.018346",
-    "ttl": 3600,
-    "file": "7a1806fe2f7b4b97334d097309f53135.pkl"
-  },
-  "image_processing_bbf1d9f53ed7ebe0f27bfa863e20ad4c_multi_role_default": {
-    "created": "2026-04-23T09:58:16.702258",
-    "last_accessed": "2026-04-23T09:58:16.702258",
-    "ttl": 3600,
-    "file": "2cd5f7c2514093768e9178e1be42e6e1.pkl"
-  },
-  "image_processing_b811ff23d68504903f2d00aa9308334c_multi_role_default": {
-    "created": "2026-04-23T10:02:31.476722",
-    "last_accessed": "2026-04-23T10:29:48.020552",
-    "ttl": 3600,
-    "file": "c491a57740d281bce778dbe0247f75e0.pkl"
-  },
-  "image_processing_ffd0b35dec1f38de2977788c9dabef12_multi_role_default": {
-    "created": "2026-04-23T10:03:57.674462",
-    "last_accessed": "2026-04-23T10:03:57.674462",
-    "ttl": 3600,
-    "file": "21ae6f9734ab24947f0de90bf7ed2d3d.pkl"
-  },
   "image_processing_e91a2607b710ab74ec49ce3d4fa31682_multi_role_resnet18_loli8": {
-    "created": "2026-04-23T10:28:29.586366",
-    "last_accessed": "2026-04-23T10:28:29.586366",
+    "created": "2026-04-23T11:27:50.478364",
+    "last_accessed": "2026-04-23T11:27:50.478364",
     "ttl": 3600,
     "file": "0c27249e5d0fbce6c2ac6b71ed079c88.pkl"
+  },
+  "image_processing_6170ddf8b4cf0dcf023f8a3da6cb8c6a_multi_role_efficientnet_b0": {
+    "created": "2026-04-23T11:36:21.267985",
+    "last_accessed": "2026-04-23T11:36:21.267985",
+    "ttl": 3600,
+    "file": "eb1b31b40bf5ba2cac2803b2ffcea26c.pkl"
   }
 }

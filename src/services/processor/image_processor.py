@@ -8,6 +8,7 @@
 
 import os
 import hashlib
+import numpy as np
 from src.core.logging.global_logger import get_logger
 from src.services.cache_service import get_cache_manager
 from .model_processor import process_with_model_service, process_with_local_model, process_with_trained_model, process_with_traditional_model
@@ -329,8 +330,9 @@ async def process_multi_role_image(file, model_name, cache_bypass=False, use_cor
                 
                 suffix = get_file_extension(file.filename)
                 logger.info(f"执行本地多角色检测，文件后缀: {suffix}")
-                result = with_temp_file(content, suffix, process)
-                logger.info(f"本地多角色检测完成，结果: {result}")
+                local_result = with_temp_file(content, suffix, process)
+                logger.info(f"本地多角色检测完成，结果: {local_result}")
+                result = local_result
         else:
             # 使用临时文件处理
             def process(temp_path):
