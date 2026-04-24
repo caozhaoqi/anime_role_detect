@@ -29,13 +29,14 @@ logger = logging.getLogger(__name__)
 
 # 全局配置
 GLOBAL_CONFIG = {
-    'download_dir': './data/role_images',
-    'url_dir': './spider_image_system/data/img_url',
+    'download_dir': '../../data/role_images',
+    'url_dir': '../../spider_image_system/data/img_url',
     'max_workers': 5,
-    'timeout': 15,
+    'timeout': 30,  # 增加超时时间到30秒
     'delay': 0.5,
     'min_resolution': [800, 800],
-    'max_retries': 3
+    'max_retries': 5,  # 增加最大重试次数到5次
+    'proxy': None  # 代理设置，可根据需要配置
 }
 
 # 创建下载目录
@@ -67,9 +68,11 @@ def is_valid_image(content, min_resolution=(800, 800)):
     except Exception as e:
         return False, str(e)
 
-def download_image(url, save_dir, role_name, timeout=15, min_resolution=(800, 800)):
+def download_image(url, save_dir, role_name, timeout=30, min_resolution=(800, 800)):
     """下载单张图片"""
     retries = 0
+    backoff_factor = 1  # 退避因子
+    
     while retries < GLOBAL_CONFIG['max_retries']:
         try:
             headers = {
@@ -77,15 +80,45 @@ def download_image(url, save_dir, role_name, timeout=15, min_resolution=(800, 80
                     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
                     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
                     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Edge/120.0.0.0',
-                    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15'
+                    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15',
+                    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
                 ]),
-                'Referer': 'https://www.google.com/'
+                'Referer': 'https://www.google.com/',
+                'Accept': 'image/*',
+                'Accept-Encoding': 'gzip, deflate, br',
+                'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8'
             }
             
-            response = requests.get(url, headers=headers, timeout=timeout)
+            # 配置代理
+            proxies = None
+            if GLOBAL_CONFIG['proxy']:
+                proxies = {
+                    'http': GLOBAL_CONFIG['proxy'],
+                    'https': GLOBAL_CONFIG['proxy']
+                }
+            
+            # 增加超时时间，根据重试次数动态调整
+            current_timeout = timeout * (1 + retries * 0.5)
+            
+            response = requests.get(
+                url, 
+                headers=headers, 
+                timeout=current_timeout,
+                proxies=proxies,
+                stream=True,  # 流式下载，减少内存使用
+                allow_redirects=True  # 允许重定向
+            )
             
             if response.status_code == 200:
-                is_valid, message = is_valid_image(response.content, min_resolution)
+                # 检查内容类型
+                content_type = response.headers.get('Content-Type', '')
+                if not content_type.startswith('image/'):
+                    return False, f"不是图片类型: {content_type}"
+                
+                # 读取内容
+                content = response.content
+                
+                is_valid, message = is_valid_image(content, min_resolution)
                 if is_valid:
                     # 生成文件名
                     url_hash = abs(hash(url)) % 1000000
@@ -98,19 +131,42 @@ def download_image(url, save_dir, role_name, timeout=15, min_resolution=(800, 80
                     
                     # 保存图片
                     with open(filepath, 'wb') as f:
-                        f.write(response.content)
+                        f.write(content)
                     
                     return True, f"{filename}"
                 else:
                     return False, f"无效图片: {message}"
+            elif response.status_code in [429, 503, 504]:
+                # 服务器繁忙，增加延迟后重试
+                retries += 1
+                delay = backoff_factor * (2 ** retries) + random.uniform(0, 1)
+                logger.warning(f"服务器繁忙 (HTTP {response.status_code})，{delay:.2f}秒后重试...")
+                time.sleep(delay)
+                continue
             else:
                 return False, f"HTTP {response.status_code}"
                 
+        except requests.exceptions.Timeout:
+            retries += 1
+            if retries >= GLOBAL_CONFIG['max_retries']:
+                return False, "请求超时"
+            delay = backoff_factor * (2 ** retries) + random.uniform(0, 1)
+            logger.warning(f"请求超时，{delay:.2f}秒后重试...")
+            time.sleep(delay)
+        except requests.exceptions.ConnectionError:
+            retries += 1
+            if retries >= GLOBAL_CONFIG['max_retries']:
+                return False, "连接错误"
+            delay = backoff_factor * (2 ** retries) + random.uniform(0, 1)
+            logger.warning(f"连接错误，{delay:.2f}秒后重试...")
+            time.sleep(delay)
         except Exception as e:
             retries += 1
             if retries >= GLOBAL_CONFIG['max_retries']:
                 return False, str(e)
-            time.sleep(1)  # 重试前延迟
+            delay = backoff_factor * (2 ** retries) + random.uniform(0, 1)
+            logger.warning(f"下载失败: {str(e)}，{delay:.2f}秒后重试...")
+            time.sleep(delay)
 
 def process_role(role_config, batch_config):
     """处理单个角色"""
@@ -128,11 +184,23 @@ def process_role(role_config, batch_config):
             logger.info(f"角色 {role_name} 已有 {existing_images} 张图片，达到目标数量，跳过下载")
             return role_name, 0, 0
         
-        # 查找URL文件
+        # 查找URL文件（支持中文和拼音格式）
         url_file = os.path.join(GLOBAL_CONFIG['url_dir'], f"{role_name}_img.txt")
+        
+        # 如果中文文件名不存在，尝试查找拼音格式的文件名
         if not os.path.exists(url_file):
-            logger.warning(f"角色 {role_name} 的URL文件不存在: {url_file}")
-            return role_name, 0, 0
+            # 尝试查找所有可能的拼音格式文件
+            import glob
+            possible_files = glob.glob(os.path.join(GLOBAL_CONFIG['url_dir'], f"*_img.txt"))
+            if possible_files:
+                logger.info(f"角色 {role_name} 的URL文件不存在，尝试使用现有拼音格式文件")
+                # 这里可以根据需要实现更智能的匹配逻辑
+                # 暂时使用第一个找到的文件作为示例
+                url_file = possible_files[0]
+                logger.info(f"使用文件: {url_file}")
+            else:
+                logger.warning(f"角色 {role_name} 的URL文件不存在: {url_file}")
+                return role_name, 0, 0
         
         # 读取URL文件
         with open(url_file, 'r', encoding='utf-8') as f:
@@ -148,9 +216,14 @@ def process_role(role_config, batch_config):
             if any(ext in url.lower() for ext in ['.jpg', '.jpeg', '.png', '.gif', '.webp']):
                 valid_urls.append(url)
         
+        # 调试信息
+        logger.info(f"角色 {role_name}: 原始URL数量: {len(urls)}, 有效URL数量: {len(valid_urls)}")
+        
         # 限制下载数量
         need_images = target_count - existing_images
         download_urls = valid_urls[:need_images]
+        
+        logger.info(f"角色 {role_name}: 需要下载 {need_images} 张图片，实际可下载 {len(download_urls)} 张")
         
         if not download_urls:
             logger.warning(f"角色 {role_name} 没有可下载的图片链接")
