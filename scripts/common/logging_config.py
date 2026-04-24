@@ -8,13 +8,20 @@
 """
 
 import os
+import sys
 import logging
 import logging.handlers
 from datetime import datetime
 
+# 获取项目根目录
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../'))
+
+# 将项目根目录添加到Python路径
+sys.path.insert(0, PROJECT_ROOT)
+
 # 全局配置
 LOG_CONFIG = {
-    'LOG_DIR': os.path.abspath(os.path.join(os.path.dirname(__file__), '../../logs')),
+    'LOG_DIR': os.path.join(PROJECT_ROOT, 'logs'),
     'LOG_FORMAT': '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     'LOG_DATE_FORMAT': '%Y-%m-%d %H:%M:%S',
     'LOG_MAX_BYTES': 10 * 1024 * 1024,  # 10MB

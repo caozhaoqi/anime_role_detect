@@ -9,17 +9,13 @@
 import os
 import json
 import sqlite3
-import logging
 from datetime import datetime
 
+# 导入统一日志配置
+from common.logging_config import get_logger
+
 # 配置日志
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    filename='setup_database.log',
-    filemode='a'
-)
-logger = logging.getLogger(__name__)
+logger = get_logger('data_collection.setup_database', 'setup_database.log')
 
 # 全局配置
 GLOBAL_CONFIG = {

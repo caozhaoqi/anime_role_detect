@@ -10,7 +10,6 @@
 
 import os
 import json
-import logging
 import numpy as np
 import tensorflow as tf
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
@@ -23,14 +22,11 @@ from tensorflow.keras.utils import to_categorical
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
 
+# 导入统一日志配置
+from common.logging_config import get_logger
+
 # 配置日志
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    filename='advanced_training.log',
-    filemode='a'
-)
-logger = logging.getLogger(__name__)
+logger = get_logger('training.advanced_training', 'advanced_training.log')
 
 # 全局配置
 GLOBAL_CONFIG = {

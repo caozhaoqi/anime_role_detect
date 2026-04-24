@@ -10,7 +10,7 @@ import json
 from datetime import datetime
 
 # 导入统一日志配置
-from scripts.common.logging_config import get_logger
+from common.logging_config import get_logger
 
 # 配置日志
 logger = get_logger('data_collection.optimize_urls', 'optimize_urls.log')

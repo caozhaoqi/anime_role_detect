@@ -8,18 +8,14 @@
 
 import os
 import hashlib
-import logging
 from PIL import Image
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
+# 导入统一日志配置
+from common.logging_config import get_logger
+
 # 配置日志
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    filename='deduplicate_images.log',
-    filemode='a'
-)
-logger = logging.getLogger(__name__)
+logger = get_logger('data_collection.deduplicate_images', 'deduplicate_images.log')
 
 # 全局配置
 GLOBAL_CONFIG = {
