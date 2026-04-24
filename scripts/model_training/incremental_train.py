@@ -35,11 +35,34 @@ os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
 
 BATCH_SIZE = 8
 NUM_EPOCHS = 15  # 增量训练 epoch 数
-LEARNING_RATE = 1e-5  # 更小的学习率
+LEARNING_RATE = 1e-3  # 调整学习率，用于新初始化分类器层
 IMAGE_SIZE = 224
 NUM_WORKERS = 0
 
 MODEL_DIR = './models'
+
+
+class TransformSubset(torch.utils.data.Dataset):
+    def __init__(self, subset, transform=None):
+        self.subset = subset
+        self.transform = transform
+
+    def __getitem__(self, idx):
+        img_path, label = self.subset.dataset.samples[self.subset.indices[idx]]
+        try:
+            image = Image.open(img_path).convert('RGB')
+            if self.transform:
+                image = self.transform(image)
+            return image, label
+        except Exception as e:
+            logger.error(f"加载失败 {img_path}: {e}")
+            image = Image.new('RGB', (IMAGE_SIZE, IMAGE_SIZE), (128, 128, 128))
+            if self.transform:
+                image = self.transform(image)
+            return image, label
+
+    def __len__(self):
+        return len(self.subset)
 
 
 class SimpleImageDataset(torch.utils.data.Dataset):
@@ -83,31 +106,236 @@ class SimpleImageDataset(torch.utils.data.Dataset):
             return image, label
 
 
+def load_base_model_with_label_alignment(base_model_path, new_data_dir, num_classes):
+    """加载基础模型并进行标签对齐"""
+    logger.info(f"加载基础模型: {base_model_path}")
+    logger.info(f"新数据目录: {new_data_dir}")
+    
+    # 检查文件是否存在
+    if not os.path.exists(base_model_path):
+        raise FileNotFoundError(f"模型文件不存在: {base_model_path}")
+    
+    # 获取新数据的类别
+    new_class_names = sorted([d for d in os.listdir(new_data_dir) if os.path.isdir(os.path.join(new_data_dir, d))])
+    new_class_to_idx = {name: idx for idx, name in enumerate(new_class_names)}
+    
+    # 尝试加载旧模型的class_to_idx
+    model_dir = os.path.dirname(base_model_path)
+    old_class_to_idx_path = os.path.join(model_dir, 'class_to_idx.json')
+    
+    old_class_to_idx = {}
+    if os.path.exists(old_class_to_idx_path):
+        with open(old_class_to_idx_path, 'r', encoding='utf-8') as f:
+            old_class_to_idx = json.load(f)
+        logger.info(f"加载旧模型类别映射: {old_class_to_idx}")
+    
+    # 如果没有旧类别，或类别不同，进行标签对齐
+    if not old_class_to_idx or set(old_class_to_idx.keys()) != set(new_class_names):
+        logger.info("进行标签对齐...")
+        
+        # 找出已有角色和新角色
+        old_classes = set(old_class_to_idx.keys()) if old_class_to_idx else set()
+        new_classes = set(new_class_names)
+        
+        common_classes = old_classes & new_classes
+        new_only_classes = new_classes - old_classes
+        
+        logger.info(f"已有角色数量: {len(old_classes)}")
+        logger.info(f"新数据角色数量: {len(new_classes)}")
+        logger.info(f"共同角色数量: {len(common_classes)}")
+        logger.info(f"新增角色数量: {len(new_only_classes)}")
+        logger.info(f"新增角色: {list(new_only_classes)[:10]}...")  # 只打印前10个
+        
+        # 创建对齐后的类别映射
+        aligned_class_to_idx = old_class_to_idx.copy()
+        next_idx = len(old_class_to_idx) if old_class_to_idx else 0
+        
+        # 为新角色分配新的ID
+        for class_name in sorted(new_only_classes):
+            aligned_class_to_idx[class_name] = next_idx
+            next_idx += 1
+        
+        # 如果类别数量变化了，需要扩展分类器
+        need_expand = (len(old_class_to_idx) > 0 and len(aligned_class_to_idx) > len(old_class_to_idx))
+        
+        logger.info(f"对齐后类别数: {len(aligned_class_to_idx)}")
+    else:
+        # 类别相同，直接使用旧的映射
+        aligned_class_to_idx = old_class_to_idx
+        need_expand = False
+        logger.info("类别相同，无需对齐")
+    
+    # 加载模型
+    checkpoint = torch.load(base_model_path, map_location=torch.device('cpu'))
+    model_type = checkpoint.get('model_type')
+    
+    if not model_type:
+        logger.info("直接加载完整模型")
+        model = torch.load(base_model_path, map_location=torch.device('cpu'), weights_only=False)
+        
+        if hasattr(model, 'features') and hasattr(model.features, '__len__') and len(model.features) > 0:
+            if hasattr(model, 'classifier') and len(model.classifier) == 2:
+                model_type = 'efficientnet_b0'
+            elif hasattr(model, 'classifier') and len(model.classifier) == 1:
+                model_type = 'mobilenet_v2'
+        elif hasattr(model, 'layer4'):
+            model_type = 'resnet18'
+        else:
+            model_type = 'unknown'
+        
+        logger.info(f"推断模型类型: {model_type}")
+    else:
+        logger.info(f"基础模型类型: {model_type}")
+        
+        # 找到model_full.pth文件
+        full_model_path = os.path.join(model_dir, 'model_full.pth')
+        
+        if not os.path.exists(full_model_path):
+            logger.warning(f"未找到完整模型文件: {full_model_path}，创建新模型")
+            if model_type == 'mobilenet_v2':
+                model = models.mobilenet_v2(weights='DEFAULT')
+                old_num_classes = 0
+            elif model_type == 'efficientnet_b0':
+                model = models.efficientnet_b0(weights='DEFAULT')
+                old_num_classes = 0
+            elif model_type == 'resnet18':
+                model = models.resnet18(weights='DEFAULT')
+                old_num_classes = 0
+            else:
+                raise ValueError(f"不支持的模型类型: {model_type}")
+        else:
+            logger.info(f"加载完整模型: {full_model_path}")
+            model = torch.load(full_model_path, map_location=torch.device('cpu'), weights_only=False)
+            
+            # 获取旧模型的类别数
+            if model_type == 'efficientnet_b0':
+                old_num_classes = model.classifier[1].out_features
+            elif model_type == 'mobilenet_v2':
+                old_num_classes = model.classifier[1].out_features
+            elif model_type == 'resnet18':
+                old_num_classes = model.fc.out_features
+            else:
+                old_num_classes = 0
+            
+            logger.info(f"旧模型类别数: {old_num_classes}")
+    
+    # 调整分类器
+    new_num_classes = len(aligned_class_to_idx)
+    
+    if model_type == 'efficientnet_b0':
+        if need_expand and old_num_classes > 0:
+            # 扩展分类器层
+            old_classifier = model.classifier[1]
+            new_classifier = nn.Linear(old_classifier.in_features, new_num_classes)
+            # 复制旧权重
+            with torch.no_grad():
+                new_classifier.weight[:old_num_classes] = old_classifier.weight
+                new_classifier.bias[:old_num_classes] = old_classifier.bias
+            model.classifier[1] = new_classifier
+            logger.info(f"扩展分类器层: {old_num_classes} -> {new_num_classes}")
+        else:
+            model.classifier[1] = nn.Linear(model.classifier[1].in_features, new_num_classes)
+    elif model_type == 'mobilenet_v2':
+        if need_expand and old_num_classes > 0:
+            old_classifier = model.classifier[1]
+            new_classifier = nn.Linear(old_classifier.in_features, new_num_classes)
+            with torch.no_grad():
+                new_classifier.weight[:old_num_classes] = old_classifier.weight
+                new_classifier.bias[:old_num_classes] = old_classifier.bias
+            model.classifier[1] = new_classifier
+            logger.info(f"扩展分类器层: {old_num_classes} -> {new_num_classes}")
+        else:
+            model.classifier[1] = nn.Linear(model.classifier[1].in_features, new_num_classes)
+    elif model_type == 'resnet18':
+        if need_expand and old_num_classes > 0:
+            old_fc = model.fc
+            new_fc = nn.Linear(old_fc.in_features, new_num_classes)
+            with torch.no_grad():
+                new_fc.weight[:old_num_classes] = old_fc.weight
+                new_fc.bias[:old_num_classes] = old_fc.bias
+            model.fc = new_fc
+            logger.info(f"扩展分类器层: {old_num_classes} -> {new_num_classes}")
+        else:
+            model.fc = nn.Linear(model.fc.in_features, new_num_classes)
+    
+    return model, model_type, aligned_class_to_idx
+
+
 def load_base_model(base_model_path, num_classes):
     """加载基础模型"""
     logger.info(f"加载基础模型: {base_model_path}")
     
-    # 加载模型信息
+    # 检查文件是否存在
+    if not os.path.exists(base_model_path):
+        raise FileNotFoundError(f"模型文件不存在: {base_model_path}")
+    
+    # 尝试加载model_best.pth获取模型信息
     checkpoint = torch.load(base_model_path, map_location=torch.device('cpu'))
-    model_type = checkpoint['model_type']
+    model_type = checkpoint.get('model_type')
+    
+    if not model_type:
+        # 如果直接加载的是完整模型
+        logger.info("直接加载完整模型")
+        # 尝试加载完整模型
+        model = torch.load(base_model_path, map_location=torch.device('cpu'), weights_only=False)
+        # 尝试推断模型类型
+        if hasattr(model, 'features') and hasattr(model.features, '__len__') and len(model.features) > 0:
+            if hasattr(model, 'classifier') and len(model.classifier) == 2:
+                model_type = 'efficientnet_b0'
+            elif hasattr(model, 'classifier') and len(model.classifier) == 1:
+                model_type = 'mobilenet_v2'
+        elif hasattr(model, 'layer4'):
+            model_type = 'resnet18'
+        else:
+            model_type = 'unknown'
+        
+        logger.info(f"推断模型类型: {model_type}")
+        
+        # 调整分类器
+        if model_type == 'efficientnet_b0':
+            model.classifier[1] = nn.Linear(model.classifier[1].in_features, num_classes)
+        elif model_type == 'mobilenet_v2':
+            model.classifier[1] = nn.Linear(model.classifier[1].in_features, num_classes)
+        elif model_type == 'resnet18':
+            model.fc = nn.Linear(model.fc.in_features, num_classes)
+        
+        return model, model_type
     
     logger.info(f"基础模型类型: {model_type}")
     
-    # 创建模型
-    if model_type == 'mobilenet_v2':
-        model = models.mobilenet_v2(weights=None)
+    # 找到model_full.pth文件
+    model_dir = os.path.dirname(base_model_path)
+    full_model_path = os.path.join(model_dir, 'model_full.pth')
+    
+    if not os.path.exists(full_model_path):
+        # 如果没有model_full.pth，创建新模型
+        logger.warning(f"未找到完整模型文件: {full_model_path}，创建新模型")
+        # 创建模型
+        if model_type == 'mobilenet_v2':
+            model = models.mobilenet_v2(weights=None)
+            model.classifier[1] = nn.Linear(model.classifier[1].in_features, num_classes)
+        elif model_type == 'efficientnet_b0':
+            model = models.efficientnet_b0(weights=None)
+            model.classifier[1] = nn.Linear(model.classifier[1].in_features, num_classes)
+        elif model_type == 'resnet18':
+            model = models.resnet18(weights=None)
+            model.fc = nn.Linear(model.fc.in_features, num_classes)
+        else:
+            raise ValueError(f"不支持的模型类型: {model_type}")
+        
+        return model, model_type
+    
+    # 加载完整模型
+    logger.info(f"加载完整模型: {full_model_path}")
+    model = torch.load(full_model_path, map_location=torch.device('cpu'), weights_only=False)
+    
+    # 调整分类器
+    if model_type == 'efficientnet_b0':
         model.classifier[1] = nn.Linear(model.classifier[1].in_features, num_classes)
-    elif model_type == 'efficientnet_b0':
-        model = models.efficientnet_b0(weights=None)
+    elif model_type == 'mobilenet_v2':
         model.classifier[1] = nn.Linear(model.classifier[1].in_features, num_classes)
     elif model_type == 'resnet18':
-        model = models.resnet18(weights=None)
         model.fc = nn.Linear(model.fc.in_features, num_classes)
-    else:
-        raise ValueError(f"不支持的模型类型: {model_type}")
-    
-    # 加载权重
-    model.load_state_dict(checkpoint['model_state_dict'])
     
     return model, model_type
 
@@ -194,7 +422,22 @@ def validate(model, dataloader, criterion, device):
 
 def incremental_train(base_model_path, new_data_dir, output_model_dir):
     """增量训练"""
-    device = torch.device('cpu')
+    # 优先使用MPS GPU（Apple Silicon）
+    if torch.backends.mps.is_available():
+        try:
+            # 测试MPS是否可用
+            test_tensor = torch.zeros(1).to('mps')
+            device = torch.device('mps')
+            logger.info("使用 Apple Silicon Metal GPU (MPS) 进行训练")
+        except Exception as e:
+            logger.warning(f"MPS 不可用: {e}，回退到 CPU")
+            device = torch.device('cpu')
+    elif torch.cuda.is_available():
+        device = torch.device('cuda')
+        logger.info("使用 NVIDIA GPU (CUDA) 进行训练")
+    else:
+        device = torch.device('cpu')
+        logger.info("使用 CPU 进行训练")
     logger.info(f"使用设备: {device}")
 
     # 数据变换
@@ -214,21 +457,35 @@ def incremental_train(base_model_path, new_data_dir, output_model_dir):
 
     # 加载新数据
     logger.info(f"加载新数据: {new_data_dir}")
-    full_dataset = SimpleImageDataset(new_data_dir, transform=train_transform)
+    full_dataset = SimpleImageDataset(new_data_dir, transform=None)
     
     num_classes = len(full_dataset.class_to_idx)
-    logger.info(f"类别数: {num_classes}")
+    logger.info(f"新数据类别数: {num_classes}")
+    logger.info(f"新数据类别: {list(full_dataset.class_to_idx.keys())[:10]}...")
+
+    # 使用标签对齐加载模型
+    model, model_type, aligned_class_to_idx = load_base_model_with_label_alignment(
+        base_model_path, new_data_dir, num_classes
+    )
+    
+    # 更新数据集的标签映射为对齐后的映射
+    full_dataset.class_to_idx = aligned_class_to_idx
+    full_dataset.idx_to_class = {idx: name for name, idx in aligned_class_to_idx.items()}
+    num_classes = len(aligned_class_to_idx)
+    logger.info(f"对齐后类别数: {num_classes}")
+    logger.info(f"对齐后类别: {list(aligned_class_to_idx.keys())[:10]}...")
 
     # 划分训练集和验证集
     train_size = int(0.8 * len(full_dataset))
     val_size = len(full_dataset) - train_size
-    train_dataset, val_dataset = torch.utils.data.random_split(
+    train_subset, val_subset = torch.utils.data.random_split(
         full_dataset, [train_size, val_size],
         generator=torch.Generator().manual_seed(42)
     )
 
-    train_dataset.dataset.transform = train_transform
-    val_dataset.dataset.transform = val_transform
+    # 使用 TransformSubset 独立包装，分别应用不同的 transform
+    train_dataset = TransformSubset(train_subset, transform=train_transform)
+    val_dataset = TransformSubset(val_subset, transform=val_transform)
 
     logger.info(f"训练集: {len(train_dataset)}")
     logger.info(f"验证集: {len(val_dataset)}")
@@ -237,7 +494,6 @@ def incremental_train(base_model_path, new_data_dir, output_model_dir):
     val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False, num_workers=NUM_WORKERS)
 
     # 加载基础模型
-    model, model_type = load_base_model(base_model_path, num_classes)
     model = model.to(device)
     
     # 冻结部分层
