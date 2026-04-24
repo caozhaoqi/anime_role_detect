@@ -131,7 +131,14 @@ def process_image_features(image_source, content_type, attributes):
             tagger = get_tagger()
             if tagger:
                 tag_results = tagger(image_source)
-                tag_names = [tag['tag'] for tag in tag_results if tag['confidence'] > 0.5]
+                # 降低置信度阈值，确保至少保留10个标签
+                tag_names = [tag['tag'] for tag in tag_results if tag['confidence'] > 0.3]
+                
+                # 确保至少有10个标签
+                if len(tag_names) < 10 and len(tag_results) > 10:
+                    # 如果标签不足10个，进一步降低阈值
+                    tag_names = [tag['tag'] for tag in tag_results[:15]]
+                
                 logger.info(f"标签检测完成，提取到 {len(tag_names)} 个标签")
             else:
                 logger.warning("标签检测器未加载")
@@ -151,7 +158,7 @@ def process_image_features(image_source, content_type, attributes):
                 role_predictor = get_role_predictor()
                 if role_predictor:
                     try:
-                        ai_predicted_role = role_predictor.predict_role(tag_names)
+                        ai_predicted_role = role_predictor(tag_names)
                         logger.info(f"AI 角色预测完成: {ai_predicted_role}")
                     except Exception as e:
                         logger.error(f"AI 角色预测失败: {e}")

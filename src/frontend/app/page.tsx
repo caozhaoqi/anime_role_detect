@@ -580,73 +580,74 @@ export default function AnimeRoleDetect() {
       {/* 顶部导航栏 */}
       <header className={`sticky top-0 z-50 ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border-b transition-all duration-300`}>
         <div className="container mx-auto px-6 py-4">
-          {/* 顶部行：标题和左侧按钮 */}
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center space-x-4">
+          {/* 流式布局：标题左侧，配置和个人信息右侧 */}
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            {/* 左侧：标题 */}
+            <div className="flex items-center">
               <h1 className="text-2xl font-semibold bg-gradient-to-r from-blue-500 to-purple-600 bg-clip-text text-transparent">动漫角色识别</h1>
-              
-              {/* 左侧按钮组 */}
-              <div className="flex items-center space-x-2">
-                {/* 历史记录按钮 */}
-                {config.features.enableHistoryPanel && (
-                  <button
-                    onClick={() => setShowHistory(!showHistory)}
-                    className={`p-2 rounded-lg ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'} transition-colors ${showHistory ? 'text-blue-500' : ''}`}
-                    title="查看历史记录"
-                  >
-                    <History className="h-5 w-5" />
-                  </button>
-                )}
-                
-                {/* 配置按钮 */}
-                <button
-                  onClick={() => setShowConfig(!showConfig)}
-                  className={`p-2 rounded-lg ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'} transition-colors ${showConfig ? 'text-blue-500' : ''}`}
-                  title="配置"
-                >
-                  <Settings className="h-5 w-5" />
-                </button>
-                
-                {/* 暗黑模式开关 */}
-                <button
-                  onClick={handleDarkModeToggle}
-                  className={`p-2 rounded-lg ${darkMode ? 'bg-gray-700 text-yellow-400' : 'bg-gray-100 text-gray-600'} transition-colors`}
-                  title={darkMode ? '切换到亮色模式' : '切换到暗黑模式'}
-                >
-                  {darkMode ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
-                </button>
-              </div>
             </div>
             
-            {/* 用户信息 */}
-            {authState.user && (
-              <div className={`flex items-center space-x-4 px-4 py-2 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>
-                <div className="flex items-center space-x-2">
-                  <User className="h-5 w-5 text-blue-500" />
-                  <span className={`text-sm font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                    {authState.user.username}
-                  </span>
-                  <span className={`text-xs px-2 py-1 rounded-full ${
-                    authState.user.role === 'admin' 
-                      ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' 
-                      : 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
-                  }`}>
-                    {authState.user.role}
-                  </span>
-                </div>
+            {/* 右侧：配置和个人信息 */}
+            <div className="flex flex-wrap items-center gap-4">
+              {/* 历史记录按钮 */}
+              {config.features.enableHistoryPanel && (
                 <button
-                  onClick={handleLogout}
-                  className={`p-2 rounded-lg ${darkMode ? 'hover:bg-gray-600' : 'hover:bg-gray-200'} transition-colors`}
-                  title="退出登录"
+                  onClick={() => setShowHistory(!showHistory)}
+                  className={`p-2 rounded-lg ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'} transition-colors ${showHistory ? 'text-blue-500' : ''}`}
+                  title="查看历史记录"
                 >
-                  <LogOut className="h-5 w-5 text-red-500" />
+                  <History className="h-5 w-5" />
                 </button>
-              </div>
-            )}
+              )}
+              
+              {/* 配置按钮 */}
+              <button
+                onClick={() => setShowConfig(!showConfig)}
+                className={`p-2 rounded-lg ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'} transition-colors ${showConfig ? 'text-blue-500' : ''}`}
+                title="配置"
+              >
+                <Settings className="h-5 w-5" />
+              </button>
+              
+              {/* 暗黑模式开关 */}
+              <button
+                onClick={handleDarkModeToggle}
+                className={`p-2 rounded-lg ${darkMode ? 'bg-gray-700 text-yellow-400' : 'bg-gray-100 text-gray-600'} transition-colors`}
+                title={darkMode ? '切换到亮色模式' : '切换到暗黑模式'}
+              >
+                {darkMode ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+              </button>
+              
+              {/* 用户信息 */}
+              {authState.user && (
+                <div className={`flex items-center space-x-4 px-4 py-2 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>
+                  <div className="flex items-center space-x-2">
+                    <User className="h-5 w-5 text-blue-500" />
+                    <span className={`text-sm font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                      {authState.user.username}
+                    </span>
+                    <span className={`text-xs px-2 py-1 rounded-full ${
+                      authState.user.role === 'admin' 
+                        ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' 
+                        : 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
+                    }`}>
+                      {authState.user.role}
+                    </span>
+                  </div>
+                  <button
+                    onClick={handleLogout}
+                    className={`p-2 rounded-lg ${darkMode ? 'hover:bg-gray-600' : 'hover:bg-gray-200'} transition-colors`}
+                    title="退出登录"
+                  >
+                    <LogOut className="h-5 w-5 text-red-500" />
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
           
-          {/* 功能开关行 */}
-          <div className="flex flex-wrap items-center gap-4">
+          {/* 功能开关行：流式布局 */}
+          <div className="flex flex-wrap items-center gap-4 mt-4">
               {/* 模型选择 */}
               {config.features.enableModelSelection && (
                 <div className="flex items-center space-x-2">

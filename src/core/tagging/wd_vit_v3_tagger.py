@@ -218,10 +218,10 @@ class WDViTV3Tagger:
             if confidence < 0.2:
                 continue
             
-            # 跳过过于通用的标签
-            generic_tags = {'anime', 'cartoon', 'digital art', 'illustration', '3d'}
-            if tag in generic_tags and confidence < 0.6:
-                continue
+            # 保留通用标签，不进行过滤
+            # generic_tags = {'anime', 'cartoon', 'digital art', 'illustration', '3d'}
+            # if tag in generic_tags and confidence < 0.6:
+            #     continue
             
             # 类别冲突处理
             skip_tag = False
@@ -268,15 +268,24 @@ class WDViTV3Tagger:
             if category:
                 if category not in category_count:
                     category_count[category] = 0
-                if category_count[category] < 2:  # 每个类别最多2个标签
+                if category_count[category] < 3:  # 每个类别最多3个标签
                     balanced_tags.append(tag_info)
                     category_count[category] += 1
             else:
                 # 非分类标签直接添加
                 balanced_tags.append(tag_info)
         
+        # 确保至少有10个标签
+        if len(balanced_tags) < 10:
+            # 如果标签不足10个，添加一些通用标签
+            generic_tags = ['anime', 'cartoon', 'digital art', 'illustration', 'character', 'high quality', 'detailed', 'beautiful', 'stylish', 'colorful']
+            for tag in generic_tags:
+                if tag not in tag_set and len(balanced_tags) < 10:
+                    balanced_tags.append({'tag': tag, 'confidence': 0.5})
+                    tag_set.add(tag)
+        
         # 限制标签数量
-        max_tags = 20
+        max_tags = 30
         if len(balanced_tags) > max_tags:
             balanced_tags = balanced_tags[:max_tags]
         

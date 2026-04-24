@@ -54,19 +54,33 @@ def _extract_deepdanbooru_tags(content, filename, result):
         try:
             # 初始化DeepDanbooru推理器
             deepdanbooru = DeepDanbooruInference()
-            # 提取标签
-            tags = deepdanbooru.predict(temp_path, top_k=20, threshold=0.5)
+            # 提取标签，增加 top_k 确保至少获取10个标签
+            tags = deepdanbooru.predict(temp_path, top_k=30, threshold=0.3)
             # 添加到结果中
             if tags:
                 result['deepdanbooru_tags'] = tags
                 # 如果结果中没有tags字段，也添加到tags字段中
                 if 'tags' not in result:
-                    result['tags'] = [tag['tag'] for tag in tags]
+                    # 确保至少有10个标签
+                    tag_list = [tag['tag'] for tag in tags[:30]]
+                    if len(tag_list) < 10:
+                        # 如果标签不足10个，尝试降低阈值再获取
+                        more_tags = deepdanbooru.predict(temp_path, top_k=50, threshold=0.2)
+                        more_tag_list = [tag['tag'] for tag in more_tags[:50] if tag['tag'] not in tag_list]
+                        tag_list.extend(more_tag_list)
+                    result['tags'] = tag_list[:30]  # 最多保留30个标签
                 else:
                     # 合并标签，去重
                     existing_tags = set(result['tags'])
                     new_tags = [tag['tag'] for tag in tags if tag['tag'] not in existing_tags]
                     result['tags'].extend(new_tags)
+                    # 确保至少有10个标签
+                    if len(result['tags']) < 10:
+                        more_tags = deepdanbooru.predict(temp_path, top_k=50, threshold=0.2)
+                        more_tag_list = [tag['tag'] for tag in more_tags[:50] if tag['tag'] not in result['tags']]
+                        result['tags'].extend(more_tag_list)
+                    # 最多保留30个标签
+                    result['tags'] = result['tags'][:30]
                 logger.info(f"DeepDanbooru提取到 {len(tags)} 个标签")
         except Exception as e:
             logger.error(f"DeepDanbooru标签提取失败: {e}")
