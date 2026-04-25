@@ -35,6 +35,12 @@ export async function POST(request: NextRequest) {
     backendFormData.append('multi_role', formData.get('multi_role') as string || 'false');
     backendFormData.append('use_deepdanbooru', formData.get('use_deepdanbooru') as string || 'true');
 
+    const authHeader = request.headers.get('authorization');
+    const headers: HeadersInit = {};
+    if (authHeader) {
+      headers['Authorization'] = authHeader;
+    }
+
     console.log('开始发送请求到后端API...');
     try {
       const response = await fetch(backendUrl, {

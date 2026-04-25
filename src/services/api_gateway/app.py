@@ -95,7 +95,11 @@ async def proxy_request(request: Request, path: str):
         url = f"http://localhost:8001/api/{path}"
     elif path.startswith("model/"):
         service = "model"
-        url = f"http://localhost:8888/api/{path}"
+        model_path = path[6:] if path.startswith("model/") else path
+        url = f"http://localhost:8888/api/{model_path}"
+    elif path == "model" or path == "model/health":
+        service = "model"
+        url = f"http://localhost:8888/api/health"
     else:
         url = f"http://localhost:8001/api/{path}"
         service = "api"
