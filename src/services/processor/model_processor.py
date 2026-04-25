@@ -28,6 +28,8 @@ config = get_service_config()
 USE_MODEL_SERVICE = config.USE_MODEL_SERVICE
 MODEL_SERVICE_URL = config.MODEL_SERVICE_URL
 
+os.makedirs("temp", exist_ok=True)
+
 
 async def _call_model_service(file, content, model_name, multi_role=False):
     """

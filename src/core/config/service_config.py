@@ -25,7 +25,12 @@ class ServiceConfig:
         self.MODEL_SERVICE_PORT = int(os.environ.get('MODEL_SERVICE_PORT', '8888'))
         self.MODEL_SERVICE_URL = f"http://{self.MODEL_SERVICE_HOST}:{self.MODEL_SERVICE_PORT}"
 
+        self.API_GATEWAY_HOST = os.environ.get('API_GATEWAY_HOST', '0.0.0.0')
+        self.API_GATEWAY_PORT = int(os.environ.get('API_GATEWAY_PORT', '8000'))
+        self.API_GATEWAY_URL = f"http://{self.API_GATEWAY_HOST}:{self.API_GATEWAY_PORT}"
+
         self.USE_MODEL_SERVICE = os.environ.get('USE_MODEL_SERVICE', 'true').lower() == 'true'
+        self.USE_API_GATEWAY = os.environ.get('USE_API_GATEWAY', 'true').lower() == 'true'
 
         self.ENABLE_NSFW_DETECTION = os.environ.get('ENABLE_NSFW_DETECTION', 'true').lower() == 'true'
 

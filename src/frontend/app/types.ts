@@ -52,6 +52,20 @@ export interface Message {
   isThinking?: boolean;
   isThinkingFinished?: boolean;
   error?: string;
+  batch_results?: Array<{
+    id: number;
+    filename: string;
+    role: string;
+    similarity: number;
+    attributes?: Array<{
+      tag: string;
+      confidence: number;
+    }>;
+    roles?: Array<{
+      role: string;
+      similarity: number;
+    }>;
+  }>;
   timestamp: number;
 }
 

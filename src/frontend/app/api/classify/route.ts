@@ -7,19 +7,9 @@ export async function POST(request: NextRequest) {
     const formData = await request.formData();
     console.log('FormData解析完成');
     const file = formData.get('file') as File;
-    const useCoreML = formData.get('use_coreml') as string;
-    const useModel = formData.get('use_model') as string;
-    const useAttributes = formData.get('use_attributes') as string;
-    const modelName = formData.get('model_name') as string;
-    const cacheBypass = formData.get('cache_bypass') as string;
 
     console.log('请求参数:', {
-      hasFile: !!file,
-      useCoreML: useCoreML,
-      useModel: useModel,
-      useAttributes: useAttributes,
-      modelName: modelName,
-      cacheBypass: cacheBypass
+      hasFile: !!file
     });
 
     if (!file) {
@@ -29,56 +19,28 @@ export async function POST(request: NextRequest) {
 
     console.log('收到分类请求:', {
       fileName: file.name,
-      fileSize: file.size,
-      useCoreML: useCoreML,
-      useModel: useModel,
-      useAttributes: useAttributes,
-      modelName: modelName,
-      cacheBypass: cacheBypass
+      fileSize: file.size
     });
 
     const backendUrl = 'http://127.0.0.1:8000/api/classify';
     console.log('准备转发请求到后端API:', backendUrl);
+
     const backendFormData = new FormData();
     backendFormData.append('file', file);
-
-    if (useCoreML === 'true') {
-      backendFormData.append('use_coreml', 'true');
-    }
-
-    if (useModel === 'true') {
-      backendFormData.append('use_model', 'true');
-    }
-
-    if (useAttributes === 'true') {
-      backendFormData.append('use_attributes', 'true');
-    }
-
-    if (modelName) {
-      backendFormData.append('model_name', modelName);
-    }
-
-    if (cacheBypass === 'true') {
-      backendFormData.append('cache_bypass', 'true');
-    }
+    backendFormData.append('model_name', formData.get('model_name') as string || 'resnet18_loli8');
+    backendFormData.append('use_coreml', formData.get('use_coreml') as string || 'false');
+    backendFormData.append('use_model', formData.get('use_model') as string || 'true');
+    backendFormData.append('use_attributes', formData.get('use_attributes') as string || 'true');
+    backendFormData.append('cache_bypass', 'false');
+    backendFormData.append('multi_role', formData.get('multi_role') as string || 'false');
+    backendFormData.append('use_deepdanbooru', formData.get('use_deepdanbooru') as string || 'true');
 
     console.log('开始发送请求到后端API...');
     try {
-      // 提取并转发Authorization头
-      const authHeader = request.headers.get('authorization');
-      console.log('接收到的Authorization头:', authHeader);
-      
-      const headers: HeadersInit = {};
-      if (authHeader) {
-        headers['Authorization'] = authHeader;
-        console.log('转发Authorization头到后端');
-      }
-      
       const response = await fetch(backendUrl, {
         method: 'POST',
         body: backendFormData,
         headers: headers,
-        // timeout: 30000 // 30秒超时
       });
       console.log('后端API响应状态:', response.status);
 

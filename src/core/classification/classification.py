@@ -168,26 +168,26 @@ class Classification:
         cache_key = self._get_feature_hash(feature)
         return self.__class__._result_cache.get(cache_key)
     
-    def classify(self, feature, top_k=5, tags=None):
+    def classify(self, feature, top_k=5, tags=None, multilabel=False, threshold=None):
         """分类单个特征向量
         
         Args:
             feature: 特征向量
             top_k: 返回前k个最相似的结果
             tags: 图片标签，用于辅助分类
+            multilabel: 是否返回多标签结果
+            threshold: 分类阈值，默认使用构造函数中设置的阈值
             
         Returns:
-            (角色名称, 相似度)
+            单标签模式: (角色名称, 相似度)
+            多标签模式: [(角色名称, 相似度), ...]
         """
         if self.index is None:
             logger.error("索引尚未构建")
             raise ValueError("索引尚未构建")
         
-        # 尝试从缓存获取结果
-        cached_result = self._get_cached_result(feature)
-        if cached_result:
-            logger.debug("从缓存获取分类结果")
-            return cached_result
+        # 使用指定的阈值或默认阈值
+        current_threshold = threshold if threshold is not None else self.threshold
         
         # 确保特征向量是二维的
         if len(feature.shape) == 1:
@@ -210,11 +210,12 @@ class Classification:
                     "similarity": float(distance)
                 })
         
-        # 如果没有结果，返回unknown
+        # 如果没有结果
         if not results:
-            result = ("unknown", 0.0)
-            self._cache_result(feature, result)
-            return result
+            if multilabel:
+                return []
+            else:
+                return ("unknown", 0.0)
         
         # 1. 计算每个角色的平均相似度
         role_similarities = {}
@@ -236,11 +237,8 @@ class Classification:
         for role, total_similarity in role_similarities.items():
             role_avg_similarities[role] = total_similarity / role_counts[role]
         
-        # 2. 找出平均相似度最高的角色
+        # 2. 排序角色
         sorted_roles = sorted(role_avg_similarities.items(), key=lambda x: x[1], reverse=True)
-        
-        best_role = sorted_roles[0][0]
-        best_similarity = sorted_roles[0][1]
         
         # 3. 利用标签信息辅助分类
         if tags:
@@ -265,42 +263,65 @@ class Classification:
                 
                 # 检查日奈
                 if (role == "日奈" or role == "ri4nai4") and any('hina' in tag or '日奈' in tag for tag in tags_lower):
-                    result = ("日奈", similarity)
-                    self._cache_result(feature, result)
-                    return result
+                    if multilabel:
+                        # 继续处理其他角色
+                        continue
+                    else:
+                        return ("日奈", similarity)
                 # 检查伊织
                 elif role == "伊织" and any('izumi' in tag or '伊织' in tag for tag in tags_lower):
-                    result = ("伊织", similarity)
-                    self._cache_result(feature, result)
-                    return result
+                    if multilabel:
+                        # 继续处理其他角色
+                        continue
+                    else:
+                        return ("伊织", similarity)
                 # 检查阿罗娜
                 elif (role == "阿罗娜" or role == "a1luo2na4") and any('arona' in tag or '阿罗娜' in tag for tag in tags_lower):
-                    result = ("阿罗娜", similarity)
-                    self._cache_result(feature, result)
-                    return result
+                    if multilabel:
+                        # 继续处理其他角色
+                        continue
+                    else:
+                        return ("阿罗娜", similarity)
                 # 检查普拉娜
                 elif role == "普拉娜" and any('prana' in tag or '普拉娜' in tag for tag in tags_lower):
-                    result = ("普拉娜", similarity)
-                    self._cache_result(feature, result)
-                    return result
+                    if multilabel:
+                        # 继续处理其他角色
+                        continue
+                    else:
+                        return ("普拉娜", similarity)
         
-        # 4. 调整阈值，使其更倾向于选择平均相似度高的角色
-        threshold = self.threshold  # 使用构造函数中设置的阈值
-        
-        # 5. 拼音到中文的映射
+        # 4. 拼音到中文的映射
         pinyin_to_chinese = {
             "ri4nai4": "日奈",
             "a1luo2na4": "阿罗娜"
         }
         
-        # 转换拼音为中文
-        if best_role in pinyin_to_chinese:
-            best_role = pinyin_to_chinese[best_role]
-        
-        # 总是返回最相似的角色，即使相似度低于阈值
-        result = (best_role, best_similarity)
-        self._cache_result(feature, result)
-        return result
+        # 5. 处理结果
+        if multilabel:
+            # 多标签模式：返回所有相似度高于阈值的角色
+            multilabel_results = []
+            for role, similarity in sorted_roles:
+                # 转换拼音为中文
+                if role in pinyin_to_chinese:
+                    role = pinyin_to_chinese[role]
+                
+                # 只添加相似度高于阈值的角色
+                if similarity >= current_threshold:
+                    multilabel_results.append((role, similarity))
+            
+            # 如果没有结果，返回空列表
+            return multilabel_results
+        else:
+            # 单标签模式：返回最相似的角色
+            best_role = sorted_roles[0][0]
+            best_similarity = sorted_roles[0][1]
+            
+            # 转换拼音为中文
+            if best_role in pinyin_to_chinese:
+                best_role = pinyin_to_chinese[best_role]
+            
+            # 总是返回最相似的角色，即使相似度低于阈值
+            return (best_role, best_similarity)
     
     def batch_classify(self, features, top_k=5):
         """批量分类特征向量

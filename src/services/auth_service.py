@@ -26,7 +26,7 @@ class AuthService:
         self.initialized = True
         
         # 配置
-        self.SECRET_KEY = os.environ.get('SECRET_KEY', secrets.token_urlsafe(32))
+        self.SECRET_KEY = os.environ.get('SECRET_KEY', 'your-secret-key-here-for-development')
         self.ALGORITHM = os.environ.get('ALGORITHM', 'HS256')
         self.ACCESS_TOKEN_EXPIRE_MINUTES = int(os.environ.get('ACCESS_TOKEN_EXPIRE_MINUTES', '30'))
         self.REFRESH_TOKEN_EXPIRE_DAYS = int(os.environ.get('REFRESH_TOKEN_EXPIRE_DAYS', '7'))

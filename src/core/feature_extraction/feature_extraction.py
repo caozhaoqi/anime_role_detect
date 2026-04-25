@@ -3,16 +3,14 @@ import numpy as np
 import os
 import gc
 
-# 禁用MPS，避免锁竞争问题
+# 启用MPS和CUDA支持
 import os
 os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
-os.environ['MPS_HIGH_WATERMARK_RATIO'] = '0.0'
-os.environ['PYTORCH_MPS_HIGH_WATERMARK_RATIO'] = '0.0'
+os.environ['MPS_HIGH_WATERMARK_RATIO'] = '0.5'
+os.environ['PYTORCH_MPS_HIGH_WATERMARK_RATIO'] = '0.5'
 
-# 导入torch并禁用MPS
+# 导入torch
 import torch
-torch.backends.mps.is_available = lambda: False
-torch.backends.mps.is_built = lambda: False
 
 # 延迟导入transformers模块
 CLIPProcessor = None
@@ -66,8 +64,13 @@ class FeatureExtraction:
         self.model = None
         self.processor = None
         
-        # 不使用torch，直接设置设备为CPU
-        self.device = 'cpu'
+        # 自动选择最佳设备
+        if torch.backends.mps.is_available():
+            self.device = 'mps'
+        elif torch.cuda.is_available():
+            self.device = 'cuda'
+        else:
+            self.device = 'cpu'
         logger.info(f"特征提取模块使用设备: {self.device}")
         logger.info("特征提取模块初始化完成，使用简单特征提取方法")
     

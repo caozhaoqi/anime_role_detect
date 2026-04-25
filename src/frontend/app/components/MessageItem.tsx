@@ -306,6 +306,46 @@ const MessageItem: React.FC<MessageItemProps> = ({ message, darkMode, handleCopy
               </div>
             </div>
           )}
+          
+          {message.batch_results && message.batch_results.length > 0 && (
+            <div className="mt-4 space-y-3 animate-fade-in">
+              <div className="flex items-center space-x-2">
+                <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+                <h4 className="font-semibold text-sm">批量识别结果</h4>
+              </div>
+              <div className="space-y-3">
+                {message.batch_results.map((result, index) => (
+                  <div key={index} className={`p-3 ${darkMode ? 'bg-gray-600' : 'bg-gray-200'} rounded-lg transform hover:scale-[1.02] transition-transform`}>
+                    <div className="flex justify-between items-center mb-2">
+                      <p className="text-sm font-medium">{result.filename}</p>
+                      <div className="flex items-center space-x-2">
+                        <p className="text-sm">{(result.similarity * 100).toFixed(1)}%</p>
+                        <div
+                          className={`w-2 h-2 rounded-full ${result.similarity >= 0.8 ? "bg-green-500" : result.similarity >= 0.5 ? "bg-yellow-500" : "bg-red-500"}`}
+                        />
+                      </div>
+                    </div>
+                    <p className="text-sm">角色: {result.role}</p>
+                    {result.roles && result.roles.length > 0 && (
+                      <div className="mt-2">
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">多角色识别:</p>
+                        <div className="flex flex-wrap gap-2">
+                          {result.roles.map((role, roleIndex) => (
+                            <span
+                              key={roleIndex}
+                              className={`px-3 py-1 ${darkMode ? 'bg-blue-900/50 text-blue-400' : 'bg-blue-100 text-blue-600'} rounded-full text-xs font-medium`}
+                            >
+                              {role.role} ({(role.similarity * 100).toFixed(0)}%)
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className="flex items-center justify-between mt-3 text-xs text-gray-400 dark:text-gray-500">
             <span suppressHydrationWarning={true}>{new Date(message.timestamp).toLocaleTimeString()}</span>

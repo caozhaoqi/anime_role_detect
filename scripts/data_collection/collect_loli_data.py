@@ -32,8 +32,8 @@ DATA_DIR = "./data/loli_training_data"
 SPIDER_DATA_DIR = "./spider_image_system/data/img_url"
 MAX_IMAGES_PER_ROLE = 100  # 每个角色最多采集的图片数量
 TIMEOUT = 15  # 请求超时时间（秒）
-DELAY = 1  # 请求延迟时间（秒）
-MAX_WORKERS = 5  # 最大并发数
+DELAY = 0.5  # 请求延迟时间（秒）
+MAX_WORKERS = 15  # 最大并发数
 
 # 创建数据目录
 os.makedirs(DATA_DIR, exist_ok=True)
@@ -133,21 +133,33 @@ def collect_from_spider_data(role_name):
     # 限制图片数量
     urls = urls[:MAX_IMAGES_PER_ROLE - existing_images]
     
-    # 下载图片
+    # 并发下载图片
     success_count = 0
     fail_count = 0
     
-    for i, url in enumerate(urls):
-        success, message = download_image(url, role_dir, role_name)
-        if success:
-            success_count += 1
-            logger.info(f"角色 {role_name}: 下载成功 ({success_count}/{len(urls)}) - {message}")
-        else:
-            fail_count += 1
-            logger.warning(f"角色 {role_name}: 下载失败 ({fail_count}/{len(urls)}) - {message}")
-        
-        # 延迟，避免请求过于频繁
+    def download_with_delay(url):
+        """带延迟的下载函数"""
         time.sleep(DELAY)
+        return download_image(url, role_dir, role_name)
+    
+    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+        # 提交所有下载任务
+        future_to_url = {executor.submit(download_with_delay, url): url for url in urls}
+        
+        # 处理下载结果
+        for future in as_completed(future_to_url):
+            url = future_to_url[future]
+            try:
+                success, message = future.result()
+                if success:
+                    success_count += 1
+                    logger.info(f"角色 {role_name}: 下载成功 ({success_count}/{len(urls)}) - {message}")
+                else:
+                    fail_count += 1
+                    logger.warning(f"角色 {role_name}: 下载失败 ({fail_count}/{len(urls)}) - {message}")
+            except Exception as e:
+                fail_count += 1
+                logger.error(f"角色 {role_name}: 下载异常 - {str(e)}")
     
     logger.info(f"角色 {role_name}: 采集完成，成功 {success_count} 张，失败 {fail_count} 张")
     return [os.path.join(role_dir, f) for f in os.listdir(role_dir) if f.endswith(('.jpg', '.jpeg', '.png'))]
@@ -164,27 +176,98 @@ def collect_from_web_search(role_name):
         logger.info(f"角色 {role_name} 已有 {existing_images} 张图片，跳过采集")
         return []
     
-    # 使用百度图片搜索
-    search_url = f"https://image.baidu.com/search/index?tn=baiduimage&word={role_name}"
-    
-    try:
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    # 多数据源配置
+    search_engines = [
+        {
+            'name': 'baidu',
+            'url': f"https://image.baidu.com/search/index?tn=baiduimage&word={role_name}",
+            'parser': 'parse_baidu_images'
+        },
+        {
+            'name': 'bing',
+            'url': f"https://www.bing.com/images/search?q={role_name}",
+            'parser': 'parse_bing_images'
         }
-        response = requests.get(search_url, headers=headers, timeout=TIMEOUT)
+    ]
+    
+    all_urls = []
+    
+    for engine in search_engines:
+        try:
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            }
+            response = requests.get(engine['url'], headers=headers, timeout=TIMEOUT)
+            
+            if response.status_code == 200:
+                # 解析HTML，提取图片URL
+                urls = parse_image_urls(response.text, engine['parser'])
+                all_urls.extend(urls)
+                logger.info(f"角色 {role_name}: 从{engine['name']}采集到 {len(urls)} 个图片URL")
+            else:
+                logger.error(f"角色 {role_name}: {engine['name']}搜索失败，状态码 {response.status_code}")
+        except Exception as e:
+            logger.error(f"角色 {role_name}: {engine['name']}搜索异常: {e}")
+    
+    # 去重
+    all_urls = list(set(all_urls))
+    logger.info(f"角色 {role_name}: 去重后有 {len(all_urls)} 个图片URL")
+    
+    # 限制图片数量
+    urls = all_urls[:MAX_IMAGES_PER_ROLE - existing_images]
+    
+    # 并发下载图片
+    success_count = 0
+    fail_count = 0
+    
+    def download_with_delay(url):
+        """带延迟的下载函数"""
+        time.sleep(DELAY)
+        return download_image(url, role_dir, role_name)
+    
+    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+        # 提交所有下载任务
+        future_to_url = {executor.submit(download_with_delay, url): url for url in urls}
         
-        if response.status_code == 200:
-            # 解析HTML，提取图片URL
-            # 这里需要根据实际的HTML结构进行解析
-            # 由于百度图片的HTML结构比较复杂，这里只是示例
-            logger.info(f"角色 {role_name}: 从网络搜索采集（功能待完善）")
-            return []
-        else:
-            logger.error(f"角色 {role_name}: 网络搜索失败，状态码 {response.status_code}")
-            return []
-    except Exception as e:
-        logger.error(f"角色 {role_name}: 网络搜索异常: {e}")
-        return []
+        # 处理下载结果
+        for future in as_completed(future_to_url):
+            url = future_to_url[future]
+            try:
+                success, message = future.result()
+                if success:
+                    success_count += 1
+                    logger.info(f"角色 {role_name}: 下载成功 ({success_count}/{len(urls)}) - {message}")
+                else:
+                    fail_count += 1
+                    logger.warning(f"角色 {role_name}: 下载失败 ({fail_count}/{len(urls)}) - {message}")
+            except Exception as e:
+                fail_count += 1
+                logger.error(f"角色 {role_name}: 下载异常 - {str(e)}")
+    
+    logger.info(f"角色 {role_name}: 网络搜索采集完成，成功 {success_count} 张，失败 {fail_count} 张")
+    return [os.path.join(role_dir, f) for f in os.listdir(role_dir) if f.endswith(('.jpg', '.jpeg', '.png'))]
+
+def parse_image_urls(html, parser_type):
+    """解析HTML，提取图片URL"""
+    urls = []
+    
+    if parser_type == 'parse_baidu_images':
+        # 解析百度图片搜索结果
+        # 这里使用简单的正则表达式提取图片URL
+        import re
+        # 匹配百度图片的URL格式
+        pattern = r'"objURL":"([^"]+)"'
+        matches = re.findall(pattern, html)
+        urls.extend(matches)
+    elif parser_type == 'parse_bing_images':
+        # 解析必应图片搜索结果
+        import re
+        # 匹配必应图片的URL格式
+        pattern = r'murl":"([^"]+)"'
+        matches = re.findall(pattern, html)
+        urls.extend(matches)
+    
+    return urls
 
 def load_loli_characters():
     """加载萝莉角色列表"""

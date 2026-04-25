@@ -78,17 +78,21 @@ def import_torch():
     with torch_import_lock:
         if 'torch' not in globals():
             import torch
-            # 完全禁用MPS，避免锁竞争问题
-            torch.backends.mps.is_available = lambda: False
-            torch.backends.mps.is_built = lambda: False
-            torch.cuda.is_available = lambda: False
-            # 禁用MPS相关的环境变量
+            # 启用MPS加速
+            mps_available = torch.backends.mps.is_available()
+            cuda_available = torch.cuda.is_available()
+            # 配置MPS相关的环境变量
             import os
             os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
-            os.environ['MPS_HIGH_WATERMARK_RATIO'] = '0.0'
-            os.environ['PYTORCH_MPS_HIGH_WATERMARK_RATIO'] = '0.0'
-            os.environ['TORCH_MPS_HIGH_WATERMARK_RATIO'] = '0.0'
-            logger.info("PyTorch已导入，MPS已禁用")
+            os.environ['MPS_HIGH_WATERMARK_RATIO'] = '0.5'
+            os.environ['PYTORCH_MPS_HIGH_WATERMARK_RATIO'] = '0.5'
+            os.environ['TORCH_MPS_HIGH_WATERMARK_RATIO'] = '0.5'
+            if mps_available:
+                logger.info("PyTorch已导入，MPS已启用")
+            elif cuda_available:
+                logger.info("PyTorch已导入，CUDA已启用")
+            else:
+                logger.info("PyTorch已导入，使用CPU")
 
 # 模型加载装饰器
 def safe_model_load(func):
@@ -130,6 +134,12 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# 健康检查
+@app.get("/api/health")
+async def health_check():
+    """健康检查"""
+    return {"status": "healthy", "service": "Model Service"}
 
 # 全局变量
 preprocessor = None  # 预处理器实例
@@ -180,15 +190,19 @@ async def health_check():
 async def predict_image(
     file: UploadFile = File(...),
     model_name: str = Form("mobilenet_v2"),
-    use_attributes: bool = Form(True)
+    use_attributes: bool = Form(True),
+    multilabel: bool = Form(False),
+    threshold: float = Form(0.4)
 ):
     """
-    模型预测
+    预测图像
     
     Args:
         file: 上传的图像文件
         model_name: 模型名称
         use_attributes: 是否使用属性
+        multilabel: 是否返回多标签结果
+        threshold: 分类阈值
     
     Returns:
         预测结果
@@ -205,23 +219,29 @@ async def predict_image(
         # 读取文件内容
         content = await file.read()
         
-        # 保存临时文件
-        temp_path = f"temp_{int(time.time())}_{file.filename}"
-        with open(temp_path, "wb") as f:
-            f.write(content)
-
-        # [1] 图像预处理（解码、缩放、归一化）
-        logger.info("开始图像预处理...")
-        if preprocessor is None:
-            with model_init_lock:
-                if preprocessor is None:
-                    preprocessor = Preprocessing()
+        # 直接从内存创建PIL图像，避免临时文件I/O
+        from PIL import Image
+        import io
         
-        processed_image = preprocessor.preprocess(temp_path)
-        if processed_image is None:
-            logger.error("图像预处理失败")
-            raise HTTPException(status_code=500, detail="图像预处理失败")
-        logger.info("图像预处理完成")
+        try:
+            # 从内存数据创建PIL图像
+            image = Image.open(io.BytesIO(content)).convert('RGB')
+            
+            # [1] 图像预处理（解码、缩放、归一化）
+            logger.info("开始图像预处理...")
+            if preprocessor is None:
+                with model_init_lock:
+                    if preprocessor is None:
+                        preprocessor = Preprocessing()
+            
+            processed_image = preprocessor.preprocess(image)
+            if processed_image is None:
+                logger.error("图像预处理失败")
+                raise HTTPException(status_code=500, detail="图像预处理失败")
+            logger.info("图像预处理完成")
+        except Exception as e:
+            logger.error(f"图像处理失败: {e}")
+            raise HTTPException(status_code=500, detail=f"图像处理失败: {e}")
         
         # [3] 关键点检测（面部、手部、姿态）
         logger.info("开始关键点检测...")
@@ -580,6 +600,193 @@ async def classify_image(
         model_name=model_name,
         use_attributes=use_attributes
     )
+
+# 批量推理端点
+@app.post("/api/model/batch-predict")
+async def batch_predict_images(
+    files: List[UploadFile] = File(...),
+    model_name: str = Form("mobilenet_v2"),
+    use_attributes: bool = Form(True),
+    batch_size: int = Form(8),
+    multilabel: bool = Form(False),
+    threshold: float = Form(0.4)
+):
+    """
+    批量预测多张图像
+    
+    Args:
+        files: 上传的图像文件列表
+        model_name: 模型名称
+        use_attributes: 是否使用属性
+        batch_size: 批量大小
+        multilabel: 是否返回多标签结果
+        threshold: 分类阈值
+    
+    Returns:
+        批量预测结果
+    """
+    global preprocessor, feature_extractor, tagger
+    
+    results = []
+    
+    try:
+        # 安全导入torch，避免锁竞争问题
+        if 'torch' not in globals():
+            import_torch()
+        
+        # 处理文件
+        for i, file in enumerate(files):
+            # 读取文件内容
+            content = await file.read()
+            
+            try:
+                # 直接从内存创建PIL图像，避免临时文件I/O
+                from PIL import Image
+                import io
+                
+                # 从内存数据创建PIL图像
+                image = Image.open(io.BytesIO(content)).convert('RGB')
+                
+                # 图像预处理
+                if preprocessor is None:
+                    with model_init_lock:
+                        if preprocessor is None:
+                            preprocessor = Preprocessing()
+                
+                processed_image = preprocessor.preprocess(image)
+                if processed_image is None:
+                    logger.error(f"图像预处理失败: {file.filename}")
+                    results.append({
+                        "filename": file.filename,
+                        "error": "图像预处理失败"
+                    })
+                    continue
+                
+                # 特征提取
+                if feature_extractor is None:
+                    with model_init_lock:
+                        if feature_extractor is None:
+                            logger.info("初始化特征提取器...")
+                            try:
+                                feature_extractor = FeatureExtraction()
+                                logger.info(f"特征提取器初始化完成，使用设备: {feature_extractor.device}")
+                            except Exception as e:
+                                logger.error(f"特征提取器初始化失败: {e}")
+                                results.append({
+                                    "filename": file.filename,
+                                    "error": f"特征提取器初始化失败: {e}"
+                                })
+                                continue
+                
+                feature = feature_extractor.extract_features(processed_image)
+                
+                # 标签生成
+                attributes = []
+                if use_attributes:
+                    if tagger is None:
+                        with model_init_lock:
+                            if tagger is None:
+                                logger.info("初始化标签生成器...")
+                                try:
+                                    tagger = WDViTV3Tagger()
+                                    logger.info(f"标签生成器初始化完成，使用设备: {tagger.device}")
+                                    # 加载标签生成模型
+                                    logger.info("加载标签生成模型...")
+                                    model_loaded = tagger.load_model()
+                                    if not model_loaded:
+                                        logger.warning("标签生成模型加载失败，将使用默认标签")
+                                except Exception as e:
+                                    logger.error(f"标签生成器初始化失败: {e}")
+                                    tagger = None
+                    
+                    if tagger:
+                        try:
+                            attributes = tagger.generate_tags(processed_image)
+                        except Exception as e:
+                            logger.error(f"标签生成失败: {e}")
+                
+                # 角色分类
+                if model_name not in model_cache:
+                    logger.info(f"初始化分类器: {model_name}")
+                    # 检查模型路径
+                    index_path = f"./models/{model_name}"
+                    if not os.path.exists(index_path):
+                        # 尝试使用默认模型路径
+                        index_path = f"./models/mobilenet_v2"
+                        model_name = "mobilenet_v2"  # 使用默认模型名称
+                        logger.warning(f"模型路径不存在，使用默认模型: {model_name}")
+                    
+                    # 检查索引文件是否存在
+                    faiss_path = f"{index_path}.faiss"
+                    mapping_path = f"{index_path}_mapping.json"
+                    if os.path.exists(faiss_path) and os.path.exists(mapping_path):
+                        # 降低阈值，提高角色识别率
+                        classifier = Classification(index_path, threshold=0.1)
+                        logger.info(f"分类器初始化完成，模型: {model_name}, 阈值: 0.1")
+                    else:
+                        # 如果索引文件不存在，创建一个空的分类器
+                        classifier = Classification(threshold=0.1)
+                        logger.warning(f"索引文件不存在，创建空分类器: {model_name}, 阈值: 0.1")
+                    
+                    model_cache[model_name] = classifier
+                else:
+                    classifier = model_cache[model_name]
+                
+                # 检查分类器是否有索引
+                if classifier.index is not None:
+                    # 分类图像
+                    if multilabel:
+                        # 多标签分类
+                        roles = classifier.classify(feature, 5, attributes, multilabel=True, threshold=threshold)
+                        # 构建多标签结果
+                        if roles:
+                            role = roles[0][0]  # 主角色
+                            similarity = roles[0][1]  # 主角色相似度
+                        else:
+                            role = "unknown"
+                            similarity = 0.0
+                    else:
+                        # 单标签分类
+                        role, similarity = classifier.classify(feature, 5, attributes, threshold=threshold)  # 减少top_k值，提高速度
+                else:
+                    # 如果没有索引，返回unknown
+                    role = "unknown"
+                    similarity = 0.0
+                
+                # 构建结果
+                result = {
+                    "filename": file.filename,
+                    "role": role,
+                    "similarity": float(similarity),
+                    "attributes": attributes
+                }
+                
+                # 如果是多标签模式，添加所有识别到的角色
+                if multilabel:
+                    result["roles"] = [
+                        {"role": r[0], "similarity": float(r[1])}
+                        for r in roles
+                    ]
+                
+                results.append(result)
+                
+            except Exception as e:
+                logger.error(f"处理文件 {file.filename} 失败: {e}")
+                results.append({
+                    "filename": file.filename,
+                    "error": str(e)
+                })
+        
+        return {
+            "results": results,
+            "count": len(results)
+        }
+        
+    except Exception as e:
+        logger.error(f"批量预测失败: {e}")
+        import traceback
+        logger.error(f"异常堆栈: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"批量预测失败: {e}")
 
 # 主函数
 if __name__ == "__main__":

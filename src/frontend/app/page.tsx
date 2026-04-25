@@ -33,6 +33,9 @@ export default function AnimeRoleDetect() {
   ]);
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [selectedImages, setSelectedImages] = useState<File[]>([]);
+  const [imagePreviews, setImagePreviews] = useState<string[]>([]);
+  const [isBatchUpload, setIsBatchUpload] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [inputText, setInputText] = useState<string>("");
   const [copySuccess, setCopySuccess] = useState<string | null>(null);
@@ -213,25 +216,64 @@ export default function AnimeRoleDetect() {
 
   // 处理图片选择
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setSelectedImage(file);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        if (isMountedRef.current) {
-          setImagePreview(reader.result as string);
-        }
-      };
-      reader.readAsDataURL(file);
+    if (isBatchUpload) {
+      // 批量上传模式
+      const files = e.target.files;
+      if (files && files.length > 0) {
+        const newFiles = Array.from(files);
+        setSelectedImages(newFiles);
+        
+        // 生成预览
+        const previews: string[] = [];
+        newFiles.forEach(file => {
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            if (isMountedRef.current) {
+              previews.push(reader.result as string);
+              if (previews.length === newFiles.length) {
+                setImagePreviews(previews);
+              }
+            }
+          };
+          reader.readAsDataURL(file);
+        });
+      }
+    } else {
+      // 单张上传模式
+      const file = e.target.files?.[0];
+      if (file) {
+        setSelectedImage(file);
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          if (isMountedRef.current) {
+            setImagePreview(reader.result as string);
+          }
+        };
+        reader.readAsDataURL(file);
+      }
     }
   };
-
-
 
   // 移除图片
   const removeImage = useCallback(() => {
     setSelectedImage(null);
     setImagePreview(null);
+  }, []);
+
+  // 移除批量图片
+  const removeBatchImage = useCallback((index: number) => {
+    const newImages = [...selectedImages];
+    const newPreviews = [...imagePreviews];
+    newImages.splice(index, 1);
+    newPreviews.splice(index, 1);
+    setSelectedImages(newImages);
+    setImagePreviews(newPreviews);
+  }, [selectedImages, imagePreviews]);
+
+  // 清空批量图片
+  const clearBatchImages = useCallback(() => {
+    setSelectedImages([]);
+    setImagePreviews([]);
   }, []);
 
   // 处理拖拽事件
@@ -304,14 +346,158 @@ export default function AnimeRoleDetect() {
 
   // 处理发送消息
   const handleSend = useCallback(async () => {
-    if ((!inputText.trim() && !selectedImage) || isProcessing) {
+    if ((!inputText.trim() && !selectedImage && selectedImages.length === 0) || isProcessing) {
       return;
     }
 
     // 清空输入
     setInputText("");
 
-    if (selectedImage) {
+    if (isBatchUpload && selectedImages.length > 0) {
+      // 处理批量图片
+      // 创建用户消息
+      const userMessage: Message = {
+        id: Date.now().toString(),
+        role: "user",
+        content: inputText.trim(),
+        image: imagePreviews[0] || undefined, // 显示第一张图片作为预览
+        timestamp: Date.now(),
+      };
+
+      // 添加用户消息到消息列表
+      setMessages(prev => [...prev, userMessage]);
+
+      // 开始处理
+      setIsProcessing(true);
+
+      // 创建处理中消息
+      const processingMessage: Message = {
+        id: `processing_${Date.now()}`,
+        role: "assistant",
+        content: `正在识别 ${selectedImages.length} 张图片...`,
+        isThinking: true,
+        thoughts: ["正在分析图片...", "正在提取特征...", "正在批量处理..."],
+        isThinkingFinished: false,
+        timestamp: Date.now(),
+      };
+
+      setMessages(prev => [...prev, processingMessage]);
+
+      try {
+        // 构建FormData
+        const formData = new FormData();
+        selectedImages.forEach((file, index) => {
+          formData.append('files', file, file.name);
+        });
+        formData.append('model_name', selectedModel);
+        formData.append('use_attributes', useAttributes ? 'true' : 'false');
+        formData.append('batch_size', '8');
+        formData.append('multilabel', multiRole ? 'true' : 'false');
+        formData.append('threshold', '0.4');
+
+        console.log('发送批量请求参数:', {
+          modelName: selectedModel,
+          useAttributes,
+          batchSize: 8,
+          multilabel: multiRole,
+          threshold: 0.4
+        });
+
+        // 发送请求到后端API
+        console.log('开始发送批量请求到API');
+        const endpoint = '/api/model/batch-predict';
+        console.log(`使用端点: ${endpoint}`);
+        const headers: any = {};
+        if (authState.accessToken) {
+          headers['Authorization'] = `Bearer ${authState.accessToken}`;
+          console.log('添加Authorization头:', headers['Authorization']);
+        } else {
+          console.log('没有accessToken，无法添加Authorization头');
+        }
+        console.log('最终请求头:', headers);
+        const response = await axios.post(endpoint, formData, {
+          headers: headers,
+        });
+
+        console.log('批量API响应:', response.data);
+
+        const data = response.data;
+        const results = data.results || [];
+
+        // 构建助手消息
+        const assistantMessage: Message = {
+          id: Date.now().toString(),
+          role: "assistant",
+          content: `批量识别完成！处理了 ${results.length} 张图片`,
+          batch_results: results.map((result: any, index: number) => ({
+            id: index + 1,
+            filename: result.filename || `图片 ${index + 1}`,
+            role: result.role || "未知角色",
+            similarity: result.similarity || 0,
+            attributes: result.attributes || [],
+            roles: result.roles || []
+          })),
+          thoughts: ["正在分析图片...", "正在提取特征...", "正在批量处理...", "识别完成！"],
+          isThinkingFinished: true,
+          timestamp: Date.now(),
+        };
+
+        // 更新消息列表，移除处理中消息，添加助手消息
+        setMessages(prev => {
+          const newMessages = prev.filter(msg => !msg.isThinking);
+          return [...newMessages, assistantMessage];
+        });
+
+      } catch (error: any) {
+        console.error('批量API请求失败:', error);
+
+        // 构建错误消息
+        let errorContent = "批量识别过程中出现错误，请重试。";
+        let errorTitle = "批量识别失败";
+
+        // 处理401认证错误
+        if (error.response && error.response.status === 401) {
+          errorContent = "认证已过期，请重新登录。";
+          errorTitle = "认证失败";
+          // 清除过期的认证状态
+          setAuthState({
+            isAuthenticated: false,
+            user: null,
+            accessToken: null,
+            refreshToken: null
+          });
+          // 清除localStorage
+          localStorage.removeItem('accessToken');
+          localStorage.removeItem('refreshToken');
+          localStorage.removeItem('currentUser');
+        } else if (error.response) {
+          // 其他服务器错误
+          errorContent = error.response.data?.detail || error.response.data?.error || errorContent;
+        } else if (error.message) {
+          // 网络错误等
+          errorContent = error.message;
+        }
+
+        const errorMessage: Message = {
+          id: Date.now().toString(),
+          role: "assistant",
+          content: errorTitle,
+          error: errorContent,
+          timestamp: Date.now(),
+        };
+
+        // 更新消息列表，移除处理中消息，添加错误消息
+        setMessages(prev => {
+          const newMessages = prev.filter(msg => !msg.isThinking);
+          return [...newMessages, errorMessage];
+        });
+      } finally {
+        // 结束处理
+        setIsProcessing(false);
+        // 清除批量图片
+        clearBatchImages();
+      }
+    } else if (selectedImage) {
       // 处理单张图片
       // 创建用户消息
       const userMessage: Message = {
@@ -349,6 +535,8 @@ export default function AnimeRoleDetect() {
         formData.append('use_model', (selectedModel !== 'default') ? 'true' : 'false');
         formData.append('use_attributes', useAttributes ? 'true' : 'false');
         formData.append('model_name', selectedModel);
+        formData.append('multilabel', multiRole ? 'true' : 'false');
+        formData.append('threshold', '0.4');
         formData.append('cache_bypass', Date.now().toString());
 
         console.log('发送请求参数:', {
@@ -494,7 +682,7 @@ export default function AnimeRoleDetect() {
         removeImage();
       }
     }
-  }, [inputText, selectedImage, imagePreview, isProcessing, removeImage, useCoreML, selectedModel, useAttributes, authState]);
+  }, [inputText, selectedImage, imagePreview, selectedImages, imagePreviews, isBatchUpload, isProcessing, removeImage, clearBatchImages, useCoreML, selectedModel, useAttributes, multiRole, authState]);
 
   // 处理键盘按键
   const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -704,6 +892,27 @@ export default function AnimeRoleDetect() {
                   </button>
                 </div>
               )}
+              
+              {/* 批量上传开关 */}
+              <div className="flex items-center space-x-2">
+                <label className="text-sm font-medium">批量上传:</label>
+                <button
+                  onClick={() => {
+                    setIsBatchUpload(!isBatchUpload);
+                    // 切换模式时清空已选择的图片
+                    if (isBatchUpload) {
+                      setSelectedImage(null);
+                      setImagePreview(null);
+                    } else {
+                      setSelectedImages([]);
+                      setImagePreviews([]);
+                    }
+                  }}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${isBatchUpload ? 'bg-blue-600' : 'bg-gray-300'}`}
+                >
+                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${isBatchUpload ? 'translate-x-6' : 'translate-x-1'}`} />
+                </button>
+              </div>
             </div>
           
           {/* 平台信息 */}
@@ -743,6 +952,7 @@ export default function AnimeRoleDetect() {
                     <input
                       type="file"
                       accept="image/*"
+                      multiple={isBatchUpload}
                       onChange={handleImageSelect}
                       className={`w-full md:w-1/4 px-3 py-2 md:px-4 md:py-3 rounded-lg ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-gray-50 border-gray-200'} border focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm transition-all hover:border-blue-300`}
                     />
@@ -787,7 +997,8 @@ export default function AnimeRoleDetect() {
                       )}
                     </button>
                   </div>
-                  {selectedImage && imagePreview && (
+                  {/* 单张图片预览 */}
+                  {!isBatchUpload && selectedImage && imagePreview && (
                     <div className={`mt-3 ${darkMode ? 'bg-gray-700 border-gray-600' : 'bg-gray-50 border-gray-200'} border rounded-lg p-3 flex items-center space-x-3 animate-fade-in`}>
                       <div className="w-16 h-16 rounded-lg overflow-hidden shadow-md">
                         <img
@@ -811,6 +1022,52 @@ export default function AnimeRoleDetect() {
                       >
                         <X className="h-4 w-4" />
                       </button>
+                    </div>
+                  )}
+                  
+                  {/* 批量图片预览 */}
+                  {isBatchUpload && selectedImages.length > 0 && (
+                    <div className={`mt-3 ${darkMode ? 'bg-gray-700 border-gray-600' : 'bg-gray-50 border-gray-200'} border rounded-lg p-3 animate-fade-in`}>
+                      <div className="flex justify-between items-center mb-3">
+                        <h3 className="text-sm font-medium">已选择 {selectedImages.length} 张图片</h3>
+                        <button
+                          onClick={clearBatchImages}
+                          className={`text-xs px-2 py-1 rounded ${darkMode ? 'bg-red-900/20 text-red-400' : 'bg-red-50 text-red-600'} hover:opacity-80 transition-opacity`}
+                          title="清空所有图片"
+                        >
+                          清空
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                        {selectedImages.map((file, index) => (
+                          <div key={index} className={`relative ${darkMode ? 'bg-gray-800' : 'bg-white'} rounded-lg overflow-hidden shadow-md group`}>
+                            <div className="aspect-square">
+                              <img
+                                src={imagePreviews[index]}
+                                alt={`Selected image ${index + 1}`}
+                                className="w-full h-full object-cover"
+                              />
+                            </div>
+                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                              <button
+                                onClick={() => removeBatchImage(index)}
+                                className={`p-1.5 rounded-full bg-red-500 text-white hover:bg-red-600 transition-colors transform hover:scale-110`}
+                                title="移除图片"
+                              >
+                                <X className="h-4 w-4" />
+                              </button>
+                            </div>
+                            <div className="p-2">
+                              <p className="text-xs truncate">
+                                {file.name}
+                              </p>
+                              <p className="text-xs text-gray-500 dark:text-gray-400">
+                                {Math.round(file.size / 1024)} KB
+                              </p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   )}
                 </div>
