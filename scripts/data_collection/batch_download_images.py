@@ -18,7 +18,7 @@ import argparse
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 
-project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, project_root)
 
 try:
@@ -75,18 +75,20 @@ def check_and_send_scheduled_notification(role_stats: dict, total_stats: dict):
         current_time_str = datetime.now().strftime("%H:%M:%S")
         message = f"📥 数据采集中...\n时间: {current_time_str}\n\n"
 
-        if total_stats:
+        if role_stats:
             message += "📊 当前进度:\n"
-            for role_name, stats in list(total_stats.items())[:5]:
+            for role_name, stats in list(role_stats.items())[:5]:
                 message += f"  • {role_name}: {stats.get('success', 0)} 张\n"
-            if len(total_stats) > 5:
-                message += f"  ... 还有 {len(total_stats) - 5} 个角色\n"
+            if len(role_stats) > 5:
+                message += f"  ... 还有 {len(role_stats) - 5} 个角色\n"
 
-            total_success = sum(s.get('success', 0) for s in total_stats.values())
-            total_fail = sum(s.get('fail', 0) for s in total_stats.values())
+            total_success = total_stats.get('total_success', 0)
+            total_fail = total_stats.get('total_fail', 0)
             message += f"\n总计: 成功 {total_success} 张, 失败 {total_fail} 张"
 
+        logger.info(f"发送定时进度通知...")
         send_notification(message, level="info")
+        logger.info(f"定时进度通知发送完成")
         return True
     return False
 
@@ -317,10 +319,16 @@ def process_batch(batch_config):
     logger.info(f"开始处理批次 {batch_id}: {batch_name}")
     logger.info("=" * 60)
 
-    send_notification(
-        f"📥 开始数据采集\n批次: {batch_id} - {batch_name}\n角色数: {len(batch_config['roles'])}",
-        level="info"
-    )
+    logger.info(f"发送批次开始通知...")
+    try:
+        success = send_notification(
+            f"📥 开始数据采集\n批次: {batch_id} - {batch_name}\n角色数: {len(batch_config['roles'])}",
+            level="info"
+        )
+        logger.info(f"批次开始通知发送结果: {success}")
+    except Exception as e:
+        logger.error(f"发送批次开始通知失败: {e}")
+    logger.info(f"批次开始通知发送完成")
 
     # 按优先级排序角色
     roles = sorted(batch_config['roles'], key=lambda x: 0 if x['priority'] == 'high' else 1)
@@ -336,7 +344,7 @@ def process_batch(batch_config):
             total_success += success
             total_fail += fail
 
-        check_and_send_scheduled_notification(results, results)
+        check_and_send_scheduled_notification(results, {"total_success": total_success, "total_fail": total_fail})
 
         # 角色间延迟
         time.sleep(2)
@@ -349,12 +357,14 @@ def process_batch(batch_config):
     logger.info(f"成功下载 {total_success} 张图片，失败 {total_fail} 张")
     logger.info("=" * 60)
 
+    logger.info(f"发送批次完成通知...")
     send_notification(
         f"✅ 数据采集完成\n批次: {batch_id} - {batch_name}\n耗时: {elapsed_str}\n\n📊 结果:\n"
         f"  成功: {total_success} 张\n  失败: {total_fail} 张\n\n"
         f"📁 保存目录: {GLOBAL_CONFIG['download_dir']}",
         level="success"
     )
+    logger.info(f"批次完成通知发送完成")
 
     return results, total_success, total_fail
 

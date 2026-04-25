@@ -207,7 +207,7 @@ class NotificationManager:
             if not access_token:
                 return False
 
-            url = "https://open.feishu.cn/open-apis/im/v1/messages"
+            url = "https://open.feishu.cn/open-apis/im/v1/messages?receive_id_type=chat_id"
             headers = {
                 "Authorization": f"Bearer {access_token}",
                 "Content-Type": "application/json"
@@ -216,20 +216,16 @@ class NotificationManager:
             if msg_type == "text":
                 data = {
                     "receive_id": self.feishu_receive_id or "ou_xxxxxx",
-                    "receive_id_type": self.feishu_receive_id_type,
                     "msg_type": "text",
                     "content": json.dumps({"text": content})
                 }
             else:
                 data = {
                     "receive_id": self.feishu_receive_id or "ou_xxxxxx",
-                    "receive_id_type": self.feishu_receive_id_type,
                     "msg_type": "post",
                     "content": json.dumps({
-                        "zh_cn": {
-                            "title": "训练通知",
-                            "content": [[{"tag": "text", "text": content}]]
-                        }
+                        "title": "训练通知",
+                        "content": [[{"tag": "text", "text": content}]]
                     })
                 }
 

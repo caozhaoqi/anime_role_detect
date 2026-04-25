@@ -23,7 +23,7 @@ except ModuleNotFoundError:
     logging.basicConfig(level=logging.INFO)
     logger = logging.getLogger("fetch_loli_urls")
 
-LOLI_FILE = "./auto_spider_img/classified_all_v2/萝莉.txt"
+LOLI_FILE = "./auto_spider_img/loli-role.txt"
 IMG_URL_DIR = "./spider_image_system/data/img_url"
 HREF_URL_DIR = "./spider_image_system/data/href_url"
 MAX_WORKERS = 3
@@ -119,8 +119,9 @@ def save_urls(role_name, href_urls, img_urls):
 
     pinyin = pinyin_map.get(role_name)
     if not pinyin:
-        logger.warning(f"未找到角色映射: {role_name}")
-        return
+        # 如果没有拼音映射，使用角色名作为文件名
+        pinyin = role_name
+        logger.info(f"使用角色名作为文件名: {role_name}")
 
     os.makedirs(IMG_URL_DIR, exist_ok=True)
     os.makedirs(HREF_URL_DIR, exist_ok=True)
