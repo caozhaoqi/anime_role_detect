@@ -27,6 +27,22 @@ except ModuleNotFoundError:
     logging.basicConfig(level=logging.INFO)
     logger = logging.getLogger("train_loli_models")
 
+try:
+    from src.services.notification_service import (
+        send_notification,
+        send_training_progress_notification,
+        send_training_complete_notification,
+        send_training_error_notification
+    )
+    NOTIFICATION_AVAILABLE = True
+except ImportError:
+    logger.warning("通知服务导入失败，训练通知功能将不可用")
+    NOTIFICATION_AVAILABLE = False
+    def send_notification(*args, **kwargs): pass
+    def send_training_progress_notification(*args, **kwargs): pass
+    def send_training_complete_notification(*args, **kwargs): pass
+    def send_training_error_notification(*args, **kwargs): pass
+
 os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
 os.environ['MPS_HIGH_WATERMARK_RATIO'] = '0.0'
 os.environ['PYTORCH_MPS_HIGH_WATERMARK_RATIO'] = '0.0'
@@ -173,6 +189,14 @@ def train_model(model_type, train_loader, val_loader, num_classes, device):
         logger.info(f"  Train Loss: {train_loss:.4f}, Train Acc: {train_acc:.2f}%")
         logger.info(f"  Val Loss: {val_loss:.4f}, Val Acc: {val_acc:.2f}%")
 
+        progress = (epoch + 1) / NUM_EPOCHS * 100
+        send_training_progress_notification(
+            stage=f"训练 {model_type}",
+            progress=progress,
+            message=f"Epoch {epoch + 1}/{NUM_EPOCHS} - Val Acc: {val_acc:.2f}%",
+            metrics={'train_loss': train_loss, 'val_loss': val_loss, 'val_acc': val_acc}
+        )
+
         if val_acc > best_acc:
             best_acc = val_acc
             best_model_state = model.state_dict().copy()
@@ -208,9 +232,14 @@ def save_model(model, model_type, class_to_idx, accuracy):
 
 
 def main():
+    import time
+    training_start_time = time.time()
+
     logger.info("=" * 60)
     logger.info("开始训练角色分类模型 (8个角色)")
     logger.info("=" * 60)
+
+    send_notification(f"🎯 开始训练 {len(MODEL_TYPES)} 个模型\n模型类型: {', '.join(MODEL_TYPES)}\nEpochs: {NUM_EPOCHS}\nBatch Size: {BATCH_SIZE}", level="info")
 
     device = torch.device('cpu')
     logger.info(f"使用设备: {device}")
@@ -268,22 +297,39 @@ def main():
 
             logger.info(f"{model_type} 训练完成，准确率: {best_acc:.2f}%")
 
+            send_training_complete_notification(
+                model_name=f"{model_type}_loli8",
+                metrics={'accuracy': best_acc},
+                model_path=model_path
+            )
+
         except Exception as e:
             logger.error(f"{model_type} 训练失败: {e}")
             import traceback
             logger.error(traceback.format_exc())
             results[model_type] = {'error': str(e)}
+            send_training_error_notification(stage=f"训练 {model_type}", error_message=str(e))
 
     logger.info("")
     logger.info("=" * 60)
     logger.info("所有模型训练完成")
     logger.info("=" * 60)
 
+    training_elapsed = time.time() - training_start_time
+
+    summary_message = f"✅ 全部 {len(MODEL_TYPES)} 个模型训练完成！\n总耗时: {training_elapsed / 60:.1f} 分钟\n\n📊 结果摘要:"
+    has_error = False
+
     for model_type, result in results.items():
         if 'error' in result:
             logger.error(f"{model_type}: 训练失败 - {result['error']}")
+            summary_message += f"\n❌ {model_type}: 失败"
+            has_error = True
         else:
             logger.info(f"{model_type}: 准确率 {result['accuracy']:.2f}%, 路径 {result['model_path']}")
+            summary_message += f"\n✅ {model_type}: {result['accuracy']:.2f}%"
+
+    send_notification(summary_message, level="error" if has_error else "success")
 
     results_file = os.path.join(MODEL_DIR, 'training_results_loli8.json')
     with open(results_file, 'w', encoding='utf-8') as f:

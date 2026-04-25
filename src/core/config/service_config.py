@@ -37,6 +37,12 @@ class ServiceConfig:
         self.CACHE_ENABLED = os.environ.get('CACHE_ENABLED', 'true').lower() == 'true'
         self.CACHE_TTL = int(os.environ.get('CACHE_TTL', '3600'))
 
+        self.USE_REDIS = os.environ.get('USE_REDIS', 'false').lower() == 'true'
+        self.REDIS_HOST = os.environ.get('REDIS_HOST', 'localhost')
+        self.REDIS_PORT = int(os.environ.get('REDIS_PORT', '6379'))
+        self.REDIS_DB = int(os.environ.get('REDIS_DB', '0'))
+        self.CACHE_STRATEGY = os.environ.get('CACHE_STRATEGY', 'local_first')
+
         self.MODEL_CACHE_DIR = os.path.join(
             os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
             'models'

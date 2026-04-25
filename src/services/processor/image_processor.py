@@ -23,19 +23,20 @@ class_names = [
 ]
 
 
-def _generate_cache_key(content, model_name):
+def _generate_cache_key(content, model_name, options=None):
     """
     生成缓存键
-    
+
     Args:
         content: 文件内容
         model_name: 模型名称
-    
+        options: 额外选项字典
+
     Returns:
         str: 缓存键
     """
-    file_hash = hashlib.md5(content).hexdigest()
-    return f"image_processing_{file_hash}_{model_name}"
+    from src.services.cache_service.cache_helper import get_classify_cache_key
+    return get_classify_cache_key(content, model_name, options)
 
 
 def _extract_deepdanbooru_tags(content, filename, result):
@@ -114,8 +115,14 @@ async def process_single_image(file, model_name, cache_bypass=False, use_coreml=
         if not validate_file(content):
             return {"error": "文件为空"}
         
-        # 生成缓存键
-        cache_key = _generate_cache_key(content, model_name)
+        # 生成缓存键(包含影响结果的所有选项)
+        cache_options = {
+            "use_coreml": use_coreml,
+            "use_model": use_model,
+            "use_attributes": use_attributes,
+            "use_deepdanbooru": use_deepdanbooru
+        }
+        cache_key = _generate_cache_key(content, model_name, cache_options)
         
         # 尝试从缓存获取结果
         cache_manager = get_cache_manager()
@@ -264,8 +271,15 @@ async def process_multi_role_image(file, model_name, cache_bypass=False, use_cor
         if not validate_file(content):
             return {"error": "文件为空"}
         
-        # 生成缓存键
-        cache_key = _generate_cache_key(content, f"multi_role_{model_name}")
+        # 生成缓存键(多角色处理使用multi_role前缀,并包含影响结果的所有选项)
+        cache_options = {
+            "use_coreml": use_coreml,
+            "use_model": use_model,
+            "use_attributes": use_attributes,
+            "use_deepdanbooru": use_deepdanbooru,
+            "multi_role": True
+        }
+        cache_key = _generate_cache_key(content, f"multi_role_{model_name}", cache_options)
         
         # 尝试从缓存获取结果
         cache_manager = get_cache_manager()

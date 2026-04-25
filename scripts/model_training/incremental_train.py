@@ -27,6 +27,22 @@ except ModuleNotFoundError:
     logging.basicConfig(level=logging.INFO)
     logger = logging.getLogger("incremental_train")
 
+try:
+    from src.services.notification_service import (
+        send_notification,
+        send_training_progress_notification,
+        send_training_complete_notification,
+        send_training_error_notification
+    )
+    NOTIFICATION_AVAILABLE = True
+except ImportError:
+    logger.warning("通知服务导入失败，训练通知功能将不可用")
+    NOTIFICATION_AVAILABLE = False
+    def send_notification(*args, **kwargs): pass
+    def send_training_progress_notification(*args, **kwargs): pass
+    def send_training_complete_notification(*args, **kwargs): pass
+    def send_training_error_notification(*args, **kwargs): pass
+
 os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
 os.environ['MPS_HIGH_WATERMARK_RATIO'] = '0.0'
 os.environ['PYTORCH_MPS_HIGH_WATERMARK_RATIO'] = '0.0'
@@ -695,6 +711,14 @@ def incremental_train(base_model_path, new_data_dir, output_model_dir, model_typ
         logger.info(f"  Train Loss: {train_loss:.4f}, Train Acc: {train_acc:.2f}%")
         logger.info(f"  Val Loss: {val_loss:.4f}, Val Acc: {val_acc:.2f}%")
 
+        progress = (epoch + 1) / NUM_EPOCHS * 100
+        send_training_progress_notification(
+            stage=f"增量训练 {model_type}",
+            progress=progress,
+            message=f"Epoch {epoch + 1}/{NUM_EPOCHS} - Val Acc: {val_acc:.2f}%",
+            metrics={'train_loss': train_loss, 'val_loss': val_loss, 'val_acc': val_acc}
+        )
+
         if val_acc > best_acc + MIN_DELTA:
             best_acc = val_acc
             best_model_state = model.state_dict().copy()
@@ -804,7 +828,10 @@ def main():
     PATIENCE = args.patience
     MIN_DELTA = args.min_delta
     FREEZE_RATIO = args.freeze_ratio
-    
+
+    import time
+    training_start_time = time.time()
+
     logger.info("=" * 60)
     logger.info("开始增量训练")
     logger.info("=" * 60)
@@ -819,6 +846,15 @@ def main():
     logger.info(f"早停耐心值: {args.patience}")
     logger.info(f"最小改善阈值: {args.min_delta}")
     logger.info(f"冻结比例: {args.freeze_ratio}")
+
+    send_notification(
+        f"🔄 开始增量训练\n"
+        f"基础模型: {args.base_model}\n"
+        f"模型类型: {args.model_type}\n"
+        f"Epochs: {args.epochs}\n"
+        f"Batch Size: {args.batch_size}",
+        level="info"
+    )
 
     # 运行增量训练
     model, accuracy, model_type, class_to_idx = incremental_train(
@@ -857,14 +893,31 @@ def main():
         }
         with open(metadata_path, 'w', encoding='utf-8') as f:
             json.dump(metadata, f, ensure_ascii=False, indent=2)
-        
+
         logger.info(f"测试准确率: {test_accuracy:.2f}%")
-    
+
+    training_elapsed = time.time() - training_start_time
+
+    send_training_complete_notification(
+        model_name=f"{model_type}_incremental",
+        metrics={'val_accuracy': accuracy},
+        model_path=model_path,
+        training_time=training_elapsed
+    )
+
     logger.info("=" * 60)
     logger.info("增量训练完成")
     logger.info("=" * 60)
     logger.info(f"模型保存路径: {model_path}")
     logger.info(f"模型准确率: {accuracy:.2f}%")
+    logger.info(f"训练耗时: {training_elapsed / 60:.1f} 分钟")
 
 if __name__ == '__main__':
-    main()
+    try:
+        main()
+    except Exception as e:
+        logger.error(f"增量训练失败: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+        send_training_error_notification(stage="增量训练", error_message=str(e))
+        sys.exit(1)

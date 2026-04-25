@@ -6,6 +6,7 @@
 """
 
 import os
+import sys
 import requests
 from PIL import Image
 import io
@@ -15,8 +16,26 @@ import logging
 import json
 import argparse
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime
 
-# 配置日志
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, project_root)
+
+try:
+    from src.services.notification_service import (
+        send_notification,
+        send_training_progress_notification,
+        send_training_complete_notification,
+        send_training_error_notification
+    )
+    NOTIFICATION_AVAILABLE = True
+except ImportError:
+    NOTIFICATION_AVAILABLE = False
+    def send_notification(*args, **kwargs): pass
+    def send_training_progress_notification(*args, **kwargs): pass
+    def send_training_complete_notification(*args, **kwargs): pass
+    def send_training_error_notification(*args, **kwargs): pass
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -36,11 +55,40 @@ GLOBAL_CONFIG = {
     'delay': 0.5,
     'min_resolution': [800, 800],
     'max_retries': 5,  # 增加最大重试次数到5次
-    'proxy': None  # 代理设置，可根据需要配置
+    'proxy': None,  # 代理设置，可根据需要配置
+    'notification_interval': 300,  # 通知间隔时间（秒），默认5分钟
+    'last_notification_time': 0  # 上次通知时间
 }
 
 # 创建下载目录
 os.makedirs(GLOBAL_CONFIG['download_dir'], exist_ok=True)
+
+
+def check_and_send_scheduled_notification(role_stats: dict, total_stats: dict):
+    """检查是否需要发送定时进度通知"""
+    current_time = time.time()
+    interval = GLOBAL_CONFIG.get('notification_interval', 300)
+
+    if current_time - GLOBAL_CONFIG['last_notification_time'] >= interval:
+        GLOBAL_CONFIG['last_notification_time'] = current_time
+
+        current_time_str = datetime.now().strftime("%H:%M:%S")
+        message = f"📥 数据采集中...\n时间: {current_time_str}\n\n"
+
+        if total_stats:
+            message += "📊 当前进度:\n"
+            for role_name, stats in list(total_stats.items())[:5]:
+                message += f"  • {role_name}: {stats.get('success', 0)} 张\n"
+            if len(total_stats) > 5:
+                message += f"  ... 还有 {len(total_stats) - 5} 个角色\n"
+
+            total_success = sum(s.get('success', 0) for s in total_stats.values())
+            total_fail = sum(s.get('fail', 0) for s in total_stats.values())
+            message += f"\n总计: 成功 {total_success} 张, 失败 {total_fail} 张"
+
+        send_notification(message, level="info")
+        return True
+    return False
 
 def load_config(config_path):
     """加载配置文件"""
@@ -263,37 +311,57 @@ def process_batch(batch_config):
     """处理单个批次"""
     batch_id = batch_config['batch_id']
     batch_name = batch_config['name']
-    
+    start_time = time.time()
+
     logger.info("=" * 60)
     logger.info(f"开始处理批次 {batch_id}: {batch_name}")
     logger.info("=" * 60)
-    
+
+    send_notification(
+        f"📥 开始数据采集\n批次: {batch_id} - {batch_name}\n角色数: {len(batch_config['roles'])}",
+        level="info"
+    )
+
     # 按优先级排序角色
     roles = sorted(batch_config['roles'], key=lambda x: 0 if x['priority'] == 'high' else 1)
-    
+
     results = {}
     total_success = 0
     total_fail = 0
-    
-    for role_config in roles:
+
+    for idx, role_config in enumerate(roles):
         role_name, success, fail = process_role(role_config, batch_config)
         if success > 0 or fail > 0:
             results[role_name] = {'success': success, 'fail': fail}
             total_success += success
             total_fail += fail
-        
+
+        check_and_send_scheduled_notification(results, results)
+
         # 角色间延迟
         time.sleep(2)
-    
+
+    elapsed = time.time() - start_time
+    elapsed_str = f"{elapsed / 60:.1f} 分钟" if elapsed >= 60 else f"{elapsed:.0f} 秒"
+
     logger.info("=" * 60)
     logger.info(f"批次 {batch_id}: {batch_name} 处理完成")
     logger.info(f"成功下载 {total_success} 张图片，失败 {total_fail} 张")
     logger.info("=" * 60)
-    
+
+    send_notification(
+        f"✅ 数据采集完成\n批次: {batch_id} - {batch_name}\n耗时: {elapsed_str}\n\n📊 结果:\n"
+        f"  成功: {total_success} 张\n  失败: {total_fail} 张\n\n"
+        f"📁 保存目录: {GLOBAL_CONFIG['download_dir']}",
+        level="success"
+    )
+
     return results, total_success, total_fail
 
 def main():
     """主函数"""
+    start_time = time.time()
+
     parser = argparse.ArgumentParser(description='批量下载图片脚本')
     parser.add_argument('--config', default='batch_config.json', help='配置文件路径')
     parser.add_argument('--batch', type=int, help='指定批次ID')
@@ -305,74 +373,110 @@ def main():
     print("批量下载图片脚本")
     print("=" * 60)
     
-    # 加载配置
-    config = load_config(args.config)
-    if not config:
-        return
-    
-    # 更新全局配置
-    if 'global_settings' in config:
-        GLOBAL_CONFIG.update(config['global_settings'])
-    
-    # 确保下载目录存在
-    os.makedirs(GLOBAL_CONFIG['download_dir'], exist_ok=True)
-    
-    # 处理指定批次
-    if args.batch:
-        batch_config = None
-        for batch in config['batch_plan']:
-            if batch['batch_id'] == args.batch:
-                batch_config = batch
-                break
-        
-        if not batch_config:
-            logger.error(f"批次 {args.batch} 不存在")
+    try:
+        # 加载配置
+        config = load_config(args.config)
+        if not config:
+            send_training_error_notification(stage="数据采集", error_message="配置文件加载失败")
             return
         
-        process_batch(batch_config)
-    
-    # 处理指定角色
-    elif args.role:
-        found = False
-        for batch in config['batch_plan']:
-            for role in batch['roles']:
-                if role['name'] == args.role:
-                    process_role(role, batch)
-                    found = True
+        # 更新全局配置
+        if 'global_settings' in config:
+            GLOBAL_CONFIG.update(config['global_settings'])
+        
+        # 确保下载目录存在
+        os.makedirs(GLOBAL_CONFIG['download_dir'], exist_ok=True)
+        
+        # 处理指定批次
+        if args.batch:
+            batch_config = None
+            for batch in config['batch_plan']:
+                if batch['batch_id'] == args.batch:
+                    batch_config = batch
                     break
-            if found:
-                break
+            
+            if not batch_config:
+                logger.error(f"批次 {args.batch} 不存在")
+                send_training_error_notification(stage="数据采集", error_message=f"批次 {args.batch} 不存在")
+                return
+            
+            process_batch(batch_config)
         
-        if not found:
-            logger.error(f"角色 {args.role} 不存在于配置中")
-    
-    # 处理所有批次
-    else:
-        total_results = {}
-        total_success_all = 0
-        total_fail_all = 0
+        # 处理指定角色
+        elif args.role:
+            found = False
+            for batch in config['batch_plan']:
+                for role in batch['roles']:
+                    if role['name'] == args.role:
+                        send_notification(
+                            f"📥 开始下载角色: {args.role}",
+                            level="info"
+                        )
+                        role_name, success, fail = process_role(role, batch)
+                        send_notification(
+                            f"✅ 角色 {role_name} 下载完成\n成功: {success} 张, 失败: {fail} 张",
+                            level="success" if success > 0 else "info"
+                        )
+                        found = True
+                        break
+                if found:
+                    break
+            
+            if not found:
+                logger.error(f"角色 {args.role} 不存在于配置中")
+                send_training_error_notification(stage="数据采集", error_message=f"角色 {args.role} 不存在")
         
-        for batch_config in config['batch_plan']:
-            results, success, fail = process_batch(batch_config)
-            total_results.update(results)
-            total_success_all += success
-            total_fail_all += fail
+        # 处理所有批次
+        else:
+            total_results = {}
+            total_success_all = 0
+            total_fail_all = 0
+            
+            send_notification(
+                f"📥 开始处理所有批次\n总批次: {len(config['batch_plan'])}",
+                level="info"
+            )
+            
+            for batch_config in config['batch_plan']:
+                results, success, fail = process_batch(batch_config)
+                total_results.update(results)
+                total_success_all += success
+                total_fail_all += fail
+            
+            # 输出总结果
+            print("\n" + "=" * 60)
+            print("全部批次处理完成")
+            print("=" * 60)
+            print(f"成功处理 {len(total_results)} 个角色")
+            print(f"共下载 {total_success_all} 张图片，失败 {total_fail_all} 张")
+            
+            if total_results:
+                print("\n角色下载统计:")
+                for role_name, stats in total_results.items():
+                    print(f"  {role_name}: 成功 {stats['success']} 张, 失败 {stats['fail']} 张")
+            
+            print(f"\n图片已保存到: {GLOBAL_CONFIG['download_dir']}")
+            
+            elapsed = time.time() - start_time
+            elapsed_str = f"{elapsed / 60:.1f} 分钟" if elapsed >= 60 else f"{elapsed:.0f} 秒"
+            
+            send_notification(
+                f"✅ 所有批次处理完成\n耗时: {elapsed_str}\n\n📊 总结果:\n"
+                f"  处理角色: {len(total_results)}\n"
+                f"  成功: {total_success_all} 张\n"
+                f"  失败: {total_fail_all} 张\n\n"
+                f"📁 保存目录: {GLOBAL_CONFIG['download_dir']}",
+                level="success"
+            )
         
-        # 输出总结果
-        print("\n" + "=" * 60)
-        print("全部批次处理完成")
         print("=" * 60)
-        print(f"成功处理 {len(total_results)} 个角色")
-        print(f"共下载 {total_success_all} 张图片，失败 {total_fail_all} 张")
         
-        if total_results:
-            print("\n角色下载统计:")
-            for role_name, stats in total_results.items():
-                print(f"  {role_name}: 成功 {stats['success']} 张, 失败 {stats['fail']} 张")
-        
-        print(f"\n图片已保存到: {GLOBAL_CONFIG['download_dir']}")
-    
-    print("=" * 60)
+    except Exception as e:
+        logger.error(f"数据采集失败: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+        send_training_error_notification(stage="数据采集", error_message=str(e))
+        print("=" * 60)
 
 if __name__ == "__main__":
     main()

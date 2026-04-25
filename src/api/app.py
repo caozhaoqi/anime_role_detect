@@ -5,9 +5,10 @@ import os
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
 sys.path.insert(0, project_root)
 
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Depends
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Depends, BackgroundTasks
 from typing import Optional
 from fastapi.middleware.cors import CORSMiddleware
+from datetime import datetime
 import time
 
 # 初始化日志记录器
@@ -223,6 +224,158 @@ async def classify_image(
         )
 
 
+@app.post("/api/classify/async")
+async def classify_image_async(
+    file: UploadFile = File(...),
+    model_name: str = Form("resnet18_loli8"),
+    use_coreml: bool = Form(False),
+    use_model: bool = Form(True),
+    use_attributes: bool = Form(True),
+    cache_bypass: bool = Form(False),
+    multi_role: bool = Form(False),
+    use_deepdanbooru: bool = Form(True),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    异步分类图像中的角色
+
+    Args:
+        file: 上传的图像文件
+        model_name: 模型名称
+        use_coreml: 是否使用 CoreML 模型（Mac 平台）
+        use_model: 是否使用专用模型
+        use_attributes: 是否使用属性预测
+        cache_bypass: 是否绕过缓存
+        multi_role: 是否使用多角色检测
+        use_deepdanbooru: 是否使用DeepDanbooru标签提取
+
+    Returns:
+        dict: 任务ID和状态
+    """
+    try:
+        image_content = await file.read()
+
+        task = None
+        try:
+            from src.tasks.classify_tasks import classify_image_task
+            task = classify_image_task.delay(
+                image_content=image_content,
+                image_filename=file.filename,
+                model_name=model_name,
+                use_coreml=use_coreml,
+                use_model=use_model,
+                use_attributes=use_attributes,
+                use_deepdanbooru=use_deepdanbooru,
+                multi_role=multi_role
+            )
+            logger.info(f"异步分类任务已提交: task_id={task.id}")
+        except Exception as e:
+            logger.warning(f"Celery任务提交失败，使用同步处理: {e}")
+            return {
+                "success": False,
+                "message": "异步任务队列不可用，请使用同步接口",
+                "error": str(e)
+            }
+
+        return {
+            "success": True,
+            "task_id": task.id,
+            "status": "pending",
+            "message": "任务已提交，请通过 /api/task/{task_id} 查询结果"
+        }
+    except Exception as e:
+        logger.error(f"提交异步分类任务失败: {e}")
+        return {
+            "success": False,
+            "message": "任务提交失败",
+            "error": str(e)
+        }
+
+
+@app.get("/api/task/{task_id}")
+async def get_task_result(
+    task_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    获取异步任务结果
+
+    Args:
+        task_id: Celery任务ID
+        current_user: 当前用户
+
+    Returns:
+        dict: 任务状态和结果
+    """
+    try:
+        from src.tasks.celery_app import celery_app
+        task = celery_app.AsyncResult(task_id)
+
+        response = {
+            "task_id": task_id,
+            "status": task.state
+        }
+
+        if task.state == 'SUCCESS':
+            response["success"] = True
+            response["result"] = task.result
+            response["message"] = "任务已完成"
+        elif task.state == 'FAILURE':
+            response["success"] = False
+            response["error"] = str(task.info)
+            response["message"] = "任务失败"
+        elif task.state == 'PENDING':
+            response["success"] = True
+            response["message"] = "任务正在排队或运行中"
+        elif task.state == 'STARTED':
+            response["success"] = True
+            response["message"] = "任务正在执行"
+            response["info"] = str(task.info) if task.info else None
+        else:
+            response["success"] = True
+            response["message"] = f"任务状态: {task.state}"
+            response["info"] = str(task.info) if task.info else None
+
+        return response
+    except Exception as e:
+        logger.error(f"获取任务状态失败: {e}")
+        return {
+            "success": False,
+            "task_id": task_id,
+            "error": str(e),
+            "message": "获取任务状态失败"
+        }
+
+
+@app.get("/api/task/{task_id}/result")
+async def get_task_result_data(
+    task_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    获取异步任务结果数据（仅返回结果）
+
+    Args:
+        task_id: Celery任务ID
+        current_user: 当前用户
+
+    Returns:
+        dict: 任务结果数据
+    """
+    from src.tasks.celery_app import celery_app
+    task = celery_app.AsyncResult(task_id)
+
+    if task.state == 'SUCCESS':
+        return {
+            "success": True,
+            "data": task.result
+        }
+    elif task.state == 'FAILURE':
+        raise HTTPException(status_code=500, detail=str(task.info))
+    else:
+        raise HTTPException(status_code=202, detail="Task not yet completed")
+
+
 @app.post("/api/classify/multi-role")
 async def multi_role_classify_image(
     file: UploadFile = File(...),
@@ -366,6 +519,103 @@ async def health_check():
         "version": "1.0.0",
         "timestamp": time.time()
     }
+
+
+@app.get("/api/health/detailed")
+async def detailed_health_check():
+    """
+    详细健康检查
+
+    Returns:
+        dict: 详细健康状态
+    """
+    health_status = {
+        "status": "healthy",
+        "timestamp": datetime.now().isoformat(),
+        "services": {}
+    }
+
+    overall_healthy = True
+
+    try:
+        from src.services.cache_service import get_cache_manager
+        cache_manager = get_cache_manager()
+        cache_stats = cache_manager.get_stats()
+        cache_available = cache_stats.get("available", True)
+        health_status["services"]["cache"] = {
+            "status": "up" if cache_available else "down",
+            "type": "redis" if cache_stats.get("available") else "local",
+            "stats": cache_stats
+        }
+        if not cache_available:
+            overall_healthy = False
+    except Exception as e:
+        logger.error(f"健康检查-缓存服务失败: {e}")
+        health_status["services"]["cache"] = {"status": "down", "error": str(e)}
+        overall_healthy = False
+
+    try:
+        from src.services.monitoring_service import get_monitoring_service
+        monitoring_service = get_monitoring_service()
+        health_status["services"]["monitoring"] = {"status": "up"}
+    except Exception as e:
+        logger.error(f"健康检查-监控服务失败: {e}")
+        health_status["services"]["monitoring"] = {"status": "down", "error": str(e)}
+
+    try:
+        redis_cache = None
+        try:
+            from src.services.cache_service.redis_cache import get_redis_cache
+            redis_cache = get_redis_cache()
+            redis_ping = redis_cache.redis_client.ping() if redis_cache.available else False
+            health_status["services"]["redis"] = {
+                "status": "up" if redis_ping else "down"
+            }
+        except Exception:
+            health_status["services"]["redis"] = {"status": "not_configured"}
+    except Exception as e:
+        logger.error(f"健康检查-Redis失败: {e}")
+        health_status["services"]["redis"] = {"status": "down", "error": str(e)}
+
+    try:
+        from src.services.recognition_service import get_recognition_service
+        recognition_service = get_recognition_service()
+        record_count = len(recognition_service.records)
+        health_status["services"]["recognition"] = {
+            "status": "up",
+            "record_count": record_count
+        }
+    except Exception as e:
+        logger.error(f"健康检查-识别记录服务失败: {e}")
+        health_status["services"]["recognition"] = {"status": "down", "error": str(e)}
+
+    try:
+        from src.services.message_queue_service import MessageQueueService
+        mq_service = MessageQueueService()
+        mq_status = "up" if mq_service.connection and mq_service.channel else "down"
+        health_status["services"]["message_queue"] = {"status": mq_status}
+    except Exception as e:
+        logger.error(f"健康检查-消息队列失败: {e}")
+        health_status["services"]["message_queue"] = {"status": "down", "error": str(e)}
+
+    try:
+        import psutil
+        memory = psutil.virtual_memory()
+        health_status["services"]["system"] = {
+            "status": "up",
+            "memory_percent": memory.percent,
+            "memory_available_mb": memory.available / (1024 * 1024)
+        }
+    except ImportError:
+        health_status["services"]["system"] = {"status": "not_monitored"}
+    except Exception as e:
+        logger.error(f"健康检查-系统信息失败: {e}")
+        health_status["services"]["system"] = {"status": "unknown", "error": str(e)}
+
+    if not overall_healthy:
+        health_status["status"] = "degraded"
+
+    return health_status
 
 
 @app.get("/api/monitoring")
@@ -671,52 +921,30 @@ async def refresh_token(
 ):
     """
     刷新访问令牌
-    
+
     Args:
         refresh_token: 刷新令牌
-    
+
     Returns:
         dict: 刷新结果，包含新的访问令牌
     """
     try:
-        # 验证刷新令牌
-        payload = verify_token(refresh_token)
-        if not payload or payload.get("type") != "refresh":
-            return {
-                "success": False,
-                "message": "无效的刷新令牌"
-            }
-        
-        # 获取用户名
-        username = payload.get("sub")
-        if not username:
-            return {
-                "success": False,
-                "message": "无效的刷新令牌"
-            }
-        
-        # 初始化认证服务
         from src.services.auth_service import get_auth_service
         auth_service = get_auth_service()
-        
-        # 获取用户信息
-        user = auth_service.users.get(username)
-        if not user:
+
+        result = auth_service.refresh_access_token(refresh_token)
+
+        if result:
+            return {
+                "success": True,
+                "message": "令牌刷新成功",
+                "data": result
+            }
+        else:
             return {
                 "success": False,
-                "message": "用户不存在"
+                "message": "无效或已过期的刷新令牌"
             }
-        
-        # 创建新的访问令牌
-        new_access_token = create_access_token(data={"sub": username, "role": user.get("role")})
-        
-        return {
-            "success": True,
-            "message": "令牌刷新成功",
-            "data": {
-                "access_token": new_access_token
-            }
-        }
     except Exception as e:
         logger.error(f"刷新令牌失败: {e}")
         return {

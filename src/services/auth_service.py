@@ -64,7 +64,50 @@ class AuthService:
         to_encode.update({"exp": expire, "type": "refresh"})
         encoded_jwt = jwt.encode(to_encode, self.SECRET_KEY, algorithm=self.ALGORITHM)
         return encoded_jwt
-    
+
+    def refresh_access_token(self, refresh_token: str) -> Optional[Dict[str, Any]]:
+        """
+        使用刷新令牌获取新的访问令牌
+
+        Args:
+            refresh_token: 刷新令牌
+
+        Returns:
+            Optional[Dict[str, Any]]: 包含新访问令牌的字典，或None
+        """
+        try:
+            payload = jwt.decode(refresh_token, self.SECRET_KEY, algorithms=[self.ALGORITHM])
+
+            if payload.get("type") != "refresh":
+                logger.warning("无效的刷新令牌类型")
+                return None
+
+            username = payload.get("sub")
+            if not username:
+                logger.warning("刷新令牌缺少用户信息")
+                return None
+
+            user = self.users.get(username)
+            if not user:
+                logger.warning(f"用户不存在: {username}")
+                return None
+
+            new_access_token = self.create_access_token({"sub": username, "role": user.get("role")})
+
+            return {
+                "access_token": new_access_token,
+                "refresh_token": refresh_token,
+                "token_type": "bearer",
+                "expires_in": self.ACCESS_TOKEN_EXPIRE_MINUTES * 60
+            }
+
+        except jwt.ExpiredSignatureError:
+            logger.warning("刷新令牌已过期")
+            return None
+        except jwt.PyJWTError as e:
+            logger.error(f"刷新令牌验证失败: {e}")
+            return None
+
     def verify_token(self, token: str) -> Optional[Dict[str, Any]]:
         """验证令牌"""
         try:
