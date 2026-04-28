@@ -15,6 +15,7 @@ import random
 import logging
 import json
 import argparse
+import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 
@@ -49,7 +50,7 @@ logger = logging.getLogger(__name__)
 # 全局配置
 GLOBAL_CONFIG = {
     'download_dir': '../../data/role_images',
-    'url_dir': '../../spider_image_system/data/img_url',
+    'url_dir': os.path.expanduser('~/anime_role_urls_multi'),
     'max_workers': 5,
     'timeout': 30,  # 增加超时时间到30秒
     'delay': 0.5,
@@ -62,6 +63,87 @@ GLOBAL_CONFIG = {
 
 # 创建下载目录
 os.makedirs(GLOBAL_CONFIG['download_dir'], exist_ok=True)
+
+
+class NotificationScheduler:
+    """独立的定时通知调度器"""
+
+    def __init__(self, interval: int = 300):
+        self.interval = interval
+        self.last_send_time = time.time()
+        self.running = False
+        self.thread = None
+        self.role_stats = {}
+        self.total_stats = {"total_success": 0, "total_fail": 0}
+        self.lock = threading.Lock()
+
+    def start(self):
+        """启动定时通知调度器"""
+        if self.running:
+            return
+        self.running = True
+        self.last_send_time = time.time()
+        self.thread = threading.Thread(target=self._run, daemon=True)
+        self.thread.start()
+        logger.info(f"定时通知调度器已启动，间隔: {self.interval}秒")
+
+    def stop(self):
+        """停止定时通知调度器"""
+        self.running = False
+        if self.thread:
+            self.thread.join(timeout=5)
+        logger.info("定时通知调度器已停止")
+
+    def update_stats(self, role_stats: dict, total_stats: dict):
+        """更新统计数据"""
+        with self.lock:
+            self.role_stats = role_stats.copy()
+            self.total_stats = total_stats.copy()
+
+    def _run(self):
+        """后台定时发送线程"""
+        while self.running:
+            time.sleep(5)  # 每5秒检查一次
+
+            current_time = time.time()
+            if current_time - self.last_send_time >= self.interval:
+                self._send_scheduled_notification()
+
+    def _send_scheduled_notification(self):
+        """发送定时进度通知"""
+        with self.lock:
+            role_stats_copy = self.role_stats.copy()
+            total_stats_copy = self.total_stats.copy()
+
+        current_time = time.time()
+        current_time_str = datetime.now().strftime("%H:%M:%S")
+        message = f"📥 数据采集中...\n时间: {current_time_str}\n\n"
+
+        if role_stats_copy:
+            message += "📊 当前进度:\n"
+            for role_name, stats in list(role_stats_copy.items())[:5]:
+                message += f"  • {role_name}: {stats.get('success', 0)} 张\n"
+            if len(role_stats_copy) > 5:
+                message += f"  ... 还有 {len(role_stats_copy) - 5} 个角色\n"
+
+            total_success = total_stats_copy.get('total_success', 0)
+            total_fail = total_stats_copy.get('total_fail', 0)
+            message += f"\n总计: 成功 {total_success} 张, 失败 {total_fail} 张"
+
+        logger.info(f"[定时调度器] 发送定时进度通知...")
+        try:
+            success = send_notification(message, level="info")
+            if success:
+                self.last_send_time = current_time
+                logger.info(f"[定时调度器] 定时进度通知发送成功")
+            else:
+                logger.warning(f"[定时调度器] 定时进度通知发送失败")
+        except Exception as e:
+            logger.error(f"[定时调度器] 发送定时进度通知失败: {e}")
+
+
+# 全局定时通知调度器
+notification_scheduler = NotificationScheduler(interval=GLOBAL_CONFIG.get('notification_interval', 300))
 
 
 def check_and_send_scheduled_notification(role_stats: dict, total_stats: dict):
@@ -258,12 +340,16 @@ def process_role(role_config, batch_config):
         
         # 过滤无效URL
         valid_urls = []
+        # 允许的图片源域名
+        allowed_domains = ['picsum.photos', 'loremflickr.com', 'source.unsplash.com', 'fakeimg.pl', 'placehold.jp', 'placeimg.com']
         for url in urls:
             # 跳过SVG和图标文件
             if url.endswith('.svg') or 'icon' in url.lower():
                 continue
-            # 只保留图片文件
+            # 只保留图片文件或有可靠来源的URL
             if any(ext in url.lower() for ext in ['.jpg', '.jpeg', '.png', '.gif', '.webp']):
+                valid_urls.append(url)
+            elif any(domain in url.lower() for domain in allowed_domains):
                 valid_urls.append(url)
         
         # 调试信息
@@ -330,6 +416,8 @@ def process_batch(batch_config):
         logger.error(f"发送批次开始通知失败: {e}")
     logger.info(f"批次开始通知发送完成")
 
+    notification_scheduler.start()
+
     # 按优先级排序角色
     roles = sorted(batch_config['roles'], key=lambda x: 0 if x['priority'] == 'high' else 1)
 
@@ -344,6 +432,7 @@ def process_batch(batch_config):
             total_success += success
             total_fail += fail
 
+        notification_scheduler.update_stats(results, {"total_success": total_success, "total_fail": total_fail})
         check_and_send_scheduled_notification(results, {"total_success": total_success, "total_fail": total_fail})
 
         # 角色间延迟
@@ -365,6 +454,8 @@ def process_batch(batch_config):
         level="success"
     )
     logger.info(f"批次完成通知发送完成")
+
+    notification_scheduler.stop()
 
     return results, total_success, total_fail
 

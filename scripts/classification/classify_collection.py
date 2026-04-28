@@ -24,18 +24,43 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 class CollectionClassifier:
-    def __init__(self, api_url, model_name, max_workers=4):
+    def __init__(self, api_url, model_name, username='admin', password='admin123', max_workers=4):
         """
         初始化分类器
         
         Args:
             api_url: API地址
             model_name: 模型名称
+            username: 用户名
+            password: 密码
             max_workers: 最大线程数
         """
         self.api_url = api_url
         self.model_name = model_name
+        self.username = username
+        self.password = password
         self.max_workers = max_workers
+        self.token = None
+        self._get_token()
+    
+    def _get_token(self):
+        """获取认证token"""
+        try:
+            login_url = self.api_url.replace('/classify', '/auth/login')
+            data = {
+                'username': self.username,
+                'password': self.password
+            }
+            response = requests.post(login_url, data=data, timeout=30)
+            if response.status_code == 200:
+                result = response.json()
+                if result.get('success'):
+                    self.token = result.get('data', {}).get('access_token')
+                    logger.info("认证成功")
+                    return True
+        except Exception as e:
+            logger.error(f"获取token失败: {e}")
+        return False
     
     def classify_image(self, image_path):
         """
@@ -56,8 +81,11 @@ class CollectionClassifier:
                     'use_attributes': False,
                     'multi_role': False
                 }
+                headers = {}
+                if self.token:
+                    headers['Authorization'] = f'Bearer {self.token}'
                 
-                response = requests.post(self.api_url, files=files, data=data, timeout=30)
+                response = requests.post(self.api_url, files=files, data=data, headers=headers, timeout=30)
                 
                 if response.status_code == 200:
                     result = response.json()

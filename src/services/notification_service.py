@@ -207,21 +207,25 @@ class NotificationManager:
             if not access_token:
                 return False
 
+            # 使用chat_id发送，需要先获取群聊ID
             url = "https://open.feishu.cn/open-apis/im/v1/messages?receive_id_type=chat_id"
             headers = {
                 "Authorization": f"Bearer {access_token}",
                 "Content-Type": "application/json"
             }
 
+            # 构建消息内容
+            msg_content = json.dumps({"text": content})
+
             if msg_type == "text":
                 data = {
-                    "receive_id": self.feishu_receive_id or "ou_xxxxxx",
+                    "receive_id": self.feishu_receive_id or "oc_xxxxxx",  # 需要有效的chat_id
                     "msg_type": "text",
-                    "content": json.dumps({"text": content})
+                    "content": msg_content
                 }
             else:
                 data = {
-                    "receive_id": self.feishu_receive_id or "ou_xxxxxx",
+                    "receive_id": self.feishu_receive_id or "oc_xxxxxx",
                     "msg_type": "post",
                     "content": json.dumps({
                         "title": "训练通知",
