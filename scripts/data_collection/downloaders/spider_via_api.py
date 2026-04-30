@@ -61,8 +61,8 @@ ROLE_LIST_FILE = '/Users/caozhaoqi/PycharmProjects/anime_role_detect/auto_spider
 URL_DIR = '/Users/caozhaoqi/PycharmProjects/anime_role_detect/spider_image_system/data/img_url'
 
 # 爬取配置
-MAX_URLS_PER_ROLE = 100  # 每个角色最多采集100个URL
-MIN_URLS_PER_ROLE = 10   # 每个角色至少采集10个URL
+MAX_URLS_PER_ROLE = 500  # 每个角色最多采集100个URL
+MIN_URLS_PER_ROLE = 200   # 每个角色至少采集200个URL
 
 logging.basicConfig(
     level=logging.INFO,
@@ -281,7 +281,8 @@ def on_ws_message(ws, message):
                 'page': data.get('page', 0),
                 'message': data.get('message', '')
             }
-            logger.info(f"进度更新 [{current_progress['keyword']}]: {current_progress['current_count']} URLs - {current_progress['message']}")
+            actual_count = check_url_count(current_progress['keyword']) if current_progress['keyword'] else 0
+            logger.info(f"进度更新 [{current_progress['keyword']}]: {actual_count} URLs - {current_progress['message']}")
             
             # 如果状态变为完成或错误，触发事件
             if current_progress['status'] in ['completed', 'error']:
@@ -352,13 +353,13 @@ def wait_for_spider_completion(timeout=300):
                     logger.debug("通过WebSocket检测到任务完成")
                     return True
                 
-                # 获取并显示当前状态
+                # 获取并显示当前状态（使用实际文件中的URL数量）
+                file_count = check_url_count(current_progress['keyword']) if current_progress['keyword'] else 0
                 status = get_spider_status()
                 if status:
                     keyword = status.get('current_keyword', '未知')
-                    count = status.get('current_count', 0)
-                    max_urls = status.get('max_urls', 100)
-                    logger.info(f"等待中... [{keyword}] 进度: {count}/{max_urls} URLs")
+                    max_urls = status.get('max_urls', MAX_URLS_PER_ROLE)
+                    logger.info(f"等待中... [{keyword}] 进度: {file_count}/{max_urls} URLs")
             
             logger.warning("等待超时")
             return False
