@@ -8,9 +8,13 @@ import sys
 import os
 
 # 添加项目根目录到Python路径
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from src.services.notification_service import NotificationManager
+# 加载环境变量
+from dotenv import load_dotenv
+load_dotenv()
+
+from src.services.notification_service import get_notification_manager, send_notification
 
 def test_feishu_notification():
     """测试飞书通知"""
@@ -22,27 +26,27 @@ def test_feishu_notification():
     print(f"NOTIFICATION_PLATFORM: {os.environ.get('NOTIFICATION_PLATFORM')}")
     print(f"FEISHU_APP_ID: {os.environ.get('FEISHU_APP_ID')}")
     print(f"FEISHU_APP_SECRET: {os.environ.get('FEISHU_APP_SECRET')}")
+    print(f"FEISHU_WEBHOOK_URL: {os.environ.get('FEISHU_WEBHOOK_URL')}")
     print(f"FEISHU_RECEIVE_ID: {os.environ.get('FEISHU_RECEIVE_ID')}")
-    print(f"FEISHU_RECEIVE_ID_TYPE: {os.environ.get('FEISHU_RECEIVE_ID_TYPE')}")
     
     # 初始化通知管理器
-    notification_manager = NotificationManager()
+    notification_manager = get_notification_manager()
+    
+    # 打印通知管理器状态
+    print(f"\n通知管理器状态:")
+    print(f"  enabled: {notification_manager.enabled}")
+    print(f"  platform: {notification_manager.platform}")
+    print(f"  feishu_webhook: {notification_manager.feishu_webhook}")
+    print(f"  feishu_app_id: {notification_manager.feishu_app_id}")
+    print(f"  feishu_receive_id: {notification_manager.feishu_receive_id}")
     
     # 测试发送消息
     test_message = "🚀 测试消息：飞书通知服务正常运行！"
     print(f"\n发送测试消息: {test_message}")
     
-    # 先测试获取token
-    print("\n测试获取飞书Access Token...")
-    token = notification_manager._get_feishu_access_token()
-    if token:
-        print(f"✅ 获取token成功: {token[:20]}...")
-    else:
-        print("❌ 获取token失败")
-    
-    # 测试发送消息
+    # 测试发送通知
     print("\n测试发送飞书消息...")
-    result = notification_manager.send_feishu_message(test_message)
+    result = send_notification(test_message, "飞书通知测试", level="success")
     print(f"发送结果: {result}")
     
     if result:

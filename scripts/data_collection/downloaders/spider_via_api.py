@@ -3,7 +3,7 @@
 """
 通过API接口爬取缺失角色的URL - 控制采集数量
 支持WebSocket实时进度推送
-支持飞书通知推送采集进度
+支持飞书通知推送采集进度（使用统一通知服务）
 """
 
 import os
@@ -14,14 +14,45 @@ import logging
 import json
 import threading
 from urllib.parse import quote
-from pypinyin import lazy_pinyin, Style
+from loguru import logger
 
+# 添加项目根目录到Python路径
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))))
+
+# 先定义 WEBSOCKET_AVAILABLE
 try:
     import websocket
     WEBSOCKET_AVAILABLE = True
 except ImportError:
     WEBSOCKET_AVAILABLE = False
     logging.warning("websocket-client 未安装，将使用轮询方式获取进度")
+
+from pypinyin import lazy_pinyin, Style
+
+# 加载飞书配置（与成功发送通知的脚本相同方式）
+config_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'notification_config.json')
+if os.path.exists(config_path):
+    with open(config_path, 'r', encoding='utf-8') as f:
+        notification_config = json.load(f)
+    
+    # 设置飞书通知环境变量
+    os.environ['NOTIFICATION_ENABLED'] = 'true'
+    os.environ['NOTIFICATION_PLATFORM'] = notification_config['platform']
+    os.environ['FEISHU_APP_ID'] = notification_config['feishu']['app_id']
+    os.environ['FEISHU_APP_SECRET'] = notification_config['feishu']['app_secret']
+    os.environ['FEISHU_RECEIVE_ID'] = notification_config['feishu']['receive_id']
+    os.environ['FEISHU_RECEIVE_ID_TYPE'] = notification_config['feishu']['receive_id_type']
+    logger.info(f"已加载通知配置: {config_path}")
+else:
+    logger.warning(f"未找到通知配置文件: {config_path}")
+
+# 导入统一通知服务
+try:
+    from src.services.notification_service import get_notification_manager, send_notification
+    NOTIFICATION_AVAILABLE = True
+except ImportError as e:
+    NOTIFICATION_AVAILABLE = False
+    logging.warning(f"通知服务未找到，将使用内置的飞书通知功能: {e}")
 
 # 配置
 API_BASE_URL = "http://localhost:33333/api/v1.2.5.260305"
@@ -32,10 +63,6 @@ URL_DIR = '/Users/caozhaoqi/PycharmProjects/anime_role_detect/spider_image_syste
 # 爬取配置
 MAX_URLS_PER_ROLE = 100  # 每个角色最多采集100个URL
 MIN_URLS_PER_ROLE = 10   # 每个角色至少采集10个URL
-
-# 飞书通知配置
-FEISHU_WEBHOOK_URL = ""  # 飞书机器人Webhook地址，需要用户自行配置
-FEISHU_ENABLED = True if FEISHU_WEBHOOK_URL else False
 
 logging.basicConfig(
     level=logging.INFO,
@@ -52,6 +79,74 @@ current_progress = {
     'message': ''
 }
 progress_event = threading.Event()
+
+# 通知管理器实例
+notification_manager = None
+
+
+def init_notification():
+    """初始化通知服务"""
+    global notification_manager
+    if NOTIFICATION_AVAILABLE:
+        try:
+            notification_manager = get_notification_manager()
+            logger.info("通知服务初始化成功")
+            return True
+        except Exception as e:
+            logger.warning(f"通知服务初始化失败: {e}")
+            return False
+    return False
+
+
+def send_spider_notification(message, title=None, level="info"):
+    """
+    发送爬虫通知（统一接口）
+    :param message: 消息内容
+    :param title: 消息标题
+    :param level: 消息级别 (info, warning, error, success)
+    """
+    if notification_manager:
+        try:
+            return notification_manager.send(message, title, level)
+        except Exception as e:
+            logger.warning(f"发送通知失败: {e}")
+            return False
+    return False
+
+
+def send_spider_progress(role, status, count, total, message=""):
+    """
+    发送采集进度通知
+    :param role: 角色名称
+    :param status: 状态 (running/completed/error/skipped)
+    :param count: 当前数量
+    :param total: 总数
+    :param message: 附加消息
+    """
+    status_emoji = {
+        'running': "🔄",
+        'completed': "✅",
+        'error': "❌",
+        'skipped': "⏭️"
+    }
+    
+    status_text = {
+        'running': "采集进行中",
+        'completed': "采集完成",
+        'error': "采集失败",
+        'skipped': "已跳过"
+    }
+    
+    emoji = status_emoji.get(status, "📦")
+    text = status_text.get(status, "未知状态")
+    
+    title = f"{emoji} 角色采集状态更新"
+    content = f"**角色**: {role}\n**状态**: {text}\n**进度**: {count}/{total}\n**时间**: {time.strftime('%Y-%m-%d %H:%M:%S')}"
+    
+    if message:
+        content += f"\n**消息**: {message}"
+    
+    send_spider_notification(content, title, level="success" if status == 'completed' else "error" if status == 'error' else "info")
 
 
 def get_all_roles():
@@ -289,9 +384,13 @@ def spider_via_api():
     """主函数：通过API爬取缺失角色"""
     global current_progress
     
+    # 初始化通知服务
+    init_notification()
+    
     logger.info("检查API服务状态...")
     if not check_api_status():
         logger.error("API服务不可用，请先启动爬虫服务！")
+        send_spider_notification("❌ API服务不可用，请先启动爬虫服务！", "爬虫服务异常", level="error")
         return
     
     # 启动WebSocket监听器
@@ -305,6 +404,7 @@ def spider_via_api():
     
     if not missing_roles:
         logger.info("所有角色的URL都已采集完成！")
+        send_spider_notification("✅ 所有角色的URL都已采集完成！", "采集任务完成", level="success")
         return
     
     logger.info(f"总角色数: {total}")
@@ -312,6 +412,13 @@ def spider_via_api():
     logger.info(f"缺少URL: {len(missing_roles)}")
     logger.info(f"缺失角色: {', '.join(missing_roles[:10])}{'...' if len(missing_roles) > 10 else ''}")
     logger.info(f"采集配置: 每个角色最多 {MAX_URLS_PER_ROLE} 个URL")
+    
+    # 发送开始采集通知
+    send_spider_notification(
+        f"**🚀 角色URL采集任务开始**\n\n总角色数: {total}\n待采集: {len(missing_roles)}\n配置: 每个角色最多 {MAX_URLS_PER_ROLE} 个URL\n时间: {time.strftime('%Y-%m-%d %H:%M:%S')}",
+        "角色URL采集任务开始",
+        level="info"
+    )
     
     # 逐个爬取
     success_count = 0
@@ -324,6 +431,8 @@ def spider_via_api():
         if current_count >= MIN_URLS_PER_ROLE:
             logger.info(f"[{i}/{len(missing_roles)}] ⏭️ 跳过 {role} (已有 {current_count} 个URL)")
             skipped_count += 1
+            # 发送跳过通知
+            send_spider_progress(role, 'skipped', current_count, MAX_URLS_PER_ROLE, f"已有足够URL，跳过采集")
             continue
         
         # 等待爬虫服务空闲
@@ -334,6 +443,9 @@ def spider_via_api():
         current_progress['keyword'] = role
         
         logger.info(f"[{i}/{len(missing_roles)}] 开始爬取角色: {role}")
+        
+        # 发送开始采集通知
+        send_spider_progress(role, 'running', 0, MAX_URLS_PER_ROLE, f"开始第 {i}/{len(missing_roles)} 个角色采集")
         
         success, msg = start_spider_via_api(role)
         if success:
@@ -350,15 +462,24 @@ def spider_via_api():
             if status == 'completed':
                 logger.info(f"  ✅ 采集完成: 获取 {final_count} 个URL")
                 success_count += 1
+                # 发送完成通知
+                send_spider_progress(role, 'completed', final_count, MAX_URLS_PER_ROLE)
             elif status == 'error':
-                logger.error(f"  ❌ 采集错误: {current_progress.get('message', '未知错误')}")
+                error_msg = current_progress.get('message', '未知错误')
+                logger.error(f"  ❌ 采集错误: {error_msg}")
                 failed_count += 1
+                # 发送错误通知
+                send_spider_progress(role, 'error', final_count, MAX_URLS_PER_ROLE, error_msg)
             else:
                 logger.warning(f"  ⚠️ 采集超时: 获取 {final_count} 个URL")
                 success_count += 1
+                # 发送超时通知
+                send_spider_progress(role, 'completed', final_count, MAX_URLS_PER_ROLE, "采集超时，已获取部分URL")
         else:
             logger.error(f"✗ 启动爬虫失败: {role} - {msg}")
             failed_count += 1
+            # 发送失败通知
+            send_spider_progress(role, 'error', 0, MAX_URLS_PER_ROLE, f"启动爬虫失败: {msg}")
         
         # 间隔60秒再爬取下一个
         time.sleep(60)
@@ -374,6 +495,23 @@ def spider_via_api():
     logger.info(f"成功: {success_count}")
     logger.info(f"跳过(已有足够URL): {skipped_count}")
     logger.info(f"失败: {failed_count}")
+    
+    # 发送完成汇总通知
+    total_processed = success_count + skipped_count + failed_count
+    success_rate = round(success_count / total_processed * 100, 1) if total_processed > 0 else 0
+    
+    summary_content = f"""**📊 角色URL采集任务完成**
+
+**统计信息**:
+- 总处理: {total_processed} 个角色
+- ✅ 成功: {success_count} 个
+- ⏭️ 跳过: {skipped_count} 个
+- ❌ 失败: {failed_count} 个
+- 成功率: {success_rate}%
+
+**时间**: {time.strftime('%Y-%m-%d %H:%M:%S')}"""
+    
+    send_spider_notification(summary_content, "采集任务完成", level="success")
 
 
 if __name__ == '__main__':
