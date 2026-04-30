@@ -3,6 +3,7 @@
 """
 通过API接口爬取缺失角色的URL - 控制采集数量
 支持WebSocket实时进度推送
+支持飞书通知推送采集进度
 """
 
 import os
@@ -12,6 +13,7 @@ import requests
 import logging
 import json
 import threading
+from urllib.parse import quote
 from pypinyin import lazy_pinyin, Style
 
 try:
@@ -30,6 +32,10 @@ URL_DIR = '/Users/caozhaoqi/PycharmProjects/anime_role_detect/spider_image_syste
 # 爬取配置
 MAX_URLS_PER_ROLE = 100  # 每个角色最多采集100个URL
 MIN_URLS_PER_ROLE = 10   # 每个角色至少采集10个URL
+
+# 飞书通知配置
+FEISHU_WEBHOOK_URL = ""  # 飞书机器人Webhook地址，需要用户自行配置
+FEISHU_ENABLED = True if FEISHU_WEBHOOK_URL else False
 
 logging.basicConfig(
     level=logging.INFO,
@@ -97,11 +103,12 @@ def start_spider_via_api(keyword):
     """通过API接口启动爬虫"""
     try:
         url = f"{API_BASE_URL}/sis/spider_start/single"
-        params = {"key_word": keyword}
+        params = {"key_word": quote(keyword)}  # 对中文关键词进行URL编码
         response = requests.post(url, params=params, timeout=60)
         if response.status_code == 200:
             result = response.json()
-            if result.get("code") == 0:
+            # 检查成功条件（支持多种成功响应格式）
+            if result.get("code") == 0 or (result.get("msg") and "success" in result.get("msg").lower()):
                 return True, "success"
             else:
                 return False, result.get('msg', 'unknown error')
@@ -120,6 +127,20 @@ def check_api_status():
         return False
 
 
+def get_spider_status():
+    """获取当前爬虫状态"""
+    try:
+        response = requests.get(f"{API_BASE_URL}/sis/spider/status", timeout=5)
+        if response.status_code == 200:
+            result = response.json()
+            if result.get("code") == 0:
+                return result.get("data", {})
+        return {}
+    except Exception as e:
+        logger.debug(f"获取状态失败: {e}")
+        return {}
+
+
 def is_spider_busy():
     """检查爬虫是否正在运行"""
     try:
@@ -129,11 +150,27 @@ def is_spider_busy():
             timeout=10
         )
         result = response.json()
-        if result.get("msg") == "操作进行中!":
+        
+        msg = result.get("msg", "").strip()
+        data = result.get("data", "").strip()
+        code = result.get("code", -1)
+        
+        # 如果返回"操作进行中"，说明爬虫正在运行
+        if "操作进行中" in msg or "操作进行中" in data:
             return True
+        # 如果返回"关键词不能为空"，说明服务空闲（拒绝空关键词）
+        elif "关键词不能为空" in data:
+            return False
+        # 如果code=0，说明服务空闲（可以接受请求）
+        elif code == 0:
+            return False
+        
+        # 默认认为忙碌
+        logger.debug(f"未知响应: {result}")
+        return True
     except Exception as e:
         logger.debug(f"检查状态失败: {e}")
-    return False
+        return True  # 出错时默认认为忙碌
 
 
 def on_ws_message(ws, message):
@@ -197,25 +234,39 @@ def start_websocket_listener():
 
 
 def wait_for_spider_completion(timeout=300):
-    """等待当前爬虫任务完成"""
+    """等待当前爬虫任务完成，显示详细状态"""
     global current_progress
     
     start_time = time.time()
     logger.debug("等待爬虫任务完成...")
+    
+    # 先检查是否已经空闲
+    if not is_spider_busy():
+        logger.debug("服务已经空闲")
+        return True
     
     # 重置进度状态
     current_progress['status'] = 'running'
     progress_event.clear()
     
     if WEBSOCKET_AVAILABLE:
-        # 使用WebSocket等待
+        # 使用WebSocket等待（同时轮询获取状态）
         try:
-            if progress_event.wait(timeout=timeout):
-                logger.debug("通过WebSocket检测到任务完成")
-                return True
-            else:
-                logger.warning("等待超时")
-                return False
+            while time.time() - start_time < timeout:
+                if progress_event.wait(timeout=15):
+                    logger.debug("通过WebSocket检测到任务完成")
+                    return True
+                
+                # 获取并显示当前状态
+                status = get_spider_status()
+                if status:
+                    keyword = status.get('current_keyword', '未知')
+                    count = status.get('current_count', 0)
+                    max_urls = status.get('max_urls', 100)
+                    logger.info(f"等待中... [{keyword}] 进度: {count}/{max_urls} URLs")
+            
+            logger.warning("等待超时")
+            return False
         except Exception as e:
             logger.warning(f"WebSocket等待失败: {e}")
             return False

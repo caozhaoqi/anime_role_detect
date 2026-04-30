@@ -29,6 +29,7 @@ uvicorn>=0.20.0
 # 数据库
 sqlalchemy>=2.0.0
 aiosqlite>=0.19.0
+mysql-connector-python>=8.0.0
 
 # 缓存服务
 redis>=4.5.0
