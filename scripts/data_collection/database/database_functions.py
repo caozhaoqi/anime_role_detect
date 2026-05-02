@@ -638,20 +638,30 @@ class DatabaseManager:
         fail_count = 0
         
         try:
+            if self.db_type == 'mysql':
+                # MySQL使用ON DUPLICATE KEY UPDATE
+                sql = '''
+                INSERT INTO raw_urls (url, source, role_name)
+                VALUES (%s, %s, %s)
+                ON DUPLICATE KEY UPDATE source = VALUES(source), role_name = VALUES(role_name)
+                '''
+            else:
+                # SQLite使用INSERT OR REPLACE
+                sql = '''
+                INSERT OR REPLACE INTO raw_urls (url, source, role_name)
+                VALUES (?, ?, ?)
+                '''
+            
             for url in urls:
                 try:
-                    self.cursor.execute('''
-                    INSERT INTO raw_urls (url, source, role_name)
-                    VALUES (%s, %s, %s)
-                    ON DUPLICATE KEY UPDATE source = %s, role_name = %s
-                    ''', (url, source, role_name, source, role_name))
+                    self.cursor.execute(sql, (url, source, role_name))
                     if self.cursor.rowcount > 0:
                         success_count += 1
                     else:
                         fail_count += 1
                 except Exception as e:
                     fail_count += 1
-                    print(f"添加URL失败: {url} - {e}")
+                    print(f"添加URL失败: {url[:50]}... - {e}")
             
             self.conn.commit()
             print(f"批量添加URL完成: 成功 {success_count} 条，失败 {fail_count} 条")

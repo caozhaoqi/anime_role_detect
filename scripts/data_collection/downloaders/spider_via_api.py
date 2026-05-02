@@ -13,7 +13,6 @@ import requests
 import logging
 import json
 import threading
-from urllib.parse import quote
 from loguru import logger
 
 # 添加项目根目录到Python路径
@@ -198,7 +197,7 @@ def start_spider_via_api(keyword):
     """通过API接口启动爬虫"""
     try:
         url = f"{API_BASE_URL}/sis/spider_start/single"
-        params = {"key_word": quote(keyword)}  # 对中文关键词进行URL编码
+        params = {"key_word": keyword}
         response = requests.post(url, params=params, timeout=60)
         if response.status_code == 200:
             result = response.json()

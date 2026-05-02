@@ -127,17 +127,29 @@ def cmd_help(args: list, receive_id: str) -> str:
     """帮助命令"""
     help_text = """🤖 **可用命令列表**
 
+**采集控制:**
 `start <角色名>` - 开始采集指定角色
-`status` - 查看当前采集状态
-`list` - 查看所有角色列表
-`progress` - 查看采集进度
 `stop` - 停止当前采集
-`log [行数]` - 查看最近日志 (默认20行)
+`status` - 查看当前采集状态
+`progress` - 查看采集进度
+`list` - 查看所有角色列表
+
+**下载控制:**
+`download start` - 开始下载所有URL
+`download status` - 查看下载状态
+`download stop` - 停止下载
+`download pause` - 暂停下载
+`download resume` - 恢复下载
+
+**统计查看:**
+`stats` - 查看采集统计
+`log [行数]` - 查看最近日志 (默认30行)
 
 **示例:**
 - `start 纳西妲`
-- `status`
-- `log 30`"""
+- `download start`
+- `stats`
+- `log 50`"""
     return help_text
 
 
@@ -168,15 +180,16 @@ def cmd_status(args: list, receive_id: str) -> str:
     """查看状态命令"""
     img_url_dir = '/Users/caozhaoqi/PycharmProjects/anime_role_detect/spider_image_system/data/img_url'
 
-    spider_info = {"status": "unknown", "keyword": "无", "count": 0}
+    spider_info = {"status": "idle", "keyword": "无", "count": 0}
     try:
         response = requests.get(f"{API_BASE_URL}/sis/spider/status", timeout=10)
         if response.status_code == 200:
             result = response.json()
             if result.get("code") == 0:
                 data = result.get("data", {})
+                is_running = data.get('is_running', False)
                 spider_info = {
-                    "status": data.get('status', 'unknown'),
+                    "status": "running" if is_running else "idle",
                     "keyword": unquote(data.get('current_keyword', '无')),
                     "count": data.get('current_count', 0)
                 }
@@ -252,7 +265,7 @@ def cmd_stop(args: list, receive_id: str) -> str:
 
 def cmd_log(args: list, receive_id: str) -> str:
     """查看日志命令"""
-    log_dir = '/Users/caozhaoqi/PycharmProjects/anime_role_detect/spider_image_system/src/log_dir'
+    log_dir = '/Users/caozhaoqi/PycharmProjects/anime_role_detect/spider_image_system/src/run/log_dir'
     img_url_dir = '/Users/caozhaoqi/PycharmProjects/anime_role_detect/spider_image_system/data/img_url'
 
     lines = int(args[0]) if args and args[0].isdigit() else 30
@@ -301,7 +314,8 @@ def cmd_log(args: list, receive_id: str) -> str:
             result = response.json()
             if result.get("code") == 0:
                 data = result.get("data", {})
-                status = data.get('status', 'unknown')
+                is_running = data.get('is_running', False)
+                status = "running" if is_running else "idle"
                 keyword = unquote(data.get('current_keyword', '无'))
                 count = data.get('current_count', 0)
 
@@ -323,6 +337,119 @@ def cmd_log(args: list, receive_id: str) -> str:
     return '\n'.join(result_parts)
 
 
+# 下载器实例（全局）
+downloader_instance = None
+downloader_thread = None
+
+
+def cmd_download(args: list, receive_id: str) -> str:
+    """下载命令"""
+    global downloader_instance, downloader_thread
+    
+    if not args:
+        return """📥 **下载命令帮助**
+
+`download start` - 开始下载所有URL
+`download status` - 查看下载状态
+`download stop` - 停止下载
+`download pause` - 暂停下载
+`download resume` - 恢复下载"""
+    
+    sub_cmd = args[0].lower()
+    
+    if sub_cmd == 'start':
+        if downloader_instance and downloader_thread and downloader_thread.is_alive():
+            return "⚠️ 下载任务已在运行中"
+        
+        import threading
+        from scripts.data_collection.downloaders.download_all_with_notify import SmartDownloader
+        
+        downloader_instance = SmartDownloader(notify=True)
+        downloader_thread = threading.Thread(target=downloader_instance.download_all, daemon=True)
+        downloader_thread.start()
+        
+        return "✅ 下载任务已启动，将通过飞书通知进度"
+    
+    elif sub_cmd == 'status':
+        if not downloader_instance:
+            return "❌ 没有正在运行的下载任务"
+        
+        stats = downloader_instance.stats
+        status = "暂停中" if downloader_instance.pause_flag else ("运行中" if downloader_thread and downloader_thread.is_alive() else "已停止")
+        
+        return f"""📥 **下载状态**
+
+状态: {status}
+总URL数: {stats['total']:,}
+成功: {stats['success']:,}
+失败: {stats['failed']:,}
+跳过: {stats['skipped']:,}"""
+    
+    elif sub_cmd == 'stop':
+        if downloader_instance:
+            downloader_instance.stop()
+            return "🛑 已发送停止信号"
+        return "❌ 没有正在运行的下载任务"
+    
+    elif sub_cmd == 'pause':
+        if downloader_instance:
+            downloader_instance.pause()
+            return "⏸️ 已暂停下载"
+        return "❌ 没有正在运行的下载任务"
+    
+    elif sub_cmd == 'resume':
+        if downloader_instance:
+            downloader_instance.resume()
+            return "▶️ 已恢复下载"
+        return "❌ 没有正在运行的下载任务"
+    
+    else:
+        return f"❌ 未知子命令: {sub_cmd}"
+
+
+def cmd_stats(args: list, receive_id: str) -> str:
+    """统计命令"""
+    img_url_dir = '/Users/caozhaoqi/PycharmProjects/anime_role_detect/spider_image_system/data/img_url'
+    
+    try:
+        files = [f for f in os.listdir(img_url_dir) if f.endswith('_img.txt')]
+        
+        total_urls = 0
+        role_stats = []
+        
+        for f in files:
+            with open(os.path.join(img_url_dir, f), 'r') as fp:
+                count = len([l for l in fp if l.strip()])
+            role_name = f.replace('_img.txt', '')
+            role_stats.append((role_name, count))
+            total_urls += count
+        
+        role_stats.sort(key=lambda x: x[1], reverse=True)
+        
+        sufficient = len([r for r, c in role_stats if c >= 200])
+        insufficient = len([r for r, c in role_stats if 100 <= c < 200])
+        low = len([r for r, c in role_stats if c < 100])
+        
+        msg = f"""📊 **采集统计**
+
+总角色数: {len(files)}
+总URL数: {total_urls:,}
+
+✅ 充足 (≥200): {sufficient}
+⚠️ 不足 (100-199): {insufficient}
+❌ 较少 (<100): {low}
+
+**Top 10 角色:**"""
+        
+        for i, (role, count) in enumerate(role_stats[:10], 1):
+            msg += f"\n{i}. {role}: {count}"
+        
+        return msg
+    
+    except Exception as e:
+        return f"❌ 统计失败: {str(e)}"
+
+
 # 注册命令处理器
 register_command("help", cmd_help)
 register_command("start", cmd_start)
@@ -331,6 +458,8 @@ register_command("list", cmd_list)
 register_command("progress", cmd_progress)
 register_command("stop", cmd_stop)
 register_command("log", cmd_log)
+register_command("download", cmd_download)
+register_command("stats", cmd_stats)
 
 
 @app.route('/feishu/webhook', methods=['GET', 'POST'])
