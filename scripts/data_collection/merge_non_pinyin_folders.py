@@ -12,11 +12,12 @@ MERGE_MAP = {
     'shen2le4': ['Kagura', 'shen2le4 yin1yang2shi1', 'カグラ'],
     'mi2dou4zi': ['Nezuko', 'ni2dou4zi5'],
     'yao2yao2': ['Yaoyao yuan2shen2', 'yao2yao2 yuan2shen2'],
-    'tian1tong2ai4li4si1': ['Aris wei4lan2dang4an4'],
+    'tian1tong2ai4li4si1': ['Aris wei4lan2dang4an4', 'ありす'],
     'a1luo4na4': ['a1luo2na4'],
     'you4hu2': ['ユウホ'],
     'na4xi1da2': ['na4xi1da4'],
-    'ke3li4': ['ke3li2'],  # 可莉
+    'ke3li4': ['ke3li2'],
+    'ke4la1la1': ['ke4la1la1'],  # 克拉拉
 }
 
 def merge_folders():
