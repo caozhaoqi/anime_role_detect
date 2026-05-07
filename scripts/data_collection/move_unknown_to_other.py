@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""将不在loli-role.txt名单中的角色移动到其他目录"""
+"""将不在名单中的角色移动到其他目录"""
 import shutil
 from pathlib import Path
 
