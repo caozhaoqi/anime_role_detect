@@ -1,0 +1,146 @@
+# 【技术难点】图像预处理与特征提取
+
+> 图像预处理是影响模型识别准确率的关键步骤，本文介绍我们的预处理管道设计。
+
+---
+
+## 🔍 问题背景
+
+原始图像数据存在以下问题：
+
+1. **尺寸不一致**：不同图片大小差异大
+2. **颜色偏差**：光照、对比度差异
+3. **格式多样**：JPG、PNG、WebP等多种格式
+4. **噪声干扰**：压缩失真、水印等
+
+---
+
+## 💡 解决方案：预处理管道
+
+### 标准化处理
+
+```python
+from torchvision import transforms
+from PIL import Image
+
+class ImageProcessor:
+    def __init__(self, input_size: int = 224):
+        self.transform = transforms.Compose([
+            # 1. 尺寸调整
+            transforms.Resize((input_size, input_size)),
+            
+            # 2. 随机裁剪（训练阶段）
+            # transforms.RandomCrop(input_size),
+            
+            # 3. 随机水平翻转（训练阶段）
+            # transforms.RandomHorizontalFlip(),
+            
+            # 4. 转换为张量
+            transforms.ToTensor(),
+            
+            # 5. 归一化（使用 ImageNet 均值和标准差）
+            transforms.Normalize(
+                mean=[0.485, 0.456, 0.406],
+                std=[0.229, 0.224, 0.225]
+            )
+        ])
+    
+    def preprocess(self, image_path: str) -> torch.Tensor:
+        """预处理单张图片"""
+        image = Image.open(image_path).convert('RGB')
+        tensor = self.transform(image).unsqueeze(0)
+        return tensor
+```
+
+### 特征提取
+
+```python
+import torch
+import numpy as np
+
+def extract_features(image_tensor: torch.Tensor, model) -> np.ndarray:
+    """提取特征向量"""
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    image_tensor = image_tensor.to(device)
+    
+    # 获取特征提取层输出
+    with torch.no_grad():
+        # EfficientNet 专用方法
+        if hasattr(model, 'extract_features'):
+            features = model.extract_features(image_tensor)
+        else:
+            # 其他模型通过移除分类层获取特征
+            features = model.features(image_tensor)
+        
+        # 全局平均池化
+        features = torch.nn.functional.adaptive_avg_pool2d(features, (1, 1))
+        features = features.view(features.size(0), -1)
+    
+    return features.cpu().numpy()
+```
+
+---
+
+## 🚀 使用示例
+
+```python
+# 初始化处理器
+processor = ImageProcessor(input_size=224)
+
+# 预处理图片
+tensor = processor.preprocess("data/test.jpg")
+print(f"张量形状: {tensor.shape}")  # torch.Size([1, 3, 224, 224])
+
+# 加载模型
+model = ModelManager().load_model('efficientnet-b3')
+
+# 提取特征
+features = extract_features(tensor, model)
+print(f"特征维度: {features.shape}")  # (1, 1536)
+
+# 进行分类
+with torch.no_grad():
+    output = model(tensor)
+    probabilities = torch.softmax(output, dim=1)
+    top5 = torch.topk(probabilities, 5)
+    
+print(f"Top 5 预测: {top5.indices[0].tolist()}")
+```
+
+---
+
+## ⚡ 数据增强策略（训练阶段）
+
+```python
+train_transform = transforms.Compose([
+    transforms.Resize((256, 256)),
+    transforms.RandomCrop(224),
+    transforms.RandomHorizontalFlip(p=0.5),
+    transforms.RandomRotation(degrees=15),
+    transforms.ColorJitter(
+        brightness=0.2,
+        contrast=0.2,
+        saturation=0.2,
+        hue=0.1
+    ),
+    transforms.ToTensor(),
+    transforms.Normalize(
+        mean=[0.485, 0.456, 0.406],
+        std=[0.229, 0.224, 0.225]
+    )
+])
+```
+
+---
+
+## 📝 关键要点
+
+1. **尺寸统一**：将所有图片调整为相同大小
+2. **归一化**：使用 ImageNet 统计量进行标准化
+3. **数据增强**：训练阶段增加随机性，提高泛化能力
+4. **特征提取**：利用模型中间层输出作为特征向量
+5. **设备感知**：自动选择 GPU/CPU 进行处理
+
+---
+
+*下篇预告：NSFW 内容过滤*
