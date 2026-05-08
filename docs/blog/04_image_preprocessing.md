@@ -17,6 +17,73 @@
 
 ## 💡 解决方案：预处理管道
 
+### 多角色检测流程
+
+系统采用**两阶段检测**方案：先使用目标检测模型定位角色，再进行分类识别。
+
+```python
+from ultralytics import YOLO
+from PIL import Image
+import numpy as np
+
+class MultiRoleDetector:
+    def __init__(self):
+        # 加载 YOLOv8 目标检测模型（预训练在动漫角色数据集上）
+        self.detector = YOLO('models/yolov8n-anime.pt')
+        self.processor = ImageProcessor(input_size=224)
+    
+    def detect_and_crop(self, image_path: str, confidence: float = 0.5):
+        """检测图片中的角色并裁剪出每个角色"""
+        # 读取图片
+        image = Image.open(image_path).convert('RGB')
+        image_np = np.array(image)
+        
+        # 使用 YOLO 检测角色
+        results = self.detector(image_np, conf=confidence)
+        
+        cropped_images = []
+        for result in results:
+            for box in result.boxes:
+                # 获取边界框坐标
+                x1, y1, x2, y2 = box.xyxy[0].cpu().numpy().astype(int)
+                
+                # 裁剪角色区域
+                cropped = image.crop((x1, y1, x2, y2))
+                cropped_images.append({
+                    'image': cropped,
+                    'bbox': (x1, y1, x2, y2),
+                    'confidence': box.conf.cpu().numpy()[0]
+                })
+        
+        return cropped_images
+    
+    def classify_roles(self, image_path: str, model) -> list:
+        """检测并分类图片中的所有角色"""
+        # 1. 检测并裁剪角色
+        cropped_list = self.detect_and_crop(image_path)
+        
+        results = []
+        for item in cropped_list:
+            # 2. 预处理裁剪后的角色图片
+            tensor = self.processor.transform(item['image']).unsqueeze(0)
+            
+            # 3. 分类识别
+            with torch.no_grad():
+                output = model(tensor)
+                probabilities = torch.softmax(output, dim=1)
+                top1 = torch.argmax(probabilities, dim=1).item()
+                confidence = probabilities[0, top1].item()
+            
+            results.append({
+                'bbox': item['bbox'],
+                'prediction': top1,
+                'confidence': confidence,
+                'detection_confidence': item['confidence']
+            })
+        
+        return results
+```
+
 ### 标准化处理
 
 ```python
@@ -83,6 +150,7 @@ def extract_features(image_tensor: torch.Tensor, model) -> np.ndarray:
 
 ## 🚀 使用示例
 
+### 单角色分类
 ```python
 # 初始化处理器
 processor = ImageProcessor(input_size=224)
@@ -105,6 +173,50 @@ with torch.no_grad():
     top5 = torch.topk(probabilities, 5)
     
 print(f"Top 5 预测: {top5.indices[0].tolist()}")
+```
+
+### 多角色检测
+```python
+# 初始化多角色检测器
+detector = MultiRoleDetector()
+
+# 加载分类模型
+model = ModelManager().load_model('efficientnet-b3')
+
+# 检测并分类图片中的所有角色
+results = detector.classify_roles("data/group_photo.jpg", model)
+
+# 输出结果
+print(f"检测到 {len(results)} 个角色:")
+for i, result in enumerate(results):
+    print(f"角色 {i+1}:")
+    print(f"  位置: {result['bbox']}")
+    print(f"  预测: {result['prediction']}")
+    print(f"  分类置信度: {result['confidence']:.2f}")
+    print(f"  检测置信度: {result['detection_confidence']:.2f}")
+```
+
+### 多角色检测流程图
+```
+输入图片
+    ↓
+YOLOv8 目标检测
+    ↓
+┌─────────────────────────────┐
+│ 检测到的每个角色边界框      │
+│ (x1, y1, x2, y2)           │
+└─────────────────────────────┘
+    ↓
+逐个裁剪角色区域
+    ↓
+┌─────────────────────────────┐
+│ 裁剪后的角色图片            │
+│ (224x224)                  │
+└─────────────────────────────┘
+    ↓
+EfficientNet 分类
+    ↓
+输出每个角色的识别结果
 ```
 
 ---

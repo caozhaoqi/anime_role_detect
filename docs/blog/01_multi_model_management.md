@@ -39,6 +39,9 @@ class ModelManager:
 ### 按需加载策略
 
 ```python
+import gc
+import torch
+
 def load_model(self, model_name):
     """按需加载模型"""
     # 如果模型已加载，直接返回
@@ -59,10 +62,18 @@ def load_model(self, model_name):
     model.eval().to(device)
     self._loaded_models[model_name] = model
     
-    # 清理其他模型节省内存
+    # 清理其他模型节省内存（关键优化）
     for name in list(self._loaded_models.keys()):
         if name != model_name:
+            # 1. 删除模型引用
             del self._loaded_models[name]
+    
+    # 2. 显式调用垃圾回收
+    gc.collect()
+    
+    # 3. 如果使用 CUDA，清理显存缓存
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
     
     return model
 ```
@@ -105,6 +116,37 @@ print(f"预测结果: {prediction}")
 2. **懒加载**：只在需要时加载模型
 3. **单模型驻留**：同一时间只保持一个模型在内存中
 4. **设备感知**：自动检测 GPU/CPU 并选择最优设备
+5. **显存回收**：显式调用 `gc.collect()` 和 `torch.cuda.empty_cache()` 确保显存立即释放
+
+---
+
+## ⚠️ 常见问题与解决方案
+
+### OOM（内存溢出）问题
+
+**问题描述**：多次切换模型后依然触发 OOM。
+
+**解决方案**：
+```python
+def clear_all_models(self):
+    """彻底清理所有模型"""
+    # 删除所有模型引用
+    for name in list(self._loaded_models.keys()):
+        del self._loaded_models[name]
+    
+    # 强制垃圾回收
+    gc.collect()
+    
+    # 清理 CUDA 缓存
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+        torch.cuda.ipc_collect()  # 额外清理进程间共享内存
+```
+
+**原因分析**：
+- Python 的垃圾回收不是即时的
+- PyTorch 的 CUDA 缓存不会自动释放
+- 模型可能被其他地方引用导致无法回收
 
 ---
 

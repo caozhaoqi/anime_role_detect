@@ -21,12 +21,13 @@
 
 ## 💡 解决方案
 
-### 请求路由中间件
+### 请求路由中间件（带容错机制）
 
 ```python
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import JSONResponse
 import httpx
+import time
 
 app = FastAPI(title="Character Classification Gateway")
 
@@ -35,9 +36,44 @@ SERVICES = {
     "model": "http://localhost:8888"
 }
 
+# 断路器状态
+circuit_breakers = {
+    "backend": {"tripped": False, "last_failure": 0, "failure_count": 0},
+    "model": {"tripped": False, "last_failure": 0, "failure_count": 0}
+}
+
+CIRCUIT_BREAKER_THRESHOLD = 5  # 连续失败次数阈值
+CIRCUIT_BREAKER_TIMEOUT = 30   # 断路器恢复时间（秒）
+
+def is_circuit_open(service_name: str) -> bool:
+    """检查断路器是否打开"""
+    cb = circuit_breakers[service_name]
+    
+    # 如果断路器未触发，返回关闭状态
+    if not cb["tripped"]:
+        return False
+    
+    # 检查是否超过恢复时间
+    if time.time() - cb["last_failure"] > CIRCUIT_BREAKER_TIMEOUT:
+        cb["tripped"] = False
+        cb["failure_count"] = 0
+        return False
+    
+    return True
+
+def trip_circuit(service_name: str):
+    """触发断路器"""
+    cb = circuit_breakers[service_name]
+    cb["failure_count"] += 1
+    
+    if cb["failure_count"] >= CIRCUIT_BREAKER_THRESHOLD:
+        cb["tripped"] = True
+        cb["last_failure"] = time.time()
+        print(f"🔴 断路器触发: {service_name}")
+
 @app.middleware("http")
 async def proxy_middleware(request: Request, call_next):
-    """请求代理中间件"""
+    """请求代理中间件（带超时重试和断路器）"""
     # 健康检查直接返回
     if request.url.path == "/api/health":
         return JSONResponse(content={"status": "healthy", "service": "gateway"})
@@ -47,26 +83,78 @@ async def proxy_middleware(request: Request, call_next):
     headers.pop("host", None)
     
     # 根据路径前缀路由
+    service_name = None
     if path.startswith("/api/auth") or path.startswith("/api/classify"):
         target_url = f"{SERVICES['backend']}{path}"
+        service_name = "backend"
+        timeout = 30  # 后端服务超时时间
     elif path.startswith("/api/model"):
         target_url = f"{SERVICES['model']}{path}"
+        service_name = "model"
+        timeout = 60  # 模型服务超时时间更长
     else:
-        raise HTTPException(status_code=404, detail="Not found")
-    
-    # 绕过系统代理，确保 localhost 通信
-    async with httpx.AsyncClient(trust_env=False) as client:
-        response = await client.request(
-            method=request.method,
-            url=target_url,
-            headers=headers,
-            content=await request.body(),
-            timeout=60
-        )
         return JSONResponse(
-            content=response.json(),
-            status_code=response.status_code
+            content={"code": 404, "message": "Not found", "data": None},
+            status_code=404
         )
+    
+    # 检查断路器状态
+    if is_circuit_open(service_name):
+        return JSONResponse(
+            content={
+                "code": 503,
+                "message": f"Service {service_name} is temporarily unavailable",
+                "data": None
+            },
+            status_code=503
+        )
+    
+    # 带重试的请求
+    max_retries = 2
+    for attempt in range(max_retries + 1):
+        try:
+            async with httpx.AsyncClient(trust_env=False) as client:
+                response = await client.request(
+                    method=request.method,
+                    url=target_url,
+                    headers=headers,
+                    content=await request.body(),
+                    timeout=timeout
+                )
+                # 重置失败计数
+                circuit_breakers[service_name]["failure_count"] = 0
+                return JSONResponse(
+                    content=response.json(),
+                    status_code=response.status_code
+                )
+        
+        except httpx.TimeoutException:
+            if attempt < max_retries:
+                await asyncio.sleep(1)  # 等待1秒后重试
+                continue
+            trip_circuit(service_name)
+            return JSONResponse(
+                content={
+                    "code": 504,
+                    "message": f"Request to {service_name} timed out",
+                    "data": None
+                },
+                status_code=504
+            )
+        
+        except httpx.HTTPError as e:
+            if attempt < max_retries:
+                await asyncio.sleep(1)
+                continue
+            trip_circuit(service_name)
+            return JSONResponse(
+                content={
+                    "code": 503,
+                    "message": f"Service {service_name} unavailable: {str(e)}",
+                    "data": None
+                },
+                status_code=503
+            )
 ```
 
 ### 认证头转发

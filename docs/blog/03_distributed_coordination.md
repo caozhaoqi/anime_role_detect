@@ -20,16 +20,30 @@
 ### 服务注册与健康检查
 
 ```python
+import os
 import requests
 import time
 from typing import Dict, Optional
 
 class ServiceRegistry:
     def __init__(self):
+        # 从环境变量读取服务配置，支持 Docker/K8s 动态部署
         self.services: Dict[str, dict] = {
-            "gateway": {"host": "localhost", "port": 8000, "healthy": False},
-            "backend": {"host": "localhost", "port": 8001, "healthy": False},
-            "model": {"host": "localhost", "port": 8888, "healthy": False}
+            "gateway": {
+                "host": os.getenv("GATEWAY_HOST", "localhost"),
+                "port": int(os.getenv("GATEWAY_PORT", "8000")),
+                "healthy": False
+            },
+            "backend": {
+                "host": os.getenv("BACKEND_HOST", "localhost"),
+                "port": int(os.getenv("BACKEND_PORT", "8001")),
+                "healthy": False
+            },
+            "model": {
+                "host": os.getenv("MODEL_HOST", "localhost"),
+                "port": int(os.getenv("MODEL_PORT", "8888")),
+                "healthy": False
+            }
         }
     
     def check_health(self, service_name: str) -> bool:
@@ -54,6 +68,51 @@ class ServiceRegistry:
         for name in self.services:
             results[name] = self.check_health(name)
         return results
+```
+
+### 环境变量配置
+
+在实际部署中（如 Docker 或 Kubernetes），服务的 IP 地址是动态分配的。通过环境变量配置，可以灵活地适应不同的部署环境。
+
+#### .env 文件示例
+
+```env
+# API Gateway
+GATEWAY_HOST=localhost
+GATEWAY_PORT=8000
+
+# Backend API
+BACKEND_HOST=localhost
+BACKEND_PORT=8001
+
+# Model Service
+MODEL_HOST=localhost
+MODEL_PORT=8888
+
+# 数据库配置
+DB_HOST=postgres
+DB_PORT=5432
+DB_NAME=anime_db
+
+# Redis 配置
+REDIS_HOST=redis
+REDIS_PORT=6379
+```
+
+#### Docker Compose 中的环境变量传递
+
+```yaml
+version: '3.8'
+services:
+  backend:
+    environment:
+      - GATEWAY_HOST=gateway
+      - GATEWAY_PORT=8000
+      - MODEL_HOST=model_service
+      - MODEL_PORT=8888
+    depends_on:
+      - gateway
+      - model_service
 ```
 
 ### 端口冲突处理
