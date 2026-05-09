@@ -204,7 +204,8 @@ def main():
     model_configs = [
         ('mobilenet_v2', './models/mobilenet_v2_loli68_20imgs'),
         ('efficientnet_b0', './models/efficientnet_b0_loli68_20imgs'),
-        ('resnet18', './models/resnet18_loli68_20imgs')
+        ('resnet18', './models/resnet18_loli68_20imgs'),
+        ('efficientnet_b0_optimized', './models/efficientnet_b0_loli67_20imgs_optimized')
     ]
     
     for model_type, model_dir in model_configs:
