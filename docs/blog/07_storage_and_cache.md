@@ -76,6 +76,8 @@ class CacheManager:
 
 ### PostgreSQL 数据库层
 
+#### 表结构设计
+
 ```python
 import psycopg2
 from psycopg2 import sql
@@ -190,6 +192,120 @@ class DatabaseManager:
             'recent_recognitions': recent_count,
             'model_usage': model_stats
         }
+```
+
+### Faiss 向量索引（以图搜图）
+
+```python
+import faiss
+import numpy as np
+import os
+
+class FaissIndexManager:
+    def __init__(self, index_path='faiss_index.bin'):
+        self.index_path = index_path
+        self.index = None
+        self.feature_dim = 1280  # EfficientNet-B3 特征维度
+        self._load_or_create_index()
+    
+    def _load_or_create_index(self):
+        """加载已存在的索引或创建新索引"""
+        if os.path.exists(self.index_path):
+            self.index = faiss.read_index(self.index_path)
+            print(f"✅ 已加载索引，包含 {self.index.ntotal} 个向量")
+        else:
+            # 创建 IVF 索引（倒排文件索引，适合大规模数据）
+            nlist = 100  # 聚类中心数量
+            self.index = faiss.IndexIVFFlat(
+                faiss.IndexFlatL2(self.feature_dim),
+                self.feature_dim,
+                nlist,
+                faiss.METRIC_L2
+            )
+            print("✅ 创建新的 Faiss 索引")
+    
+    def add_features(self, features: np.ndarray, image_hashes: List[str]):
+        """添加特征向量到索引"""
+        if not self.index.is_trained:
+            # 使用部分数据训练索引
+            self.index.train(features)
+        
+        # 添加特征
+        self.index.add(features)
+        
+        # 保存索引
+        faiss.write_index(self.index, self.index_path)
+        
+        # 保存哈希映射
+        self._save_hash_mapping(image_hashes)
+        
+        print(f"✅ 已添加 {len(image_hashes)} 个特征")
+    
+    def search_similar(self, query_feature: np.ndarray, k: int = 5) -> List[dict]:
+        """搜索相似图片"""
+        distances, indices = self.index.search(query_feature.reshape(1, -1), k)
+        
+        # 读取哈希映射
+        hash_mapping = self._load_hash_mapping()
+        
+        results = []
+        for i in range(k):
+            idx = indices[0][i]
+            distance = distances[0][i]
+            
+            if idx != -1:  # -1 表示未找到
+                results.append({
+                    'image_hash': hash_mapping.get(idx, 'unknown'),
+                    'distance': float(distance),
+                    'similarity': self._distance_to_similarity(distance)
+                })
+        
+        return results
+    
+    def _distance_to_similarity(self, distance: float) -> float:
+        """将距离转换为相似度（0-1）"""
+        max_distance = 100.0  # 经验值
+        return max(0, 1 - distance / max_distance)
+    
+    def _save_hash_mapping(self, image_hashes: List[str]):
+        """保存索引到哈希的映射"""
+        mapping_path = self.index_path + '.mapping'
+        np.save(mapping_path, image_hashes)
+    
+    def _load_hash_mapping(self) -> dict:
+        """加载索引到哈希的映射"""
+        mapping_path = self.index_path + '.mapping'
+        if os.path.exists(mapping_path):
+            hashes = np.load(mapping_path, allow_pickle=True).tolist()
+            return {i: h for i, h in enumerate(hashes)}
+        return {}
+
+# 使用示例
+# faiss_manager = FaissIndexManager()
+# faiss_manager.add_features(features_array, image_hashes_list)
+# results = faiss_manager.search_similar(query_feature)
+```
+
+#### 向量索引流程图
+
+```
+提取图像特征
+    ↓
+计算特征向量 (1280维)
+    ↓
+┌──────────────────────┐
+│ 检查 Faiss 索引      │
+└──────────────────────┘
+    ↓
+┌──────────────┐    否     ┌──────────────────┐
+│ 索引已训练?  │────────→│ 训练聚类中心      │
+└──────────────┘          └──────────────────┘
+    ↓ 是                      ↓
+┌──────────────────────┐   ┌──────────────────┐
+│ 添加特征到索引        │   │ 添加特征到索引    │
+└──────────────────────┘   └──────────────────┘
+    ↓
+保存索引文件
 ```
 
 ---
