@@ -20,8 +20,7 @@
 早雾 异环 Hayiri ハヤiri
 维里奈 鸣潮 Verina ヴェリーナ
 安可 鸣潮 Encore アンコア
-釉壶 鸣潮 Youhu ユウホ
-洛可可 鸣潮 Roccia ロchia
+釉瑚 鸣潮 Youhu ユウホ
 鹿目圆 魔法少女小圆 Madoka Kaname 鹿目まどか
 晓美焰 魔法少女小圆 Homura Akemi 暁美ほむら
 血小板 工作细胞 Platelet 血小板
@@ -30,8 +29,6 @@
 康娜 小林家的龙女仆 Kanna カンナ
 四糸乃 约会大作战 Yoshino 四糸乃
 凯露 公主连接 Kyaru キャル
-克萝萝 千年之旅 Klor クロロ
-小闪 千年之旅 Flash フラッシュ
 伊莉雅 魔法少女伊莉雅 Illya イリー
 忍野忍 物语系列 Oshino Shinobu 忍野忍
 智乃 请问您今天要来点兔子吗 Chino チノ
@@ -41,17 +38,14 @@
 德丽莎 崩坏3 Theresa テレサ
 布洛妮娅 崩坏3 Bronya ブロニア
 可琳 绝区零 Kira キラ
-爱丽儿 No Game No Life Ariel アリエル
 神乐 阴阳师 Kagura カグラ
 白上吹雪 虚拟YouTuber Shirogane Noel 白上吹雪
 月千夜 偶像荣耀 Tsukiyo 月千夜
-芙丽希娅 灵魂潮汐 Furisia フルシア
 莉塔拉 少女前线2：追放 Lita リタ
 维普蕾 少女前线2：追放 Viprey ヴィプレイ
 夏克里 少女前线2：追放 Shakri  Shakri
 纳甘 少女前线2：追放 Nagan ナガン
 科谢尼娅 少女前线2：追放 Koshenia コシェニア
-奇塔 少女前线2：追放 Kita キタ
 寇尔芙 少女前线2：追放 Korvu コルヴ
 克罗丽科 少女前线2：追放 Krokri クロクリ
 佩里缇亚 少女前线2：追放 Peritia ペリシア
