@@ -1,25 +1,28 @@
 阿洛娜 蔚蓝档案 Arona アロナ
 普拉娜 蔚蓝档案 Plana プラナ
+砂狼白子 蔚蓝档案 Shiroko シロコ
 纳西妲 原神 Nahida ナヒダ
-缇宝 崩坏星穹铁道 Princess  Princess
+缇宝 崩坏星穹铁道 Princess プリンセス
 可莉 原神 Klee クレー
 迪奥娜 原神 Diona ディオナ
-瑶瑶 原神 Yaoyao 瑶瑶
-希格雯 原神 Sigewinne シーewinne
-蕾贝 幻塔 Rebe レべ
+瑶瑶 原神 Yaoyao ヤオヤオ
+希格雯 原神 Sigewinne ジーグウィン
+蕾贝 幻塔 Rebe レベ
 黑塔 崩坏星穹铁道 Herta ヘルタ
-符玄 崩坏星穹铁道 Fu Xuan 符玄
-七七 原神 Qiqi 七七
-早柚 原神 Sayu 小砂
+符玄 崩坏星穹铁道 Fu Xuan フウゲン
+七七 原神 Qiqi チチ
+早柚 原神 Sayu サユ
 多莉 原神 Dori ドリ
+派蒙 原神 Paimon パイモン
 卡齐娜 原神 Kachina カチナ
-三月七 崩坏星穹铁道 March 7th マルセブンス
+三月七 崩坏星穹铁道 March 7th マーチセブンス
 花火 崩坏星穹铁道 Sparkle スパークル
-银狼 崩坏星穹铁道 Silver Wolf シルバーワOLF
-天童爱丽丝 蔚蓝档案 Aris ありす
-早雾 异环 Hayiri ハヤiri
+火花 崩坏星穹铁道 Spark スパーク
+银狼 崩坏星穹铁道 Silver Wolf シルバーウルフ
+天童爱丽丝 蔚蓝档案 Aris アリス
+早雾 异环 Hayiri ハヤヒリ
 维里奈 鸣潮 Verina ヴェリーナ
-安可 鸣潮 Encore アンコア
+安可 鸣潮 Encore アンコール
 釉瑚 鸣潮 Youhu ユウホ
 鹿目圆 魔法少女小圆 Madoka Kaname 鹿目まどか
 晓美焰 魔法少女小圆 Homura Akemi 暁美ほむら
@@ -29,32 +32,41 @@
 康娜 小林家的龙女仆 Kanna カンナ
 四糸乃 约会大作战 Yoshino 四糸乃
 凯露 公主连接 Kyaru キャル
-伊莉雅 魔法少女伊莉雅 Illya イリー
+伊莉雅 魔法少女伊莉雅 Illya イリヤ
 忍野忍 物语系列 Oshino Shinobu 忍野忍
-智乃 请问您今天要来点兔子吗 Chino チノ
-小埋 干物妹小埋 Tsumugi 埋
+香风智乃 请问您今天要来点兔子吗 Chino チノ
+小埋 干物妹小埋 Umaru うまる
 纱雾 埃罗芒阿老师 Sagiri さぎり
-猫宫又奈 绝区零 Yanagi ヤなぎ
+猫宫又奈 绝区零 Yanagi ヤナギ
 德丽莎 崩坏3 Theresa テレサ
 布洛妮娅 崩坏3 Bronya ブロニア
 可琳 绝区零 Kira キラ
 神乐 阴阳师 Kagura カグラ
-白上吹雪 虚拟YouTuber Shirogane Noel 白上吹雪
+白上吹雪 虚拟YouTuber Shirogane Noel 白上ふぶき
 月千夜 偶像荣耀 Tsukiyo 月千夜
 莉塔拉 少女前线2：追放 Lita リタ
 维普蕾 少女前线2：追放 Viprey ヴィプレイ
-夏克里 少女前线2：追放 Shakri  Shakri
+夏克里 少女前线2：追放 Shakri シャクリ
 纳甘 少女前线2：追放 Nagan ナガン
 科谢尼娅 少女前线2：追放 Koshenia コシェニア
 寇尔芙 少女前线2：追放 Korvu コルヴ
 克罗丽科 少女前线2：追放 Krokri クロクリ
-佩里缇亚 少女前线2：追放 Peritia ペリシア
+佩里缇亚 少女前线2：追放 Peritia ペリティア
 阿尼亚 间谍过家家 Anya Forger アーニャ・フォージャー
-洛茜 明日方舟终末地 Rosci ロsci
-祢豆子 鬼灭之刃 Nezuko Kamado 竈門祢豆子
-希儿 崩坏学园2 Seele Vollerei シール・フォンレーレ
-杏 崩坏学园2 An Makhall アン・マール
+洛茜 明日方舟终末地 Rosci ロシ
+灶门祢豆子 鬼灭之刃 Nezuko Kamado 竈門禰豆子
+希儿 崩坏学园2 Seele Vollerei シーレ・ヴォルレライ
+杏 崩坏学园2 An Marhall アン・マーホール
 伊瑟琳 崩坏学园2 Iselin LeviSius イセリン・リーヴィシウス
 芙兰 崩坏学园2 Fran フラン
 菲米莉丝 崩坏学园2 Fimilis フィミリス
 克拉拉 崩坏星穹铁道 Clara クララ
+铃兰 明日方舟 Suzuran スズラン
+白咲花 天使降临我身边 Shirosaki Hana 白咲花
+星野日向 天使降临我身边 Hoshino Hinata 星野ひなた
+姬坂乃爱 天使降临我身边 Himesaka Noa 姫坂乃愛
+种村小依 天使降临我身边 Tanemura Koharu 種村小依
+小之森夏音 天使降临我身边 Konomori Kanon 小ノ森夏音
+雏鹤爱 龙王的工作 Hinaatsu Ai ひなつあい
+夜叉神天衣 龙王的工作 Yashajin Ti衣 夜叉神天衣
+空银子 龙王的工作 Kuonji Gin 空銀子
