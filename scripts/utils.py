@@ -41,44 +41,96 @@ def find_url_file(identifier):
     
     return None
 
-def download_image_from_url(img_url):
-    """从URL下载单张图片"""
-    try:
-        response = requests.get(img_url, timeout=10)
-        if response.status_code == 200:
-            md5_hash = hashlib.md5(response.content).hexdigest()
-            ext = '.jpg'
-            if 'png' in img_url.lower():
-                ext = '.png'
-            elif 'webp' in img_url.lower():
-                ext = '.webp'
-            return md5_hash, ext, response.content
-    except Exception:
-        pass
+def download_image_from_url(img_url, timeout=8, retries=2):
+    """
+    从URL下载单张图片
+    :param img_url: 图片URL
+    :param timeout: 超时时间（秒）
+    :param retries: 重试次数
+    :return: (md5_hash, ext, content) or (None, None, None)
+    """
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    }
+    
+    for attempt in range(retries):
+        try:
+            response = requests.get(img_url, headers=headers, timeout=timeout)
+            if response.status_code == 200:
+                md5_hash = hashlib.md5(response.content).hexdigest()
+                ext = '.jpg'
+                if 'png' in img_url.lower():
+                    ext = '.png'
+                elif 'webp' in img_url.lower():
+                    ext = '.webp'
+                return md5_hash, ext, response.content
+            elif response.status_code == 403:
+                # 403表示被阻止，不再重试
+                return None, None, None
+        except requests.exceptions.Timeout:
+            if attempt < retries - 1:
+                time.sleep(1)
+                continue
+        except Exception:
+            pass
+    
     return None, None, None
 
-def download_images(url_file, role_dir, need_count, existing_files):
-    """批量下载图片"""
+def download_images(url_file, role_dir, need_count, existing_files, timeout_per_url=8, max_total_time=300):
+    """
+    批量下载图片
+    :param url_file: URL文件路径
+    :param role_dir: 角色目录
+    :param need_count: 需要下载的数量
+    :param existing_files: 已存在的文件集合
+    :param timeout_per_url: 每个URL的超时时间（秒）
+    :param max_total_time: 总超时时间（秒）
+    :return: 成功下载的数量
+    """
     downloaded = 0
+    failed = 0
     
     if not os.path.exists(url_file):
         return downloaded
     
-    with open(url_file, 'r') as f:
+    with open(url_file, 'r', encoding='utf-8', errors='ignore') as f:
         urls = [line.strip() for line in f if line.strip()]
     
-    for img_url in urls:
+    if not urls:
+        return downloaded
+    
+    start_time = time.time()
+    
+    for i, img_url in enumerate(urls):
+        # 检查总超时
+        elapsed = time.time() - start_time
+        if elapsed >= max_total_time:
+            print(f"    ⏰ 总超时 ({max_total_time}秒)，停止下载")
+            break
+        
         if downloaded >= need_count:
             break
         
-        md5_hash, ext, content = download_image_from_url(img_url)
+        # 进度反馈（每10个URL）
+        if i > 0 and i % 10 == 0:
+            print(f"    进度: {i}/{len(urls)} URLs, 已下载: {downloaded}")
+        
+        md5_hash, ext, content = download_image_from_url(img_url, timeout=timeout_per_url)
         if md5_hash and content:
             filename = f'{md5_hash}{ext}'
             if filename not in existing_files:
-                with open(os.path.join(role_dir, filename), 'wb') as f:
-                    f.write(content)
-                downloaded += 1
-                existing_files.add(filename)
+                try:
+                    with open(os.path.join(role_dir, filename), 'wb') as f:
+                        f.write(content)
+                    downloaded += 1
+                    existing_files.add(filename)
+                except Exception as e:
+                    failed += 1
+        else:
+            failed += 1
+    
+    if failed > 0:
+        print(f"    ⚠️ 失败 {failed} 个URL")
     
     return downloaded
 

@@ -1,20 +1,25 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-统一采集脚本 - 使用英文名采集规避拼音问题
+统一采集脚本 - 使用多语言角色映射机制
 """
 
 import os
+import sys
 import requests
 import time
-from .config import *
-from .utils import *
 
-def collect_all_roles(use_english=True):
-    """采集所有角色的URL"""
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from scripts.config import *
+from scripts.utils import *
+from scripts.role_mapping import init_manager, find_role, find_url_files_for_role
+
+def collect_all_roles_multi_lang():
+    """使用多语言关键词采集所有角色的URL"""
     print("=" * 70)
-    print("🚀 开始采集角色URL")
-    print(f"使用{'英文名' if use_english else '中文名'}采集")
+    print("🚀 开始多语言采集角色URL")
+    print("策略: 依次尝试英文名 -> 中文名 -> 日文名")
     print("=" * 70)
     
     # 检查爬虫服务
@@ -25,38 +30,81 @@ def collect_all_roles(use_english=True):
         print(f"❌ 爬虫服务未运行: {str(e)}")
         return
     
+    # 初始化角色管理器
+    init_manager(ROLE_FILE)
+    
     roles = read_role_file(ROLE_FILE)
     print(f"\n📋 共读取到 {len(roles)} 个角色")
     
     success_count = 0
     fail_count = 0
+    already_have_url = 0
     
     for i, line in enumerate(roles, 1):
         role = parse_role_line(line)
         name = role['name']
-        keyword = role['en'] if use_english and role['en'] else name
+        en_name = role['en']
+        jp_name = role['jp']
         
-        print(f"\n[{i}/{len(roles)}] {name} ({keyword})")
+        print(f"\n[{i}/{len(roles)}] {name}")
         
-        if spider_single_role(keyword):
-            print(f"  ✅ 采集成功")
+        # 检查是否已有URL文件
+        url_files = find_url_files_for_role(name)
+        if url_files:
+            print(f"  ⏭️ 已有 {len(url_files)} 个URL文件，跳过采集")
+            already_have_url += 1
+            success_count += 1
+            continue
+        
+        # 多语言采集策略
+        collected = False
+        keywords = []
+        
+        # 优先使用英文名
+        if en_name:
+            keywords.append(('英文名', en_name))
+        
+        # 然后使用中文名
+        keywords.append(('中文名', name))
+        
+        # 最后使用日文名
+        if jp_name:
+            keywords.append(('日文名', jp_name))
+        
+        for lang_type, keyword in keywords:
+            print(f"  尝试{lang_type}: {keyword}")
+            
+            if spider_single_role(keyword):
+                print(f"  ✅ 采集成功")
+                collected = True
+                break
+            else:
+                print(f"  ⚠️ {lang_type}采集失败")
+        
+        if collected:
             success_count += 1
         else:
-            print(f"  ❌ 采集失败")
+            print(f"  ❌ 所有语言均采集失败")
             fail_count += 1
         
         time.sleep(2)
     
     print("\n" + "=" * 70)
-    print(f"采集完成: 成功 {success_count} 个, 失败 {fail_count} 个")
+    print(f"采集完成:")
+    print(f"  - 成功: {success_count} 个")
+    print(f"  - 失败: {fail_count} 个")
+    print(f"  - 已存在URL: {already_have_url} 个")
     print("=" * 70)
 
-def download_all_roles(use_english=True):
-    """下载所有角色的图片"""
+def download_all_roles_unified():
+    """使用统一角色识别下载所有角色的图片"""
     print("=" * 70)
-    print("🚀 开始下载角色图片")
+    print("🚀 开始统一下载角色图片")
     print(f"目标: 每个角色 {TARGET_COUNT} 张")
     print("=" * 70)
+    
+    # 初始化角色管理器
+    init_manager(ROLE_FILE)
     
     roles = read_role_file(ROLE_FILE)
     print(f"\n📋 共读取到 {len(roles)} 个角色")
@@ -69,7 +117,6 @@ def download_all_roles(use_english=True):
         role = parse_role_line(line)
         name = role['name']
         pinyin = get_role_info(name)['pinyin']
-        keyword = role['en'] if use_english and role['en'] else name
         
         role_dir = os.path.join(REORGANIZED_DATASET, pinyin)
         ensure_dir(role_dir)
@@ -84,21 +131,31 @@ def download_all_roles(use_english=True):
         need_count = TARGET_COUNT - current_count
         print(f"\n📦 [{i}/{len(roles)}] {name} ({pinyin}): 当前 {current_count} 张, 需要补充 {need_count} 张")
         
-        # 查找URL文件（支持多种关键词）
-        url_file = None
-        for identifier in [keyword, name, pinyin]:
-            url_file = find_url_file(identifier)
-            if url_file:
-                print(f"  📋 找到URL文件: {os.path.basename(url_file)}")
-                break
+        # 使用角色映射机制查找所有相关URL文件
+        url_files = find_url_files_for_role(name)
         
-        if url_file:
-            existing_files = get_image_files(role_dir)
-            downloaded = download_images(url_file, role_dir, need_count, existing_files)
+        if url_files:
+            print(f"  📋 找到 {len(url_files)} 个URL文件")
             
-            if downloaded > 0:
-                print(f"  📥 成功下载: {downloaded} 张")
-                total_downloaded += downloaded
+            existing_files = get_image_files(role_dir)
+            total_downloaded_for_role = 0
+            
+            for url_file in url_files:
+                print(f"    处理: {os.path.basename(url_file)}")
+                downloaded = download_images(url_file, role_dir, need_count, existing_files)
+                
+                if downloaded > 0:
+                    print(f"    📥 下载: {downloaded} 张")
+                    total_downloaded_for_role += downloaded
+                    need_count -= downloaded
+                    existing_files = get_image_files(role_dir)
+                
+                if need_count <= 0:
+                    break
+            
+            if total_downloaded_for_role > 0:
+                print(f"  📥 总共下载: {total_downloaded_for_role} 张")
+                total_downloaded += total_downloaded_for_role
         else:
             print(f"  ⚠️ 未找到URL文件")
         
@@ -118,7 +175,7 @@ def download_all_roles(use_english=True):
     print(f"已达标角色: {completed_count}/{len(roles)}")
     print("=" * 70)
     
-    total_images = sum(get_image_count(os.path.join(REORGANIZED_DATASET, get_role_info(r)['pinyin'])) for r in roles)
+    total_images = sum(get_image_count(os.path.join(REORGANIZED_DATASET, get_role_info(parse_role_line(r)['name'])['pinyin'])) for r in roles)
     
     print(f"\n📊 最终统计:")
     print(f"角色总数: {len(roles)}")
@@ -134,11 +191,14 @@ def download_all_roles(use_english=True):
     else:
         print("\n🎉 所有角色均已达标！")
 
-def check_status():
-    """检查当前状态"""
+def check_status_with_mapping():
+    """使用角色映射检查当前状态"""
     print("=" * 90)
-    print("📊 数据集状态报告")
+    print("📊 数据集状态报告 (含角色映射)")
     print("=" * 90)
+    
+    # 初始化角色管理器
+    init_manager(ROLE_FILE)
     
     roles = read_role_file(ROLE_FILE)
     total_images = 0
@@ -146,7 +206,7 @@ def check_status():
     in_progress_count = 0
     not_started_count = 0
     
-    print(f"{'角色名':<12} {'英文名':<15} {'图片数':<6} {'状态'}")
+    print(f"{'角色名':<12} {'英文名':<15} {'图片数':<6} {'URL文件':<6} {'状态'}")
     print("-" * 90)
     
     for line in roles:
@@ -159,6 +219,10 @@ def check_status():
         img_count = get_image_count(role_dir)
         total_images += img_count
         
+        # 检查URL文件
+        url_files = find_url_files_for_role(name)
+        url_count = len(url_files)
+        
         if img_count >= TARGET_COUNT:
             status = "✅ 已达标"
             completed_count += 1
@@ -169,7 +233,7 @@ def check_status():
             status = "⏳ 未开始"
             not_started_count += 1
         
-        print(f"{name:<12} {en_name:<15} {img_count:<6} {status}")
+        print(f"{name:<12} {en_name:<15} {img_count:<6} {url_count:<6} {status}")
     
     print("-" * 90)
     print(f"\n📈 汇总统计:")
@@ -185,20 +249,18 @@ def check_status():
 def main():
     import argparse
     
-    parser = argparse.ArgumentParser(description='角色图片采集与下载工具')
+    parser = argparse.ArgumentParser(description='角色图片采集与下载工具（多语言版）')
     parser.add_argument('action', choices=['collect', 'download', 'status'],
-                        help='操作类型: collect(采集URL), download(下载图片), status(查看状态)')
-    parser.add_argument('--english', action='store_true', default=True,
-                        help='使用英文名采集（默认启用）')
+                        help='操作类型: collect(多语言采集URL), download(统一下载), status(查看状态)')
     
     args = parser.parse_args()
     
     if args.action == 'collect':
-        collect_all_roles(use_english=args.english)
+        collect_all_roles_multi_lang()
     elif args.action == 'download':
-        download_all_roles(use_english=args.english)
+        download_all_roles_unified()
     elif args.action == 'status':
-        check_status()
+        check_status_with_mapping()
 
 if __name__ == '__main__':
     main()
