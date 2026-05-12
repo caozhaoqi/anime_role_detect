@@ -12,7 +12,7 @@ import urllib.parse
 
 DATA_DIR = '/Users/caozhaoqi/PycharmProjects/anime_role_detect/data/reorganized_dataset'
 API_BASE = "http://localhost:33333/api/v1.2.5.260305/sis"
-URL_DIR = '/Users/caozhaoqi/PycharmProjects/anime_role_detect/spider_image_system/data/href_url'
+URL_DIR = '/Users/caozhaoqi/PycharmProjects/anime_role_detect/spider_image_system/data'
 TARGET_COUNT = 100
 
 PINYIN_MAPPING = {
@@ -82,15 +82,22 @@ def get_current_images(pinyin):
 
 def wait_for_spider():
     """等待爬虫完成"""
-    while True:
+    print("  等待爬虫完成...")
+    max_wait = 120  # 最多等待2分钟
+    wait_time = 0
+    while wait_time < max_wait:
         try:
             status = requests.get(f"{API_BASE}/spider/status", timeout=10)
             data = status.json()
             if data.get('code') == 0 and not data.get('data', {}).get('is_running', True):
+                print("  ✅ 爬虫完成")
                 return True
-            time.sleep(2)
+            time.sleep(3)
+            wait_time += 3
         except Exception:
             return False
+    print("  ⚠️ 等待超时")
+    return False
 
 def spider_single_role(role_name):
     """调用爬虫API采集角色URL"""
@@ -110,29 +117,29 @@ def spider_single_role(role_name):
         print(f"  ❌ 采集异常: {str(e)}")
         return False
 
-def find_url_file(pinyin, role_name):
-    """查找角色的URL文件"""
+def find_img_file(pinyin, role_name):
+    """查找角色的图片URL文件（_img.txt）"""
+    img_url_dir = os.path.join(URL_DIR, "img_url")
+    
     # 尝试多种文件名格式
     patterns = [
-        f"{pinyin}_result_url.txt",
-        f"{pinyin}_url.txt",
-        f"{urllib.parse.quote(role_name)}_result_url.txt",
-        f"{urllib.parse.quote(role_name)}_url.txt",
-        f"{role_name}_result_url.txt",
-        f"{role_name}_url.txt"
+        f"{pinyin}_img.txt",
+        f"{urllib.parse.quote(role_name)}_img.txt",
+        f"{role_name}_img.txt"
     ]
     
     for pattern in patterns:
-        filepath = os.path.join(URL_DIR, pattern)
+        filepath = os.path.join(img_url_dir, pattern)
         if os.path.exists(filepath):
             return filepath
     
     # 也尝试查找包含pinyin的文件
-    for filename in os.listdir(URL_DIR):
-        if pinyin in filename and filename.endswith('_url.txt'):
-            return os.path.join(URL_DIR, filename)
-        if role_name in filename and filename.endswith('_url.txt'):
-            return os.path.join(URL_DIR, filename)
+    if os.path.exists(img_url_dir):
+        for filename in os.listdir(img_url_dir):
+            if pinyin in filename and filename.endswith('_img.txt'):
+                return os.path.join(img_url_dir, filename)
+            if role_name in filename and filename.endswith('_img.txt'):
+                return os.path.join(img_url_dir, filename)
     
     return None
 
@@ -142,15 +149,15 @@ def download_images(pinyin, role_name, need_count):
     current_imgs = get_current_images(pinyin)
     downloaded = 0
     
-    # 查找URL文件
-    url_file = find_url_file(pinyin, role_name)
+    # 查找图片URL文件
+    img_file = find_img_file(pinyin, role_name)
     
-    if url_file:
-        print(f"  📋 找到URL文件: {os.path.basename(url_file)}")
-        with open(url_file, 'r') as f:
+    if img_file:
+        print(f"  📋 找到图片URL文件: {os.path.basename(img_file)}")
+        with open(img_file, 'r') as f:
             urls = [line.strip() for line in f if line.strip()]
         
-        print(f"  📋 读取到 {len(urls)} 个URL")
+        print(f"  📋 读取到 {len(urls)} 个图片URL")
         
         for img_url in urls:
             if downloaded >= need_count:
@@ -173,10 +180,11 @@ def download_images(pinyin, role_name, need_count):
                             f.write(img_response.content)
                         downloaded += 1
                         current_imgs.add(filename)
-            except Exception:
+            except Exception as e:
+                # print(f"    下载失败: {img_url[:50]}... - {str(e)}")
                 continue
     else:
-        print(f"  ⚠️ 未找到URL文件")
+        print(f"  ⚠️ 未找到图片URL文件")
     
     return downloaded
 
@@ -208,13 +216,15 @@ def main():
         need_count = TARGET_COUNT - current
         print(f"\n📦 {name} ({pinyin}): 当前 {current} 张, 需要补充 {need_count} 张")
         
-        # 1. 检查是否已有URL文件
-        url_file = find_url_file(pinyin, name)
-        if url_file:
-            print("  步骤1: URL文件已存在，跳过采集")
+        # 1. 检查是否已有图片URL文件
+        img_file = find_img_file(pinyin, name)
+        if img_file:
+            print("  步骤1: 图片URL文件已存在，跳过采集")
         else:
-            print("  步骤1: 采集URL...")
+            print("  步骤1: 采集图片URL...")
             spider_single_role(name)
+            # 再次检查是否生成了图片URL文件
+            img_file = find_img_file(pinyin, name)
         
         # 2. 下载图片
         print("  步骤2: 下载图片...")
