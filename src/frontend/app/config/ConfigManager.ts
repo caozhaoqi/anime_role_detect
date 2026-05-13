@@ -161,7 +161,7 @@ class ConfigManager {
 
   private async loadConfig(): Promise<void> {
     try {
-      const response = await fetch('/app/config/config.json');
+      const response = await fetch('/api/config');
       if (response.ok) {
         const config = await response.json();
         this.config = { ...this.config, ...config };

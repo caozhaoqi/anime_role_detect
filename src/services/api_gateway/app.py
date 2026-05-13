@@ -23,10 +23,16 @@ logger = get_logger("api_gateway")
 
 SERVICES = {
     "model": {
-        "url": "http://localhost:8888",
+        "url": "http://localhost:8000",
+        "health_path": "/api/health"
     },
     "api": {
         "url": "http://localhost:8001",
+        "health_path": "/api/health"
+    },
+    "multimedia": {
+        "url": "http://localhost:8002",
+        "health_path": "/api/health"
     }
 }
 
@@ -73,7 +79,8 @@ async def check_services():
     status = {}
     for service_name, service_config in SERVICES.items():
         try:
-            response = await client.get(f"{service_config['url']}/api/health")
+            health_path = service_config.get("health_path", "/api/health")
+            response = await client.get(f"{service_config['url']}{health_path}")
             status[service_name] = {
                 "status": "healthy" if response.status_code == 200 else "unhealthy",
                 "url": service_config['url'],
@@ -90,16 +97,22 @@ async def check_services():
 async def proxy_request(request: Request, path: str):
     logger.info(f"收到请求: {request.method} /api/{path}")
 
-    if path.startswith("classify"):
+    if path.startswith("search"):
+        service = "multimedia"
+        url = f"http://localhost:8002/{path}"
+    elif path.startswith("video"):
+        service = "multimedia"
+        url = f"http://localhost:8002/{path}"
+    elif path.startswith("classify"):
         service = "api"
         url = f"http://localhost:8001/api/{path}"
     elif path.startswith("model/"):
         service = "model"
         model_path = path[6:] if path.startswith("model/") else path
-        url = f"http://localhost:8888/api/{model_path}"
+        url = f"http://localhost:8000/api/{model_path}"
     elif path == "model" or path == "model/health":
         service = "model"
-        url = f"http://localhost:8888/api/health"
+        url = f"http://localhost:8000/api/health"
     else:
         url = f"http://localhost:8001/api/{path}"
         service = "api"
@@ -149,7 +162,7 @@ if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="API网关服务")
     parser.add_argument("--host", type=str, default="0.0.0.0")
-    parser.add_argument("--port", type=int, default=8000)
+    parser.add_argument("--port", type=int, default=8080)
     parser.add_argument("--workers", type=int, default=1)
     args = parser.parse_args()
 

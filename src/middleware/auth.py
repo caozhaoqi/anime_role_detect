@@ -41,7 +41,9 @@ async def auth_middleware(request: Request, call_next):
         # "/api/classify",
         # "/api/classify/multi-model",
         "/api/feedback",
-        "/api/config"
+        "/api/config",
+        "/api/search",
+        "/api/roles"
     ]
     
     # 检查是否需要认证

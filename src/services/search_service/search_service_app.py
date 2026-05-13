@@ -122,10 +122,15 @@ async def get_search_stats():
     except Exception as e:
         return {"success": False, "error": str(e)}
 
-@app.get("/health")
-async def health_check():
-    """健康检查"""
-    return {"status": "healthy"}
+# @app.get("/health")
+# async def health_check():
+#     """健康检查"""
+#     return {"status": "healthy"}
+
+@app.get("/api/health")
+async def api_health_check():
+    """统一API健康检查"""
+    return {"status": "healthy", "service": "search_service", "version": "1.0.0"}
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8002, workers=1)
