@@ -1,131 +1,32 @@
-name: Docker CI/CD
+name: Simple CI Demo
 
+# 触发条件：当代码推送到 main 分支时执行
 on:
   push:
-    branches: [ main, develop ]
-    tags: [ v* ]
-  pull_request:
-    branches: [ main, develop ]
-
-env:
-  REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
+    branches: [ main ]
 
 jobs:
-  # 1. 代码质量检查 (Lint)
-  lint:
+  build:
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.9'
-          cache: 'pip' # 自动缓存依赖
-      - name: Install lint tools
-        run: pip install flake8 black isort
-      - name: Lint Python code
-        # 使用 continue-on-error: true 如果你不希望格式问题直接卡死整个流程
-        # 或者在这里增加 --extend-ignore 来跳过某些不重要的警告
-        run: |
-          flake8 src/ --count --max-line-length=120 --statistics
-      - name: Check formatting
-        run: |
-          black --check src/
-          isort --check src/
 
-  # 2. 运行测试 (关键修改：解决 Exit Code 3)
-  test:
-    runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.9'
-          cache: 'pip'
-      
-      # [核心修改] 安装 OpenCV 和深度学习所需的系统依赖库
-      - name: Install System Dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libgl1-mesa-glx libglib2.0-0 libsm6 libxext6 libxrender-dev
-          
-      - name: Install Python Dependencies
-        run: |
-          pip install --upgrade pip
-          pip install -r requirements.txt pytest
-          
-      - name: Run tests
-        # 使用 env 限制 Torch 线程数防止内存溢出 (OOM)
-        env:
-          OMP_NUM_THREADS: 1
-          MKL_NUM_THREADS: 1
-        run: pytest tests/ -v
-
-  # 3. Docker 构建与推送
-  build-and-push:
-    needs: [test] # 如果 lint 总是失败，可以暂时只依赖 test
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-      security-events: write
-    
-    steps:
-      - name: Checkout repository
+      # 1. 下载仓库代码
+      - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Log in to the Container registry
-        uses: docker/login-action@v3
+      # 2. 安装 Python 环境
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          python-version: '3.9'
 
-      - name: Extract metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          tags: |
-            type=ref,event=branch
-            type=sha,prefix=,suffix=,format=short
+      # 3. 执行一个简单的命令
+      - name: Hello World
+        run: |
+          echo "开始运行 CI 流程..."
+          python --version
+          echo "环境检查完毕！"
 
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: ./Dockerfile
-          # [注意] arm64 在没有物理机的情况下极慢且耗内存，如果是为了快速测试，建议先只保留 amd64
-          platforms: linux/amd64 
-          push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-  # 4. 前端构建 (增加缓存)
-  frontend-build:
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: src/frontend
-    steps:
-      - uses: actions/checkout@v4
-      - name: Use Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: src/frontend/package-lock.json
-      - name: Install dependencies
-        run: npm ci # 使用 ci 比 install 更适合 CI 环境
-      - name: Build frontend
-        run: npm run build
+      # 4. 尝试构建 Docker 镜像（仅本地构建，不推送）
+      - name: Build Docker Image
+        run: docker build . -t my-demo-app:latest

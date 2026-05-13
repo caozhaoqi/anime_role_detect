@@ -25,8 +25,20 @@ class ServiceConfig:
         self.MODEL_SERVICE_PORT = int(os.environ.get('MODEL_SERVICE_PORT', '8888'))
         self.MODEL_SERVICE_URL = f"http://{self.MODEL_SERVICE_HOST}:{self.MODEL_SERVICE_PORT}"
 
+        self.CORE_API_HOST = os.environ.get('CORE_API_HOST', 'localhost')
+        self.CORE_API_PORT = int(os.environ.get('CORE_API_PORT', '8001'))
+        self.CORE_API_URL = f"http://{self.CORE_API_HOST}:{self.CORE_API_PORT}"
+
+        self.MULTIMEDIA_SERVICE_HOST = os.environ.get('MULTIMEDIA_SERVICE_HOST', 'localhost')
+        self.MULTIMEDIA_SERVICE_PORT = int(os.environ.get('MULTIMEDIA_SERVICE_PORT', '8002'))
+        self.MULTIMEDIA_SERVICE_URL = f"http://{self.MULTIMEDIA_SERVICE_HOST}:{self.MULTIMEDIA_SERVICE_PORT}"
+
+        self.SEARCH_SERVICE_HOST = os.environ.get('SEARCH_SERVICE_HOST', 'localhost')
+        self.SEARCH_SERVICE_PORT = int(os.environ.get('SEARCH_SERVICE_PORT', '8003'))
+        self.SEARCH_SERVICE_URL = f"http://{self.SEARCH_SERVICE_HOST}:{self.SEARCH_SERVICE_PORT}"
+
         self.API_GATEWAY_HOST = os.environ.get('API_GATEWAY_HOST', '0.0.0.0')
-        self.API_GATEWAY_PORT = int(os.environ.get('API_GATEWAY_PORT', '8000'))
+        self.API_GATEWAY_PORT = int(os.environ.get('API_GATEWAY_PORT', '8080'))
         self.API_GATEWAY_URL = f"http://{self.API_GATEWAY_HOST}:{self.API_GATEWAY_PORT}"
 
         self.USE_MODEL_SERVICE = os.environ.get('USE_MODEL_SERVICE', 'true').lower() == 'true'

@@ -20,4 +20,4 @@ export KMP_DUPLICATE_LIB_OK=TRUE
 cd "$(dirname "$0")"
 
 # 运行API网关服务
-python3 app.py --host 0.0.0.0 --port 8000 --workers 1
+python3 app.py --host 0.0.0.0 --port 8080 --workers 1

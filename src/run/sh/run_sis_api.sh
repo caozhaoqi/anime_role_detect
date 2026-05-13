@@ -1,0 +1,1 @@
+sudo python3 /Users/caozhaoqi/PycharmProjects/anime_role_detect/spider_image_system/src/run/sis_main_process.py

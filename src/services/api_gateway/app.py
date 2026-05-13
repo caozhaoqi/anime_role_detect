@@ -1,18 +1,21 @@
 #!/usr/bin/env python3
 """
-API网关服务
+API网关服务 - 聚合文档版
 统一管理所有服务的访问，负责路由、认证、监控等功能
-类似Java微服务架构，所有API通过网关统一访问
+支持 Swagger UI 聚合所有微服务 API 文档
 """
 import os
 import sys
 import traceback
+import asyncio
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse, HTMLResponse
+from fastapi.openapi.docs import get_swagger_ui_html
 import uvicorn
 import httpx
 
+# 路径配置
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..'))
 sys.path.insert(0, project_root)
 
@@ -22,33 +25,40 @@ config = get_service_config()
 from src.core.logging.global_logger import get_logger
 logger = get_logger("api_gateway")
 
+# 微服务配置 - 使用配置文件中的端口
 SERVICES = {
     "model": {
-        "url": "http://localhost:8000",
-        "health_path": "/api/health",
-        "docs_path": "/docs",
-        "redoc_path": "/redoc"
+        "url": config.MODEL_SERVICE_URL,
+        "prefix": "/api/model",
+        "name": "模型服务 (Model Service)",
+        "docs_path": "/openapi.json"
     },
     "api": {
-        "url": "http://localhost:8001",
-        "health_path": "/api/health",
-        "docs_path": "/docs",
-        "redoc_path": "/redoc"
+        "url": config.CORE_API_URL,
+        "prefix": "/api",
+        "name": "业务API服务 (Core API)",
+        "docs_path": "/api/openapi.json"
     },
     "multimedia": {
-        "url": "http://localhost:8002",
-        "health_path": "/api/health",
-        "docs_path": "/docs",
-        "redoc_path": "/redoc"
+        "url": config.MULTIMEDIA_SERVICE_URL,
+        "prefix": "/api",
+        "name": "多媒体服务 (Multimedia)",
+        "docs_path": "/openapi.json"
+    },
+    "search": {
+        "url": config.SEARCH_SERVICE_URL,
+        "prefix": "/api/search",
+        "name": "搜索服务 (Search Service)",
+        "docs_path": "/openapi.json"
     }
 }
 
 app = FastAPI(
     title="Anime Role Detect API Gateway",
-    description="统一API网关 - 管理所有微服务的入口",
+    description="统一API网关 - 聚合微服务入口",
     version="1.0.0",
-    docs_url="/docs",
-    redoc_url="/redoc"
+    docs_url=None,  # 禁用默认文档，使用自定义聚合版
+    redoc_url=None
 )
 
 app.add_middleware(
@@ -75,22 +85,133 @@ async def shutdown_event():
         await client.aclose()
     logger.info("API网关服务已关闭")
 
+# --- 文档聚合核心逻辑 ---
+
+@app.get("/docs", include_in_schema=False)
+async def custom_swagger_ui_html():
+    """自定义 Swagger UI 页面，实现类似 Java 微服务的聚合文档切换"""
+    html_content = """
+<!DOCTYPE html>
+<html>
+<head>
+    <link type="text/css" rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui.css">
+    <link rel="shortcut icon" href="https://fastapi.tiangolo.com/img/favicon.png">
+    <title>Anime Role Detect API Gateway - 聚合文档</title>
+</head>
+<body>
+    <div id="swagger-ui"></div>
+    <script src="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
+    <script>
+        window.onload = function() {
+            const ui = SwaggerUIBundle({
+                urls: [
+                    {url: "/openapi.json", name: "网关自身"},
+                    {url: "/api/core/openapi.json", name: "核心API服务"},
+                    {url: "/api/model/openapi.json", name: "模型服务"},
+                    {url: "/api/multimedia/openapi.json", name: "多媒体服务"},
+                    {url: "/api/search/openapi.json", name: "搜索服务"}
+                ],
+                dom_id: "#swagger-ui",
+                deepLinking: true
+            });
+        };
+    </script>
+</body>
+</html>
+    """
+    return HTMLResponse(content=html_content, media_type="text/html")
+
+async def get_and_fix_openapi(service_key: str):
+    """
+    抓取微服务的 openapi.json 并修正路径前缀
+    确保在网关 docs 页面 'Try it out' 能够路由到网关再转发
+    """
+    if service_key not in SERVICES:
+        return {"openapi": "3.0.0", "info": {"title": "Error"}, "paths": {}}
+    
+    svc = SERVICES[service_key]
+    docs_path = svc.get("docs_path", "/openapi.json")
+    
+    try:
+        response = await client.get(f"{svc['url']}{docs_path}")
+        if response.status_code != 200:
+            return {"openapi": "3.0.0", "info": {"title": f"{svc['name']} (Unavailable)"}, "paths": {}}
+        
+        data = response.json()
+        
+        # 更新服务信息，添加友好名称
+        if "info" in data:
+            data["info"]["title"] = svc["name"]
+        
+        # 核心修正：遍历 paths，为所有接口增加网关要求的转发前缀
+        prefix = svc["prefix"]
+        if "paths" in data:
+            new_paths = {}
+            for path, methods in data["paths"].items():
+                # 根据不同服务类型调整路径映射
+                if service_key == "model":
+                    # model 服务的路径映射: /api/model/predict -> model_service/api/predict
+                    if path.startswith("/api"):
+                        full_path = f"/api/model{path[4:]}" if path != "/api" else "/api/model"
+                    else:
+                        full_path = f"{prefix}{path}"
+                elif service_key == "search":
+                    # search 服务使用独立前缀
+                    full_path = f"{prefix}{path}".replace("//", "/")
+                elif service_key == "api":
+                    # core api 服务：路径已经有 /api 前缀，不需要重复添加
+                    # 例如 /api/classify -> /api/classify
+                    full_path = path
+                else:
+                    # 普通 multimedia 转发逻辑
+                    full_path = f"{prefix}{path}".replace("//", "/")
+                
+                new_paths[full_path] = methods
+            data["paths"] = new_paths
+        
+        # 指向网关自身
+        data["servers"] = [{"url": "/", "description": "API Gateway"}]
+        return data
+    except Exception as e:
+        logger.error(f"无法获取 {svc['name']} 文档: {e}")
+        return {"openapi": "3.0.0", "info": {"title": f"{svc['name']} (Connection Error)"}, "paths": {}}
+
+@app.get("/api/model/openapi.json", include_in_schema=False)
+async def model_openapi():
+    return await get_and_fix_openapi("model")
+
+@app.get("/api/core/openapi.json", include_in_schema=False)
+async def core_api_openapi():
+    return await get_and_fix_openapi("api")
+
+@app.get("/api/multimedia/openapi.json", include_in_schema=False)
+async def multimedia_openapi():
+    return await get_and_fix_openapi("multimedia")
+
+@app.get("/api/search/openapi.json", include_in_schema=False)
+async def search_openapi():
+    return await get_and_fix_openapi("search")
+
+# --- 原有代理路由逻辑 ---
+
 @app.get("/")
 async def root():
     return {
         "message": "Anime Role Detect API Gateway",
         "docs": "/docs",
-        "services": {
-            "api": "/api/*",
-            "model": "/api/model/*",
-            "search": "/api/search/*",
-            "video": "/api/video/*",
-            "classify": "/api/classify/*"
-        },
+        "status": "/api/services",
         "service_docs": {
-            "api_service": "/api/docs",
-            "model_service": "/api/model/docs",
-            "multimedia_service": "/api/multimedia/docs"
+            "aggregated": "/docs",
+            "model_json": "/api/model/openapi.json",
+            "core_json": "/api/core/openapi.json",
+            "multimedia_json": "/api/multimedia/openapi.json",
+            "search_json": "/api/search/openapi.json"
+        },
+        "services": {
+            "model": "模型服务 - 角色识别、特征提取",
+            "api": "核心API服务 - 业务逻辑",
+            "multimedia": "多媒体服务 - 视频处理",
+            "search": "搜索服务 - 以图搜图"
         }
     }
 
@@ -100,163 +221,69 @@ async def health_check():
 
 @app.get("/api/services")
 async def check_services():
+    """检查所有微服务状态"""
     status = {}
     for service_name, service_config in SERVICES.items():
         try:
-            health_path = service_config.get("health_path", "/api/health")
-            response = await client.get(f"{service_config['url']}{health_path}")
+            response = await client.get(f"{service_config['url']}/api/health")
             status[service_name] = {
+                "name": service_config['name'],
                 "status": "healthy" if response.status_code == 200 else "unhealthy",
                 "url": service_config['url'],
+                "prefix": service_config['prefix'],
+                "docs": f"{service_config['prefix']}/openapi.json"
             }
         except Exception as e:
             status[service_name] = {
+                "name": service_config['name'],
                 "status": "unhealthy",
                 "url": service_config['url'],
                 "error": str(e)
             }
-    return status
-
-# 服务文档路由 - 代理到各个服务的docs
-@app.get("/api/docs")
-async def api_service_docs():
-    """API服务文档"""
-    return RedirectResponse(url="/api/docs/")
-
-@app.get("/api/docs/{path:path}")
-async def api_service_docs_proxy(request: Request, path: str):
-    return await proxy_to_service(request, "api", f"docs/{path}")
-
-@app.get("/api/model/docs")
-async def model_service_docs():
-    """模型服务文档"""
-    return RedirectResponse(url="/api/model/docs/")
-
-@app.get("/api/model/docs/{path:path}")
-async def model_service_docs_proxy(request: Request, path: str):
-    return await proxy_to_service(request, "model", f"docs/{path}")
-
-@app.get("/api/multimedia/docs")
-async def multimedia_service_docs():
-    """多媒体服务文档"""
-    return RedirectResponse(url="/api/multimedia/docs/")
-
-@app.get("/api/multimedia/docs/{path:path}")
-async def multimedia_service_docs_proxy(request: Request, path: str):
-    return await proxy_to_service(request, "multimedia", f"docs/{path}")
-
-@app.get("/api/redoc")
-async def api_service_redoc():
-    """API服务Redoc文档"""
-    return RedirectResponse(url="/api/redoc/")
-
-@app.get("/api/redoc/{path:path}")
-async def api_service_redoc_proxy(request: Request, path: str):
-    return await proxy_to_service(request, "api", f"redoc/{path}")
-
-@app.get("/api/model/redoc/{path:path}")
-async def model_service_redoc_proxy(request: Request, path: str):
-    return await proxy_to_service(request, "model", f"redoc/{path}")
-
-@app.get("/api/multimedia/redoc/{path:path}")
-async def multimedia_service_redoc_proxy(request: Request, path: str):
-    return await proxy_to_service(request, "multimedia", f"redoc/{path}")
-
-# OpenAPI JSON 代理
-@app.get("/api/openapi.json")
-async def api_openapi_json(request: Request):
-    return await proxy_to_service(request, "api", "openapi.json")
-
-@app.get("/api/model/openapi.json")
-async def model_openapi_json(request: Request):
-    return await proxy_to_service(request, "model", "openapi.json")
-
-@app.get("/api/multimedia/openapi.json")
-async def multimedia_openapi_json(request: Request):
-    return await proxy_to_service(request, "multimedia", "openapi.json")
-
-async def proxy_to_service(request: Request, service_name: str, path: str):
-    """通用代理函数"""
-    if service_name not in SERVICES:
-        raise HTTPException(status_code=404, detail=f"服务 {service_name} 不存在")
-    
-    service_config = SERVICES[service_name]
-    url = f"{service_config['url']}/{path}"
-    
-    logger.info(f"代理请求到 {service_name} 服务: {url}")
-    
-    try:
-        headers = dict(request.headers)
-        if "host" in headers:
-            del headers["host"]
-        if "content-length" in headers:
-            del headers["content-length"]
-        if "expect" in headers:
-            del headers["expect"]
-
-        response = await client.request(
-            method=request.method,
-            url=url,
-            headers=headers,
-            content=await request.body()
-        )
-
-        try:
-            content = response.json()
-        except ValueError:
-            content = response.content
-
-        return JSONResponse(
-            content=content,
-            status_code=response.status_code,
-            headers=dict(response.headers)
-        )
-    except httpx.HTTPError as e:
-        logger.error(f"代理请求失败(httpx): {e}")
-        raise HTTPException(status_code=503, detail=f"服务不可用: {str(e)}")
-    except Exception as e:
-        logger.error(f"代理请求处理失败: {e}")
-        raise HTTPException(status_code=500, detail=f"内部服务器错误: {str(e)}")
+    return {"services": status, "gateway_status": "running"}
 
 @app.api_route("/api/{path:path}", methods=["GET", "POST", "PUT", "DELETE"])
 async def proxy_request(request: Request, path: str):
+    """
+    通用请求转发逻辑
+    """
     logger.info(f"收到请求: {request.method} /api/{path}")
 
-    if path.startswith("search"):
+    # 1. 路由分配逻辑
+    if path.startswith("search/image") or path.startswith("search/build-index") or path.startswith("search/stats"):
+        service = "search"
+        url = f"{config.SEARCH_SERVICE_URL}/api/search/{path[7:]}"
+    elif path.startswith("video/"):
         service = "multimedia"
-        url = f"http://localhost:8002/{path}"
-    elif path.startswith("video"):
-        service = "multimedia"
-        url = f"http://localhost:8002/{path}"
+        url = f"{config.MULTIMEDIA_SERVICE_URL}/video/{path[6:]}"
     elif path.startswith("classify"):
         service = "api"
-        url = f"http://localhost:8001/api/{path}"
+        url = f"{config.CORE_API_URL}/api/{path}"
     elif path.startswith("model/"):
         service = "model"
-        model_path = path[6:] if path.startswith("model/") else path
-        url = f"http://localhost:8000/api/{model_path}"
+        # model/predict -> model_service/api/predict
+        model_path = path[6:] 
+        url = f"{config.MODEL_SERVICE_URL}/api/{model_path}"
     elif path == "model" or path == "model/health":
         service = "model"
-        url = f"http://localhost:8000/api/health"
+        url = f"{config.MODEL_SERVICE_URL}/api/health"
     else:
-        url = f"http://localhost:8001/api/{path}"
+        # 默认转发到核心 API 服务
         service = "api"
+        url = f"{config.CORE_API_URL}/api/{path}"
 
-    logger.info(f"转发请求到: {url}")
+    logger.info(f"转发请求到 [{service}]: {url}")
 
     try:
+        # 2. 准备转发请求头
         headers = dict(request.headers)
-
-        if "host" in headers:
-            del headers["host"]
-        if "content-length" in headers:
-            del headers["content-length"]
-        if "expect" in headers:
-            del headers["expect"]
+        headers.pop("host", None)
+        headers.pop("content-length", None)
+        headers.pop("expect", None)
 
         body = await request.body()
-        logger.info(f"Body长度: {len(body)}字节")
 
+        # 3. 执行转发
         response = await client.request(
             method=request.method,
             url=url,
@@ -264,8 +291,7 @@ async def proxy_request(request: Request, path: str):
             content=body
         )
 
-        logger.info(f"收到响应: 状态码={response.status_code}, 内容长度={len(response.text)}")
-
+        # 4. 返回响应
         try:
             content = response.json()
         except ValueError:
@@ -276,12 +302,11 @@ async def proxy_request(request: Request, path: str):
             status_code=response.status_code
         )
     except httpx.HTTPError as e:
-        logger.error(f"代理请求失败(httpx): {e}")
+        logger.error(f"代理请求失败: {e}")
         raise HTTPException(status_code=503, detail=f"服务不可用: {str(e)}")
     except Exception as e:
-        logger.error(f"代理请求处理失败: {e}")
-        logger.error(f"错误堆栈: {traceback.format_exc()}")
-        raise HTTPException(status_code=500, detail=f"内部服务器错误: {str(e)}")
+        logger.error(f"代理请求处理失败: {e}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail="内部服务器错误")
 
 if __name__ == "__main__":
     import argparse
