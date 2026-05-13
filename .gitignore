@@ -119,6 +119,11 @@ config.json
 *.tar.gz
 *.rar
 *.7z
+*.db
+*.json
+*.DS_Store
+Thumbs.db
+
 
 src/frontend/node_modules/
 

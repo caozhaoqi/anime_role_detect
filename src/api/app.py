@@ -1624,3 +1624,12 @@ async def get_config(request: Request):
             "success": False,
             "message": "获取配置失败，请稍后重试"
         }
+
+
+# 导入搜索路由
+try:
+    from src.api.routes.search_routes import router as search_router
+    app.include_router(search_router)
+    logger.info("搜索路由加载成功")
+except Exception as e:
+    logger.error(f"导入搜索路由失败: {e}")
