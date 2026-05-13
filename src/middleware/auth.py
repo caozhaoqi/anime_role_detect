@@ -43,7 +43,8 @@ async def auth_middleware(request: Request, call_next):
         "/api/feedback",
         "/api/config",
         "/api/search",
-        "/api/roles"
+        "/api/roles",
+        "/api/history"
     ]
     
     # 检查是否需要认证

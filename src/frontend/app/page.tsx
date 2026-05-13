@@ -1,14 +1,17 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Bot, User, X, Sparkles, Upload, Copy, Download, CheckCircle, Menu, Moon, Sun, Trash2, RotateCcw, RotateCw, Crop, Check, ArrowLeft, LogOut, History, Eye, Settings, Save, RefreshCw } from "lucide-react";
 import { Message, AuthState } from "./types";
 import axios from 'axios';
-import MessageItem from './components/MessageItem';
 import Login from './components/Login';
 import HistoryPanel from './components/HistoryPanel';
 import ConfigManager from './config/ConfigManager';
 import ConfigPanel from './components/ConfigPanel';
+import SearchPanel from './components/SearchPanel';
+import VideoPanel from './components/VideoPanel';
+import Header from './components/Header';
+import TabSwitcher from './components/TabSwitcher';
+import ChatPanel from './components/ChatPanel';
 
 export default function AnimeRoleDetect() {
   const [authState, setAuthState] = useState<AuthState>({
@@ -49,19 +52,16 @@ export default function AnimeRoleDetect() {
   const [multiRole, setMultiRole] = useState(false);
   const [showConfig, setShowConfig] = useState(false);
   const [config, setConfig] = useState(ConfigManager.getConfig());
+  const [activePanel, setActivePanel] = useState<'classify' | 'search' | 'video'>('classify');
   
-  const messagesEndRef = useRef<HTMLDivElement>(null);
   const isMountedRef = useRef(false);
 
-  // 组件挂载时执行
   useEffect(() => {
     isMountedRef.current = true;
 
-    // 从配置加载初始值
     const appConfig = ConfigManager.getConfig();
     setConfig(appConfig);
     
-    // 设置暗黑模式
     const savedDarkMode = localStorage.getItem('darkMode');
     if (savedDarkMode !== null) {
       setDarkMode(savedDarkMode === 'true');
@@ -69,30 +69,19 @@ export default function AnimeRoleDetect() {
       setDarkMode(appConfig.ui.theme === 'dark');
     }
 
-    // 检查登录状态
     const savedAccessToken = localStorage.getItem('accessToken');
     const savedRefreshToken = localStorage.getItem('refreshToken');
     const savedUser = localStorage.getItem('currentUser');
     
-    console.log('组件挂载时，检查localStorage:', {
-      savedAccessToken: savedAccessToken,
-      savedRefreshToken: savedRefreshToken,
-      savedUser: savedUser
-    });
-    
     if (savedAccessToken && savedRefreshToken && savedUser) {
-      console.log('从localStorage加载登录状态');
       setAuthState({
         isAuthenticated: true,
         user: JSON.parse(savedUser),
         accessToken: savedAccessToken,
         refreshToken: savedRefreshToken
       });
-    } else {
-      console.log('localStorage中没有登录信息，用户未登录');
     }
 
-    // 检测平台
     const platform = navigator.platform.toLowerCase();
     const isMac = platform.includes('mac') || platform.includes('darwin');
     setIsMacPlatform(isMac);
@@ -100,12 +89,10 @@ export default function AnimeRoleDetect() {
       setUseCoreML(true);
     }
 
-    // 获取可用模型列表
     if (savedAccessToken && appConfig.features.enableModelSelection) {
       fetchAvailableModels();
     }
 
-    // 监听键盘事件
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         setShowHistory(false);
@@ -120,7 +107,6 @@ export default function AnimeRoleDetect() {
     };
   }, []);
 
-  // 获取可用模型列表
   const fetchAvailableModels = async () => {
     try {
       const headers = authState.accessToken ? { Authorization: `Bearer ${authState.accessToken}` } : {};
@@ -128,14 +114,12 @@ export default function AnimeRoleDetect() {
       if (response.data.success) {
         const models = response.data.models || [];
         setAvailableModels(['default', ...models]);
-        console.log('可用模型:', models);
       }
     } catch (error) {
       console.error('获取模型列表失败:', error);
     }
   };
 
-  // 处理登录
   const handleLogin = async (username: string, password: string) => {
     setIsLoginLoading(true);
     setLoginError(null);
@@ -145,14 +129,10 @@ export default function AnimeRoleDetect() {
       formData.append('username', username);
       formData.append('password', password);
       
-      console.log('发送登录请求到:', '/api/auth/login');
       const response = await axios.post('/api/auth/login', formData);
-      console.log('登录响应:', response.data);
       
       if (response.data.success) {
         const { access_token, refresh_token, username: userName, role } = response.data.data;
-        
-        console.log('登录成功，获取到token:', access_token);
         
         const user = { username: userName, role };
         
@@ -163,21 +143,9 @@ export default function AnimeRoleDetect() {
           refreshToken: refresh_token
         });
         
-        console.log('设置authState后，检查localStorage:', {
-          accessToken: access_token,
-          refreshToken: refresh_token,
-          user: user
-        });
-        
         localStorage.setItem('accessToken', access_token);
         localStorage.setItem('refreshToken', refresh_token);
         localStorage.setItem('currentUser', JSON.stringify(user));
-        
-        console.log('localStorage设置完成，现在获取:', {
-          accessToken: localStorage.getItem('accessToken'),
-          refreshToken: localStorage.getItem('refreshToken'),
-          currentUser: localStorage.getItem('currentUser')
-        });
         
         fetchAvailableModels();
       } else {
@@ -191,7 +159,6 @@ export default function AnimeRoleDetect() {
     }
   };
 
-  // 处理登出
   const handleLogout = () => {
     setAuthState({
       isAuthenticated: false,
@@ -214,16 +181,13 @@ export default function AnimeRoleDetect() {
     ]);
   };
 
-  // 处理图片选择
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (isBatchUpload) {
-      // 批量上传模式
       const files = e.target.files;
       if (files && files.length > 0) {
         const newFiles = Array.from(files);
         setSelectedImages(newFiles);
         
-        // 生成预览
         const previews: string[] = [];
         newFiles.forEach(file => {
           const reader = new FileReader();
@@ -239,7 +203,6 @@ export default function AnimeRoleDetect() {
         });
       }
     } else {
-      // 单张上传模式
       const file = e.target.files?.[0];
       if (file) {
         setSelectedImage(file);
@@ -254,13 +217,11 @@ export default function AnimeRoleDetect() {
     }
   };
 
-  // 移除图片
   const removeImage = useCallback(() => {
     setSelectedImage(null);
     setImagePreview(null);
   }, []);
 
-  // 移除批量图片
   const removeBatchImage = useCallback((index: number) => {
     const newImages = [...selectedImages];
     const newPreviews = [...imagePreviews];
@@ -270,13 +231,11 @@ export default function AnimeRoleDetect() {
     setImagePreviews(newPreviews);
   }, [selectedImages, imagePreviews]);
 
-  // 清空批量图片
   const clearBatchImages = useCallback(() => {
     setSelectedImages([]);
     setImagePreviews([]);
   }, []);
 
-  // 处理拖拽事件
   const [dragCounter, setDragCounter] = useState(0);
 
   const handleDragEnter = (e: React.DragEvent<HTMLDivElement>) => {
@@ -316,12 +275,10 @@ export default function AnimeRoleDetect() {
     }
   };
 
-  // 处理历史记录查看
   const handleViewRecord = useCallback((record: any) => {
     setSelectedRecord(record);
     setShowHistory(false);
     
-    // 转换历史记录为消息格式
     const assistantMessage: Message = {
       id: `history-${record.id}`,
       role: 'assistant',
@@ -339,38 +296,26 @@ export default function AnimeRoleDetect() {
     setMessages([assistantMessage]);
   }, []);
 
-  // 处理历史记录删除
-  const handleDeleteRecord = useCallback((recordId: string) => {
-    // 已在 HistoryPanel 组件中处理删除逻辑
-  }, []);
-
-  // 处理发送消息
   const handleSend = useCallback(async () => {
     if ((!inputText.trim() && !selectedImage && selectedImages.length === 0) || isProcessing) {
       return;
     }
 
-    // 清空输入
     setInputText("");
 
     if (isBatchUpload && selectedImages.length > 0) {
-      // 处理批量图片
-      // 创建用户消息
       const userMessage: Message = {
         id: Date.now().toString(),
         role: "user",
         content: inputText.trim(),
-        image: imagePreviews[0] || undefined, // 显示第一张图片作为预览
+        image: imagePreviews[0] || undefined,
         timestamp: Date.now(),
       };
 
-      // 添加用户消息到消息列表
       setMessages(prev => [...prev, userMessage]);
 
-      // 开始处理
       setIsProcessing(true);
 
-      // 创建处理中消息
       const processingMessage: Message = {
         id: `processing_${Date.now()}`,
         role: "assistant",
@@ -384,7 +329,6 @@ export default function AnimeRoleDetect() {
       setMessages(prev => [...prev, processingMessage]);
 
       try {
-        // 构建FormData
         const formData = new FormData();
         selectedImages.forEach((file, index) => {
           formData.append('files', file, file.name);
@@ -395,36 +339,16 @@ export default function AnimeRoleDetect() {
         formData.append('multilabel', multiRole ? 'true' : 'false');
         formData.append('threshold', '0.4');
 
-        console.log('发送批量请求参数:', {
-          modelName: selectedModel,
-          useAttributes,
-          batchSize: 8,
-          multilabel: multiRole,
-          threshold: 0.4
-        });
-
-        // 发送请求到后端API
-        console.log('开始发送批量请求到API');
         const endpoint = '/api/model/batch-predict';
-        console.log(`使用端点: ${endpoint}`);
         const headers: any = {};
         if (authState.accessToken) {
           headers['Authorization'] = `Bearer ${authState.accessToken}`;
-          console.log('添加Authorization头:', headers['Authorization']);
-        } else {
-          console.log('没有accessToken，无法添加Authorization头');
         }
-        console.log('最终请求头:', headers);
-        const response = await axios.post(endpoint, formData, {
-          headers: headers,
-        });
-
-        console.log('批量API响应:', response.data);
+        const response = await axios.post(endpoint, formData, { headers });
 
         const data = response.data;
         const results = data.results || [];
 
-        // 构建助手消息
         const assistantMessage: Message = {
           id: Date.now().toString(),
           role: "assistant",
@@ -442,39 +366,30 @@ export default function AnimeRoleDetect() {
           timestamp: Date.now(),
         };
 
-        // 更新消息列表，移除处理中消息，添加助手消息
         setMessages(prev => {
           const newMessages = prev.filter(msg => !msg.isThinking);
           return [...newMessages, assistantMessage];
         });
 
       } catch (error: any) {
-        console.error('批量API请求失败:', error);
-
-        // 构建错误消息
         let errorContent = "批量识别过程中出现错误，请重试。";
         let errorTitle = "批量识别失败";
 
-        // 处理401认证错误
         if (error.response && error.response.status === 401) {
           errorContent = "认证已过期，请重新登录。";
           errorTitle = "认证失败";
-          // 清除过期的认证状态
           setAuthState({
             isAuthenticated: false,
             user: null,
             accessToken: null,
             refreshToken: null
           });
-          // 清除localStorage
           localStorage.removeItem('accessToken');
           localStorage.removeItem('refreshToken');
           localStorage.removeItem('currentUser');
         } else if (error.response) {
-          // 其他服务器错误
           errorContent = error.response.data?.detail || error.response.data?.error || errorContent;
         } else if (error.message) {
-          // 网络错误等
           errorContent = error.message;
         }
 
@@ -486,20 +401,15 @@ export default function AnimeRoleDetect() {
           timestamp: Date.now(),
         };
 
-        // 更新消息列表，移除处理中消息，添加错误消息
         setMessages(prev => {
           const newMessages = prev.filter(msg => !msg.isThinking);
           return [...newMessages, errorMessage];
         });
       } finally {
-        // 结束处理
         setIsProcessing(false);
-        // 清除批量图片
         clearBatchImages();
       }
     } else if (selectedImage) {
-      // 处理单张图片
-      // 创建用户消息
       const userMessage: Message = {
         id: Date.now().toString(),
         role: "user",
@@ -508,13 +418,10 @@ export default function AnimeRoleDetect() {
         timestamp: Date.now(),
       };
 
-      // 添加用户消息到消息列表
       setMessages(prev => [...prev, userMessage]);
 
-      // 开始处理
       setIsProcessing(true);
 
-      // 创建处理中消息
       const processingMessage: Message = {
         id: `processing_${Date.now()}`,
         role: "assistant",
@@ -528,7 +435,6 @@ export default function AnimeRoleDetect() {
       setMessages(prev => [...prev, processingMessage]);
 
       try {
-        // 构建FormData
         const formData = new FormData();
         formData.append('file', selectedImage);
         formData.append('use_coreml', useCoreML ? 'true' : 'false');
@@ -539,46 +445,18 @@ export default function AnimeRoleDetect() {
         formData.append('threshold', '0.4');
         formData.append('cache_bypass', Date.now().toString());
 
-        console.log('发送请求参数:', {
-          useCoreML,
-          useModel: selectedModel !== 'default',
-          useAttributes,
-          modelName: selectedModel,
-          isMacPlatform,
-          multiRole: multiRole
-        });
-        
-        // 确保use_model参数正确设置
-        const useModelValue = selectedModel !== 'default' ? 'true' : 'false';
-        console.log('useModelValue:', useModelValue);
-
-        // 发送请求到后端API
-        console.log('开始发送请求到API');
-        console.log('authState:', authState);
-        console.log('accessToken存在:', !!authState.accessToken);
         const endpoint = multiRole ? '/api/classify/multi-role' : '/api/classify';
-        console.log(`使用端点: ${endpoint}`);
         const headers: any = {};
         if (authState.accessToken) {
           headers['Authorization'] = `Bearer ${authState.accessToken}`;
-          console.log('添加Authorization头:', headers['Authorization']);
-        } else {
-          console.log('没有accessToken，无法添加Authorization头');
         }
-        console.log('最终请求头:', headers);
-        const response = await axios.post(endpoint, formData, {
-          headers: headers,
-        });
-
-        console.log('API响应:', response.data);
+        const response = await axios.post(endpoint, formData, { headers });
 
         const data = response.data;
 
-        // 构建助手消息
         let assistantMessage: Message;
         
         if (multiRole) {
-          // 多角色检测结果
           const roles = data.data.roles || [];
           const count = data.data.count || 0;
           
@@ -603,7 +481,6 @@ export default function AnimeRoleDetect() {
             timestamp: Date.now(),
           };
         } else {
-          // 单角色检测结果
           assistantMessage = {
             id: Date.now().toString(),
             role: "assistant",
@@ -626,39 +503,30 @@ export default function AnimeRoleDetect() {
           };
         }
 
-        // 更新消息列表，移除处理中消息，添加助手消息
         setMessages(prev => {
           const newMessages = prev.filter(msg => !msg.isThinking);
           return [...newMessages, assistantMessage];
         });
 
       } catch (error: any) {
-        console.error('API请求失败:', error);
-
-        // 构建错误消息
         let errorContent = "识别过程中出现错误，请重试。";
         let errorTitle = "识别失败";
 
-        // 处理401认证错误
         if (error.response && error.response.status === 401) {
           errorContent = "认证已过期，请重新登录。";
           errorTitle = "认证失败";
-          // 清除过期的认证状态
           setAuthState({
             isAuthenticated: false,
             user: null,
             accessToken: null,
             refreshToken: null
           });
-          // 清除localStorage
           localStorage.removeItem('accessToken');
           localStorage.removeItem('refreshToken');
           localStorage.removeItem('currentUser');
         } else if (error.response) {
-          // 其他服务器错误
           errorContent = error.response.data?.detail || error.response.data?.error || errorContent;
         } else if (error.message) {
-          // 网络错误等
           errorContent = error.message;
         }
 
@@ -670,21 +538,17 @@ export default function AnimeRoleDetect() {
           timestamp: Date.now(),
         };
 
-        // 更新消息列表，移除处理中消息，添加错误消息
         setMessages(prev => {
           const newMessages = prev.filter(msg => !msg.isThinking);
           return [...newMessages, errorMessage];
         });
       } finally {
-        // 结束处理
         setIsProcessing(false);
-        // 移除选中的图片
         removeImage();
       }
     }
   }, [inputText, selectedImage, imagePreview, selectedImages, imagePreviews, isBatchUpload, isProcessing, removeImage, clearBatchImages, useCoreML, selectedModel, useAttributes, multiRole, authState]);
 
-  // 处理键盘按键
   const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -692,7 +556,6 @@ export default function AnimeRoleDetect() {
     }
   };
 
-  // 复制消息内容
   const handleCopyMessage = useCallback((content: string) => {
     if (!content) return;
 
@@ -706,7 +569,6 @@ export default function AnimeRoleDetect() {
       });
   }, []);
 
-  // 下载消息内容
   const handleDownloadMessage = useCallback((content: string, role: string) => {
     const blob = new Blob([content], { type: "text/plain" });
     const url = URL.createObjectURL(blob);
@@ -719,18 +581,27 @@ export default function AnimeRoleDetect() {
     URL.revokeObjectURL(url);
   }, []);
 
-  // 处理配置更新
   const handleConfigUpdate = useCallback((newConfig: any) => {
     setConfig(newConfig);
     ConfigManager.updateConfig(newConfig);
   }, []);
 
-  // 处理暗黑模式切换
   const handleDarkModeToggle = useCallback(() => {
     const newDarkMode = !darkMode;
     setDarkMode(newDarkMode);
     localStorage.setItem('darkMode', newDarkMode.toString());
   }, [darkMode]);
+
+  const handleBatchUploadChange = useCallback((value: boolean) => {
+    setIsBatchUpload(value);
+    if (!value) {
+      setSelectedImage(null);
+      setImagePreview(null);
+    } else {
+      setSelectedImages([]);
+      setImagePreviews([]);
+    }
+  }, []);
 
   return (
     <div 
@@ -749,369 +620,120 @@ export default function AnimeRoleDetect() {
         />
       ) : (
         <>
-      {/* 拖拽上传覆盖层 */}
-      {isDragging && (
-        <div className="fixed inset-0 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm flex items-center justify-center z-[9999] border-2 border-dashed border-blue-500 rounded-lg animate-pulse">
-          <div className="text-center p-8 bg-white dark:bg-gray-800 rounded-xl shadow-2xl transform transition-transform duration-300 hover:scale-105">
-            <Upload className="h-16 w-16 mx-auto mb-4 text-blue-500 animate-bounce" />
-            <h3 className="text-xl font-semibold mb-2">拖拽图片到这里</h3>
-            <p className="text-gray-600 dark:text-gray-400">松开鼠标即可上传图片进行识别</p>
-            <div className="mt-4 flex justify-center space-x-2">
-              <div className="w-3 h-3 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-              <div className="w-3 h-3 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-              <div className="w-3 h-3 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-            </div>
-          </div>
-        </div>
-      )}
-      
-      {/* 顶部导航栏 */}
-      <header className={`sticky top-0 z-50 ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border-b transition-all duration-300`}>
-        <div className="container mx-auto px-6 py-4">
-          {/* 流式布局：标题左侧，配置和个人信息右侧 */}
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            {/* 左侧：标题 */}
-            <div className="flex items-center">
-              <h1 className="text-2xl font-semibold bg-gradient-to-r from-blue-500 to-purple-600 bg-clip-text text-transparent">动漫角色识别</h1>
-            </div>
-            
-            {/* 右侧：配置和个人信息 */}
-            <div className="flex flex-wrap items-center gap-4">
-              {/* 历史记录按钮 */}
-              {config.features.enableHistoryPanel && (
-                <button
-                  onClick={() => setShowHistory(!showHistory)}
-                  className={`p-2 rounded-lg ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'} transition-colors ${showHistory ? 'text-blue-500' : ''}`}
-                  title="查看历史记录"
-                >
-                  <History className="h-5 w-5" />
-                </button>
-              )}
-              
-              {/* 配置按钮 */}
-              <button
-                onClick={() => setShowConfig(!showConfig)}
-                className={`p-2 rounded-lg ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'} transition-colors ${showConfig ? 'text-blue-500' : ''}`}
-                title="配置"
-              >
-                <Settings className="h-5 w-5" />
-              </button>
-              
-              {/* 暗黑模式开关 */}
-              <button
-                onClick={handleDarkModeToggle}
-                className={`p-2 rounded-lg ${darkMode ? 'bg-gray-700 text-yellow-400' : 'bg-gray-100 text-gray-600'} transition-colors`}
-                title={darkMode ? '切换到亮色模式' : '切换到暗黑模式'}
-              >
-                {darkMode ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
-              </button>
-              
-              {/* 用户信息 */}
-              {authState.user && (
-                <div className={`flex items-center space-x-4 px-4 py-2 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>
-                  <div className="flex items-center space-x-2">
-                    <User className="h-5 w-5 text-blue-500" />
-                    <span className={`text-sm font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                      {authState.user.username}
-                    </span>
-                    <span className={`text-xs px-2 py-1 rounded-full ${
-                      authState.user.role === 'admin' 
-                        ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' 
-                        : 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
-                    }`}>
-                      {authState.user.role}
-                    </span>
-                  </div>
-                  <button
-                    onClick={handleLogout}
-                    className={`p-2 rounded-lg ${darkMode ? 'hover:bg-gray-600' : 'hover:bg-gray-200'} transition-colors`}
-                    title="退出登录"
-                  >
-                    <LogOut className="h-5 w-5 text-red-500" />
-                  </button>
+          {isDragging && (
+            <div className="fixed inset-0 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm flex items-center justify-center z-[9999] border-2 border-dashed border-blue-500 rounded-lg animate-pulse">
+              <div className="text-center p-8 bg-white dark:bg-gray-800 rounded-xl shadow-2xl transform transition-transform duration-300 hover:scale-105">
+                <div className="h-16 w-16 mx-auto mb-4 text-blue-500 animate-bounce flex items-center justify-center">
+                  <svg className="h-16 w-16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                  </svg>
                 </div>
-              )}
-            </div>
-          </div>
-          
-          {/* 功能开关行：流式布局 */}
-          <div className="flex flex-wrap items-center gap-4 mt-4">
-              {/* 模型选择 */}
-              {config.features.enableModelSelection && (
-                <div className="flex items-center space-x-2">
-                  <label className="text-sm font-medium">模型:</label>
-                  <select
-                    value={selectedModel}
-                    onChange={(e) => setSelectedModel(e.target.value)}
-                    className={`px-3 py-1.5 rounded-lg text-sm ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-gray-50 border-gray-200'} border focus:outline-none focus:ring-2 focus:ring-blue-500`}
-                  >
-                    {availableModels.map(model => (
-                      <option key={model} value={model}>
-                        {model === 'default' ? '默认 (CLIP)' : model}
-                      </option>
-                    ))}
-                  </select>
+                <h3 className="text-xl font-semibold mb-2">拖拽图片到这里</h3>
+                <p className="text-gray-600 dark:text-gray-400">松开鼠标即可上传图片进行识别</p>
+                <div className="mt-4 flex justify-center space-x-2">
+                  <div className="w-3 h-3 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                  <div className="w-3 h-3 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                  <div className="w-3 h-3 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
                 </div>
-              )}
-              
-              {/* CoreML 开关 (仅 Mac 平台显示) */}
-              {isMacPlatform && config.features.enableCoremlSwitch && (
-                <div className="flex items-center space-x-2">
-                  <label className="text-sm font-medium">CoreML:</label>
-                  <button
-                    onClick={() => setUseCoreML(!useCoreML)}
-                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${useCoreML ? 'bg-blue-600' : 'bg-gray-300'}`}
-                  >
-                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${useCoreML ? 'translate-x-6' : 'translate-x-1'}`} />
-                  </button>
-                </div>
-              )}
-              
-              {/* 属性预测开关 */}
-              {config.features.enableAttributesSwitch && (
-                <div className="flex items-center space-x-2">
-                  <label className="text-sm font-medium">属性:</label>
-                  <button
-                    onClick={() => setUseAttributes(!useAttributes)}
-                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${useAttributes ? 'bg-blue-600' : 'bg-gray-300'}`}
-                  >
-                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${useAttributes ? 'translate-x-6' : 'translate-x-1'}`} />
-                  </button>
-                </div>
-              )}
-              
-              {/* 多角色检测开关 */}
-              {config.features.enableMultiRoleSwitch && (
-                <div className="flex items-center space-x-2">
-                  <label className="text-sm font-medium">多角色:</label>
-                  <button
-                    onClick={() => setMultiRole(!multiRole)}
-                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${multiRole ? 'bg-blue-600' : 'bg-gray-300'}`}
-                  >
-                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${multiRole ? 'translate-x-6' : 'translate-x-1'}`} />
-                  </button>
-                </div>
-              )}
-              
-              {/* 批量上传开关 */}
-              <div className="flex items-center space-x-2">
-                <label className="text-sm font-medium">批量上传:</label>
-                <button
-                  onClick={() => {
-                    setIsBatchUpload(!isBatchUpload);
-                    // 切换模式时清空已选择的图片
-                    if (isBatchUpload) {
-                      setSelectedImage(null);
-                      setImagePreview(null);
-                    } else {
-                      setSelectedImages([]);
-                      setImagePreviews([]);
-                    }
-                  }}
-                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${isBatchUpload ? 'bg-blue-600' : 'bg-gray-300'}`}
-                >
-                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${isBatchUpload ? 'translate-x-6' : 'translate-x-1'}`} />
-                </button>
               </div>
-            </div>
-          
-          {/* 平台信息 */}
-          {isMacPlatform && useCoreML && (
-            <div className="mt-2 text-xs text-blue-600 dark:text-blue-400">
-              🍎 检测到 Mac 平台，已启用 CoreML 加速
             </div>
           )}
-        </div>
-      </header>
-      
-      <div className="flex-1 flex overflow-hidden">
-        {/* 主内容区 */}
-        <main className={`flex-1 overflow-y-auto transition-all duration-300 ${showHistory ? 'md:ml-96' : ''}`}>
-          <div className="flex-1 overflow-y-auto">
-            <div className="container mx-auto px-4 md:px-6 py-6 md:py-8">
-              <div className={`w-full ${darkMode ? 'bg-gray-800' : 'bg-white'} rounded-xl shadow-lg border ${darkMode ? 'border-gray-700' : 'border-gray-200'} transform transition-all duration-300 hover:shadow-xl`}>
-                <div className={`p-4 md:p-6 border-b ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
-                  <h2 className="text-lg md:text-xl font-semibold">动漫角色识别</h2>
-                </div>
-                <div className="p-4 md:p-6 max-h-[calc(100vh-24rem)] overflow-y-auto">
-                  {messages.map((message, index) => (
-                    <div key={message.id} className="space-y-4 md:space-y-6 mb-6">
-                      <MessageItem
-                        message={message}
-                        darkMode={darkMode}
-                        handleCopyMessage={handleCopyMessage}
-                        handleDownloadMessage={handleDownloadMessage}
-                      />
-                    </div>
-                  ))}
-                  <div ref={messagesEndRef} />
-                </div>
-                <div className={`p-4 md:p-6 border-t ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
-                  <div className="flex flex-col md:flex-row items-stretch md:items-center space-y-3 md:space-y-0 md:space-x-4">
-                    {/* 文件输入元素 */}
-                    <input
-                      type="file"
-                      accept="image/*"
-                      multiple={isBatchUpload}
-                      onChange={handleImageSelect}
-                      className={`w-full md:w-1/4 px-3 py-2 md:px-4 md:py-3 rounded-lg ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-gray-50 border-gray-200'} border focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm transition-all hover:border-blue-300`}
-                    />
-                    <div className="flex-1 relative">
-                      <input
-                        type="text"
-                        value={inputText}
-                        onChange={(e) => setInputText(e.target.value)}
-                        onKeyPress={handleKeyPress}
-                        placeholder="输入消息或上传图片..."
-                        className={`w-full px-4 py-2 md:px-5 md:py-3 pr-12 md:pr-16 ${darkMode ? 'bg-gray-700 border-gray-600' : 'bg-gray-50 border-gray-200'} border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm transition-all hover:border-blue-300`}
-                        disabled={isProcessing}
-                      />
-                      <button
-                        onClick={() => setInputText("")}
-                        className={`absolute right-8 top-1/2 transform -translate-y-1/2 p-1 rounded-full ${darkMode ? 'hover:bg-gray-600' : 'hover:bg-gray-200'} transition-colors transform hover:scale-110`}
-                        title="清空输入"
-                        disabled={!inputText.trim() || isProcessing}
-                      >
-                        <X className={`h-4 w-4 ${inputText.trim() && !isProcessing ? '' : 'opacity-50 cursor-not-allowed'}`} />
-                      </button>
+          
+          <Header
+            darkMode={darkMode}
+            authState={authState}
+            config={config}
+            showHistory={showHistory}
+            showConfig={showConfig}
+            availableModels={availableModels}
+            selectedModel={selectedModel}
+            isMacPlatform={isMacPlatform}
+            useCoreML={useCoreML}
+            useAttributes={useAttributes}
+            multiRole={multiRole}
+            isBatchUpload={isBatchUpload}
+            onShowHistoryChange={setShowHistory}
+            onShowConfigChange={setShowConfig}
+            onDarkModeToggle={handleDarkModeToggle}
+            onLogout={handleLogout}
+            onModelChange={setSelectedModel}
+            onCoreMLChange={setUseCoreML}
+            onAttributesChange={setUseAttributes}
+            onMultiRoleChange={setMultiRole}
+            onBatchUploadChange={handleBatchUploadChange}
+          />
 
-                    </div>
-                    <button
-                      onClick={handleSend}
-                      disabled={(!inputText.trim() && !selectedImage) || isProcessing}
-                      className={`w-full md:w-auto min-w-[120px] bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white px-4 py-2 md:px-6 md:py-3 rounded-lg font-medium transition-all flex items-center justify-center space-x-1 md:space-x-2 ${(!inputText.trim() && !selectedImage) || isProcessing ? 'opacity-50 cursor-not-allowed' : 'transform hover:scale-105 hover:shadow-lg'}`}
-                    >
-                      {isProcessing ? (
-                        <>
-                          <svg className="h-4 w-4 md:h-5 md:w-5 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                          </svg>
-                          <span className="text-sm font-medium">识别中</span>
-                        </>
-                      ) : (
-                        <>
-                          <Sparkles className="h-4 w-4 md:h-5 md:w-5" />
-                          <span className="text-sm font-medium">发送</span>
-                        </>
-                      )}
-                    </button>
-                  </div>
-                  {/* 单张图片预览 */}
-                  {!isBatchUpload && selectedImage && imagePreview && (
-                    <div className={`mt-3 ${darkMode ? 'bg-gray-700 border-gray-600' : 'bg-gray-50 border-gray-200'} border rounded-lg p-3 flex items-center space-x-3 animate-fade-in`}>
-                      <div className="w-16 h-16 rounded-lg overflow-hidden shadow-md">
-                        <img
-                          src={imagePreview}
-                          alt="Selected image"
-                          className="w-full h-full object-cover"
-                        />
-                      </div>
-                      <div className="flex-1">
-                        <p className="text-sm font-medium">
-                          已选择图片: {selectedImage.name}
-                        </p>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">
-                          大小: {Math.round(selectedImage.size / 1024)} KB
-                        </p>
-                      </div>
-                      <button
-                        onClick={removeImage}
-                        className={`p-1.5 rounded-full ${darkMode ? 'hover:bg-red-900/20' : 'hover:bg-red-50'} text-red-500 transition-colors transform hover:scale-110`}
-                        title="移除图片"
-                      >
-                        <X className="h-4 w-4" />
-                      </button>
-                    </div>
-                  )}
-                  
-                  {/* 批量图片预览 */}
-                  {isBatchUpload && selectedImages.length > 0 && (
-                    <div className={`mt-3 ${darkMode ? 'bg-gray-700 border-gray-600' : 'bg-gray-50 border-gray-200'} border rounded-lg p-3 animate-fade-in`}>
-                      <div className="flex justify-between items-center mb-3">
-                        <h3 className="text-sm font-medium">已选择 {selectedImages.length} 张图片</h3>
-                        <button
-                          onClick={clearBatchImages}
-                          className={`text-xs px-2 py-1 rounded ${darkMode ? 'bg-red-900/20 text-red-400' : 'bg-red-50 text-red-600'} hover:opacity-80 transition-opacity`}
-                          title="清空所有图片"
-                        >
-                          清空
-                        </button>
-                      </div>
-                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                        {selectedImages.map((file, index) => (
-                          <div key={index} className={`relative ${darkMode ? 'bg-gray-800' : 'bg-white'} rounded-lg overflow-hidden shadow-md group`}>
-                            <div className="aspect-square">
-                              <img
-                                src={imagePreviews[index]}
-                                alt={`Selected image ${index + 1}`}
-                                className="w-full h-full object-cover"
-                              />
-                            </div>
-                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                              <button
-                                onClick={() => removeBatchImage(index)}
-                                className={`p-1.5 rounded-full bg-red-500 text-white hover:bg-red-600 transition-colors transform hover:scale-110`}
-                                title="移除图片"
-                              >
-                                <X className="h-4 w-4" />
-                              </button>
-                            </div>
-                            <div className="p-2">
-                              <p className="text-xs truncate">
-                                {file.name}
-                              </p>
-                              <p className="text-xs text-gray-500 dark:text-gray-400">
-                                {Math.round(file.size / 1024)} KB
-                              </p>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
+          <TabSwitcher 
+            darkMode={darkMode} 
+            activePanel={activePanel} 
+            onPanelChange={setActivePanel} 
+          />
+      
+          <div className="flex-1 flex overflow-hidden">
+            <main className={`flex-1 overflow-y-auto transition-all duration-300 ${showHistory ? 'md:ml-96' : ''}`}>
+              <div className="flex-1 overflow-y-auto">
+                <div className="container mx-auto px-4 md:px-6 py-6 md:py-8">
+                  {activePanel === 'classify' ? (
+                    <ChatPanel
+                      darkMode={darkMode}
+                      messages={messages}
+                      inputText={inputText}
+                      isBatchUpload={isBatchUpload}
+                      isProcessing={isProcessing}
+                      selectedImage={selectedImage}
+                      imagePreview={imagePreview}
+                      selectedImages={selectedImages}
+                      imagePreviews={imagePreviews}
+                      onInputChange={setInputText}
+                      onKeyPress={handleKeyPress}
+                      onImageSelect={handleImageSelect}
+                      onSend={handleSend}
+                      onRemoveImage={removeImage}
+                      onRemoveBatchImage={removeBatchImage}
+                      onClearBatchImages={clearBatchImages}
+                      onCopyMessage={handleCopyMessage}
+                      onDownloadMessage={handleDownloadMessage}
+                    />
+                  ) : activePanel === 'search' ? (
+                    <SearchPanel darkMode={darkMode} accessToken={authState.accessToken ?? undefined} />
+                  ) : (
+                    <VideoPanel darkMode={darkMode} accessToken={authState.accessToken ?? undefined} />
                   )}
                 </div>
               </div>
-            </div>
+            </main>
+            
+            {showHistory && (
+              <div className="fixed right-0 top-[6rem] bottom-0 w-full md:w-96 bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 shadow-lg z-40 transform transition-transform duration-300 ease-in-out">
+                <div className="h-full overflow-y-auto">
+                  <HistoryPanel 
+                    darkMode={darkMode}
+                    onViewRecord={handleViewRecord}
+                    onDeleteRecord={() => {}}
+                  />
+                </div>
+              </div>
+            )}
+            
+            {showConfig && (
+              <div className="fixed right-0 top-[6rem] bottom-0 w-full md:w-96 bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 shadow-lg z-40 transform transition-transform duration-300 ease-in-out">
+                <div className="h-full overflow-y-auto">
+                  <ConfigPanel 
+                    darkMode={darkMode}
+                    config={config}
+                    onConfigUpdate={handleConfigUpdate}
+                  />
+                </div>
+              </div>
+            )}
           </div>
-        </main>
-        
-        {/* 历史记录面板 */}
-        {showHistory && (
-          <div className="fixed right-0 top-[6rem] bottom-0 w-full md:w-96 bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 shadow-lg z-40 transform transition-transform duration-300 ease-in-out">
-            <div className="h-full overflow-y-auto">
-              <HistoryPanel 
-                darkMode={darkMode}
-                onViewRecord={handleViewRecord}
-                onDeleteRecord={handleDeleteRecord}
-              />
-            </div>
-          </div>
-        )}
-        
-        {/* 配置面板 */}
-        {showConfig && (
-          <div className="fixed right-0 top-[6rem] bottom-0 w-full md:w-96 bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 shadow-lg z-40 transform transition-transform duration-300 ease-in-out">
-            <div className="h-full overflow-y-auto">
-              <ConfigPanel 
-                darkMode={darkMode}
-                config={config}
-                onConfigUpdate={handleConfigUpdate}
-              />
-            </div>
-          </div>
-        )}
-      </div>
       
-
-      
-      {/* 页脚 */}
-      <footer className={`py-4 border-t ${darkMode ? 'border-gray-700' : 'border-gray-200'} transition-all duration-300`}>
-        <div className="container mx-auto px-4 text-center text-sm text-gray-500 dark:text-gray-400">
-          <p className="bg-gradient-to-r from-blue-500 to-purple-600 bg-clip-text text-transparent">动漫角色识别助手 © zhaoqi.cao arona 2026</p>
-          <p className="mt-1">基于深度学习的动漫角色识别系统</p>
-        </div>
-      </footer>
+          <footer className={`py-4 border-t ${darkMode ? 'border-gray-700' : 'border-gray-200'} transition-all duration-300`}>
+            <div className="container mx-auto px-4 text-center text-sm text-gray-500 dark:text-gray-400">
+              <p className="bg-gradient-to-r from-blue-500 to-purple-600 bg-clip-text text-transparent">动漫角色识别助手 © zhaoqi.cao arona 2026</p>
+              <p className="mt-1">基于深度学习的动漫角色识别系统</p>
+            </div>
+          </footer>
         </>
       )}
     </div>

@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
       headers['Authorization'] = authHeader;
     }
     
-    const response = await fetch('http://localhost:8000/api/history', {
+    const response = await fetch('http://127.0.0.1:8080/api/history', {
       method: 'GET',
       headers: headers,
     });
@@ -38,7 +38,7 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
       headers['Authorization'] = authHeader;
     }
     
-    const response = await fetch(`http://localhost:8000/api/history/${id}`, {
+    const response = await fetch(`http://127.0.0.1:8080/api/history/${id}`, {
       method: 'DELETE',
       headers: headers,
     });

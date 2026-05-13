@@ -1,15 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function POST(request: NextRequest) {
-  console.log('前端API路由接收到POST请求');
+  console.log('前端API路由接收到图片搜索POST请求');
   try {
-    console.log('开始处理请求...');
     const formData = await request.formData();
-    console.log('FormData解析完成');
     const file = formData.get('file') as File;
+    const topK = formData.get('top_k') as string;
 
     console.log('请求参数:', {
-      hasFile: !!file
+      hasFile: !!file,
+      topK: topK
     });
 
     if (!file) {
@@ -17,23 +17,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 });
     }
 
-    console.log('收到分类请求:', {
-      fileName: file.name,
-      fileSize: file.size
-    });
-
-    const backendUrl = 'http://127.0.0.1:8080/api/classify';
+    const backendUrl = 'http://127.0.0.1:8080/api/search/image';
     console.log('准备转发请求到后端API:', backendUrl);
 
     const backendFormData = new FormData();
     backendFormData.append('file', file);
-    backendFormData.append('model_name', formData.get('model_name') as string || 'resnet18_loli8');
-    backendFormData.append('use_coreml', formData.get('use_coreml') as string || 'false');
-    backendFormData.append('use_model', formData.get('use_model') as string || 'true');
-    backendFormData.append('use_attributes', formData.get('use_attributes') as string || 'true');
-    backendFormData.append('cache_bypass', 'false');
-    backendFormData.append('multi_role', formData.get('multi_role') as string || 'false');
-    backendFormData.append('use_deepdanbooru', formData.get('use_deepdanbooru') as string || 'true');
+    if (topK) {
+      backendFormData.append('top_k', topK);
+    }
 
     const authHeader = request.headers.get('authorization');
     const headers: HeadersInit = {};
@@ -65,7 +56,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to connect to backend API' }, { status: 500 });
     }
   } catch (error) {
-    console.error('分类失败:', error);
-    return NextResponse.json({ error: 'Classification failed' }, { status: 500 });
+    console.error('图片搜索失败:', error);
+    return NextResponse.json({ error: 'Image search failed' }, { status: 500 });
   }
 }
