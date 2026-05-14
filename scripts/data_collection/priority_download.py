@@ -45,26 +45,40 @@ def download_role_images(role_name):
     """下载指定角色的图片"""
     print(f"\n=== 开始下载: {role_name} ===")
     
-    # 调用下载API或脚本
+    # 调用下载脚本
+    download_script = '/Users/caozhaoqi/PycharmProjects/anime_role_detect/scripts/data_collection/downloaders/download_from_img_url.py'
+    
+    # 检查URL文件是否存在
+    url_file = f'/Users/caozhaoqi/PycharmProjects/anime_role_detect/spider_image_system/data/img_url/{role_name}_img.txt'
+    
+    if not os.path.exists(url_file):
+        print(f"⚠️ 未找到 {role_name} 的URL文件: {url_file}")
+        print("   需要先采集该角色的URL")
+        return
+    
+    print(f"📄 URL文件: {url_file}")
+    with open(url_file, 'r', encoding='utf-8') as f:
+        url_count = len([line for line in f if line.strip()])
+    print(f"📊 可用URL数量: {url_count}")
+    
+    # 执行下载
     try:
-        # 使用curl调用下载API
-        cmd = [
-            'curl',
-            '-X', 'POST',
-            'http://localhost:8000/api/v1/download/start',
-            '-H', 'Content-Type: application/json',
-            '-d', f'{{"role_name": "{role_name}", "max_count": 100}}'
-        ]
-        result = subprocess.run(cmd, capture_output=True, text=True)
-        print(f"API响应: {result.stdout}")
+        cmd = ['python3', download_script, '--role', role_name]
+        print(f"执行命令: {' '.join(cmd)}")
+        
+        # 设置环境变量
+        env = os.environ.copy()
+        env['PYTHONPATH'] = '/Users/caozhaoqi/PycharmProjects/anime_role_detect:' + env.get('PYTHONPATH', '')
+        
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=600, env=env)
+        print(f"输出: {result.stdout}")
         if result.stderr:
             print(f"错误: {result.stderr}")
         
-        # 等待下载完成（假设每个角色下载最多5分钟）
-        time.sleep(300)
-        
+    except subprocess.TimeoutExpired:
+        print(f"⏰ 下载超时: {role_name}")
     except Exception as e:
-        print(f"下载失败: {e}")
+        print(f"❌ 下载失败: {e}")
 
 def main():
     print("=== 优先下载任务启动 ===")
@@ -72,10 +86,16 @@ def main():
     
     priority_roles = get_priority_roles()
     print(f"\n需要优先下载的角色: {len(priority_roles)} 个")
+    print("-" * 60)
+    for role, count in priority_roles:
+        print(f"{role}: {count} 张")
+    print("-" * 60)
     
     for i, (role_name, current_count) in enumerate(priority_roles, 1):
         print(f"\n{i}/{len(priority_roles)}: {role_name} (当前: {current_count} 张)")
         download_role_images(role_name)
+        print(f"✅ 完成 {role_name} 的下载")
+        time.sleep(5)  # 间隔5秒
     
     print("\n=== 优先下载任务完成 ===")
 
