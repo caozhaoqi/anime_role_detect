@@ -1,215 +1,152 @@
-# 项目结构说明
+# 项目代码结构
 
-## 1. 项目概览
+## 概述
 
-本项目是一个动漫角色检测系统，用于识别和分类不同动漫和游戏中的角色。项目采用深度学习技术，通过数据采集、处理、模型训练和部署的完整流程，实现角色的自动识别。
+本项目采用模块化架构设计，将功能划分为多个独立的模块，便于维护和扩展。
 
-## 2. 目录结构
+## 目录结构
 
 ```
 anime_role_detect/
-├── data/                          # 数据集目录（需要创建）
-│   ├── raw/                       # 原始数据
-│   │   ├── characters/           # 原始角色图片
-│   │   └── annotations/       # 原始标注数据
-│   ├── processed/                # 处理后的数据
-│   │   ├── augmented_dataset/    # 增强后的数据集
-│   │   └── split_dataset/    # 分割后的训练/验证数据
-│   └── external/                # 外部数据
-├── models/                        # 模型存储目录（需要创建）
-│   ├── checkpoints/           # 训练检查点
-│   ├── pretrained/             # 预训练模型
-│   └── exported/               # 导出的生产模型
-├── src/                           # 主源代码目录
-│   ├── core/                    # 核心功能模块
-│   │   ├── classification/      # 分类模块
-│   │   ├── feature_extraction/ # 特征提取模块
-│   │   ├── preprocessing/   # 预处理模块
-│   │   ├── tagging/         # 标签模块
-│   │   ├── keypoint/        # 关键点检测模块
-│   │   ├── log_fusion/      # 日志融合模块
-│   │   └── logging/          # 日志模块
-│   ├── data/                    # 数据相关代码
-│   │   ├── collection/        # 数据收集模块
-│   │   │   ├── spider/    # 爬虫模块
-│   │   │   └── annotation/ # 标注模块
-│   │   ├── preprocessing/   # 数据预处理脚本
-│   │   └── augmentation/    # 数据增强脚本
-│   ├── models/                  # 模型相关代码
-│   │   ├── training/        # 模型训练脚本
-│   │   ├── evaluation/      # 模型评估脚本
-│   │   └── deployment/     # 模型部署脚本
-│   ├── backend/                 # 后端代码
-│   │   ├── api/             # API实现
-│   │   └── web/             # Web界面
-│   ├── utils/                   # 工具函数
-│   ├── config/                  # 配置文件
-│   └── scripts/                # 实用脚本
-├── frontend/                      # 前端代码（Next.js）
-│   ├── app/
-│   ├── public/
-│   └── ...
-├── spider_image_system/           # 独立爬虫系统（作为子项目保留）
-├── tests/                       # 测试目录
-│   ├── unit/                 # 单元测试
-│   ├── integration/          # 集成测试
-│   └── e2e/                # 端到端测试
-├── docs/                        # 文档目录
-│   ├── PROJECT_STRUCTURE.md   # 项目结构说明
-│   ├── TECHNICAL_ARCHITECTURE.md
-│   ├── TRAINING_GUIDE.md
-│   └── ...
-├── cache/                       # 缓存目录（需要创建）
-├── logs/                        # 日志目录（需要创建）
-├── .gitignore
-├── README.md
-├── README.zh.md
-├── requirements.txt
-└── main.py
+├── .github/                    # GitHub配置
+│   └── workflows/              # CI/CD工作流
+├── auto_spider_img/            # 自动爬虫配置
+│   ├── html/                   # HTML模板
+│   ├── keywords/               # 爬虫关键词
+│   └── tests/                  # 爬虫测试
+├── config/                     # 配置文件
+├── deployment/                 # 部署配置
+│   ├── Dockerfile.*            # Docker镜像构建
+│   └── *.yaml                  # Kubernetes部署文件
+├── docs/                       # 项目文档
+│   ├── architecture/           # 架构文档
+│   ├── blog/                   # 技术博客
+│   ├── deployment/             # 部署指南
+│   ├── testing/                # 测试报告
+│   └── training/               # 训练指南
+├── monitoring/                 # 监控配置
+├── nsfw_model_img/             # NSFW模型（Java）
+├── scripts/                    # Python脚本模块
+│   ├── classification/         # 分类模块
+│   ├── common/                 # 公共工具模块
+│   │   ├── __init__.py
+│   │   ├── database_utils.py   # 数据库工具
+│   │   ├── download_utils.py   # 下载工具
+│   │   └── notification_utils.py # 通知工具
+│   ├── data_cleaning/          # 数据清理模块
+│   ├── data_collection/        # 数据采集模块
+│   │   ├── batch_collectors/   # 批量采集器
+│   │   ├── database/           # 数据库操作
+│   │   ├── downloaders/        # 图片下载器
+│   │   ├── single_collectors/  # 单角色采集器
+│   │   ├── tests/              # 测试用例
+│   │   └── utils/              # 辅助工具
+│   ├── model_testing/          # 模型测试模块
+│   ├── model_training/         # 模型训练模块
+│   ├── __init__.py             # 模块初始化
+│   └── main.py                 # 项目主入口
+├── spider_image_system/        # 图片爬虫系统
+├── .gitignore                  # Git忽略配置
+├── requirements.txt            # Python依赖
+├── README.md                   # 项目说明
+└── README.zh.md                # 中文说明
 ```
 
-## 3. 架构说明
+## 模块说明
 
-### 3.1 核心原则
+### 1. 公共工具模块 (scripts/common/)
 
-1. **单一源代码入口**：所有核心代码统一在 `src/` 目录下
-2. **模块化设计**：按功能模块清晰划分
-3. **数据与代码分离**：数据、模型、代码各自独立
-4. **测试独立**：测试代码与源代码分离
+| 文件 | 功能说明 |
+|------|----------|
+| `download_utils.py` | 图片下载相关工具函数 |
+| `notification_utils.py` | 通知服务（飞书、Telegram） |
+| `database_utils.py` | SQLite数据库操作 |
 
-### 3.2 模块说明
+### 2. 数据采集模块 (scripts/data_collection/)
 
-#### 3.2.1 数据模块 (data/)
+| 子目录 | 功能说明 |
+|--------|----------|
+| `batch_collectors/` | 批量角色数据采集 |
+| `single_collectors/` | 单个角色数据采集 |
+| `downloaders/` | 图片下载器 |
+| `database/` | 数据库初始化和操作 |
+| `utils/` | 数据采集辅助工具 |
 
-- **raw/**: 存储原始采集的数据，保持原始状态
-- **processed/**: 经过处理的数据，用于模型训练
-- **external/**: 外部来源的第三方数据
+### 3. 数据清理模块 (scripts/data_cleaning/)
 
-#### 3.2.2 核心模块 (src/core/)
+提供数据清洗、去重、质量检查等功能。
 
-- **classification/**: 角色分类核心逻辑
-- **feature_extraction/**: 特征提取
-- **preprocessing/**: 图像预处理
-- **tagging/**: 图像标签生成
-- **keypoint/**: 关键点检测
-- **log_fusion/**: 日志融合与模型更新
-- **logging/**: 全局日志管理
+### 4. 模型训练模块 (scripts/model_training/)
 
-#### 3.2.3 数据模块 (src/data/)
+提供模型训练、优化和导出功能。
 
-- **collection/spider/**: 统一的爬虫模块（整合原 auto_spider_img 和 spider_image_system 核心功能）
-- **collection/annotation/**: 数据标注工具
-- **preprocessing/**: 数据预处理脚本
-- **augmentation/**: 数据增强脚本
+### 5. 模型测试模块 (scripts/model_testing/)
 
-#### 3.2.4 模型模块 (src/models/)
+提供模型测试、性能评估和压力测试功能。
 
-- **training/**: 模型训练脚本
-- **evaluation/**: 模型评估脚本
-- **deployment/**: 模型部署脚本
+## 使用方式
 
-#### 3.2.5 后端模块 (src/backend/)
+### 命令行入口
 
-- **api/**: RESTful API 实现
-- **web/**: Web 界面
+```bash
+# 使用主入口脚本
+python scripts/main.py <command> [options]
 
-#### 3.2.6 前端模块 (frontend/)
+# 命令列表
+- download    # 下载图片
+- collect     # 数据采集
+- clean       # 数据清理
+- stats       # 统计分析
+- help        # 显示帮助
+```
 
-- Next.js 前端应用，独立于 src/ 目录
+### 模块导入
 
-#### 3.2.7 测试模块 (tests/)
+```python
+# 导入公共模块
+from scripts.common import download_image, setup_logger, ImageDatabase
 
-- **unit/**: 单元测试
-- **integration/**: 集成测试
-- **e2e/**: 端到端测试
+# 使用下载工具
+logger = setup_logger('my_module')
+success, message = download_image(url, save_dir)
 
-### 3.3 遗留系统处理
+# 使用数据库
+db = ImageDatabase('path/to/db')
+```
 
-#### spider_image_system/
+## 编码规范
 
-作为独立子项目保留，原因：
-1. 是一个完整的独立应用，有自己的 UI 和功能
-2. 可以通过 API 或命令行与主系统集成
-3. 便于独立开发和维护
+- Python版本：3.8+
+- 代码风格：PEP 8
+- 文件编码：UTF-8
+- 命名规范：
+  - 模块名：snake_case
+  - 类名：PascalCase
+  - 函数/变量名：snake_case
 
-## 4. 迁移建议
+## 扩展开发
 
-### 4.1 第一阶段：目录结构创建
+### 添加新的下载器
 
-1. 创建缺失的目录：
-   - `data/` 及其子目录
-   - `models/` 及其子目录
-   - `cache/`
-   - `logs/`
+1. 在 `scripts/data_collection/downloaders/` 目录下创建新文件
+2. 继承或使用 `download_utils.py` 中的工具函数
+3. 在 `__init__.py` 中导出模块
 
-### 4.2 第二阶段：代码整合
+### 添加新的通知渠道
 
-1. 将 `arona/` 下的模块按功能迁移到 `src/` 对应目录
-2. 将 `auto_spider_img/` 的核心爬虫逻辑整合到 `src/data/collection/spider/`
-3. 保留 `spider_image_system/` 作为独立子项目
+1. 在 `scripts/common/notification_utils.py` 中添加新的通知器类
+2. 在 `CompositeNotifier` 中注册新的通知器
+3. 在 `__init__.py` 中导出
 
-### 4.3 第三阶段：清理
+## 依赖管理
 
-1. 逐步移除 `arona/` 目录
-2. 更新导入路径
-3. 更新文档和配置
+项目依赖通过 `requirements.txt` 管理：
 
-## 5. 核心功能
+```bash
+# 安装依赖
+pip install -r requirements.txt
 
-### 5.1 数据采集
-
-- 统一的爬虫系统
-- 基于系列的角色图像采集
-- 基于关键词的图像搜索
-- 图像质量控制和过滤
-
-### 5.2 数据处理
-
-- 数据质量评估
-- 数据增强
-- 数据集分割
-- 数据格式转换
-
-### 5.3 模型训练
-
-- 基础模型训练
-- 模型优化和调优
-- 模型集成
-- 模型格式转换
-
-### 5.4 模型推理
-
-- 角色识别
-- 置信度评估
-- 结果输出
-
-## 6. 使用流程
-
-1. **配置项目**: 修改配置参数
-2. **数据采集**: 运行数据采集脚本，获取角色图像
-3. **数据处理**: 运行数据处理脚本，准备训练数据
-4. **模型训练**: 运行模型训练脚本，训练角色识别模型
-5. **模型评估**: 运行模型评估脚本，评估模型性能
-6. **模型部署**: 转换模型为生产格式，部署到生产环境
-
-## 7. 技术栈
-
-- **编程语言**: Python 3.9+
-- **深度学习框架**: PyTorch
-- **前端框架**: Next.js
-- **图像处理**: OpenCV, PIL
-- **数据存储**: 本地文件系统
-- **模型格式**: PyTorch, ONNX
-
-## 8. 维护说明
-
-- **数据更新**: 定期更新角色列表和图像数据
-- **模型更新**: 定期重新训练模型，以适应新数据
-- **配置管理**: 集中管理配置参数，避免硬编码
-- **代码规范**: 遵循 Python 代码规范，保持代码可读性
-
-## 9. 总结
-
-本项目采用模块化设计，结构清晰，功能完整。通过合理的目录组织和模块划分，提高了代码的可维护性和可扩展性。同时，通过集中的配置管理，使得项目参数的调整更加方便。
-
-项目的核心价值在于实现了从数据采集到模型部署的完整流程，为动漫角色的自动识别提供了可行的解决方案。
+# 添加新依赖
+pip install <package>
+pip freeze > requirements.txt
+```

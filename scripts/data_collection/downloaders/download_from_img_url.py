@@ -1,95 +1,42 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-从 spider_image_system/data/img_url 目录下载图片
+从 spider_image_system/data/img_url 目录下载图片（使用公共模块重构版）
 """
 
 import os
 import sys
-import requests
 import time
-import random
-import logging
-from concurrent.futures import ThreadPoolExecutor, as_completed
+
+# 添加公共模块路径
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'common'))
+
+from download_utils import (
+    setup_logger,
+    is_valid_image_url,
+    download_image,
+    load_urls_from_file,
+    DownloadConfig
+)
 
 # 配置
 URL_DIR = '/Users/caozhaoqi/PycharmProjects/anime_role_detect/spider_image_system/data/img_url'
 DOWNLOAD_DIR = '/Users/caozhaoqi/PycharmProjects/anime_role_detect/data/role_images'
-MAX_WORKERS = 5
-TIMEOUT = 30
-MAX_RETRIES = 3
 
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
+# 使用公共配置类
+config = DownloadConfig(
+    download_dir=DOWNLOAD_DIR,
+    max_workers=5,
+    timeout=30,
+    max_retries=3,
+    delay=1.0
 )
-logger = logging.getLogger(__name__)
-
-# 创建下载目录
-os.makedirs(DOWNLOAD_DIR, exist_ok=True)
-
-
-def is_valid_image_url(url):
-    """判断是否为有效的图片URL"""
-    # 过滤掉SVG图标和其他无效URL
-    invalid_patterns = [
-        '.svg',
-        '/_static/',
-        '/_next/static/',
-        'newLogo',
-        'icon-arrow',
-        'favicon',
-        '.gif',
-        '.png' if 'data:image' in url.lower() else None  # 过滤data:image PNG
-    ]
-    invalid_patterns = [p for p in invalid_patterns if p]
-    
-    for pattern in invalid_patterns:
-        if pattern.lower() in url.lower():
-            return False
-    
-    # 只保留真正的图片URL
-    valid_extensions = ['.jpg', '.jpeg', '.png', '.webp']
-    url_lower = url.lower()
-    return any(ext in url_lower for ext in valid_extensions)
-
-
-def download_image(url, save_path, retries=0):
-    """下载单张图片"""
-    try:
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36',
-            'Referer': 'https://www.pixiv.net/'
-        }
-        response = requests.get(url, headers=headers, timeout=TIMEOUT, stream=True)
-        response.raise_for_status()
-        
-        # 检查Content-Type
-        content_type = response.headers.get('Content-Type', '')
-        if not content_type.startswith('image/'):
-            return False, f"不是图片类型: {content_type}"
-        
-        with open(save_path, 'wb') as f:
-            for chunk in response.iter_content(chunk_size=8192):
-                f.write(chunk)
-        
-        logger.debug(f"下载成功: {save_path}")
-        return True, None
-        
-    except requests.exceptions.RequestException as e:
-        retries += 1
-        if retries >= MAX_RETRIES:
-            return False, str(e)
-        delay = 2 ** retries + random.uniform(0, 1)
-        logger.debug(f"下载失败: {url}, 重试 {retries}/{MAX_RETRIES}")
-        time.sleep(delay)
-        return download_image(url, save_path, retries)
-    except Exception as e:
-        return False, str(e)
 
 
 def process_img_url_file(url_file_path):
     """处理单个角色的图片URL文件"""
+    logger = setup_logger("download_from_img_url")
+    
     # 从文件名提取角色拼音
     file_name = os.path.basename(url_file_path)
     if '_img.txt' not in file_name:
@@ -98,15 +45,14 @@ def process_img_url_file(url_file_path):
     role_pinyin = file_name.replace('_img.txt', '')
     
     # 创建角色目录
-    role_dir = os.path.join(DOWNLOAD_DIR, role_pinyin)
+    role_dir = os.path.join(config.download_dir, role_pinyin)
     os.makedirs(role_dir, exist_ok=True)
     
     # 读取URL列表并过滤
-    with open(url_file_path, 'r', encoding='utf-8') as f:
-        all_urls = [line.strip() for line in f if line.strip()]
+    urls = load_urls_from_file(url_file_path)
     
     # 过滤无效URL
-    valid_urls = [url for url in all_urls if is_valid_image_url(url)]
+    valid_urls = [url for url in urls if is_valid_image_url(url)]
     
     if not valid_urls:
         logger.info(f"角色 {role_pinyin} 没有有效的图片URL")
@@ -114,52 +60,39 @@ def process_img_url_file(url_file_path):
     
     logger.info(f"开始下载角色 {role_pinyin} 的图片，共 {len(valid_urls)} 个有效URL")
     
-    # 下载图片（去重）
+    # 下载图片
     success_count = 0
     fail_count = 0
-    downloaded_urls = set()
     
-    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
-        futures = {}
-        for idx, url in enumerate(valid_urls):
-            # 去重
-            if url in downloaded_urls:
-                continue
-            downloaded_urls.add(url)
-            
-            # 生成保存路径
-            ext = url.split('.')[-1].lower() if '.' in url else 'jpg'
-            if ext not in ['jpg', 'jpeg', 'png', 'webp']:
-                ext = 'jpg'
-            save_path = os.path.join(role_dir, f"{role_pinyin}_{idx + 1}.{ext}")
-            
-            # 如果文件已存在，跳过
-            if os.path.exists(save_path):
-                success_count += 1
-                continue
-            
-            future = executor.submit(download_image, url, save_path)
-            futures[future] = (url, save_path)
+    for idx, url in enumerate(valid_urls):
+        success, message = download_image(
+            url, 
+            role_dir,
+            timeout=config.timeout,
+            max_retries=config.max_retries
+        )
         
-        for future in as_completed(futures):
-            url, save_path = futures[future]
-            try:
-                success, error = future.result()
-                if success:
-                    success_count += 1
-                else:
-                    fail_count += 1
-                    logger.error(f"下载失败: {url[:50]}... - {error}")
-            except Exception as e:
-                fail_count += 1
-                logger.error(f"下载异常: {url[:50]}... - {str(e)}")
+        if success:
+            success_count += 1
+            logger.debug(f"下载成功: {message}")
+        elif message == "文件已存在":
+            success_count += 1
+        else:
+            fail_count += 1
+            logger.warning(f"下载失败: {url[:50]}... - {message}")
     
     logger.info(f"角色 {role_pinyin} 下载完成: 成功 {success_count} 张, 失败 {fail_count} 张")
 
 
 def main():
     """主函数"""
+    logger = setup_logger("download_from_img_url")
+    
     # 获取所有URL文件
+    if not os.path.exists(URL_DIR):
+        logger.error(f"URL目录不存在: {URL_DIR}")
+        return
+    
     url_files = [f for f in os.listdir(URL_DIR) if f.endswith('_img.txt')]
     
     if not url_files:
@@ -174,7 +107,7 @@ def main():
         logger.info(f"处理文件: {url_file}")
         process_img_url_file(url_file_path)
         # 添加间隔避免被封
-        time.sleep(1)
+        time.sleep(config.delay)
 
 
 if __name__ == '__main__':
