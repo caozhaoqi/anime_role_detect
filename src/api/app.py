@@ -1633,3 +1633,11 @@ try:
     logger.info("搜索路由加载成功")
 except Exception as e:
     logger.error(f"导入搜索路由失败: {e}")
+
+# 导入 ONNX 推理路由
+try:
+    from src.api.routes.onnx_inference import router as onnx_router
+    app.include_router(onnx_router)
+    logger.info("ONNX 推理路由加载成功")
+except Exception as e:
+    logger.error(f"导入 ONNX 推理路由失败: {e}")

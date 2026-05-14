@@ -1,71 +1,68 @@
-# Dockerfile for backend API
-FROM python:3.9-slim
+# Multi-stage Dockerfile for Backend API Service
+# Stage 1: Builder stage
+FROM python:3.9-slim AS builder
 
 WORKDIR /app
 
-# 跨平台环境变量配置
-# 开启 Python 内置崩溃堆栈打印 (跨平台通用)
+# Install build dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    libopencv-dev \
+    libgl1 \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements
+COPY requirements.txt .
+
+# Install to separate directory
+RUN pip install --no-cache-dir --target=/app/deps -r requirements.txt
+
+# Stage 2: Runtime stage
+FROM python:3.9-slim AS runtime
+
+WORKDIR /app
+
+# Install runtime dependencies only
+RUN apt-get update && apt-get install -y \
+    libgl1 \
+    libglib2.0-0 \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+# Copy dependencies from builder
+COPY --from=builder /app/deps /usr/local/lib/python3.9/site-packages
+
+# Environment variables
 ENV PYTHONFAULTHANDLER=1
-
-# 强制实时刷新日志，防止崩溃时缓冲区日志丢失
 ENV PYTHONUNBUFFERED=1
-
-# 针对 Mac MPS 的优化：当显存占用达到 80% 时强制回收
 ENV PYTORCH_MPS_HIGH_WATERMARK_RATIO=0.8
-
-# 启用内存监控
 ENV ENABLE_MEMORY_MONITOR=true
-
-# 启用诊断日志
 ENV ENABLE_DIAGNOSTICS=true
-
-# 设置诊断日志文件路径
 ENV DIAGNOSTICS_LOG_FILE=logs/diagnostics.log
-
-# 设置崩溃日志文件路径
 ENV CRASH_LOG_FILE=logs/crash.log
-
-# 设置性能监控日志文件路径
 ENV PERFORMANCE_LOG_FILE=logs/performance.log
-
-# 设置内存警告阈值（百分比）
 ENV MEMORY_WARNING_THRESHOLD=85
-
-# 设置内存紧急阈值（百分比）
 ENV MEMORY_CRITICAL_THRESHOLD=95
-
-# 设置GPU内存警告阈值（百分比）
 ENV GPU_MEMORY_WARNING_THRESHOLD=85
-
-# 设置GPU内存紧急阈值（百分比）
 ENV GPU_MEMORY_CRITICAL_THRESHOLD=95
-
-# 设置日志级别
 ENV LOG_LEVEL=INFO
-
-# 设置模型缓存大小
 ENV CACHE_SIZE=1000
-
-# 设置API超时时间
 ENV API_TIMEOUT=30
-
-# 设置最大工作线程数
 ENV MAX_WORKERS=4
-
-# 设置批量处理的最大文件数
 ENV MAX_BATCH_FILES=10
 
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-
-# 创建必要的目录
-RUN mkdir -p logs temp
-
+# Copy source files
 COPY src/backend/ ./backend/
 COPY src/core/ ./core/
 COPY src/utils/ ./utils/
 COPY coreml_models/ ./coreml_models/
 
+# Create directories
+RUN mkdir -p logs temp
+
+# Expose port
 EXPOSE 8000
 
+# Run
 CMD ["python", "backend/api/run_api.py"]

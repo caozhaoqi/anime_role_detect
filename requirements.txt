@@ -37,6 +37,12 @@ aioredis>=2.0.1
 
 # 监控服务
 prometheus-client>=0.17.0
+psutil>=5.9.0
+
+# ONNX 优化
+onnx>=1.14.0
+onnxruntime>=1.15.0
+onnxruntime-gpu>=1.15.0; platform_system != "Darwin"
 
 # 消息队列
 pika>=1.3.0

@@ -42,6 +42,16 @@ The Character Classification System is an AI-based image recognition tool specif
 
 ## 🚀 Quick Start
 
+### Hardware Requirements
+
+| Component | Minimum | Recommended |
+|-----------|---------|-------------|
+| **RAM** | 16GB | 32GB+ |
+| **GPU** | None (CPU-only) | NVIDIA GPU with ≥4GB VRAM |
+| **Storage** | 10GB | 50GB+ (for dataset and models) |
+
+> **Important**: Due to the memory requirements of loading YOLO and multiple classification models, **16GB RAM is the minimum requirement**. Running on machines with 8GB or less may cause OOM (Out of Memory) errors.
+
 ### Environment Requirements
 
 - Python 3.9+
@@ -61,6 +71,43 @@ The Character Classification System is an AI-based image recognition tool specif
 pip3 install fastapi uvicorn python-multipart httpx
 pip3 install torch torchvision transformers ultralytics faiss-cpu Pillow efficientnet_pytorch requests
 ```
+
+### Docker Deployment (Recommended)
+
+The system is fully containerized. To run with Docker:
+
+```bash
+# Clone the repository
+git clone https://github.com/caozhaoqi/anime-role-detect.git
+cd anime-role-detect
+
+# Build and start all services
+docker-compose up --build -d
+
+# Check service status
+docker-compose ps
+```
+
+**Service Ports after Docker deployment:**
+- **API Gateway**: `http://localhost:8080`
+- **Frontend**: `http://localhost:3000`
+- **Backend API**: `http://localhost:8001`
+- **Multimedia Service**: `http://localhost:8002`
+- **Model Service**: `http://localhost:8000`
+
+### Model Download
+
+The pre-trained models are required for character recognition. Please download the model weights and place them in the `models/` directory:
+
+1. Download model weights from [Google Drive](https://drive.google.com/drive/folders/XXX)
+2. Extract and place `.pt` files in `models/` directory
+
+**Required models:**
+- YOLOv8 face detection model
+- EfficientNet-B0 classification model
+- EfficientNet-B3 classification model
+- MobileNetV2 classification model
+- ResNet50 classification model
 
 ### Start System
 

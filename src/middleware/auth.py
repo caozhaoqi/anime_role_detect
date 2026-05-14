@@ -44,7 +44,12 @@ async def auth_middleware(request: Request, call_next):
         "/api/config",
         "/api/search",
         "/api/roles",
-        "/api/history"
+        "/api/history",
+        # ONNX 推理 API
+        "/api/v1/onnx",
+        # Swagger UI
+        "/docs",
+        "/redoc"
     ]
     
     # 检查是否需要认证
