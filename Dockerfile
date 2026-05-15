@@ -1,74 +1,57 @@
-# Multi-stage Dockerfile for Anime Role Detection API Service
-# Stage 1: Builder stage for installing dependencies
+# Stage 1: Builder stage
 FROM python:3.9-slim AS builder
 
 WORKDIR /app
 
-# Install system dependencies for building
+# 安装构建基础依赖（用于编译某些 python 库）
 RUN apt-get update && apt-get install -y \
     build-essential \
-    libopencv-dev \
-    libgl1 \
-    libglib2.0-0 \
     git \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements file
 COPY requirements.txt .
 
-# Install dependencies to a separate directory for later copying
+# 建议：在 requirements.txt 中将 opencv-python 改为 opencv-python-headless
 RUN pip install --no-cache-dir --target=/app/deps -r requirements.txt
 
-# Stage 2: Runtime stage with minimal dependencies
+# Stage 2: Runtime stage
 FROM python:3.9-slim AS runtime
 
 WORKDIR /app
 
-# Install only runtime system dependencies
+# 【关键修改】：只安装 OpenCV 运行必须的系统级基础支撑库
+# 不要在 apt 中安装 python3-opencv，因为它会引入大量无用的 GUI 依赖
 RUN apt-get update && apt-get install -y \
     libgl1 \
     libglib2.0-0 \
-    libopencv-core4.5 \
-    libopencv-imgproc4.5 \
-    libopencv-highgui4.5 \
+    libsm6 \
+    libxrender1 \
+    libxext6 \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 
-# Copy installed dependencies from builder stage
+# 拷贝依赖
 COPY --from=builder /app/deps /usr/local/lib/python3.9/site-packages
 
-# Copy only necessary source files
+# 拷贝源码
 COPY src/ ./src/
 COPY scripts/ ./scripts/
 COPY tests ./tests
 COPY auto_spider_img ./auto_spider_img
 
-# Set environment variables
-ENV PYTHONUNBUFFERED=1
-ENV HF_HOME=/app/cache/huggingface
-ENV KERAS_HOME=/app/cache/keras
-ENV REDIS_HOST=redis
-ENV REDIS_PORT=6379
-ENV REDIS_PASSWORD=
-ENV REDIS_DB=0
-ENV CACHE_TTL=3600
-ENV LOCAL_CACHE_SIZE=1000
-ENV USE_MODEL_SERVICE=true
-ENV MODEL_SERVICE_HOST=model-service
-ENV MODEL_SERVICE_PORT=8888
-ENV RABBITMQ_HOST=rabbitmq
-ENV RABBITMQ_PORT=5672
-ENV RABBITMQ_USER=guest
-ENV RABBITMQ_PASSWORD=guest
-ENV RABBITMQ_VHOST=/
-ENV QUEUE_NAME=anime_role_detect
-ENV EXCHANGE_NAME=anime_role_detect_exchange
+# 环境变量设置（脱敏处理）
+ENV PYTHONUNBUFFERED=1 \
+    HF_HOME=/app/cache/huggingface \
+    KERAS_HOME=/app/cache/keras \
+    REDIS_HOST=redis \
+    MODEL_SERVICE_HOST=model-service \
+    RABBITMQ_HOST=rabbitmq
 
-# Create cache and log directories
+# 创建运行所需目录（解决之前提到的 logs 找不到的问题）
 RUN mkdir -p /app/cache/huggingface /app/cache/keras /app/logs /app/temp
 
-# Expose port
+# 暴露端口
 EXPOSE 8000
 
-# Start API service
+# 启动服务
 CMD ["uvicorn", "src.api.app:app", "--host", "0.0.0.0", "--port", "8000"]

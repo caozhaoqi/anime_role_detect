@@ -12,11 +12,8 @@ import sqlite3
 from datetime import datetime
 from pathlib import Path
 
-# 配置
-SPIDER_DATA_DIRS = [
-    '/Users/caozhaoqi/PycharmProjects/anime_role_detect/spider_image_system/src/run/data/href_url',
-    '/Users/caozhaoqi/PycharmProjects/anime_role_detect/spider_image_system/data/img_url'
-]
+# 配置 - 扫描所有包含URL的目录
+SPIDER_DATA_DIR = '/Users/caozhaoqi/PycharmProjects/anime_role_detect/spider_image_system/data'
 ROLE_LIST_PATH = '/Users/caozhaoqi/PycharmProjects/anime_role_detect/auto_spider_img/loli-role.txt'
 DATABASE_FILE = '/Users/caozhaoqi/PycharmProjects/anime_role_detect/data/spider_data.db'
 
@@ -101,6 +98,7 @@ def load_role_list():
 def normalize_role_name(name):
     """标准化角色名称"""
     name = name.replace('_zip', '').replace('_img', '').replace('.txt', '')
+    name = name.replace('_url', '').replace('_result', '')
     try:
         from urllib.parse import unquote
         name = unquote(name)
@@ -186,7 +184,18 @@ def import_all_url_files(db_manager, roles):
     new_roles = 0
     processed_files = set()
     
-    for url_dir in SPIDER_DATA_DIRS:
+    # 找出所有包含URL文件的目录
+    url_dirs = []
+    for entry in os.listdir(SPIDER_DATA_DIR):
+        entry_path = os.path.join(SPIDER_DATA_DIR, entry)
+        if os.path.isdir(entry_path) and entry.lower().endswith('_url'):
+            url_dirs.append(entry_path)
+    
+    print(f"发现 {len(url_dirs)} 个URL目录:")
+    for url_dir in url_dirs:
+        print(f"  - {os.path.basename(url_dir)}")
+    
+    for url_dir in url_dirs:
         if not os.path.exists(url_dir):
             print(f"目录不存在: {url_dir}")
             continue
@@ -204,10 +213,10 @@ def import_all_url_files(db_manager, roles):
             processed_files.add(file_key)
             
             file_path = os.path.join(url_dir, filename)
-            role_name = filename.replace('_zip.txt', '').replace('_img.txt', '').replace('.txt', '')
+            role_name = filename.replace('_zip.txt', '').replace('_img.txt', '').replace('_url.txt', '').replace('_result_url.txt', '').replace('.txt', '')
             
             # 确定数据源类型
-            source_type = 'href_url' if 'href_url' in url_dir else 'img_url'
+            source_type = os.path.basename(url_dir)
             
             # 确保角色存在
             role_id, matched_role = ensure_role_exists(db_manager, role_name, roles)
@@ -315,25 +324,13 @@ def generate_import_report(db_manager):
     )
     for role_name, count in role_url_stats:
         print(f"  {role_name}: {count}")
-    
-    # 按来源文件统计
-    print("\n按来源文件统计（前10）:")
-    source_stats = db_manager.execute_query(
-        """SELECT json_extract(metadata, '$.source_file') as source_file, COUNT(*) as count
-           FROM raw_urls
-           GROUP BY source_file
-           ORDER BY count DESC
-           LIMIT 10"""
-    )
-    for source_file, count in source_stats:
-        print(f"  {source_file}: {count}")
 
 
 def main():
     print("=" * 60)
     print("导入所有URL文件到数据库")
     print("=" * 60)
-    print(f"数据源目录: {', '.join(SPIDER_DATA_DIRS)}")
+    print(f"数据源目录: {SPIDER_DATA_DIR}")
     print(f"数据库文件: {DATABASE_FILE}")
     print(f"角色列表: {ROLE_LIST_PATH}")
     print("=" * 60)
