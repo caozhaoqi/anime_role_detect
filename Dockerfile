@@ -40,9 +40,9 @@ COPY --from=builder /app/deps /usr/local/lib/python3.9/site-packages
 # Copy only necessary source files
 COPY src/ ./src/
 COPY models/ ./models/
-COPY temp/ ./temp/
-RUN mkdir -p logs
-COPY logs/ ./logs/
+COPY scripts/ ./scripts/
+COPY test ./test
+COPY auto_spider_img ./auto_spider_img
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
