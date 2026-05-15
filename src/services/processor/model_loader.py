@@ -213,7 +213,52 @@ def get_role_predictor():
     try:
         from src.core.classification.classification import Classification
         classifier = Classification()
-        return classifier.classify
+        
+        # 检查分类器是否有索引
+        if classifier.index is not None:
+            return classifier.classify
+        else:
+            # 如果没有索引，返回一个简单的基于规则的预测器
+            logger.warning("分类器索引不存在，使用简单角色预测器")
+            return _simple_role_predictor
     except Exception as e:
         logger.error(f"获取角色预测器失败: {e}")
-        return None
+        return _simple_role_predictor
+
+
+def _simple_role_predictor(tags):
+    """
+    简单的基于规则的角色预测器
+    
+    Args:
+        tags: 标签列表
+        
+    Returns:
+        str: 预测的角色名
+    """
+    try:
+        # 转换为小写的标签列表
+        tags_lower = [str(t).lower() for t in tags]
+        
+        # 基于标签进行简单的角色预测
+        if any(keyword in tags_lower for keyword in ['honkai', '崩坏', 'star', 'rail']):
+            return '崩坏角色'
+        elif any(keyword in tags_lower for keyword in ['genshin', '原神', 'impact']):
+            return '原神角色'
+        elif any(keyword in tags_lower for keyword in ['blue', 'archive', '碧蓝', '档案']):
+            return '碧蓝档案角色'
+        elif any(keyword in tags_lower for keyword in ['arknights', '明日', '方舟']):
+            return '明日方舟角色'
+        elif any(keyword in tags_lower for keyword in ['fate', 'fgo', 'grand', 'order']):
+            return 'Fate角色'
+        elif any(keyword in tags_lower for keyword in ['touhou', '东方']):
+            return '东方角色'
+        elif any(keyword in tags_lower for keyword in ['hololive', 'vtuber']):
+            return '虚拟主播'
+        elif 'anime' in tags_lower or '动漫' in tags_lower:
+            return '动漫角色'
+        else:
+            return '未知角色'
+    except Exception as e:
+        logger.error(f"简单角色预测器失败: {e}")
+        return '未知角色'

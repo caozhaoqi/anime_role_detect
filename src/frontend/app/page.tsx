@@ -22,6 +22,7 @@ export default function AnimeRoleDetect() {
   });
   const [isLoginLoading, setIsLoginLoading] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
+  const [showSessionExpired, setShowSessionExpired] = useState(false);
   
   const [showHistory, setShowHistory] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState<any>(null);
@@ -55,6 +56,38 @@ export default function AnimeRoleDetect() {
   const [activePanel, setActivePanel] = useState<'classify' | 'search' | 'video'>('classify');
   
   const isMountedRef = useRef(false);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+
+    // 设置Axios拦截器处理认证过期
+    const interceptor = axios.interceptors.response.use(
+      (response) => response,
+      (error) => {
+        if (error.response && error.response.status === 401) {
+          // 清除认证状态
+          setAuthState({
+            isAuthenticated: false,
+            user: null,
+            accessToken: null,
+            refreshToken: null
+          });
+          localStorage.removeItem('accessToken');
+          localStorage.removeItem('refreshToken');
+          localStorage.removeItem('currentUser');
+          
+          // 显示会话过期提示
+          setShowSessionExpired(true);
+          setTimeout(() => setShowSessionExpired(false), 5000);
+        }
+        return Promise.reject(error);
+      }
+    );
+
+    return () => {
+      axios.interceptors.response.eject(interceptor);
+    };
+  }, []);
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -620,6 +653,17 @@ export default function AnimeRoleDetect() {
         />
       ) : (
         <>
+          {showSessionExpired && (
+            <div className="fixed top-20 left-1/2 transform -translate-x-1/2 z-[10000] animate-bounce">
+              <div className="bg-red-500 text-white px-6 py-3 rounded-lg shadow-xl flex items-center space-x-2">
+                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span className="font-medium">会话已过期，请重新登录</span>
+              </div>
+            </div>
+          )}
+          
           {isDragging && (
             <div className="fixed inset-0 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm flex items-center justify-center z-[9999] border-2 border-dashed border-blue-500 rounded-lg animate-pulse">
               <div className="text-center p-8 bg-white dark:bg-gray-800 rounded-xl shadow-2xl transform transition-transform duration-300 hover:scale-105">
