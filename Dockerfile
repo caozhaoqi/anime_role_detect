@@ -41,6 +41,7 @@ COPY --from=builder /app/deps /usr/local/lib/python3.9/site-packages
 COPY src/ ./src/
 COPY models/ ./models/
 COPY temp/ ./temp/
+RUN mkdir -p logs
 COPY logs/ ./logs/
 
 # Set environment variables
