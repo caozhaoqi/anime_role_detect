@@ -39,7 +39,6 @@ COPY --from=builder /app/deps /usr/local/lib/python3.9/site-packages
 
 # Copy only necessary source files
 COPY src/ ./src/
-COPY models/ ./models/
 COPY scripts/ ./scripts/
 COPY tests ./tests
 COPY auto_spider_img ./auto_spider_img
