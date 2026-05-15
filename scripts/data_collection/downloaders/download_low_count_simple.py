@@ -46,6 +46,56 @@ PINYIN_TO_ENGLISH = {
     'zao3lai4you1xiang1': 'Dream!',
     'yi1zhi1lai4ming2ri4nai4': 'Ichinose',
     'sheng4yuan2wei4hua1': 'Mika',
+    # 新增映射
+    'duo1li4': 'Dori',
+    'qi1qi1': 'Qiqi',
+    'ke4li4': 'Klee',
+    'nai4xi1da2': 'Nahida',
+    'ti2bao3': 'Princess',
+    'yao2yao2': 'Yaoyao',
+    'xi1ge2wen2': 'Sigewinne',
+    'fu2xuan2': 'Fu',
+    'san1yue4qi1': 'March',
+    'hua1huo3': 'Sparkle',
+    'yin2lang2': 'Silver',
+    'tian1tong2ai4li4si1': 'Aris',
+    'an1ke3': 'Encore',
+    'lu4mu4yuan2': 'Madoka',
+    'xiao3mei3yan4': 'Homura',
+    'xue3xiao3ban3': 'Platelet',
+    'lei2mu3': 'Rem',
+    'la1mu3': 'Ram',
+    'kang1na4': 'Kanna',
+    'si4si1nai3': 'Yoshino',
+    'kai3lu4': 'Kyaru',
+    'yi4li4ya4': 'Illya',
+    'ren3ye3ren3': 'Oshino',
+    'xiao3mai2': 'Umaru',
+    'sha1wu4': 'Sagiri',
+    'mao1gong1you4nai4': 'Yanagi',
+    'de2li4sha1': 'Theresa',
+    'bu4luo4ni2ya4': 'Bronya',
+    'ke4lin2': 'Kira',
+    'shen2le4': 'Kagura',
+    'bai2shang4chui1xue3': 'Shirogane',
+    'yue4qian1ye4': 'Tsukiyo',
+    'li4ta3la1': 'Lita',
+    'wei2pu3lei3': 'Viprey',
+    'xia4ke4li3': 'Shakri',
+    'na4gan1': 'Nagan',
+    'ke1xie4ni2ya4': 'Koshenia',
+    'kou4er3fu2': 'Korvu',
+    'ke4luo2li4ke1': 'Krokri',
+    'pei4li2ti2ya4': 'Peritia',
+    'a1ni2ya4': 'Anya',
+    'a1ni4ya4': 'Anya',
+    'luo4qian4': 'Rosci',
+    'zao4men2mi2dou4zi': 'Nezuko',
+    'xi1er3': 'Seele',
+    'xing4': 'An',
+    'yi1se4lin2': 'Iselin',
+    'fu2lan2': 'Fran',
+    'fei1mi3li4si1': 'Fimilis',
 }
 
 def get_role_name_from_spider_file(file_name):
@@ -211,15 +261,35 @@ def main():
     
     # 统计需要下载的角色
     roles_to_download = []
+    processed_roles = set()
+    
     for spider_file in spider_files:
         file_name = os.path.basename(spider_file)
         role_name = get_role_name_from_spider_file(file_name)
+        
+        # 检查是否已经处理过对应的英文角色
+        if role_name in PINYIN_TO_ENGLISH:
+            english_name = PINYIN_TO_ENGLISH[role_name]
+            if english_name != role_name and english_name in processed_roles:
+                logger.info(f"跳过 {role_name} (已处理英文版本 {english_name})")
+                continue
+        
         count = get_current_image_count(role_name)
         if count < TARGET_COUNT:
             roles_to_download.append((role_name, count, spider_file))
+            processed_roles.add(role_name)
     
-    # 按图片数量排序（先处理数量少的）
-    roles_to_download.sort(key=lambda x: x[1])
+    # 优先处理图片数量不足100的角色
+    # 分成两组：不足100的和100-200之间的
+    low_count_roles = [(r, c, f) for r, c, f in roles_to_download if c < 100]
+    mid_count_roles = [(r, c, f) for r, c, f in roles_to_download if c >= 100]
+    
+    # 各自按数量排序
+    low_count_roles.sort(key=lambda x: x[1])
+    mid_count_roles.sort(key=lambda x: x[1])
+    
+    # 合并：先处理低数量的，再处理中等数量的
+    roles_to_download = low_count_roles + mid_count_roles
     
     logger.info(f"需要下载的角色数: {len(roles_to_download)}")
     for role_name, count, spider_file in roles_to_download:
