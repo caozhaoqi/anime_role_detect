@@ -190,19 +190,19 @@ async def _call_model_service(file, content, model_name, multi_role=False):
             # 执行NSFW检测
             nsfw_result = detect_nsfw(temp_path)
             
-            # 转换为中文角色名
-            chinese_role = _get_chinese_role_name(role)
+            # 使用AI预测的角色名作为主要角色（如果模型服务返回unknown）
+            final_role = role if role != 'unknown' else ai_predicted_role or "unknown"
             
             # 构建结果
             result = {
-                "role": chinese_role,
+                "role": final_role,
                 "similarity": similarity,
                 "possible_roles": [],
                 "attributes": attributes,
                 "tags": tags,
                 "text_detections": text_detections,
                 "keypoints": keypoints,
-                "ai_predicted_role": _get_chinese_role_name(ai_predicted_role),
+                "ai_predicted_role": ai_predicted_role or final_role,
                 "nsfw": nsfw_result
             }
         
@@ -294,14 +294,16 @@ async def process_with_local_model(file, content, model_name):
             text_detections, keypoints, ai_predicted_role = process_image_features(temp_path, file.content_type, [])
             nsfw_result = detect_nsfw(temp_path)
             logger.info(f"传统模型分类结果: {ai_predicted_role or 'unknown'}")
+            # 使用AI预测的角色名作为主要角色
+            final_role = ai_predicted_role or "unknown"
             return {
-                "role": _get_chinese_role_name(ai_predicted_role or "unknown"),
+                "role": final_role,
                 "similarity": 0.0,
                 "possible_roles": [],
                 "attributes": [],
                 "text_detections": text_detections,
                 "keypoints": keypoints,
-                "ai_predicted_role": _get_chinese_role_name(ai_predicted_role),
+                "ai_predicted_role": final_role,
                 "nsfw": nsfw_result
             }
         else:
@@ -404,14 +406,16 @@ def process_with_trained_model(file, image_source, model_name):
             text_detections, keypoints, ai_predicted_role = process_image_features(image_source, file.content_type, [])
             nsfw_result = detect_nsfw(image_source)
             logger.info(f"传统模型分类结果: {ai_predicted_role or 'unknown'}")
+            # 使用AI预测的角色名作为主要角色
+            final_role = ai_predicted_role or "unknown"
             return {
-                "role": _get_chinese_role_name(ai_predicted_role or "unknown"),
+                "role": final_role,
                 "similarity": 0.0,
                 "possible_roles": [],
                 "attributes": [],
                 "text_detections": text_detections,
                 "keypoints": keypoints,
-                "ai_predicted_role": _get_chinese_role_name(ai_predicted_role),
+                "ai_predicted_role": final_role,
                 "nsfw": nsfw_result
             }
         

@@ -31,8 +31,11 @@ def load_trained_model(model_name):
         if model_name == "default":
             model_name = "efficientnet_b0"
         
-        # 模型文件路径
-        model_dir = f"models/{model_name}"
+        # 获取项目根目录（相对于当前文件向上走3级）
+        project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        
+        # 模型文件路径（使用绝对路径）
+        model_dir = os.path.join(project_root, "models", model_name)
         # 优先使用 model_full.pth 文件，因为它包含完整的权重数据
         model_path = os.path.join(model_dir, "model_full.pth")
         # 如果 model_full.pth 不存在，尝试使用 model_best.pth
@@ -42,6 +45,7 @@ def load_trained_model(model_name):
         
         if not os.path.exists(model_path):
             logger.warning(f"模型文件不存在: {model_path}")
+            logger.warning(f"项目根目录: {project_root}")
             return None
         
         # 加载模型
@@ -218,12 +222,64 @@ def get_role_predictor():
         if classifier.index is not None:
             return classifier.classify
         else:
-            # 如果没有索引，返回一个简单的基于规则的预测器
-            logger.warning("分类器索引不存在，使用简单角色预测器")
-            return _simple_role_predictor
+            # 如果没有索引，使用搜索服务来获取角色名
+            logger.warning("分类器索引不存在，尝试使用搜索服务获取角色名")
+            return _search_based_role_predictor
     except Exception as e:
         logger.error(f"获取角色预测器失败: {e}")
-        return _simple_role_predictor
+        return _search_based_role_predictor
+
+
+def _search_based_role_predictor(image_path=None, image_bytes=None, tags=None):
+    """
+    基于搜索服务的角色预测器 - 通过以图搜图获取最相似的角色名
+    
+    Args:
+        image_path: 图像路径或BytesIO对象
+        image_bytes: 图像字节数据
+        tags: 标签列表（备用）
+        
+    Returns:
+        str: 预测的角色名
+    """
+    try:
+        # 首先尝试使用搜索服务
+        from src.services.search_service.search_client import get_search_client
+        
+        client = get_search_client()
+        
+        # 检查搜索服务是否可用
+        if not client.health_check():
+            logger.warning("搜索服务不可用，使用标签预测")
+            return _simple_role_predictor(tags)
+        
+        # 如果有图像数据，使用搜索服务获取角色名
+        if image_path:
+            # 检查image_path是否是字符串（文件路径）
+            if isinstance(image_path, str):
+                # 文件路径
+                result = client.search_image(image_path, top_k=1)
+                if result.get('success') and result.get('results'):
+                    role_name = result['results'][0].get('role')
+                    if role_name:
+                        logger.info(f"通过搜索服务识别角色: {role_name}")
+                        return role_name
+            elif hasattr(image_path, 'read'):
+                # BytesIO对象
+                image_data = image_path.read()
+                result = client.search_image_bytes(image_data, "temp.jpg", top_k=1)
+                if result.get('success') and result.get('results'):
+                    role_name = result['results'][0].get('role')
+                    if role_name:
+                        logger.info(f"通过搜索服务识别角色: {role_name}")
+                        return role_name
+        
+        # 如果没有图像数据或搜索失败，使用标签预测
+        return _simple_role_predictor(tags)
+        
+    except Exception as e:
+        logger.error(f"搜索服务角色预测器失败: {e}")
+        return _simple_role_predictor(tags)
 
 
 def _simple_role_predictor(tags):
@@ -237,6 +293,9 @@ def _simple_role_predictor(tags):
         str: 预测的角色名
     """
     try:
+        if tags is None:
+            return '未知角色'
+            
         # 转换为小写的标签列表
         tags_lower = [str(t).lower() for t in tags]
         

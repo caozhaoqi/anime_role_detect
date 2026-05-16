@@ -158,7 +158,9 @@ def process_image_features(image_source, content_type, attributes):
                 role_predictor = get_role_predictor()
                 if role_predictor:
                     try:
-                        ai_predicted_role = role_predictor(tag_names)
+                        # 传递图像来源和标签给角色预测器
+                        # image_source 可能是图像路径或图像字节数据
+                        ai_predicted_role = role_predictor(image_path=image_source, tags=tag_names)
                         logger.info(f"AI 角色预测完成: {ai_predicted_role}")
                     except Exception as e:
                         logger.error(f"AI 角色预测失败: {e}")

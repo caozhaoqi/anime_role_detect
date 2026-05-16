@@ -252,7 +252,7 @@ async def proxy_request(request: Request, path: str):
     # 1. 路由分配逻辑
     if path.startswith("search/image") or path.startswith("search/build-index") or path.startswith("search/stats"):
         service = "search"
-        url = f"{config.SEARCH_SERVICE_URL}/api/search/{path[7:]}"
+        url = f"{config.SEARCH_SERVICE_URL}/search/{path[7:]}"
     elif path.startswith("video/"):
         service = "multimedia"
         url = f"{config.MULTIMEDIA_SERVICE_URL}/video/{path[6:]}"
