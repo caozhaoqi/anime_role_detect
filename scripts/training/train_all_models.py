@@ -18,6 +18,7 @@ import copy
 import os
 import sys
 import argparse
+import threading
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -110,6 +111,51 @@ def send_feishu_message(title, message):
         logger.warning(f"❌ 发送飞书通知失败: {e}")
         return False
 
+class TrainingProgressTracker:
+    """训练进度跟踪器 - 每30分钟发送一次进展"""
+    def __init__(self, model_name):
+        self.model_name = model_name
+        self.start_time = time.time()
+        self.last_notify_time = self.start_time
+        self.notify_interval = 30 * 60  # 30分钟
+        self.current_epoch = 0
+        self.best_acc = 0.0
+        self.train_loss = 0.0
+        self.val_loss = 0.0
+        self.running = True
+        self.lock = threading.Lock()
+        
+    def update(self, epoch, train_loss, val_loss, val_acc):
+        """更新训练进度"""
+        with self.lock:
+            self.current_epoch = epoch
+            self.train_loss = train_loss
+            self.val_loss = val_loss
+            if val_acc > self.best_acc:
+                self.best_acc = val_acc
+    
+    def should_notify(self):
+        """检查是否需要发送通知"""
+        now = time.time()
+        return now - self.last_notify_time >= self.notify_interval
+    
+    def send_progress(self, total_epochs):
+        """发送训练进展"""
+        with self.lock:
+            elapsed = time.time() - self.start_time
+            elapsed_str = f"{int(elapsed // 3600)}h {int((elapsed % 3600) // 60)}m"
+            
+            progress = (self.current_epoch + 1) / total_epochs * 100
+            message = f"""📊 训练进度: {progress:.1f}%
+Epoch: {self.current_epoch + 1}/{total_epochs}
+⏱️ 已运行: {elapsed_str}
+📈 最佳准确率: {self.best_acc:.4%}
+📉 训练损失: {self.train_loss:.4f}
+📉 验证损失: {self.val_loss:.4f}"""
+            
+            send_feishu_message(f"🔄 {MODEL_CONFIGS[self.model_name]['name']} 训练中", message)
+            self.last_notify_time = time.time()
+
 
 def create_model(model_name, num_classes):
     """创建指定模型"""
@@ -149,10 +195,16 @@ def train_model(model, dataloaders, criterion, optimizer, num_epochs, patience, 
     best_acc = 0.0
     patience_counter = 0
     history = {'train_loss': [], 'train_acc': [], 'val_loss': [], 'val_acc': []}
+    
+    progress_tracker = TrainingProgressTracker(model_name)
 
     for epoch in range(num_epochs):
         logger.info(f'Epoch {epoch+1}/{num_epochs}')
         logger.info('-' * 10)
+        
+        current_train_loss = 0.0
+        current_val_loss = 0.0
+        current_val_acc = 0.0
 
         for phase in ['train', 'val']:
             if phase == 'train':
@@ -192,12 +244,8 @@ def train_model(model, dataloaders, criterion, optimizer, num_epochs, patience, 
             if phase == 'val':
                 history['val_loss'].append(epoch_loss)
                 history['val_acc'].append(epoch_acc.item())
-
-                progress = (epoch + 1) / num_epochs * 100
-
-                if (epoch + 1) % 5 == 0 or epoch == 0:
-                    send_feishu_message(f"📊 {MODEL_CONFIGS[model_name]['name']} 训练进度 {progress:.1f}%",
-                                       f"Epoch {epoch+1}/{num_epochs}\n验证准确率: {epoch_acc:.4%}\n验证损失: {epoch_loss:.4f}")
+                current_val_loss = epoch_loss
+                current_val_acc = epoch_acc
 
                 if epoch_acc > best_acc + EARLY_STOP_THRESHOLD:
                     best_acc = epoch_acc
@@ -213,6 +261,12 @@ def train_model(model, dataloaders, criterion, optimizer, num_epochs, patience, 
             else:
                 history['train_loss'].append(epoch_loss)
                 history['train_acc'].append(epoch_acc.item())
+                current_train_loss = epoch_loss
+        
+        progress_tracker.update(epoch, current_train_loss, current_val_loss, current_val_acc)
+        
+        if progress_tracker.should_notify():
+            progress_tracker.send_progress(num_epochs)
 
     time_elapsed = time.time() - since
     logger.info(f'训练完成，耗时: {time_elapsed // 60:.0f}m {time_elapsed % 60:.0f}s')

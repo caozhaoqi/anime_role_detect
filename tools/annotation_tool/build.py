@@ -68,7 +68,7 @@ def build_app(platform=None):
     
     try:
         subprocess.run(cmd, check=True, cwd=current_dir)
-        print(f"✅ {platform} 平台打包完成！")
+        print(f"{platform} 平台打包完成！")
         print(f"输出目录: {current_dir / 'dist'}")
         return True
     except subprocess.CalledProcessError as e:
