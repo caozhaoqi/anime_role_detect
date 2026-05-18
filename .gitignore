@@ -43,6 +43,7 @@ env/
 *.swp
 *.swo
 *~
+*.DS_Store
 
 # OS
 .DS_Store
