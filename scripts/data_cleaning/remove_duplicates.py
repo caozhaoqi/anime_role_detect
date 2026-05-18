@@ -1,86 +1,89 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-删除数据集中的重复图片（保留每组中的一个副本）
+检查并删除数据目录中的重复图片文件
 """
 import os
-import json
-import shutil
+import hashlib
+from pathlib import Path
+from collections import defaultdict
+
+DATA_DIR = Path('/Users/caozhaoqi/PycharmProjects/anime_role_detect/data')
+
+def get_file_hash(file_path):
+    """计算文件的MD5哈希值"""
+    try:
+        with open(file_path, 'rb') as f:
+            return hashlib.md5(f.read()).hexdigest()
+    except Exception as e:
+        print(f"❌ 读取文件失败 {file_path}: {e}")
+        return None
+
+def find_duplicates():
+    """查找重复文件"""
+    hash_to_files = defaultdict(list)
+    
+    print('🔍 正在扫描所有图片文件...')
+    total_files = 0
+    
+    for img_file in DATA_DIR.rglob('*.jpg'):
+        if img_file.is_file() and not img_file.name.startswith('.'):
+            file_hash = get_file_hash(img_file)
+            if file_hash:
+                hash_to_files[file_hash].append(img_file)
+                total_files += 1
+    
+    print(f'📊 共扫描 {total_files} 个文件')
+    
+    # 找出重复的文件组
+    duplicates = []
+    for file_hash, files in hash_to_files.items():
+        if len(files) > 1:
+            duplicates.append(files)
+    
+    return duplicates
+
+def delete_duplicates(duplicates):
+    """删除重复文件（保留第一个）"""
+    total_deleted = 0
+    
+    for group in duplicates:
+        # 保留第一个文件，删除其余的
+        keep_file = group[0]
+        delete_files = group[1:]
+        
+        print(f"\n📁 重复组 ({len(group)}个文件):")
+        print(f"   ✅ 保留: {keep_file.relative_to(DATA_DIR)}")
+        
+        for del_file in delete_files:
+            try:
+                os.remove(del_file)
+                print(f"   🗑️ 删除: {del_file.relative_to(DATA_DIR)}")
+                total_deleted += 1
+            except Exception as e:
+                print(f"   ❌ 删除失败 {del_file.name}: {e}")
+    
+    return total_deleted
 
 def main():
-    DATASET_PATH = '/Users/caozhaoqi/PycharmProjects/anime_role_detect/data/combined_dataset'
-    REPORT_FILE = '/Users/caozhaoqi/PycharmProjects/anime_role_detect/duplicate_report.json'
-    LOG_FILE = '/Users/caozhaoqi/PycharmProjects/anime_role_detect/deleted_duplicates.log'
+    print('🚀 开始检查重复文件\n')
     
-    # 读取重复报告
-    with open(REPORT_FILE, 'r', encoding='utf-8') as f:
-        duplicates = json.load(f)
+    duplicates = find_duplicates()
     
-    print("🗑️ 开始删除重复图片...")
-    print(f"发现 {len(duplicates)} 组重复图片")
+    if not duplicates:
+        print('✅ 未发现重复文件')
+        return
     
-    deleted_count = 0
-    deleted_files = []
+    print(f'\n⚠️ 发现 {len(duplicates)} 组重复文件，共 {sum(len(g) for g in duplicates)} 个文件')
     
-    for idx, dup in enumerate(duplicates, 1):
-        if idx % 100 == 0:
-            print(f"  已处理: {idx}/{len(duplicates)} 组")
-        
-        # 保留第一个文件（按角色名排序后的第一个）
-        # 或者可以选择保留最大的文件
-        files = sorted(dup['files'], key=lambda x: (x['role'], x['filename']))
-        keep_file = files[0]
-        
-        # 删除其他重复文件
-        for f in files[1:]:
-            file_path = f['path']
-            try:
-                os.remove(file_path)
-                deleted_count += 1
-                deleted_files.append({
-                    'hash': dup['hash'],
-                    'role': f['role'],
-                    'filename': f['filename'],
-                    'size': f['size'],
-                    'kept_role': keep_file['role'],
-                    'kept_filename': keep_file['filename']
-                })
-            except Exception as e:
-                print(f"❌ 删除失败: {file_path} - {str(e)}")
+    # 确认删除
+    confirm = input('\n确定要删除重复文件吗？(y/n): ')
+    if confirm.lower() != 'y':
+        print('❌ 已取消操作')
+        return
     
-    # 保存删除日志
-    with open(LOG_FILE, 'w', encoding='utf-8') as f:
-        json.dump(deleted_files, f, ensure_ascii=False, indent=2)
-    
-    print("\n" + "=" * 80)
-    print("✅ 删除完成")
-    print("=" * 80)
-    print(f"删除重复图片数: {deleted_count} 张")
-    print(f"删除日志已保存到: {LOG_FILE}")
-    
-    # 统计删除后的数据集状态
-    total_files = 0
-    role_counts = {}
-    
-    for role_dir in os.listdir(DATASET_PATH):
-        role_path = os.path.join(DATASET_PATH, role_dir)
-        if not os.path.isdir(role_path) or role_dir.startswith('.') or role_dir.endswith('.json'):
-            continue
-        
-        count = len([f for f in os.listdir(role_path) if f.lower().endswith('.jpg')])
-        total_files += count
-        role_counts[role_dir] = count
-    
-    print(f"\n📊 删除后数据集统计:")
-    print(f"总角色数: {len(role_counts)}")
-    print(f"总图片数: {total_files:,}")
-    
-    # 检查是否有目录图片数少于100
-    low_count_roles = [(role, cnt) for role, cnt in role_counts.items() if cnt < 100]
-    if low_count_roles:
-        print("\n⚠️ 图片数不足100的角色:")
-        for role, cnt in sorted(low_count_roles, key=lambda x: x[1]):
-            print(f"  {role}: {cnt} 张")
+    total_deleted = delete_duplicates(duplicates)
+    print(f'\n🎉 操作完成！共删除 {total_deleted} 个重复文件')
 
 if __name__ == '__main__':
     main()
