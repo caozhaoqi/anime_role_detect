@@ -38,6 +38,7 @@ class AnnotationTool(QMainWindow):
         self.auto_save_timer = QTimer()
         self.auto_save_delay = 2000
         self.delete_mode = False
+        self.selected_indices = set()
         self.image_cache = ImageCache(max_size=100)
         self.loading_tasks = {}
         self.resize_timer = QTimer()
@@ -304,6 +305,35 @@ class AnnotationTool(QMainWindow):
     
     def batch_import(self):
         self.annotation_handler.batch_import()
+
+    def batch_move_selected(self, category):
+        if not self.selected_indices:
+            QMessageBox.information(self, "提示", "请先选择要移动的图片")
+            return
+        count = len(self.selected_indices)
+        reply = QMessageBox.question(self, "确认", f"确定要移动选中的 {count} 张图片到无法训练/{category} 吗？")
+        if reply == QMessageBox.Yes:
+            indices_to_move = sorted(self.selected_indices)
+            for idx in reversed(indices_to_move):
+                self.annotation_handler.move_image_at_index(idx, category)
+            self.selected_indices.clear()
+
+    def batch_delete_selected(self):
+        if not self.selected_indices:
+            QMessageBox.information(self, "提示", "请先选择要删除的图片")
+            return
+        count = len(self.selected_indices)
+        reply = QMessageBox.question(self, "确认", f"确定要删除选中的 {count} 张图片吗？\n此操作不可恢复！")
+        if reply == QMessageBox.Yes:
+            indices_to_delete = sorted(self.selected_indices)
+            for idx in reversed(indices_to_delete):
+                self.annotation_handler.delete_image_at_index(idx)
+            self.selected_indices.clear()
+
+    def clear_selection(self):
+        self.selected_indices.clear()
+        if self.grid_mode > 0:
+            self.image_handler.show_current_image()
 
 
 def main():

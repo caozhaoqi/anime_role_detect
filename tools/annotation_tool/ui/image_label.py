@@ -141,6 +141,8 @@ class ZoomableDragableLabel(QLabel):
 
 
 class ClickableLabel(ZoomableDragableLabel):
+    selection_changed = None
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.grid_mode = 0
@@ -148,11 +150,47 @@ class ClickableLabel(ZoomableDragableLabel):
         self.grid_start_index = 0
         self.customContextMenuRequested.connect(self.show_context_menu)
         self.setContextMenuPolicy(Qt.CustomContextMenu)
-    
+
     def set_grid_info(self, grid_mode, current_index, grid_start_index):
         self.grid_mode = grid_mode
         self.current_grid_index = current_index
         self.grid_start_index = grid_start_index
+
+    def mousePressEvent(self, event):
+        if self.grid_mode > 0 and event.button() == Qt.LeftButton:
+            main_window = self.get_main_window()
+            if main_window:
+                clicked_idx = self.get_clicked_grid_index(event.pos())
+                if clicked_idx is not None:
+                    if event.modifiers() & Qt.ControlModifier:
+                        if clicked_idx in main_window.selected_indices:
+                            main_window.selected_indices.discard(clicked_idx)
+                        else:
+                            main_window.selected_indices.add(clicked_idx)
+                        logger.info(f"[Selection] Ctrl+click: selected_indices={main_window.selected_indices}")
+                        main_window.image_handler.show_current_image()
+                        return
+                    elif event.modifiers() & Qt.ShiftModifier:
+                        if main_window.current_index in main_window.selected_indices or not main_window.selected_indices:
+                            main_window.selected_indices.add(clicked_idx)
+                        else:
+                            min_idx = min(main_window.selected_indices)
+                            max_idx = clicked_idx
+                            if min_idx > max_idx:
+                                min_idx, max_idx = max_idx, min_idx
+                            for i in range(min_idx, max_idx + 1):
+                                main_window.selected_indices.add(i)
+                        logger.info(f"[Selection] Shift+click: selected_indices={main_window.selected_indices}")
+                        main_window.image_handler.show_current_image()
+                        return
+                    else:
+                        main_window.current_index = clicked_idx
+                        main_window.selected_indices.clear()
+                        main_window.selected_indices.add(clicked_idx)
+                        logger.info(f"[Selection] Click: selected_indices={main_window.selected_indices}")
+                        main_window.image_handler.show_current_image()
+
+        super().mousePressEvent(event)
     
     def get_main_window(self):
         parent = self.parent()
@@ -244,6 +282,29 @@ class ClickableLabel(ZoomableDragableLabel):
 
         img = main_window.images[clicked_idx]
         filename = img['filename']
+        selected_count = len(main_window.selected_indices)
+
+        if selected_count > 1:
+            batch_menu = QMenu("批量操作", menu)
+            batch_menu.setStyleSheet(menu.styleSheet())
+            batch_delete_action = QAction(f"删除选中 ({selected_count}张)", self)
+            batch_delete_action.triggered.connect(main_window.batch_delete_selected)
+            batch_menu.addAction(batch_delete_action)
+
+            batch_r18_action = QAction(f"移动到R18 ({selected_count}张)", self)
+            batch_r18_action.triggered.connect(lambda: main_window.batch_move_selected("R18"))
+            batch_menu.addAction(batch_r18_action)
+
+            batch_multi_action = QAction(f"移动到多角色 ({selected_count}张)", self)
+            batch_multi_action.triggered.connect(lambda: main_window.batch_move_selected("多角色"))
+            batch_menu.addAction(batch_multi_action)
+
+            batch_other_action = QAction(f"移动到其他 ({selected_count}张)", self)
+            batch_other_action.triggered.connect(lambda: main_window.batch_move_selected("其他"))
+            batch_menu.addAction(batch_other_action)
+
+            menu.addMenu(batch_menu)
+            menu.addSeparator()
 
         delete_action = QAction(f"删除图片 ({clicked_idx + 1})", self)
         delete_action.triggered.connect(functools.partial(main_window.delete_image_at_index, clicked_idx))

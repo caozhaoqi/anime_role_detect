@@ -1,7 +1,7 @@
 """图像处理模块 - 负责图像显示和缓存管理"""
 from pathlib import Path
-from PyQt5.QtGui import QPixmap, QPainter, QPen
-from PyQt5.QtCore import Qt
+from PyQt5.QtGui import QPixmap, QPainter, QPen, QColor
+from PyQt5.QtCore import Qt, QRect
 
 
 class ImageDisplayHandler:
@@ -172,11 +172,55 @@ class ImageDisplayHandler:
 
             painter.drawPixmap(x, y, scaled)
 
-            border_color = Qt.white if idx == self.main_window.current_index else Qt.cyan
-            painter.setPen(QPen(border_color, 2))
-            painter.drawRect(col * cell_width + 1, row * cell_height + 1, cell_width - 2, cell_height - 2)
+            is_selected = idx in self.main_window.selected_indices
+            cell_x = col * cell_width + 1
+            cell_y = row * cell_height + 1
+            cell_w = cell_width - 2
+            cell_h = cell_height - 2
+
+            if is_selected:
+                painter.fillRect(cell_x, cell_y, cell_w, cell_h, QColor(255, 0, 128, 80))
+                border_color = Qt.magenta
+                painter.setPen(QPen(border_color, 4))
+            elif idx == self.main_window.current_index:
+                painter.fillRect(cell_x, cell_y, cell_w, cell_h, QColor(0, 255, 0, 40))
+                border_color = Qt.white
+                painter.setPen(QPen(border_color, 3))
+            else:
+                border_color = Qt.cyan
+                painter.setPen(QPen(border_color, 1))
+            painter.drawRect(cell_x, cell_y, cell_w, cell_h)
+
+            cell_num = i + 1
+            role_name = ""
+            if img_data['path'] in self.main_window.annotations:
+                ann = self.main_window.annotations[img_data['path']]
+                if ann.roles:
+                    for role_id in ann.roles:
+                        for role in self.main_window.roles:
+                            if role.id == role_id:
+                                role_name = role.name
+                                break
+                        if role_name:
+                            break
+
+            font = painter.font()
             painter.setPen(QPen(Qt.white, 1))
-            painter.drawText(col * cell_width + 4, row * cell_height + 14, f"{idx + 1}")
+
+            bg_rect = QRect(col * cell_width + 2, row * cell_height + 2, 90, 42)
+            painter.fillRect(bg_rect, QColor(0, 0, 0, 180))
+
+            font.setPixelSize(12)
+            painter.setFont(font)
+            painter.drawText(col * cell_width + 6, row * cell_height + 18, f"#{cell_num}")
+            if role_name:
+                font.setPixelSize(11)
+                painter.setFont(font)
+                painter.drawText(col * cell_width + 6, row * cell_height + 33, role_name[:10])
+            font.setPixelSize(10)
+            painter.setFont(font)
+            painter.setPen(QPen(QColor(200, 200, 200), 1))
+            painter.drawText(col * cell_width + 6, row * cell_height + 47, f"[{idx + 1}]")
 
         painter.end()
         self.main_window.right_panel.image_label.setPixmap(grid_pixmap)
