@@ -37,13 +37,65 @@
             </div>
           </div>
           
-          <button
-            class="btn btn-primary btn-sm flex items-center gap-2"
-            @click="$emit('register')"
-          >
-            <Plus class="w-4 h-4" />
-            <span>发布技能</span>
-          </button>
+          <div v-if="isLoggedIn" class="flex items-center gap-3">
+            <button
+              class="btn btn-primary btn-sm flex items-center gap-2"
+              @click="$emit('registerSkill')"
+            >
+              <Plus class="w-4 h-4" />
+              <span>发布技能</span>
+            </button>
+            
+            <div class="relative" @click="showUserMenu = !showUserMenu">
+              <button class="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors">
+                <div class="w-8 h-8 bg-gradient-to-br from-primary-400 to-primary-600 rounded-full flex items-center justify-center text-white font-medium">
+                  {{ username.charAt(0).toUpperCase() }}
+                </div>
+                <span class="hidden sm:inline">{{ username }}</span>
+                <ChevronDown class="w-4 h-4" />
+              </button>
+              
+              <div v-if="showUserMenu" class="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-lg border border-gray-100 py-2 z-50">
+                <button
+                  class="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                  @click="$emit('viewProfile')"
+                >
+                  <User class="w-4 h-4" />
+                  <span>个人资料</span>
+                </button>
+                <button
+                  class="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                  @click="$emit('viewSkills')"
+                >
+                  <Package class="w-4 h-4" />
+                  <span>我的技能</span>
+                </button>
+                <hr class="my-2 border-gray-100" />
+                <button
+                  class="w-full px-4 py-2 text-left text-sm text-red-500 hover:bg-gray-50 flex items-center gap-2"
+                  @click="$emit('logout')"
+                >
+                  <LogOut class="w-4 h-4" />
+                  <span>退出登录</span>
+                </button>
+              </div>
+            </div>
+          </div>
+          
+          <div v-else class="flex items-center gap-2">
+            <button
+              class="btn btn-outline btn-sm"
+              @click="$emit('login')"
+            >
+              登录
+            </button>
+            <button
+              class="btn btn-primary btn-sm"
+              @click="$emit('register')"
+            >
+              注册
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -51,21 +103,40 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
-import { Wand, Search, Package, Tag, Plus } from 'lucide-vue-next'
+import { ref, onMounted } from 'vue'
+import { Wand, Search, Package, Tag, Plus, ChevronDown, User, LogOut } from 'lucide-vue-next'
 
-defineProps({
+const props = defineProps({
   stats: {
     type: Object,
     default: () => ({})
   }
 })
 
-const emit = defineEmits(['search', 'register'])
+const emit = defineEmits(['search', 'login', 'register', 'registerSkill', 'logout', 'viewProfile', 'viewSkills'])
 
 const searchInput = ref('')
+const showUserMenu = ref(false)
+const isLoggedIn = ref(false)
+const username = ref('')
+
+const checkLoginStatus = () => {
+  const token = localStorage.getItem('token')
+  const user = localStorage.getItem('username')
+  isLoggedIn.value = !!token
+  username.value = user || ''
+}
 
 const handleSearch = () => {
   emit('search', searchInput.value)
 }
+
+onMounted(() => {
+  checkLoginStatus()
+})
+
+defineExpose({
+  checkLoginStatus
+})
 </script>
+

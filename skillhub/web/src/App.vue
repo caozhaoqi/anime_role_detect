@@ -1,9 +1,13 @@
 <template>
   <div class="min-h-screen bg-gray-50">
     <Header 
+      ref="headerRef"
       :stats="stats" 
       @search="handleSearch"
+      @login="showLoginModal = true"
       @register="showRegisterModal = true"
+      @registerSkill="showSkillRegisterModal = true"
+      @logout="handleLogout"
     />
     
     <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -36,9 +40,23 @@
     />
     
     <RegisterSkill 
-      v-if="showRegisterModal"
-      @close="showRegisterModal = false"
+      v-if="showSkillRegisterModal"
+      @close="showSkillRegisterModal = false"
       @success="handleSkillRegistered"
+    />
+    
+    <!-- 用户登录模态框 -->
+    <LoginModal 
+      v-if="showLoginModal"
+      @success="handleLoginSuccess"
+      @switchToRegister="showLoginModal = false; showRegisterModal = true"
+    />
+    
+    <!-- 用户注册模态框 -->
+    <RegisterModal 
+      v-if="showRegisterModal"
+      @success="handleRegisterSuccess"
+      @switchToLogin="showRegisterModal = false; showLoginModal = true"
     />
     
     <footer class="bg-white border-t border-gray-100 py-8 mt-12">
@@ -56,8 +74,12 @@ import CategoryFilter from './components/CategoryFilter.vue'
 import SkillList from './components/SkillList.vue'
 import SkillDetail from './components/SkillDetail.vue'
 import RegisterSkill from './components/RegisterSkill.vue'
+import LoginModal from './components/LoginModal.vue'
+import RegisterModal from './components/RegisterModal.vue'
 import { skillApi } from './api/skillApi'
+import { authApi } from './api/authApi'
 
+const headerRef = ref(null)
 const stats = ref({})
 const categories = ref([])
 const skills = ref([])
@@ -65,7 +87,9 @@ const loading = ref(false)
 const searchKeyword = ref('')
 const selectedCategory = ref(null)
 const selectedSkill = ref(null)
+const showLoginModal = ref(false)
 const showRegisterModal = ref(false)
+const showSkillRegisterModal = ref(false)
 
 const loadStats = async () => {
   try {
@@ -164,10 +188,39 @@ const handleUninstallSkill = async (skillId) => {
 }
 
 const handleSkillRegistered = () => {
-  showRegisterModal.value = false
+  showSkillRegisterModal.value = false
   loadSkills()
   loadCategories()
   loadStats()
+}
+
+const handleLoginSuccess = (user) => {
+  showLoginModal.value = false
+  if (headerRef.value) {
+    headerRef.value.checkLoginStatus()
+  }
+  alert(`欢迎回来, ${user.username}!`)
+}
+
+const handleRegisterSuccess = (result) => {
+  showRegisterModal.value = false
+  showLoginModal.value = true
+  alert('注册成功，请登录')
+}
+
+const handleLogout = async () => {
+  try {
+    await authApi.logout()
+  } catch (error) {
+    console.error('Logout failed:', error)
+  } finally {
+    localStorage.removeItem('token')
+    localStorage.removeItem('username')
+    if (headerRef.value) {
+      headerRef.value.checkLoginStatus()
+    }
+    alert('已退出登录')
+  }
 }
 
 watch([searchKeyword, selectedCategory], () => {
