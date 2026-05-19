@@ -46,12 +46,12 @@
     <div v-else :class="['grid gap-4', viewMode === 'grid' ? 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3' : 'grid-cols-1']">
       <div
         v-for="skill in skills"
-        :key="skill.id"
+        :key="skill.name"
         :class="[
-          'skill-card animate-fade-in',
+          'skill-card animate-fade-in cursor-pointer',
           viewMode === 'list' ? 'flex items-start gap-4' : ''
         ]"
-        @click="$emit('view-detail', skill.id)"
+        @click="$emit('view-detail', skill.name)"
       >
         <div :class="['flex-1', viewMode === 'grid' ? '' : '']">
           <div class="flex items-start justify-between gap-3 mb-3">

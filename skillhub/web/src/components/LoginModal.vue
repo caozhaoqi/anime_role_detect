@@ -82,8 +82,6 @@ import { ref, reactive } from 'vue'
 import { Wand, User, Lock, Eye, EyeOff, Loader2 } from 'lucide-vue-next'
 import { authApi } from '../api/authApi'
 
-defineEmits(['success', 'switchToRegister'])
-
 const emit = defineEmits(['success', 'switchToRegister'])
 
 const form = reactive({

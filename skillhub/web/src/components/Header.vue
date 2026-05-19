@@ -2,18 +2,48 @@
   <header class="bg-white border-b border-gray-100 sticky top-0 z-40">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div class="flex items-center justify-between h-16">
-        <div class="flex items-center gap-3">
-          <div class="w-10 h-10 bg-gradient-to-br from-primary-500 to-primary-600 rounded-xl flex items-center justify-center">
-            <Wand class="w-6 h-6 text-white" />
+        <div class="flex items-center gap-6">
+          <div class="flex items-center gap-3 cursor-pointer" @click="$emit('navigate', 'skills')">
+            <div class="w-10 h-10 bg-gradient-to-br from-primary-500 to-primary-600 rounded-xl flex items-center justify-center">
+              <Wand class="w-6 h-6 text-white" />
+            </div>
+            <div>
+              <h1 class="text-xl font-bold text-gray-900">ARD Skill Hub</h1>
+              <p class="text-xs text-gray-500">技能仓库</p>
+            </div>
           </div>
-          <div>
-            <h1 class="text-xl font-bold text-gray-900">ARD Skill Hub</h1>
-            <p class="text-xs text-gray-500">技能仓库</p>
-          </div>
+          
+          <!-- 导航链接 -->
+          <nav class="hidden md:flex items-center gap-4">
+            <button
+              :class="[
+                'px-3 py-2 text-sm font-medium rounded-lg transition-colors',
+                currentPage === 'skills' ? 'text-primary-600 bg-primary-50' : 'text-gray-600 hover:bg-gray-50'
+              ]"
+              @click="$emit('navigate', 'skills')"
+            >
+              <span class="flex items-center gap-2">
+                <Package class="w-4 h-4" />
+                技能列表
+              </span>
+            </button>
+            <button
+              :class="[
+                'px-3 py-2 text-sm font-medium rounded-lg transition-colors',
+                currentPage === 'help' ? 'text-primary-600 bg-primary-50' : 'text-gray-600 hover:bg-gray-50'
+              ]"
+              @click="$emit('navigate', 'help')"
+            >
+              <span class="flex items-center gap-2">
+                <HelpCircle class="w-4 h-4" />
+                使用指南
+              </span>
+            </button>
+          </nav>
         </div>
         
         <div class="flex-1 max-w-xl mx-8">
-          <div class="relative">
+          <div v-if="currentPage === 'skills'" class="relative">
             <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
             <input
               v-model="searchInput"
@@ -104,16 +134,20 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import { Wand, Search, Package, Tag, Plus, ChevronDown, User, LogOut } from 'lucide-vue-next'
+import { Wand, Search, Package, Tag, Plus, ChevronDown, User, LogOut, HelpCircle } from 'lucide-vue-next'
 
 const props = defineProps({
   stats: {
     type: Object,
     default: () => ({})
+  },
+  currentPage: {
+    type: String,
+    default: 'skills'
   }
 })
 
-const emit = defineEmits(['search', 'login', 'register', 'registerSkill', 'logout', 'viewProfile', 'viewSkills'])
+const emit = defineEmits(['search', 'login', 'register', 'registerSkill', 'logout', 'viewProfile', 'viewSkills', 'navigate'])
 
 const searchInput = ref('')
 const showUserMenu = ref(false)

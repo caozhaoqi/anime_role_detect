@@ -66,7 +66,7 @@
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1.5">确认密码</label>
             <div class="relative">
-              <LockCheck class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <Check class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
               <input
                 v-model="form.confirmPassword"
                 :type="showPassword ? 'text' : 'password'"
@@ -107,10 +107,8 @@
 
 <script setup>
 import { ref, reactive, watch } from 'vue'
-import { UserPlus, User, Mail, Lock, LockCheck, Eye, EyeOff, Loader2 } from 'lucide-vue-next'
+import { UserPlus, User, Mail, Lock, Check, Eye, EyeOff, Loader2 } from 'lucide-vue-next'
 import { authApi } from '../api/authApi'
-
-defineEmits(['success', 'switchToLogin'])
 
 const emit = defineEmits(['success', 'switchToLogin'])
 

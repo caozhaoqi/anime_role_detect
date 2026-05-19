@@ -7,7 +7,7 @@
         <div class="flex items-start justify-between">
           <div>
             <h2 class="text-xl font-bold text-white">{{ skill.name }}</h2>
-            <p class="text-primary-100 text-sm mt-1">{{ skill.id }}</p>
+            <p class="text-primary-100 text-sm mt-1">{{ skill.name }}</p>
           </div>
           <button
             class="p-2 rounded-lg hover:bg-white/10 transition-colors text-white"
@@ -71,11 +71,10 @@
             <GitBranch class="w-4 h-4 text-gray-500" />
             依赖
           </h3>
-          <div class="space-y-2">
-            <div v-for="dep in skill.dependencies" :key="dep.skill_id" class="flex items-center justify-between bg-gray-50 rounded-lg px-4 py-2">
-              <span class="text-sm text-gray-700">{{ dep.skill_id }}</span>
-              <span class="text-xs text-gray-500">{{ dep.version }}</span>
-            </div>
+          <div class="flex flex-wrap gap-2">
+            <span v-for="dep in skill.dependencies" :key="dep" class="tag tag-category">
+              {{ dep }}
+            </span>
           </div>
         </div>
         
@@ -128,6 +127,74 @@
             </span>
           </p>
         </div>
+        
+        <div class="mb-6 bg-blue-50 rounded-xl p-4">
+          <h3 class="font-medium text-gray-900 mb-2 flex items-center gap-2">
+            <BookOpen class="w-4 h-4 text-blue-500" />
+            安装指导
+          </h3>
+          <div class="text-sm text-gray-600 space-y-2">
+            <p>1. 点击下方"安装技能"按钮开始安装</p>
+            <p>2. 安装完成后，技能将自动下载并配置</p>
+            <p>3. 在命令行使用 <code class="bg-white px-1.5 py-0.5 rounded text-blue-600">ardc-skill-sync list</code> 查看已安装技能</p>
+            <p>4. 使用 <code class="bg-white px-1.5 py-0.5 rounded text-blue-600">ardc-skill-sync install {{ skill.name }}</code> 命令手动安装</p>
+          </div>
+        </div>
+        
+        <!-- 版本更新提示 -->
+        <div v-if="updateInfo && updateInfo.has_update" class="mb-6 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-4 border border-green-200">
+          <div class="flex items-start gap-3">
+            <AlertCircle class="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5" />
+            <div>
+              <h3 class="font-medium text-green-800 mb-1">发现新版本</h3>
+              <p class="text-sm text-green-700">当前版本: <span class="font-medium">{{ updateInfo.current_version }}</span> → 最新版本: <span class="font-bold">{{ updateInfo.latest_version }}</span></p>
+              <p class="text-sm text-green-600 mt-1">更新内容: {{ updateInfo.changelog }}</p>
+            </div>
+          </div>
+        </div>
+        
+        <!-- 版本历史 -->
+        <div v-if="versions && versions.length > 0" class="mb-6">
+          <div class="flex items-center justify-between mb-3">
+            <h3 class="font-medium text-gray-900 flex items-center gap-2">
+              <Clock class="w-4 h-4 text-gray-500" />
+              版本历史
+            </h3>
+            <button 
+              v-if="skill.installed"
+              class="text-sm text-primary-600 hover:text-primary-700 flex items-center gap-1"
+              @click="checkUpdate"
+              :disabled="checkingUpdate"
+            >
+              <RefreshCw class="w-3 h-3" :class="{ 'animate-spin': checkingUpdate }" />
+              {{ checkingUpdate ? '检查中...' : '检查更新' }}
+            </button>
+          </div>
+          <div class="space-y-2">
+            <div 
+              v-for="(version, index) in versions" 
+              :key="version.version"
+              :class="[
+                'flex items-start gap-3 p-3 rounded-lg',
+                index === 0 ? 'bg-primary-50 border border-primary-100' : 'bg-gray-50'
+              ]"
+            >
+              <div class="flex-shrink-0">
+                <span :class="[
+                  'px-2 py-1 rounded-full text-xs font-medium',
+                  index === 0 ? 'bg-primary-100 text-primary-700' : 'bg-gray-200 text-gray-700'
+                ]">
+                  {{ version.version }}
+                </span>
+              </div>
+              <div class="flex-1 min-w-0">
+                <p class="text-sm text-gray-600 truncate">{{ version.changelog }}</p>
+                <p class="text-xs text-gray-400 mt-1">{{ version.release_date }}</p>
+              </div>
+              <span v-if="index === 0" class="text-xs text-primary-600 font-medium">最新</span>
+            </div>
+          </div>
+        </div>
       </div>
       
       <div class="border-t border-gray-100 px-6 py-4 flex items-center justify-between">
@@ -136,16 +203,26 @@
           返回
         </button>
         
-        <button
-          :class="[
-            'btn btn-lg flex items-center gap-2',
-            skill.installed ? 'btn-secondary' : 'btn-primary'
-          ]"
-          @click="handleAction"
-        >
-          <component :is="skill.installed ? DownloadCheck : Download" class="w-5 h-5" />
-          {{ skill.installed ? '已安装' : '安装技能' }}
-        </button>
+        <div class="flex items-center gap-3">
+          <button
+            v-if="skill.installed && updateInfo && updateInfo.has_update"
+            class="btn btn-lg btn-primary flex items-center gap-2"
+            @click="emit('update', skill.name)"
+          >
+            <RefreshCw class="w-5 h-5" />
+            更新技能 ({{ updateInfo.latest_version }})
+          </button>
+          <button
+            :class="[
+              'btn btn-lg flex items-center gap-2',
+              skill.installed ? 'btn-secondary' : 'btn-primary'
+            ]"
+            @click="handleAction"
+          >
+            <component :is="skill.installed ? CheckCircle : Download" class="w-5 h-5" />
+            {{ skill.installed ? '已安装' : '安装技能' }}
+          </button>
+        </div>
       </div>
     </div>
   </div>
@@ -154,8 +231,11 @@
 <script setup>
 import {
   X, FileText, User, GitBranch, Tag,
-  Settings, Server, Calendar, ArrowLeft, Download, CheckCircle
+  Settings, Server, Calendar, ArrowLeft, Download, CheckCircle, BookOpen,
+  RefreshCw, AlertCircle, Clock
 } from 'lucide-vue-next'
+
+import { ref, onMounted } from 'vue'
 
 const props = defineProps({
   skill: {
@@ -164,7 +244,39 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['close', 'install', 'uninstall'])
+const emit = defineEmits(['close', 'install', 'uninstall', 'update'])
+
+const versions = ref([])
+const updateInfo = ref(null)
+const checkingUpdate = ref(false)
+
+const loadVersions = async () => {
+  try {
+    const response = await fetch(`/api/skills/${props.skill.name}/versions`)
+    versions.value = await response.json()
+  } catch (error) {
+    console.error('Failed to load versions:', error)
+  }
+}
+
+const checkUpdate = async () => {
+  checkingUpdate.value = true
+  try {
+    const response = await fetch(`/api/skills/${props.skill.name}/check-update?current_version=${props.skill.version}`)
+    updateInfo.value = await response.json()
+  } catch (error) {
+    console.error('Failed to check update:', error)
+  } finally {
+    checkingUpdate.value = false
+  }
+}
+
+onMounted(() => {
+  loadVersions()
+  if (props.skill.installed) {
+    checkUpdate()
+  }
+})
 
 const getCategoryLabel = (name) => {
   const labels = {
@@ -203,9 +315,9 @@ const formatDate = (dateStr) => {
 
 const handleAction = () => {
   if (props.skill.installed) {
-    emit('uninstall', props.skill.id)
+    emit('uninstall', props.skill.name)
   } else {
-    emit('install', props.skill.id)
+    emit('install', props.skill.name)
   }
 }
 </script>
