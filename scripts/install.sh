@@ -19,8 +19,8 @@ NC='\033[0m' # No Color
 VERSION="1.0.0"
 
 # 下载地址
-SKILL_SYNC_URL="https://skills.anime-role-detect.io/api/install/ardc-skill-sync.py"
-CONFIG_URL="https://skills.anime-role-detect.io/api/install/config.json"
+SKILL_SYNC_URL="https://47.79.91.89:8888/api/install/ardc-skill-sync.py"
+CONFIG_URL="https://47.79.91.89:8888/api/install/config.json"
 
 # 安装目录
 INSTALL_DIR="$HOME/.ardc"
