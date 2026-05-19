@@ -38,11 +38,20 @@ Anime Role Detect 技能仓库系统 - 一个现代化的技能管理平台，�
 git clone https://github.com/your-username/anime_role_detect.git
 cd anime_role_detect/skillhub
 
-# 启动服务
+# 启动服务（后台运行）
 docker-compose up -d
 
 # 查看服务状态
 docker-compose ps
+
+# 查看日志
+docker-compose logs -f
+
+# 停止服务
+docker-compose down
+
+# 重启服务
+docker-compose restart
 ```
 
 启动后访问：
@@ -50,9 +59,26 @@ docker-compose ps
 - API 接口: `http://localhost/api/`
 - Prometheus: `http://localhost:9090`
 
-### 方法二：手动部署
+### 方法二：手动部署（生产环境）
 
-#### 后端服务
+#### 1. 前端打包构建
+
+```bash
+cd skillhub/web
+
+# 安装依赖
+npm install
+
+# 生产构建（输出到 dist 目录）
+npm run build
+
+# 构建产物位置
+ls -la dist/
+```
+
+构建完成后，`dist/` 目录包含所有静态资源，可直接部署到 Nginx 或 CDN。
+
+#### 2. 后端服务（后台运行）
 
 ```bash
 cd skillhub
@@ -65,23 +91,65 @@ source venv/bin/activate
 pip install -r requirements.txt
 pip install -e .
 
+# 方式一：使用 nohup 后台运行
+nohup uvicorn ardc.api.main:app --host 0.0.0.0 --port 8000 --workers 4 > ardc.log 2>&1 &
+
+# 方式二：使用 systemd 服务（推荐）
+# 创建服务文件
+sudo tee /etc/systemd/system/ardc.service <<EOF
+[Unit]
+Description=ARD Skill Hub API Service
+After=network.target
+
+[Service]
+User=your-user
+WorkingDirectory=/path/to/anime_role_detect/skillhub
+ExecStart=/path/to/anime_role_detect/skillhub/venv/bin/uvicorn ardc.api.main:app --host 0.0.0.0 --port 8000 --workers 4
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
 # 启动服务
-uvicorn ardc.api.main:app --host 0.0.0.0 --port 8000 --workers 4
+sudo systemctl daemon-reload
+sudo systemctl start ardc
+sudo systemctl enable ardc  # 设置开机自启
+
+# 查看服务状态
+sudo systemctl status ardc
+
+# 查看日志
+sudo journalctl -u ardc -f
 ```
 
-#### 前端服务
+#### 3. Nginx 反向代理配置
 
-```bash
-cd skillhub/web
+```nginx
+server {
+    listen 8888;
+    server_name caozhaoqi.top;
 
-# 安装依赖
-npm install
+    # 前端静态文件
+    location / {
+        root /czq/anime_role_detect/skillhub/web/dist;
+        try_files $uri $uri/ /index.html;
+    }
 
-# 开发模式
-npm run dev
+    # API 反向代理
+    location /api/ {
+        proxy_pass http://127.0.0.1:8000/api/;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }
 
-# 生产构建
-npm run build
+    # 健康检查
+    location /health {
+        proxy_pass http://127.0.0.1:8000/health;
+    }
+}
 ```
 
 ## 项目结构
@@ -130,6 +198,7 @@ skillhub/
 │   │   ├── App.vue           # 主应用组件
 │   │   ├── main.js           # 入口文件
 │   │   └── style.css         # 全局样式
+│   ├── dist/                 # 生产构建产物（npm run build 生成）
 │   ├── index.html
 │   ├── vite.config.js
 │   ├── tailwind.config.js
@@ -166,6 +235,7 @@ http://your-domain.com/api/
 | GET | `/tags` | 获取所有标签 | - |
 | GET | `/categories` | 获取所有分类 | - |
 | GET | `/stats` | 获取统计信息 | - |
+| GET | `/health` | 健康检查 | - |
 
 ### 注册技能示例
 
@@ -305,6 +375,48 @@ ardc_uptime_seconds 3600
 └───────────────────┘
 ```
 
+## 运维指南
+
+### 后台运行方式
+
+| 方式 | 适用场景 | 优点 | 缺点 |
+|------|----------|------|------|
+| Docker Compose | 开发/测试/生产 | 一键部署、隔离性好 | 需要 Docker 环境 |
+| systemd | 生产环境 | 系统级管理、开机自启 | 配置稍复杂 |
+| nohup | 临时运行 | 简单快捷 | 无自动重启 |
+
+### 日志管理
+
+```bash
+# Docker Compose 日志
+docker-compose logs -f backend
+docker-compose logs --tail=100 backend
+
+# systemd 日志
+sudo journalctl -u ardc -f
+sudo journalctl -u ardc --since "1 hour ago"
+
+# nohup 日志
+tail -f ardc.log
+```
+
+### 备份与恢复
+
+```bash
+# 备份数据目录
+tar -czvf ardc_backup_$(date +%Y%m%d).tar.gz ~/.ardc/
+
+# 恢复数据
+tar -xzvf ardc_backup_20240101.tar.gz -C ~/
+```
+
+### 性能优化建议
+
+1. **增加工作进程数**: 根据 CPU 核心数调整 `--workers` 参数
+2. **启用 Gunicorn**: 生产环境推荐使用 Gunicorn + Uvicorn 组合
+3. **配置 Nginx 缓存**: 对静态文件设置适当的缓存策略
+4. **定期清理日志**: 设置日志轮转防止磁盘空间溢出
+
 ## 开发指南
 
 ### 添加新技能
@@ -329,6 +441,9 @@ docker-compose logs backend
 
 # 检查端口占用
 netstat -tlnp | grep 8000
+
+# 检查 Docker 状态
+docker ps -a
 ```
 
 ### API 无法访问
@@ -339,6 +454,9 @@ curl http://localhost:8000/api/skills
 
 # 检查防火墙
 ufw status
+
+# 检查 Nginx 配置
+nginx -t
 ```
 
 ### 技能安装失败

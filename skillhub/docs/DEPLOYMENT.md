@@ -350,6 +350,117 @@ curl http://localhost:5173
 cat /var/log/nginx/error.log
 ```
 
+### 500 Internal Server Error（重定向循环）
+
+**问题描述：**
+```
+rewrite or internal redirection cycle while internally redirecting to "/index.html"
+```
+
+**原因：**
+Nginx 配置中的 `try_files` 指令导致无限循环。
+
+**解决方案：**
+```bash
+# 修改 Nginx 配置，使用 named location 避免循环
+cat > /etc/nginx/sites-available/default << 'EOF'
+server {
+    listen 8888;
+    server_name caozhaoqi.top;
+
+    root /var/www/ardc-web;
+    index index.html;
+
+    # 静态资源缓存
+    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf)$ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+    }
+
+    # API 反向代理
+    location /api/ {
+        proxy_pass http://127.0.0.1:8000/api/;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }
+
+    # SPA 路由回退（关键：使用 named location 避免循环）
+    location / {
+        try_files $uri $uri/ @fallback;
+    }
+
+    location @fallback {
+        rewrite ^ /index.html break;
+    }
+}
+EOF
+
+# 重启 Nginx
+systemctl restart nginx
+```
+
+### 502 Bad Gateway（后端服务未启动）
+
+**问题描述：**
+API 接口返回 502 错误，但前端页面正常。
+
+**原因：**
+后端服务（FastAPI）未运行或端口未监听。
+
+**解决方案：**
+```bash
+# 检查后端服务状态
+netstat -tlnp | grep 8000
+
+# 如果未运行，启动后端服务
+cd /path/to/skillhub
+source venv/bin/activate
+nohup uvicorn ardc.api.main:app --host 127.0.0.1 --port 8000 --workers 4 > /var/log/ardc.log 2>&1 &
+
+# 验证服务启动
+sleep 3
+curl http://127.0.0.1:8000/api/skills
+```
+
+### 403 Forbidden（权限问题）
+
+**问题描述：**
+```
+stat() "/root/czq/anime_role_detect/skillhub/web/dist/" failed (13: Permission denied)
+```
+
+**原因：**
+Nginx 以 `www-data` 用户运行，无法访问 `/root/` 目录（Linux 安全限制）。
+
+**解决方案：**
+
+**方法一：修改目录权限（简单）**
+```bash
+chown -R www-data:www-data /root/czq/anime_role_detect/skillhub/web/dist
+chmod -R 755 /root/czq/anime_role_detect/skillhub/web/dist
+systemctl restart nginx
+```
+
+**方法二：移动文件到标准位置（推荐）**
+```bash
+# 创建标准 Web 目录
+mkdir -p /var/www/ardc-web
+
+# 复制前端文件
+cp -r /root/czq/anime_role_detect/skillhub/web/dist/* /var/www/ardc-web/
+
+# 设置权限
+chown -R www-data:www-data /var/www/ardc-web
+chmod -R 755 /var/www/ardc-web
+
+# 修改 Nginx 配置
+sed -i 's|root /root/czq/anime_role_detect/skillhub/web/dist;|root /var/www/ardc-web;|' /etc/nginx/sites-available/default
+
+# 重启 Nginx
+systemctl restart nginx
+```
+
 ### 技能安装失败
 
 ```bash
