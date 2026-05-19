@@ -2,6 +2,7 @@
   "name": "ardc-web",
   "version": "1.0.0",
   "description": "Anime Role Detect Skill Hub Web Interface",
+  "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
