@@ -27,43 +27,27 @@ class SkillConfigSchema(BaseModel):
 
 
 class SkillMetadata(BaseModel):
-    """
-    技能元数据模型
-    描述技能的基本信息和功能特性
-    """
-    # 基础信息
-    id: str = Field(description="技能唯一标识符，格式: ardc-xxx")
+    """技能元数据模型"""
+    id: str = Field(description="技能唯一标识符")
     name: str = Field(description="技能名称")
-    version: str = Field(description="语义化版本号，如: 1.0.0")
+    version: str = Field(description="语义化版本号")
     description: str = Field(default="", description="技能描述")
     author: str = Field(description="作者名称或邮箱")
     author_url: Optional[str] = Field(default=None, description="作者主页")
-    
-    # 分类与标签
-    category: Literal['collector', 'cleaner', 'classifier', 'trainer', 'search', 'analyzer', 'utility'] = Field(
-        description="技能分类"
-    )
+    category: Literal['collector', 'cleaner', 'classifier', 'trainer', 'search', 'analyzer', 'utility'] = Field(description="技能分类")
     tags: List[str] = Field(default_factory=list, description="标签列表")
-    
-    # 技术信息
     entry_point: str = Field(description="技能入口文件路径")
     runtime: Literal['python', 'shell', 'nodejs'] = Field(default="python", description="运行时环境")
     dependencies: List[SkillDependency] = Field(default_factory=list, description="依赖列表")
     config_schema: List[SkillConfigSchema] = Field(default_factory=list, description="配置参数定义")
-    
-    # 状态信息
     status: Literal['development', 'testing', 'stable', 'deprecated'] = Field(default="development", description="技能状态")
     created_at: datetime = Field(default_factory=datetime.now, description="创建时间")
     updated_at: datetime = Field(default_factory=datetime.now, description="更新时间")
-    
-    # 兼容性
     min_platform_version: str = Field(default="1.0.0", description="最低平台版本要求")
     max_platform_version: Optional[str] = Field(default=None, description="最高平台版本要求")
-    
-    # 资源需求
     memory_mb: int = Field(default=256, description="内存需求(MB)")
     cpu_cores: float = Field(default=1.0, description="CPU核心数")
-    
+
     class Config:
         json_schema_extra = {
             "example": {
@@ -88,12 +72,6 @@ class VersionInfo(BaseModel):
     release_notes: str = Field(default="", description="版本更新说明")
     released_at: datetime = Field(default_factory=datetime.now, description="发布时间")
     download_count: int = Field(default=0, description="下载次数")
-
-
-class SkillSearchResult(BaseModel):
-    """技能搜索结果"""
-    total: int = Field(description="总数量")
-    skills: List[SkillMetadata] = Field(description="技能列表")
 
 
 class InstalledSkill(BaseModel):
