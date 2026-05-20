@@ -226,9 +226,9 @@ def train_model(model, dataloaders, criterion, optimizer, scheduler, device, num
                 'accuracy': epoch_acc.item()
             })
             
-            # 更新学习率（基于验证损失）
-            if phase == 'val' and scheduler is not None:
-                scheduler.step(epoch_loss)
+            # 更新学习率（基于训练轮次）
+            if phase == 'train' and scheduler is not None:
+                scheduler.step()
             
             # 深度复制最佳模型（基于验证准确率）
             if phase == 'val' and epoch_acc > best_acc:

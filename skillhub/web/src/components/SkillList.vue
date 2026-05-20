@@ -59,9 +59,23 @@
               <h3 class="font-semibold text-gray-900 text-base">{{ skill.name }}</h3>
               <p class="text-sm text-gray-500 mt-0.5">{{ skill.id }}</p>
             </div>
-            <span :class="['status-tag', `status-${skill.status}`]">
-              {{ getStatusLabel(skill.status) }}
-            </span>
+            <div class="flex items-center gap-2">
+              <span :class="['status-tag', `status-${skill.status}`]">
+                {{ getStatusLabel(skill.status) }}
+              </span>
+              <button
+                v-if="isLoggedIn"
+                class="p-1.5 rounded-lg hover:bg-gray-100 transition-colors"
+                @click.stop="toggleFavorite(skill.name)"
+              >
+                <Heart 
+                  :class="[
+                    'w-4 h-4',
+                    favorites[skill.name] ? 'text-red-500 fill-red-500' : 'text-gray-400'
+                  ]"
+                />
+              </button>
+            </div>
           </div>
           
           <p class="text-sm text-gray-600 mb-3 line-clamp-2">{{ skill.description }}</p>
@@ -78,14 +92,16 @@
             </span>
           </div>
           
-          <div class="flex items-center justify-between text-xs text-gray-500">
-            <div class="flex items-center gap-2">
-              <User class="w-3.5 h-3.5" />
-              <span>{{ skill.author }}</span>
-            </div>
-            <div class="flex items-center gap-2">
-              <Tag class="w-3.5 h-3.5" />
-              <span>{{ skill.version }}</span>
+          <div class="flex items-center justify-between text-xs text-gray-500 mb-3">
+            <div class="flex items-center gap-3">
+              <span class="flex items-center gap-1">
+                <Download class="w-3.5 h-3.5" />
+                {{ skill.downloads || 0 }}
+              </span>
+              <span class="flex items-center gap-1">
+                <Star class="w-3.5 h-3.5 text-yellow-400" />
+                {{ skill.rating || '0' }}
+              </span>
             </div>
           </div>
         </div>
@@ -107,8 +123,8 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
-import { LayoutGrid, List, Package, User, Tag } from 'lucide-vue-next'
+import { ref, onMounted } from 'vue'
+import { LayoutGrid, List, Package, User, Tag, Heart, Download, Star } from 'lucide-vue-next'
 
 defineProps({
   skills: {
@@ -128,6 +144,60 @@ defineProps({
 defineEmits(['view-detail'])
 
 const viewMode = ref('grid')
+const isLoggedIn = ref(false)
+const favorites = ref({})
+
+const loadFavorites = async () => {
+  try {
+    const token = localStorage.getItem('token')
+    if (!token) {
+      isLoggedIn.value = false
+      return
+    }
+    isLoggedIn.value = true
+    
+    const response = await fetch('/api/favorites', {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    })
+    const data = await response.json()
+    data.skills.forEach(skill => {
+      favorites.value[skill.name] = true
+    })
+  } catch (error) {
+    console.error('Failed to load favorites:', error)
+  }
+}
+
+const toggleFavorite = async (skillName) => {
+  try {
+    const token = localStorage.getItem('token')
+    const isFav = favorites.value[skillName]
+    
+    const method = isFav ? 'DELETE' : 'POST'
+    const response = await fetch(`/api/skills/${skillName}/favorite`, {
+      method,
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    })
+    
+    const result = await response.json()
+    if (result.success) {
+      favorites.value[skillName] = !isFav
+    } else {
+      alert(result.message)
+    }
+  } catch (error) {
+    console.error('Failed to toggle favorite:', error)
+    alert('操作失败')
+  }
+}
+
+onMounted(() => {
+  loadFavorites()
+})
 
 const getCategoryLabel = (name) => {
   const labels = {

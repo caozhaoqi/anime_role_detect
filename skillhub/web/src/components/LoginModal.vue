@@ -96,12 +96,18 @@ const error = ref('')
 const handleLogin = async () => {
   loading.value = true
   error.value = ''
-  
+
   try {
     const response = await authApi.login(form)
     if (response.data.success) {
       localStorage.setItem('token', response.data.token)
       localStorage.setItem('username', response.data.username)
+      if (response.data.role) {
+        localStorage.setItem('userInfo', JSON.stringify({
+          username: response.data.username,
+          role: response.data.role
+        }))
+      }
       emit('success', response.data)
     } else {
       error.value = response.data.message

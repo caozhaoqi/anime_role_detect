@@ -4,12 +4,16 @@
       ref="headerRef"
       :stats="stats" 
       :currentPage="currentPage"
+      :isLoggedIn="isLoggedIn"
+      :isDeveloper="isDeveloper"
       @search="handleSearch"
       @login="showLoginModal = true"
       @register="showRegisterModal = true"
       @registerSkill="showSkillRegisterModal = true"
       @logout="handleLogout"
       @navigate="currentPage = $event"
+      @viewProfile="viewProfile"
+      @viewSkills="viewMySkills"
     />
     
     <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -37,6 +41,9 @@
       
       <!-- 帮助页面 -->
       <HelpPage v-else-if="currentPage === 'help'" />
+      
+      <!-- 开发者后台 -->
+      <DeveloperDashboard v-else-if="currentPage === 'dashboard'" />
     </main>
     
     <SkillDetail 
@@ -68,6 +75,15 @@
       @switchToLogin="showRegisterModal = false; showLoginModal = true"
     />
     
+    <!-- 个人资料模态框 -->
+    <ProfileModal
+      v-if="showProfileModal"
+      :show="showProfileModal"
+      :userInfo="currentUser"
+      @close="showProfileModal = false"
+      @registerSkill="showProfileModal = false; showSkillRegisterModal = true"
+    />
+    
     <footer class="bg-white border-t border-gray-100 py-8 mt-12">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center text-gray-500 text-sm">
         <p>ARD Skill Hub - Anime Role Detect Skill Repository</p>
@@ -86,6 +102,8 @@ import RegisterSkill from './components/RegisterSkill.vue'
 import LoginModal from './components/LoginModal.vue'
 import RegisterModal from './components/RegisterModal.vue'
 import HelpPage from './components/HelpPage.vue'
+import DeveloperDashboard from './components/DeveloperDashboard.vue'
+import ProfileModal from './components/ProfileModal.vue'
 import { skillApi } from './api/skillApi'
 import { authApi } from './api/authApi'
 
@@ -101,6 +119,27 @@ const selectedSkill = ref(null)
 const showLoginModal = ref(false)
 const showRegisterModal = ref(false)
 const showSkillRegisterModal = ref(false)
+const showProfileModal = ref(false)
+const isLoggedIn = ref(false)
+const isDeveloper = ref(false)
+const currentUser = ref(null)
+
+const checkUserStatus = () => {
+  const token = localStorage.getItem('token')
+  const userInfo = localStorage.getItem('userInfo')
+  isLoggedIn.value = !!token
+  if (userInfo) {
+    try {
+      currentUser.value = JSON.parse(userInfo)
+      isDeveloper.value = currentUser.value?.role === 'developer' || currentUser.value?.role === 'admin'
+    } catch {
+      currentUser.value = null
+      isDeveloper.value = false
+    }
+  } else {
+    isDeveloper.value = false
+  }
+}
 
 const loadStats = async () => {
   try {
@@ -288,6 +327,7 @@ const handleSkillRegistered = () => {
 
 const handleLoginSuccess = (user) => {
   showLoginModal.value = false
+  checkUserStatus()
   if (headerRef.value) {
     headerRef.value.checkLoginStatus()
   }
@@ -300,6 +340,14 @@ const handleRegisterSuccess = (result) => {
   alert('注册成功，请登录')
 }
 
+const viewProfile = () => {
+  showProfileModal.value = true
+}
+
+const viewMySkills = async () => {
+  showProfileModal.value = true
+}
+
 const handleLogout = async () => {
   try {
     await authApi.logout()
@@ -308,6 +356,10 @@ const handleLogout = async () => {
   } finally {
     localStorage.removeItem('token')
     localStorage.removeItem('username')
+    localStorage.removeItem('userInfo')
+    isLoggedIn.value = false
+    isDeveloper.value = false
+    currentUser.value = null
     if (headerRef.value) {
       headerRef.value.checkLoginStatus()
     }
@@ -320,6 +372,7 @@ watch([searchKeyword, selectedCategory], () => {
 })
 
 onMounted(() => {
+  checkUserStatus()
   loadStats()
   loadCategories()
   loadSkills()

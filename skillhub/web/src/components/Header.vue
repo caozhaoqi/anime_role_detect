@@ -39,6 +39,19 @@
                 使用指南
               </span>
             </button>
+            <button
+              v-if="isLoggedIn && isDeveloper"
+              :class="[
+                'px-3 py-2 text-sm font-medium rounded-lg transition-colors',
+                currentPage === 'dashboard' ? 'text-primary-600 bg-primary-50' : 'text-gray-600 hover:bg-gray-50'
+              ]"
+              @click="$emit('navigate', 'dashboard')"
+            >
+              <span class="flex items-center gap-2">
+                <Settings class="w-4 h-4" />
+                开发者后台
+              </span>
+            </button>
           </nav>
         </div>
         
@@ -134,7 +147,7 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import { Wand, Search, Package, Tag, Plus, ChevronDown, User, LogOut, HelpCircle } from 'lucide-vue-next'
+import { Wand, Search, Package, Tag, Plus, ChevronDown, User, LogOut, HelpCircle, Settings } from 'lucide-vue-next'
 
 const props = defineProps({
   stats: {
@@ -144,6 +157,10 @@ const props = defineProps({
   currentPage: {
     type: String,
     default: 'skills'
+  },
+  isDeveloper: {
+    type: Boolean,
+    default: false
   }
 })
 

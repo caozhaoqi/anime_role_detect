@@ -11,7 +11,7 @@ import hashlib
 from datetime import datetime
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Depends, UploadFile, File
+from fastapi import FastAPI, HTTPException, Depends, UploadFile, File, Query
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -179,7 +179,8 @@ users_db = {
         "email": "admin@example.com",
         "password": "sha256$5f4dcc3b5aa765d61d8327deb882cf99$b118b3c8794f0bfc9a0cd38910067d77ce01f816b2e054803f1849cfb16fe460",  # admin123
         "created_at": "2024-01-01",
-        "is_active": True
+        "is_active": True,
+        "role": "admin"
     }
 }
 
@@ -241,12 +242,16 @@ async def login(request: LoginRequest):
     # 生成 Token
     token = generate_token(request.username)
     
+    # 保存 token 到用户数据
+    users_db[request.username]["token"] = token
+    
     return {
         "success": True,
         "message": "登录成功",
         "token": token,
         "username": request.username,
-        "email": user["email"]
+        "email": user["email"],
+        "role": user.get("role", "user")
     }
 
 @app.post("/api/auth/register")
@@ -629,39 +634,542 @@ async def upload_skill(
     return {"success": True, "message": "技能上传成功"}
 
 # ============================================================
+# 评分和评论端点
+# ============================================================
+
+# 评论数据库（模拟）
+reviews_db = {}
+
+@app.post("/api/skills/{skill_name}/review")
+async def add_review(
+    skill_name: str,
+    rating: int = Query(..., ge=1, le=5),
+    comment: Optional[str] = "",
+    credentials: HTTPAuthorizationCredentials = Depends(security)
+):
+    """添加评分和评论"""
+    if skill_name not in skills_db:
+        raise HTTPException(status_code=404, detail="技能不存在")
+    
+    if rating < 1 or rating > 5:
+        raise HTTPException(status_code=400, detail="评分必须在 1-5 之间")
+    
+    # 从 token 中提取用户名（token 格式：username:timestamp 的哈希）
+    # 这里需要从 users_db 中查找对应用户
+    token = credentials.credentials
+    username = None
+    
+    # 遍历用户数据库查找匹配 token 的用户名
+    for user_name, user_data in users_db.items():
+        if user_data.get("token") == token:
+            username = user_name
+            break
+    
+    if not username:
+        raise HTTPException(status_code=401, detail="用户未认证")
+    
+    if skill_name not in reviews_db:
+        reviews_db[skill_name] = []
+    
+    # 检查是否已评论
+    for review in reviews_db[skill_name]:
+        if review["username"] == username:
+            raise HTTPException(status_code=400, detail="您已对此技能进行过评论")
+    
+    new_review = {
+        "id": len(reviews_db[skill_name]) + 1,
+        "username": username,
+        "rating": rating,
+        "comment": comment,
+        "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    }
+    
+    reviews_db[skill_name].append(new_review)
+    
+    # 更新技能评分
+    update_skill_rating(skill_name)
+    
+    return {"success": True, "message": "评论成功"}
+
+@app.get("/api/skills/{skill_name}/reviews")
+async def get_reviews(skill_name: str, limit: int = 10):
+    """获取技能评论列表"""
+    if skill_name not in skills_db:
+        raise HTTPException(status_code=404, detail="技能不存在")
+    
+    reviews = reviews_db.get(skill_name, [])
+    reviews.sort(key=lambda x: x["created_at"], reverse=True)
+    
+    return {"reviews": reviews[:limit]}
+
+@app.get("/api/skills/{skill_name}/rating")
+async def get_rating(skill_name: str):
+    """获取技能评分"""
+    if skill_name not in skills_db:
+        raise HTTPException(status_code=404, detail="技能不存在")
+    
+    reviews = reviews_db.get(skill_name, [])
+    if not reviews:
+        return {"rating": 0, "count": 0}
+    
+    avg_rating = sum(r["rating"] for r in reviews) / len(reviews)
+    
+    return {"rating": round(avg_rating, 1), "count": len(reviews)}
+
+def update_skill_rating(skill_name: str):
+    """更新技能评分"""
+    reviews = reviews_db.get(skill_name, [])
+    if not reviews:
+        skills_db[skill_name]["rating"] = 0
+        skills_db[skill_name]["review_count"] = 0
+        return
+    
+    avg_rating = sum(r["rating"] for r in reviews) / len(reviews)
+    skills_db[skill_name]["rating"] = round(avg_rating, 1)
+    skills_db[skill_name]["review_count"] = len(reviews)
+
+# ============================================================
+# 收藏端点
+# ============================================================
+
+# 收藏数据库（模拟）
+favorites_db = {}
+
+@app.post("/api/skills/{skill_name}/favorite")
+async def add_favorite(
+    skill_name: str,
+    credentials: HTTPAuthorizationCredentials = Depends(security)
+):
+    """添加收藏"""
+    if skill_name not in skills_db:
+        raise HTTPException(status_code=404, detail="技能不存在")
+    
+    username = credentials.credentials.split(':')[0]
+    
+    if username not in favorites_db:
+        favorites_db[username] = []
+    
+    if skill_name in favorites_db[username]:
+        return {"success": False, "message": "已收藏此技能"}
+    
+    favorites_db[username].append(skill_name)
+    
+    return {"success": True, "message": "收藏成功"}
+
+@app.delete("/api/skills/{skill_name}/favorite")
+async def remove_favorite(
+    skill_name: str,
+    credentials: HTTPAuthorizationCredentials = Depends(security)
+):
+    """取消收藏"""
+    username = credentials.credentials.split(':')[0]
+    
+    if username not in favorites_db or skill_name not in favorites_db[username]:
+        return {"success": False, "message": "未收藏此技能"}
+    
+    favorites_db[username].remove(skill_name)
+    
+    return {"success": True, "message": "取消收藏成功"}
+
+@app.get("/api/favorites")
+async def get_favorites(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    """获取用户收藏列表"""
+    username = credentials.credentials.split(':')[0]
+    
+    favorite_skills = favorites_db.get(username, [])
+    skills = []
+    
+    for skill_name in favorite_skills:
+        if skill_name in skills_db:
+            skills.append(skills_db[skill_name])
+    
+    return {"skills": skills}
+
+@app.get("/api/skills/{skill_name}/is-favorite")
+async def is_favorite(
+    skill_name: str,
+    credentials: HTTPAuthorizationCredentials = Depends(security)
+):
+    """检查技能是否已收藏"""
+    username = credentials.credentials.split(':')[0]
+    
+    is_fav = favorites_db.get(username, []).count(skill_name) > 0
+    
+    return {"is_favorite": is_fav}
+
+# ============================================================
 # 搜索端点
 # ============================================================
 @app.get("/api/search")
 async def search_skills(
-    q: str,
+    q: str = "",
     category: Optional[str] = None,
-    limit: int = 10
+    status: Optional[str] = None,
+    min_rating: Optional[float] = None,
+    sort_by: Optional[str] = "downloads",
+    sort_order: Optional[str] = "desc",
+    limit: int = 20,
+    offset: int = 0
 ):
-    """搜索技能"""
+    """搜索技能（支持高级筛选）"""
     results = []
     
     for skill in skills_db.values():
-        match = False
+        match = True
         
-        # 匹配名称和描述
-        if q.lower() in skill["name"].lower():
-            match = True
-        elif q.lower() in skill["description"].lower():
-            match = True
-        elif any(q.lower() in tag.lower() for tag in skill["tags"]):
-            match = True
+        # 搜索关键词匹配
+        if q:
+            q_lower = q.lower()
+            keyword_match = (
+                q_lower in skill["name"].lower() or
+                q_lower in skill["description"].lower() or
+                any(q_lower in tag.lower() for tag in skill["tags"]) or
+                q_lower in skill["author"].lower()
+            )
+            if not keyword_match:
+                match = False
         
-        # 匹配分类
+        # 分类筛选
         if category and skill["category"] != category:
+            match = False
+        
+        # 状态筛选
+        if status and skill["status"] != status:
+            match = False
+        
+        # 评分筛选
+        if min_rating and (skill.get("rating", 0) or 0) < min_rating:
             match = False
         
         if match:
             results.append(skill)
     
-    # 按下载量排序
-    results.sort(key=lambda x: x["downloads"], reverse=True)
+    # 排序
+    sort_key = sort_by if sort_by in ["downloads", "rating", "review_count", "updated_at"] else "downloads"
+    reverse = sort_order == "desc"
     
-    return {"skills": results[:limit]}
+    results.sort(key=lambda x: x.get(sort_key, 0) if sort_key != "updated_at" else x.get(sort_key, ""), reverse=reverse)
+    
+    # 分页
+    total = len(results)
+    paginated = results[offset:offset + limit]
+    
+    return {
+        "skills": paginated,
+        "total": total,
+        "limit": limit,
+        "offset": offset
+    }
+
+@app.get("/api/skills/filter")
+async def filter_skills(
+    category: Optional[str] = None,
+    status: Optional[str] = None,
+    min_rating: Optional[float] = None,
+    installed: Optional[bool] = None,
+    sort_by: Optional[str] = "downloads",
+    sort_order: Optional[str] = "desc",
+    limit: int = 20,
+    offset: int = 0
+):
+    """筛选技能（无关键词搜索）"""
+    results = []
+    
+    for skill in skills_db.values():
+        match = True
+        
+        # 分类筛选
+        if category and skill["category"] != category:
+            match = False
+        
+        # 状态筛选
+        if status and skill["status"] != status:
+            match = False
+        
+        # 评分筛选
+        if min_rating and (skill.get("rating", 0) or 0) < min_rating:
+            match = False
+        
+        # 安装状态筛选
+        if installed is not None and skill["installed"] != installed:
+            match = False
+        
+        if match:
+            results.append(skill)
+    
+    # 排序
+    sort_key = sort_by if sort_by in ["downloads", "rating", "review_count", "updated_at"] else "downloads"
+    reverse = sort_order == "desc"
+    
+    results.sort(key=lambda x: x.get(sort_key, 0) if sort_key != "updated_at" else x.get(sort_key, ""), reverse=reverse)
+    
+    # 分页
+    total = len(results)
+    paginated = results[offset:offset + limit]
+    
+    return {
+        "skills": paginated,
+        "total": total,
+        "limit": limit,
+        "offset": offset
+    }
+
+# ============================================================
+# 排行榜端点
+# ============================================================
+
+@app.get("/api/rankings")
+async def get_rankings(
+    type: str = "downloads",
+    limit: int = 10
+):
+    """获取技能排行榜"""
+    skills_list = list(skills_db.values())
+    
+    # 根据类型排序
+    if type == "rating":
+        skills_list.sort(key=lambda x: x.get("rating", 0) or 0, reverse=True)
+    elif type == "reviews":
+        skills_list.sort(key=lambda x: x.get("review_count", 0) or 0, reverse=True)
+    else:
+        # 默认按下载量
+        skills_list.sort(key=lambda x: x["downloads"], reverse=True)
+    
+    # 过滤掉没有评分的技能（评分排行）
+    if type == "rating":
+        skills_list = [s for s in skills_list if (s.get("rating", 0) or 0) > 0]
+    
+    return {
+        "type": type,
+        "skills": skills_list[:limit],
+        "total": len(skills_list)
+    }
+
+@app.get("/api/rankings/all")
+async def get_all_rankings(limit: int = 5):
+    """获取所有排行榜数据"""
+    skills_list = list(skills_db.values())
+    
+    # 下载量排行
+    download_ranking = sorted(skills_list, key=lambda x: x["downloads"], reverse=True)[:limit]
+    
+    # 评分排行（只显示有评分的）
+    rating_ranking = sorted(
+        [s for s in skills_list if (s.get("rating", 0) or 0) > 0],
+        key=lambda x: x.get("rating", 0) or 0,
+        reverse=True
+    )[:limit]
+    
+    # 评论数排行
+    review_ranking = sorted(
+        skills_list,
+        key=lambda x: x.get("review_count", 0) or 0,
+        reverse=True
+    )[:limit]
+    
+    return {
+        "downloads": download_ranking,
+        "rating": rating_ranking,
+        "reviews": review_ranking
+    }
+
+# ============================================================
+# 截图管理端点
+# ============================================================
+
+@app.get("/api/skills/{skill_name}/screenshots")
+async def get_screenshots(skill_name: str):
+    """获取技能截图列表"""
+    if skill_name not in skills_db:
+        raise HTTPException(status_code=404, detail="技能不存在")
+    
+    skill = skills_db[skill_name]
+    screenshots = skill.get("screenshots", [])
+    
+    return {"screenshots": screenshots}
+
+@app.post("/api/skills/{skill_name}/screenshots", dependencies=[Depends(security)])
+async def add_screenshot(
+    skill_name: str,
+    url: str = Query(...),
+    caption: Optional[str] = ""
+):
+    """添加技能截图"""
+    if skill_name not in skills_db:
+        raise HTTPException(status_code=404, detail="技能不存在")
+    
+    skill = skills_db[skill_name]
+    
+    if "screenshots" not in skill:
+        skill["screenshots"] = []
+    
+    skill["screenshots"].append({
+        "url": url,
+        "caption": caption,
+        "added_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    })
+    
+    return {"success": True, "message": "截图添加成功"}
+
+@app.delete("/api/skills/{skill_name}/screenshots/{index}", dependencies=[Depends(security)])
+async def remove_screenshot(skill_name: str, index: int):
+    """删除技能截图"""
+    if skill_name not in skills_db:
+        raise HTTPException(status_code=404, detail="技能不存在")
+    
+    skill = skills_db[skill_name]
+    screenshots = skill.get("screenshots", [])
+    
+    if index < 0 or index >= len(screenshots):
+        raise HTTPException(status_code=400, detail="截图索引无效")
+    
+    screenshots.pop(index)
+    
+    return {"success": True, "message": "截图删除成功"}
+
+# ============================================================
+# 版本回滚端点
+# ============================================================
+
+# 安装历史数据库（模拟）
+install_history_db = {}
+
+@app.get("/api/skills/{skill_name}/install-history")
+async def get_install_history(
+    skill_name: str,
+    credentials: HTTPAuthorizationCredentials = Depends(security)
+):
+    """获取技能安装历史"""
+    if skill_name not in skills_db:
+        raise HTTPException(status_code=404, detail="技能不存在")
+    
+    username = credentials.credentials.split(':')[0]
+    
+    if username not in install_history_db:
+        install_history_db[username] = {}
+    
+    history = install_history_db[username].get(skill_name, [])
+    return {"history": history}
+
+@app.post("/api/skills/{skill_name}/rollback")
+async def rollback_version(
+    skill_name: str,
+    target_version: str = Query(...),
+    credentials: HTTPAuthorizationCredentials = Depends(security)
+):
+    """回滚到指定版本"""
+    if skill_name not in skills_db:
+        raise HTTPException(status_code=404, detail="技能不存在")
+    
+    skill = skills_db[skill_name]
+    
+    # 检查目标版本是否存在
+    versions = skill.get("versions", [])
+    target_version_info = None
+    for v in versions:
+        if v["version"] == target_version:
+            target_version_info = v
+            break
+    
+    if not target_version_info:
+        raise HTTPException(status_code=400, detail="目标版本不存在")
+    
+    # 保存当前版本到历史记录
+    username = credentials.credentials.split(':')[0]
+    if username not in install_history_db:
+        install_history_db[username] = {}
+    
+    if skill_name not in install_history_db[username]:
+        install_history_db[username][skill_name] = []
+    
+    install_history_db[username][skill_name].append({
+        "version": skill["version"],
+        "installed_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "action": "rollback_from"
+    })
+    
+    # 回滚到目标版本
+    skill["version"] = target_version
+    skill["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    
+    # 添加回滚记录
+    install_history_db[username][skill_name].append({
+        "version": target_version,
+        "installed_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "action": "rollback_to"
+    })
+    
+    return {"success": True, "message": f"已回滚到版本 {target_version}"}
+
+# ============================================================
+# 更新通知端点
+# ============================================================
+
+# 通知数据库（模拟）
+notifications_db = {}
+
+@app.post("/api/notifications/check-updates")
+async def check_updates(
+    credentials: HTTPAuthorizationCredentials = Depends(security)
+):
+    """检查已安装技能的更新"""
+    username = credentials.credentials.split(':')[0]
+    
+    # 获取用户已安装的技能
+    installed_skills = []
+    for skill in skills_db.values():
+        if skill["installed"]:
+            installed_skills.append(skill)
+    
+    updates = []
+    for skill in installed_skills:
+        # 检查是否有更新版本
+        latest_version = skill["version"]
+        # 模拟版本检查逻辑
+        if skill.get("has_update", False):
+            updates.append({
+                "skill_name": skill["name"],
+                "current_version": skill["version"],
+                "latest_version": latest_version,
+                "changelog": skill.get("changelog", "暂无更新日志")
+            })
+    
+    return {"updates": updates, "count": len(updates)}
+
+@app.get("/api/notifications")
+async def get_notifications(
+    credentials: HTTPAuthorizationCredentials = Depends(security)
+):
+    """获取用户通知列表"""
+    username = credentials.credentials.split(':')[0]
+    
+    user_notifications = notifications_db.get(username, [])
+    return {"notifications": user_notifications}
+
+@app.post("/api/notifications/mark-read/{notification_id}")
+async def mark_notification_read(
+    notification_id: int,
+    credentials: HTTPAuthorizationCredentials = Depends(security)
+):
+    """标记通知为已读"""
+    username = credentials.credentials.split(':')[0]
+    
+    if username not in notifications_db:
+        return {"success": False, "message": "无通知记录"}
+    
+    for notification in notifications_db[username]:
+        if notification["id"] == notification_id:
+            notification["read"] = True
+            return {"success": True, "message": "已标记为已读"}
+    
+    return {"success": False, "message": "通知不存在"}
+
+@app.post("/api/notifications/clear")
+async def clear_notifications(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    """清空所有通知"""
+    username = credentials.credentials.split(':')[0]
+    notifications_db[username] = []
+    return {"success": True, "message": "已清空通知"}
 
 # ============================================================
 # 分类端点
