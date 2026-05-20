@@ -51,7 +51,7 @@
           'skill-card animate-fade-in cursor-pointer',
           viewMode === 'list' ? 'flex items-start gap-4' : ''
         ]"
-        @click="$emit('view-detail', skill.name)"
+        @click="$emit('view-detail', skill.id)"
       >
         <div :class="['flex-1', viewMode === 'grid' ? '' : '']">
           <div class="flex items-start justify-between gap-3 mb-3">
@@ -66,12 +66,12 @@
               <button
                 v-if="isLoggedIn"
                 class="p-1.5 rounded-lg hover:bg-gray-100 transition-colors"
-                @click.stop="toggleFavorite(skill.name)"
+                @click.stop="toggleFavorite(skill.id)"
               >
                 <Heart 
                   :class="[
                     'w-4 h-4',
-                    favorites[skill.name] ? 'text-red-500 fill-red-500' : 'text-gray-400'
+                    favorites[skill.id] ? 'text-red-500 fill-red-500' : 'text-gray-400'
                   ]"
                 />
               </button>
@@ -163,7 +163,7 @@ const loadFavorites = async () => {
     })
     const data = await response.json()
     data.skills.forEach(skill => {
-      favorites.value[skill.name] = true
+      favorites.value[skill.id] = true
     })
   } catch (error) {
     console.error('Failed to load favorites:', error)
