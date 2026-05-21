@@ -421,6 +421,64 @@ def add_favorite(skill_id: str, developer=Depends(get_current_developer)):
     with open(fav_path, 'w', encoding='utf-8') as f: json.dump(favs, f, indent=2)
     return {"message": "收藏成功"}
 
+# ==================== CLI 安装脚本 API ====================
+INSTALL_SCRIPT_PATH = Path(__file__).parent.parent.parent / "sh" / "install.sh"
+CLI_SCRIPT_PATH = Path(__file__).parent.parent.parent / "cli.py"
+
+@app.get("/api/install/install.sh")
+def get_install_script():
+    """获取 CLI 安装脚本 (Bash)"""
+    if INSTALL_SCRIPT_PATH.exists():
+        content = INSTALL_SCRIPT_PATH.read_text(encoding='utf-8')
+        return JSONResponse(content=content)
+    raise HTTPException(status_code=404, detail="安装脚本不存在")
+
+@app.get("/api/install/cli.py")
+def get_cli_script():
+    """获取 CLI 工具脚本"""
+    if CLI_SCRIPT_PATH.exists():
+        content = CLI_SCRIPT_PATH.read_text(encoding='utf-8')
+        return JSONResponse(content=content)
+    raise HTTPException(status_code=404, detail="CLI 脚本不存在")
+
+@app.get("/api/install/install.ps1")
+def get_install_script_ps():
+    """获取 CLI 安装脚本 (PowerShell)"""
+    ps_script = '''# ARD Skill Hub CLI 安装脚本 (PowerShell)
+# 需要以管理员身份运行
+
+$ARD_INSTALL_DIR = "$env:USERPROFILE\\.ardc"
+$ARD_BIN_DIR = "$ARD_INSTALL_DIR\\bin"
+$ARD_CLI_URL = "http://47.79.91.89:8888/api/install/cli.py"
+
+Write-Host "🚀 正在安装 ARD Skill Hub CLI 工具..."
+
+# 检查 Python
+if (-not (Get-Command python3 -ErrorAction SilentlyContinue)) {
+    if (-not (Get-Command python -ErrorAction SilentlyContinue)) {
+        Write-Host "❌ 错误: 未找到 Python 3"
+        exit 1
+    }
+}
+
+# 创建目录
+New-Item -ItemType Directory -Path $ARD_BIN_DIR -Force | Out-Null
+
+# 下载 CLI
+Write-Host "📥 下载 CLI 工具..."
+Invoke-WebRequest -Uri $ARD_CLI_URL -OutFile "$ARD_BIN_DIR\\ardc.py"
+
+# 设置 PATH
+$path = [Environment]::GetEnvironmentVariable("Path", "User")
+if ($path -notlike "*$ARD_BIN_DIR*") {
+    [Environment]::SetEnvironmentVariable("Path", "$path;$ARD_BIN_DIR", "User")
+}
+
+Write-Host "✅ 安装完成!"
+Write-Host "请重新打开 PowerShell 后运行: ardc --version"
+'''
+    return JSONResponse(content=ps_script)
+
 # ==================== 启动 ====================
 
 def start_server(host: str = "0.0.0.0", port: int = 8000):
