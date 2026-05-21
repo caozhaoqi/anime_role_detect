@@ -14,7 +14,7 @@ import json
 
 from fastapi import FastAPI, HTTPException, Depends, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
 from fastapi.openapi.docs import get_swagger_ui_html, get_redoc_html
 from fastapi.openapi.utils import get_openapi
 from fastapi.exceptions import RequestValidationError
@@ -436,7 +436,7 @@ def get_install_script():
     logger.info(f"安装脚本路径: {INSTALL_SCRIPT_PATH}, 存在: {INSTALL_SCRIPT_PATH.exists()}")
     if INSTALL_SCRIPT_PATH.exists():
         content = INSTALL_SCRIPT_PATH.read_text(encoding='utf-8')
-        return JSONResponse(content=content)
+        return PlainTextResponse(content=content, media_type="text/plain")
     raise HTTPException(status_code=404, detail="安装脚本不存在")
 
 @app.get("/api/install/cli.py")
@@ -445,7 +445,7 @@ def get_cli_script():
     logger.info(f"CLI脚本路径: {CLI_SCRIPT_PATH}, 存在: {CLI_SCRIPT_PATH.exists()}")
     if CLI_SCRIPT_PATH.exists():
         content = CLI_SCRIPT_PATH.read_text(encoding='utf-8')
-        return JSONResponse(content=content)
+        return PlainTextResponse(content=content, media_type="text/plain")
     raise HTTPException(status_code=404, detail="CLI 脚本不存在")
 
 @app.get("/api/install/install.ps1")
