@@ -5,9 +5,11 @@ API 主入口
 提供技能仓库 RESTful API
 """
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, PlainTextResponse
+from fastapi.openapi.docs import get_swagger_ui_html
+from fastapi.openapi.utils import get_openapi
 from pydantic import BaseModel
 from typing import List, Optional
 from pathlib import Path
@@ -15,9 +17,15 @@ from pathlib import Path
 from ardc.store.registry import SkillRegistry
 from ardc.store.index import SkillIndex
 from ardc.version.manager import VersionManager
-from ardc.api.auth import router as auth_router
+from ardc.api.auth import router as auth_router, get_current_developer
 
-app = FastAPI(title="ARD Skill Repository API", version="1.0.0")
+app = FastAPI(
+    title="ARD Skill Repository API",
+    version="1.0.0",
+    description="技能仓库 RESTful API - 提供技能管理、用户认证、技能搜索等功能",
+    docs_url=None,
+    redoc_url=None
+)
 
 # 包含认证路由
 app.include_router(auth_router)
@@ -137,6 +145,30 @@ def get_cli():
     if not cli_path.exists():
         raise HTTPException(status_code=404, detail="CLI 工具不存在")
     return FileResponse(cli_path, media_type="text/x-python")
+
+@app.get("/docs")
+async def custom_swagger_ui_html(developer=Depends(get_current_developer)):
+    return get_swagger_ui_html(
+        openapi_url="/openapi.json",
+        title="ARD Skill Repository API - Swagger UI"
+    )
+
+@app.get("/redoc")
+async def custom_redoc_html(developer=Depends(get_current_developer)):
+    from fastapi.openapi.docs import get_redoc_html
+    return get_redoc_html(
+        openapi_url="/openapi.json",
+        title="ARD Skill Repository API - ReDoc"
+    )
+
+@app.get("/openapi.json")
+async def custom_openapi(developer=Depends(get_current_developer)):
+    return get_openapi(
+        title=app.title,
+        version=app.version,
+        description=app.description,
+        routes=app.routes,
+    )
 
 @app.get("/api/health")
 def health_check():

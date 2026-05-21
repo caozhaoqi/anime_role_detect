@@ -257,6 +257,8 @@ def main():
         """
     )
     
+    parser.add_argument("--version", action="store_true", help="显示版本信息")
+    
     subparsers = parser.add_subparsers(dest="command", help="可用命令")
     
     # version
@@ -294,6 +296,11 @@ def main():
     subparsers.add_parser("tags", help="列出所有标签")
     
     args = parser.parse_args()
+    
+    # 处理 --version 参数
+    if args.version:
+        cmd_version(args)
+        return
     
     if not args.command:
         parser.print_help()

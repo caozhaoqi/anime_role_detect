@@ -114,6 +114,15 @@ async def get_current_user(token: str = Depends(oauth2_scheme)) -> User:
         raise credentials_exception
     return user
 
+async def get_current_developer(current_user: User = Depends(get_current_user)) -> User:
+    """获取当前开发者用户（需要开发者权限）"""
+    if not current_user.is_developer:
+        raise HTTPException(
+            status_code=403,
+            detail="需要开发者权限"
+        )
+    return current_user
+
 @router.post("/register", response_model=dict)
 def register(user: UserCreate):
     """用户注册"""
@@ -194,4 +203,55 @@ async def get_profile(current_user: User = Depends(get_current_user)):
         "email": current_user.email,
         "is_developer": current_user.is_developer,
         "created_at": current_user.created_at
+    }
+
+@router.post("/users/{username}/promote")
+async def promote_user(username: str, current_user: User = Depends(get_current_developer)):
+    """提升用户为开发者（需要开发者权限）"""
+    users = load_users()
+    
+    if username not in users:
+        raise HTTPException(status_code=404, detail="用户不存在")
+    
+    users[username].is_developer = True
+    users[username].updated_at = datetime.now().isoformat()
+    save_users(users)
+    
+    return {"message": f"用户 {username} 已提升为开发者"}
+
+@router.get("/users")
+async def list_users(current_user: User = Depends(get_current_developer)):
+    """列出所有用户（需要开发者权限）"""
+    users = load_users()
+    return {
+        "users": [
+            {
+                "username": u.username,
+                "email": u.email,
+                "is_developer": u.is_developer,
+                "created_at": u.created_at
+            }
+            for u in users.values()
+        ]
+    }
+
+@router.get("/users/{username}")
+async def get_user(username: str, current_user: User = Depends(get_current_user)):
+    """查看用户信息（自己或开发者可以查看所有）"""
+    users = load_users()
+    
+    if username not in users:
+        raise HTTPException(status_code=404, detail="用户不存在")
+    
+    # 普通用户只能查看自己的信息
+    if not current_user.is_developer and current_user.username != username:
+        raise HTTPException(status_code=403, detail="无权限查看此用户信息")
+    
+    user = users[username]
+    return {
+        "username": user.username,
+        "email": user.email,
+        "is_developer": user.is_developer,
+        "created_at": user.created_at,
+        "updated_at": user.updated_at
     }

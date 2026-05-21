@@ -1,0 +1,1 @@
+python3 init_admin.py -u admin -e admin@example.com -p admin123
