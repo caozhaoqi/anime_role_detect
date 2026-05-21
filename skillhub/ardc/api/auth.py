@@ -5,7 +5,7 @@
 提供登录、注册、登出等功能
 """
 
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Form, Request
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from pydantic import BaseModel
 from datetime import datetime, timedelta
@@ -54,6 +54,11 @@ class Token(BaseModel):
     access_token: str
     token_type: str
     user: dict
+
+class LoginRequest(BaseModel):
+    """JSON 格式登录请求"""
+    username: str
+    password: str
 
 def load_users() -> Dict[str, User]:
     """加载用户数据"""
@@ -162,12 +167,32 @@ def register(user: UserCreate):
     }
 
 @router.post("/login", response_model=Token)
-def login(form_data: OAuth2PasswordRequestForm = Depends()):
-    """用户登录"""
+async def login(
+    request: Request,
+    username: Optional[str] = Form(None),
+    password: Optional[str] = Form(None)
+):
+    """用户登录 - 支持表单格式和JSON格式"""
     users = load_users()
     
-    user = users.get(form_data.username)
-    if not user or not verify_password(form_data.password, user.hashed_password):
+    # 尝试从JSON请求体获取数据
+    try:
+        json_data = await request.json()
+        if isinstance(json_data, dict):
+            username = json_data.get("username") or username
+            password = json_data.get("password") or password
+    except:
+        pass
+    
+    # 验证参数
+    if not username or not password:
+        raise HTTPException(
+            status_code=422,
+            detail="需要提供用户名和密码",
+        )
+    
+    user = users.get(username)
+    if not user or not verify_password(password, user.hashed_password):
         raise HTTPException(
             status_code=401,
             detail="用户名或密码错误",
