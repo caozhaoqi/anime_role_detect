@@ -6,13 +6,16 @@
 """
 
 import json
+import logging
 import shutil
 from pathlib import Path
 from typing import List, Dict, Optional, Tuple
-from datetime import datetime
+from datetime import datetime, timezone
 import re
 
 from ardc.store.metadata import SkillMetadata, VersionInfo
+
+logger = logging.getLogger(__name__)
 
 
 class VersionManager:
@@ -54,7 +57,7 @@ class VersionManager:
                             
                             versions[skill_id][version] = VersionInfo(**data)
                     except Exception as e:
-                        print(f"加载版本 {skill_id}-{version} 失败: {e}")
+                        logger.error(f"加载版本 {skill_id}-{version} 失败: {e}")
         
         return versions
     
@@ -80,17 +83,17 @@ class VersionManager:
             version = metadata.version
             
             if not self._is_valid_version(version):
-                print(f"无效的版本号格式: {version}")
+                logger.error(f"无效的版本号格式: {version}")
                 return False
             
             if skill_id in self._versions and version in self._versions[skill_id]:
-                print(f"警告: 版本 {version} 已存在，将被覆盖")
+                logger.warning(f"警告: 版本 {version} 已存在，将被覆盖")
             
             version_info = VersionInfo(
                 version=version,
                 metadata=metadata,
                 release_notes=release_notes,
-                released_at=datetime.now(),
+                released_at=datetime.now(timezone.utc),
                 download_count=0
             )
             
@@ -99,10 +102,10 @@ class VersionManager:
             self._versions[skill_id][version] = version_info
             
             self._save_version(skill_id, version_info)
-            print(f"技能 {skill_id} v{version} 发布成功")
+            logger.info(f"技能 {skill_id} v{version} 发布成功")
             return True
         except Exception as e:
-            print(f"发布版本失败: {e}")
+            logger.error(f"发布版本失败: {e}")
             return False
     
     def _is_valid_version(self, version: str) -> bool:
@@ -168,36 +171,36 @@ class VersionManager:
         try:
             target_info = self.get_version(skill_id, target_version)
             if not target_info:
-                print(f"未找到目标版本 {target_version}")
+                logger.warning(f"未找到目标版本 {target_version}")
                 return False
             
             rollback_info = {
                 "skill_id": skill_id,
                 "from_version": self.get_latest_version(skill_id).version if self.get_latest_version(skill_id) else None,
                 "to_version": target_version,
-                "rolled_back_at": datetime.now().isoformat()
+                "rolled_back_at": datetime.now(timezone.utc).isoformat()
             }
             
             rollback_dir = self.data_path / skill_id / "rollbacks"
             rollback_dir.mkdir(parents=True, exist_ok=True)
-            rollback_file = rollback_dir / f"{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+            rollback_file = rollback_dir / f"{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.json"
             with open(rollback_file, 'w', encoding='utf-8') as f:
                 json.dump(rollback_info, f, ensure_ascii=False, indent=2)
             
-            print(f"技能 {skill_id} 已回滚到版本 {target_version}")
+            logger.info(f"技能 {skill_id} 已回滚到版本 {target_version}")
             return True
         except Exception as e:
-            print(f"回滚失败: {e}")
+            logger.error(f"回滚失败: {e}")
             return False
     
     def delete_version(self, skill_id: str, version: str) -> bool:
         try:
             if skill_id not in self._versions:
-                print(f"技能 {skill_id} 不存在")
+                logger.warning(f"技能 {skill_id} 不存在")
                 return False
             
             if version not in self._versions[skill_id]:
-                print(f"版本 {version} 不存在")
+                logger.warning(f"版本 {version} 不存在")
                 return False
             
             version_file = self.data_path / skill_id / f"{version}.json"
@@ -212,10 +215,10 @@ class VersionManager:
                 if skill_dir.exists():
                     shutil.rmtree(skill_dir)
             
-            print(f"版本 {version} 删除成功")
+            logger.info(f"版本 {version} 删除成功")
             return True
         except Exception as e:
-            print(f"删除版本失败: {e}")
+            logger.error(f"删除版本失败: {e}")
             return False
     
     def get_version_history(self, skill_id: str) -> List[Dict[str, str]]:
@@ -243,7 +246,7 @@ class VersionManager:
                             "timestamp": data.get("rolled_back_at")
                         })
                 except Exception as e:
-                    print(f"加载回滚记录失败: {e}")
+                    logger.error(f"加载回滚记录失败: {e}")
         
         history.sort(key=lambda h: h["timestamp"])
         return history

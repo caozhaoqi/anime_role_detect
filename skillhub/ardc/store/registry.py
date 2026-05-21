@@ -8,11 +8,14 @@
 import os
 import json
 import shutil
+import logging
 from pathlib import Path
 from typing import List, Dict, Optional, Tuple
 from datetime import datetime
 
 from .metadata import SkillMetadata, VersionInfo, InstalledSkill
+
+logger = logging.getLogger(__name__)
 
 
 class SkillRegistry:
@@ -46,7 +49,7 @@ class SkillRegistry:
                                     info['metadata']['updated_at'] = datetime.fromisoformat(info['metadata']['updated_at'])
                     return data
             except Exception as e:
-                print(f"加载注册表失败: {e}")
+                logger.error(f"加载注册表失败: {e}")
         return {}
     
     def _save_registry(self):
@@ -88,7 +91,7 @@ class SkillRegistry:
                             }
                             installed[skill_id] = InstalledSkill(**installed_info)
                     except Exception as e:
-                        print(f"加载已安装技能 {skill_id} 失败: {e}")
+                        logger.error(f"加载已安装技能 {skill_id} 失败: {e}")
         return installed
     
     def register_skill(self, metadata: SkillMetadata, release_notes: str = "") -> bool:
@@ -100,7 +103,7 @@ class SkillRegistry:
                 self._registry[skill_id] = {}
             
             if version in self._registry[skill_id]:
-                print(f"警告: 技能 {skill_id} 版本 {version} 已存在，将被覆盖")
+                logger.warning(f"警告: 技能 {skill_id} 版本 {version} 已存在，将被覆盖")
             
             version_info = VersionInfo(
                 version=version,
@@ -114,7 +117,7 @@ class SkillRegistry:
             self._save_registry()
             return True
         except Exception as e:
-            print(f"注册技能失败: {e}")
+            logger.error(f"注册技能失败: {e}")
             return False
     
     def get_skill_versions(self, skill_id: str) -> List[VersionInfo]:
@@ -189,14 +192,14 @@ class SkillRegistry:
                 skills = index.search(skill_id)
                 if skills:
                     metadata = skills[0]
-                    print(f"从索引获取技能 {skill_id}")
+                    logger.info(f"从索引获取技能 {skill_id}")
             
             if not metadata:
-                print(f"未找到技能 {skill_id} 的版本 {version or 'latest'}")
+                logger.warning(f"未找到技能 {skill_id} 的版本 {version or 'latest'}")
                 return False
             
             if skill_id in self._installed_skills:
-                print(f"技能 {skill_id} 已安装")
+                logger.info(f"技能 {skill_id} 已安装")
                 return False
             
             skill_dir = self.skills_dir / skill_id
@@ -214,21 +217,31 @@ class SkillRegistry:
             entry_dir.mkdir(exist_ok=True)
             
             entry_file = entry_dir / os.path.basename(metadata.entry_point)
-            with open(entry_file, 'w', encoding='utf-8') as f:
-                f.write(f"""#!/usr/bin/env python3
+            script_content = '''#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-\"\"\"
-{metadata.name} (v{metadata.version})
-{metadata.description}
-\"\"\"
+"""
+{name} (v{version})
+{desc}
+"""
 
 def execute(**kwargs):
-    print(f"执行 {metadata.id} v{metadata.version}")
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info("执行 {skill_id} v{skill_version}".format(skill_id="{id}", skill_version="{ver}"))
     return {{"success": True, "message": "技能执行成功"}}
 
 if __name__ == "__main__":
     execute()
-""")
+'''.format(
+                name=metadata.name,
+                version=metadata.version,
+                desc=metadata.description,
+                id=metadata.id,
+                ver=metadata.version
+            )
+            
+            with open(entry_file, 'w', encoding='utf-8') as f:
+                f.write(script_content)
             entry_file.chmod(0o755)
             
             installed_info = InstalledSkill(
@@ -245,16 +258,16 @@ if __name__ == "__main__":
                 self._registry[skill_id][version_key].download_count += 1
                 self._save_registry()
             
-            print(f"技能 {skill_id} v{metadata.version} 安装成功")
+            logger.info(f"技能 {skill_id} v{metadata.version} 安装成功")
             return True
         except Exception as e:
-            print(f"安装技能失败: {e}")
+            logger.error(f"安装技能失败: {e}")
             return False
     
     def uninstall_skill(self, skill_id: str) -> bool:
         try:
             if skill_id not in self._installed_skills:
-                print(f"技能 {skill_id} 未安装")
+                logger.warning(f"技能 {skill_id} 未安装")
                 return False
             
             skill_dir = self.skills_dir / skill_id
@@ -262,10 +275,10 @@ if __name__ == "__main__":
                 shutil.rmtree(skill_dir)
             
             del self._installed_skills[skill_id]
-            print(f"技能 {skill_id} 卸载成功")
+            logger.info(f"技能 {skill_id} 卸载成功")
             return True
         except Exception as e:
-            print(f"卸载技能失败: {e}")
+            logger.error(f"卸载技能失败: {e}")
             return False
     
     def list_installed_skills(self) -> List[InstalledSkill]:
@@ -276,9 +289,9 @@ if __name__ == "__main__":
     
     def enable_skill(self, skill_id: str, enabled: bool) -> bool:
         if skill_id not in self._installed_skills:
-            print(f"技能 {skill_id} 未安装")
+            logger.warning(f"技能 {skill_id} 未安装")
             return False
         
         self._installed_skills[skill_id].enabled = enabled
-        print(f"技能 {skill_id} {'启用' if enabled else '禁用'}成功")
+        logger.info(f"技能 {skill_id} {'启用' if enabled else '禁用'}成功")
         return True

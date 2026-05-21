@@ -6,12 +6,15 @@
 """
 
 import json
+import logging
 from pathlib import Path
 from typing import List, Dict, Optional, Any
-from datetime import datetime
+from datetime import datetime, timezone
 import re
 
 from .metadata import SkillMetadata
+
+logger = logging.getLogger(__name__)
 
 
 class SkillIndex:
@@ -32,17 +35,17 @@ class SkillIndex:
                 with open(self.index_path, 'r', encoding='utf-8') as f:
                     return json.load(f)
             except Exception as e:
-                print(f"加载索引失败: {e}")
+                logger.error(f"加载索引失败: {e}")
         return {
             "skills": {},
             "categories": {},
             "tags": {},
-            "last_updated": datetime.now().isoformat()
+            "last_updated": datetime.now(timezone.utc).isoformat()
         }
     
     def _save_index(self):
         self.index_path.parent.mkdir(parents=True, exist_ok=True)
-        self._index["last_updated"] = datetime.now().isoformat()
+        self._index["last_updated"] = datetime.now(timezone.utc).isoformat()
         with open(self.index_path, 'w', encoding='utf-8') as f:
             json.dump(self._index, f, ensure_ascii=False, indent=2)
     

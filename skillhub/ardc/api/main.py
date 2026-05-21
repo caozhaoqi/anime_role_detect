@@ -44,8 +44,15 @@ app = FastAPI(
 # 包含认证路由
 app.include_router(auth_router)
 
-# CORS 配置 - 生产环境应限制具体域名
-ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "*").split(",")
+# CORS 配置 - 生产环境必须设置 ALLOWED_ORIGINS 环境变量
+ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "").split(",")
+# 过滤空字符串
+ALLOWED_ORIGINS = [origin.strip() for origin in ALLOWED_ORIGINS if origin.strip()]
+
+# 如果没有配置允许的域名，默认允许本地开发环境
+if not ALLOWED_ORIGINS:
+    ALLOWED_ORIGINS = ["http://localhost:3000", "http://127.0.0.1:3000"]
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
@@ -306,6 +313,48 @@ def add_changelog(entry: ChangelogCreate, developer=Depends(get_current_develope
         raise HTTPException(status_code=400, detail=str(e))
 
 # ==================== 日志查看 API ====================
+def _tail_file(filepath: str, num_lines: int = 1000) -> list:
+    """高效读取文件末尾指定行数"""
+    lines = []
+    try:
+        with open(filepath, 'r', encoding='utf-8') as f:
+            # 先尝试用 seek 定位到文件末尾附近
+            buffer_size = 8192
+            f.seek(0, os.SEEK_END)
+            file_size = f.tell()
+            
+            if file_size == 0:
+                return lines
+            
+            # 从文件末尾向前读取，直到获取足够的行数
+            while len(lines) < num_lines:
+                # 计算要读取的字节数
+                read_size = min(buffer_size, file_size)
+                if read_size == 0:
+                    break
+                
+                f.seek(file_size - read_size)
+                chunk = f.read(read_size)
+                file_size -= read_size
+                
+                # 拆分行为列表
+                chunk_lines = chunk.split('\n')
+                
+                # 如果不是文件开头，第一个元素可能不完整，需要和之前的内容合并
+                if file_size > 0 and lines:
+                    lines[0] = chunk_lines[-1] + lines[0]
+                    chunk_lines = chunk_lines[:-1]
+                
+                # 添加到结果列表前面
+                lines = chunk_lines + lines
+            
+            # 只返回需要的行数
+            return lines[-num_lines:]
+    except Exception as e:
+        logger.error(f"读取日志文件失败: {filepath}, 错误: {e}")
+        return lines
+
+
 @app.get("/api/logs")
 async def get_logs(
     developer=Depends(get_current_developer),
@@ -321,16 +370,27 @@ async def get_logs(
     if not os.path.exists(log_dir):
         return {"logs": [], "total": 0}
     
+    # 限制一次最多读取的行数，防止内存溢出
+    max_lines_per_file = 5000
+    
     log_files = sorted([f for f in os.listdir(log_dir) if f.endswith('.log') and not f.endswith('_json.log')])
     for filename in log_files:
         filepath = os.path.join(log_dir, filename)
         try:
-            with open(filepath, 'r', encoding='utf-8') as f:
-                for line in f:
-                    parts = line.strip().split(' - ', 4)
-                    if len(parts) == 5:
-                        all_logs.append({'timestamp': parts[0], 'logger': parts[1], 'level': parts[2], 'source': parts[3], 'message': parts[4]})
-        except: pass
+            # 高效读取文件末尾行
+            lines = _tail_file(filepath, max_lines_per_file)
+            for line in lines:
+                parts = line.strip().split(' - ', 4)
+                if len(parts) == 5:
+                    all_logs.append({
+                        'timestamp': parts[0], 
+                        'logger': parts[1], 
+                        'level': parts[2], 
+                        'source': parts[3], 
+                        'message': parts[4]
+                    })
+        except Exception as e:
+            logger.error(f"处理日志文件失败: {filepath}, 错误: {e}")
     
     if level:
         all_logs = [log for log in all_logs if log['level'] == level.upper()]

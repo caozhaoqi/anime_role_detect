@@ -6,11 +6,14 @@
 """
 
 import json
+import logging
 from pathlib import Path
 from typing import List, Dict, Optional, Any, Callable
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import uuid4
 from pydantic import BaseModel, Field
+
+logger = logging.getLogger(__name__)
 
 
 class WorkflowNode(BaseModel):
@@ -42,8 +45,8 @@ class Workflow(BaseModel):
     description: str = Field(default="", description="工作流描述")
     nodes: List[WorkflowNode] = Field(default_factory=list, description="节点列表")
     edges: List[WorkflowEdge] = Field(default_factory=list, description="连线列表")
-    created_at: datetime = Field(default_factory=datetime.now, description="创建时间")
-    updated_at: datetime = Field(default_factory=datetime.now, description="更新时间")
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="创建时间")
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="更新时间")
     version: str = Field(default="1.0.0", description="工作流版本")
     
     def get_node(self, node_id: str) -> Optional[WorkflowNode]:
@@ -59,7 +62,7 @@ class ExecutionContext(BaseModel):
     execution_id: str = Field(description="执行实例ID")
     variables: Dict[str, Any] = Field(default_factory=dict, description="全局变量")
     node_outputs: Dict[str, Dict[str, Any]] = Field(default_factory=dict, description="节点输出缓存")
-    started_at: datetime = Field(default_factory=datetime.now, description="开始时间")
+    started_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="开始时间")
     status: str = Field(default="running", description="执行状态")
 
 
@@ -88,7 +91,7 @@ class WorkflowEngine:
     
     def save_workflow(self, workflow: Workflow) -> bool:
         try:
-            workflow.updated_at = datetime.now()
+            workflow.updated_at = datetime.now(timezone.utc)
             workflow_file = self.workflow_dir / f"{workflow.id}.json"
             
             data = workflow.dict()
@@ -101,7 +104,7 @@ class WorkflowEngine:
             
             return True
         except Exception as e:
-            print(f"保存工作流失败: {e}")
+            logger.error(f"保存工作流失败: {e}")
             return False
     
     def load_workflow(self, workflow_id: str) -> Optional[Workflow]:
@@ -119,7 +122,7 @@ class WorkflowEngine:
                 
                 return Workflow(**data)
         except Exception as e:
-            print(f"加载工作流失败: {e}")
+            logger.error(f"加载工作流失败: {e}")
             return None
     
     def list_workflows(self) -> List[Workflow]:
@@ -236,14 +239,14 @@ class WorkflowEngine:
             except Exception as e:
                 return ExecutionResult(success=False, error=str(e))
         
-        print(f"执行节点: {node.name} (技能: {node.skill_id})")
-        print(f"输入参数: {resolved_inputs}")
+        logger.info(f"执行节点: {node.name} (技能: {node.skill_id})")
+        logger.debug(f"输入参数: {resolved_inputs}")
         
         outputs = {
             "success": True,
             "node_id": node.id,
             "skill_id": node.skill_id,
-            "timestamp": datetime.now().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }
         
         for output_name, var_name in node.outputs.items():

@@ -24,8 +24,10 @@ from ardc.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
-# JWT 配置 - 从环境变量读取密钥
-SECRET_KEY = os.getenv("JWT_SECRET_KEY", "ard-skill-hub-secret-key-2026-change-in-production")
+# JWT 配置 - 必须从环境变量读取密钥
+SECRET_KEY = os.getenv("JWT_SECRET_KEY")
+if not SECRET_KEY:
+    raise RuntimeError("JWT_SECRET_KEY 环境变量未设置")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 

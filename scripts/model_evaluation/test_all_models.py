@@ -85,18 +85,19 @@ class ModelTester:
             # 尝试加载模型
             checkpoint = torch.load(model_path, map_location=device, weights_only=False)
             
+            # 初始化配置
+            config = {}
+            training_results_path = os.path.join(model_info['path'], 'training_results.json')
+            if os.path.exists(training_results_path):
+                with open(training_results_path, 'r', encoding='utf-8') as f:
+                    config = json.load(f)
+            
             # 检查是完整模型还是权重
             if isinstance(checkpoint, torch.nn.Module):
                 model = checkpoint
                 model_type = 'full_model'
             else:
                 # 需要从training_results获取配置
-                config = {}
-                training_results_path = os.path.join(model_info['path'], 'training_results.json')
-                if os.path.exists(training_results_path):
-                    with open(training_results_path, 'r', encoding='utf-8') as f:
-                        config = json.load(f)
-                
                 model_name = config.get('model_name', config.get('model', 'mobilenetv2'))
                 num_classes = config.get('num_classes', 76)
                 
