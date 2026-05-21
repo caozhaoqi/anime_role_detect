@@ -140,17 +140,42 @@ async def get_current_developer(current_user: User = Depends(get_current_user)) 
     return current_user
 
 
+class RegisterRequest(BaseModel):
+    username: str
+    email: str
+    password: str
+
+
 @router.post("/register")
 async def register(
-    username: str = Form(...),
-    email: str = Form(...),
-    password: str = Form(...),
+    request: Request,
     db: Session = Depends(get_db)
 ):
-    """用户注册"""
+    """用户注册 - 支持表单格式和JSON格式"""
+    username = None
+    email = None
+    password = None
+    
+    # 尝试从JSON请求体获取数据
+    try:
+        json_data = await request.json()
+        if isinstance(json_data, dict):
+            username = json_data.get("username")
+            email = json_data.get("email")
+            password = json_data.get("password")
+    except:
+        pass
+    
+    # 如果JSON解析失败，尝试从表单获取
+    if username is None:
+        form_data = await request.form()
+        username = form_data.get("username")
+        email = form_data.get("email")
+        password = form_data.get("password")
+    
     # 用户名和邮箱归一化（转为小写并去除首尾空格）
-    username = username.lower().strip()
-    email = email.lower().strip()
+    username = (username or "").lower().strip()
+    email = (email or "").lower().strip()
     
     # 验证参数
     if not username or not email or not password:
