@@ -1,17 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-训练角色分类模型 - 优化版本V2
-针对过拟合和类别不平衡问题的全面优化
-
-主要优化：
-1. 增强数据增强（旋转、翻转、颜色抖动、随机裁剪、MixUp）
-2. 加权损失函数（解决类别不平衡）
-3. 标签平滑正则化
-4. 改进的早停策略
-5. 分层学习率 + 余弦退火调度
-6. Dropout增强
-7. 混合精度训练
+带检查点保存和恢复的训练脚本
+可以随时暂停和继续训练
 """
 
 import os
@@ -19,7 +10,7 @@ import sys
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.utils.data import DataLoader, WeightedRandomSampler
+from torch.utils.data import DataLoader
 from torchvision import datasets, transforms, models
 from PIL import Image
 import numpy as np
@@ -32,30 +23,30 @@ sys.path.insert(0, project_root)
 
 try:
     from src.core.logging.global_logger import get_logger
-    logger = get_logger("train_loli_optimized_v2")
+    logger = get_logger("train_with_checkpoint")
 except ModuleNotFoundError:
     import logging
     logging.basicConfig(level=logging.INFO)
-    logger = logging.getLogger("train_loli_optimized_v2")
+    logger = logging.getLogger("train_with_checkpoint")
 
 os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
 os.environ['MPS_HIGH_WATERMARK_RATIO'] = '0.0'
 os.environ['OBJC_DISABLE_INITIALIZE_FORK_SAFETY'] = 'YES'
 
-# 优化后的超参数
 BATCH_SIZE = 32
 NUM_EPOCHS = 80
 LEARNING_RATE = 1e-4
 IMAGE_SIZE = 224
 NUM_WORKERS = 0
 PATIENCE = 15
-EARLY_STOP_DELTA = 0.001  # 早停阈值
-WEIGHT_DECAY = 1e-4  # 权重衰减
-LABEL_SMOOTHING = 0.1  # 标签平滑
+EARLY_STOP_DELTA = 0.001
+WEIGHT_DECAY = 1e-4
+LABEL_SMOOTHING = 0.1
 
 MODEL_TYPE = 'efficientnet_b3'
 DATA_DIR = './data/expanded_dataset'
 MODEL_DIR = './models'
+CHECKPOINT_DIR = './checkpoints'
 
 
 class CustomImageDataset(torch.utils.data.Dataset):
@@ -99,7 +90,6 @@ class CustomImageDataset(torch.utils.data.Dataset):
 
 
 def get_transforms(augment_level='heavy'):
-    """获取增强的数据变换"""
     mean = [0.485, 0.456, 0.406]
     std = [0.229, 0.224, 0.225]
     
@@ -109,16 +99,9 @@ def get_transforms(augment_level='heavy'):
             transforms.RandomHorizontalFlip(p=0.5),
             transforms.RandomVerticalFlip(p=0.2),
             transforms.RandomRotation(degrees=15),
-            transforms.ColorJitter(
-                brightness=0.2,
-                contrast=0.2,
-                saturation=0.2,
-                hue=0.1
-            ),
+            transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.1),
             transforms.RandomGrayscale(p=0.1),
-            transforms.RandomApply([
-                transforms.GaussianBlur(kernel_size=3)
-            ], p=0.2),
+            transforms.RandomApply([transforms.GaussianBlur(kernel_size=3)], p=0.2),
             transforms.Resize((IMAGE_SIZE, IMAGE_SIZE)),
             transforms.ToTensor(),
             transforms.Normalize(mean=mean, std=std),
@@ -141,7 +124,6 @@ def get_transforms(augment_level='heavy'):
 
 
 def calculate_class_weights(dataset):
-    """计算类别权重，解决类别不平衡"""
     labels = [sample[1] for sample in dataset.samples]
     label_counts = Counter(labels)
     total_samples = len(labels)
@@ -157,35 +139,15 @@ def calculate_class_weights(dataset):
     return torch.tensor(weights)
 
 
-def create_weighted_sampler(dataset):
-    """创建加权采样器"""
-    labels = [sample[1] for sample in dataset.samples]
-    label_counts = Counter(labels)
-    weights = []
-    
-    for label in labels:
-        weights.append(1.0 / label_counts[label])
-    
-    sampler = WeightedRandomSampler(weights, len(weights), replacement=True)
-    return sampler
-
-
-def get_model(model_type, num_classes, dropout_rate=0.3):
-    """创建带Dropout增强的模型"""
+def get_model(model_type, num_classes, dropout_rate=0.4):
     logger.info(f"创建模型: {model_type}, 类别数: {num_classes}, Dropout: {dropout_rate}")
 
     if model_type == 'efficientnet_b3':
         model = models.efficientnet_b3(weights=models.EfficientNet_B3_Weights.DEFAULT)
-        
-        # 冻结前几层
         for param in model.parameters():
             param.requires_grad = False
-        
-        # 解冻后面的特征提取层
         for param in model.features[-6:].parameters():
             param.requires_grad = True
-        
-        # 修改分类器，增加Dropout
         model.classifier = nn.Sequential(
             nn.Dropout(p=dropout_rate),
             nn.Linear(model.classifier[1].in_features, 1024),
@@ -196,13 +158,10 @@ def get_model(model_type, num_classes, dropout_rate=0.3):
         )
     elif model_type == 'efficientnet_b0':
         model = models.efficientnet_b0(weights=models.EfficientNet_B0_Weights.DEFAULT)
-        
         for param in model.parameters():
             param.requires_grad = False
-        
         for param in model.features[-5:].parameters():
             param.requires_grad = True
-        
         model.classifier = nn.Sequential(
             nn.Dropout(p=dropout_rate),
             nn.Linear(model.classifier[1].in_features, 512),
@@ -218,7 +177,6 @@ def get_model(model_type, num_classes, dropout_rate=0.3):
 
 
 def mixup_data(x, y, alpha=1.0):
-    """MixUp数据增强"""
     if alpha > 0:
         lam = np.random.beta(alpha, alpha)
     else:
@@ -234,7 +192,6 @@ def mixup_data(x, y, alpha=1.0):
 
 
 def mixup_criterion(criterion, pred, y_a, y_b, lam):
-    """MixUp损失函数"""
     return lam * criterion(pred, y_a) + (1 - lam) * criterion(pred, y_b)
 
 
@@ -246,7 +203,6 @@ def train_one_epoch(model, dataloader, criterion, optimizer, device, use_mixup=T
 
     for batch_idx, (images, labels) in enumerate(dataloader):
         images, labels = images.to(device), labels.to(device)
-
         optimizer.zero_grad()
         
         if use_mixup and np.random.random() < 0.5:
@@ -295,35 +251,61 @@ def validate(model, dataloader, criterion, device):
     return epoch_loss, epoch_acc
 
 
-def train_model(model_type, train_loader, val_loader, num_classes, class_weights, device):
+def save_checkpoint(model, optimizer, scheduler, epoch, best_acc, train_history, filepath):
+    """保存训练检查点"""
+    checkpoint = {
+        'epoch': epoch,
+        'best_acc': best_acc,
+        'train_history': train_history,
+        'model_state_dict': model.state_dict(),
+        'optimizer_state_dict': optimizer.state_dict(),
+        'scheduler_state_dict': scheduler.state_dict() if scheduler else None,
+        'timestamp': datetime.now().strftime("%Y%m%d_%H%M%S")
+    }
+    torch.save(checkpoint, filepath)
+    logger.info(f"检查点已保存: {filepath}")
+
+
+def load_checkpoint(filepath, model, optimizer, scheduler):
+    """加载训练检查点"""
+    checkpoint = torch.load(filepath, map_location='cpu')
+    model.load_state_dict(checkpoint['model_state_dict'])
+    optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+    if scheduler and checkpoint.get('scheduler_state_dict'):
+        scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
+    logger.info(f"检查点已加载: epoch {checkpoint['epoch']}, best_acc: {checkpoint['best_acc']:.2f}%")
+    return checkpoint['epoch'], checkpoint['best_acc'], checkpoint['train_history']
+
+
+def train_model(model_type, train_loader, val_loader, num_classes, class_weights, device, checkpoint_path=None):
     model = get_model(model_type, num_classes, dropout_rate=0.4).to(device)
     
-    # 使用加权损失函数解决类别不平衡
     criterion = nn.CrossEntropyLoss(
         weight=class_weights.to(device),
         label_smoothing=LABEL_SMOOTHING
     )
     
-    # 分层学习率
     optimizer = optim.AdamW([
         {'params': model.features.parameters(), 'lr': LEARNING_RATE * 0.1, 'weight_decay': WEIGHT_DECAY},
         {'params': model.classifier.parameters(), 'lr': LEARNING_RATE, 'weight_decay': WEIGHT_DECAY}
     ])
     
-    # 余弦退火学习率调度
     scheduler = optim.lr_scheduler.CosineAnnealingWarmRestarts(
-        optimizer, 
-        T_0=10,  # 第一个周期长度
-        T_mult=2,  # 后续周期翻倍
-        eta_min=LEARNING_RATE * 0.01
+        optimizer, T_0=10, T_mult=2, eta_min=LEARNING_RATE * 0.01
     )
 
+    start_epoch = 0
     best_acc = 0.0
     best_model_state = None
     patience_counter = 0
     train_history = []
 
-    for epoch in range(NUM_EPOCHS):
+    if checkpoint_path and os.path.exists(checkpoint_path):
+        start_epoch, best_acc, train_history = load_checkpoint(checkpoint_path, model, optimizer, scheduler)
+        start_epoch += 1
+        logger.info(f"从 epoch {start_epoch} 继续训练")
+
+    for epoch in range(start_epoch, NUM_EPOCHS):
         logger.info(f"\nEpoch {epoch + 1}/{NUM_EPOCHS}")
         logger.info(f"当前学习率: {optimizer.param_groups[0]['lr']:.6f}")
 
@@ -343,7 +325,6 @@ def train_model(model_type, train_loader, val_loader, num_classes, class_weights
             'val_acc': val_acc
         })
 
-        # 早停判断
         if val_acc > best_acc + EARLY_STOP_DELTA:
             best_acc = val_acc
             best_model_state = model.state_dict().copy()
@@ -355,76 +336,63 @@ def train_model(model_type, train_loader, val_loader, num_classes, class_weights
                 logger.info(f"  验证准确率连续 {PATIENCE} 轮未提升超过 {EARLY_STOP_DELTA}, 提前停止训练")
                 break
 
+        if (epoch + 1) % 5 == 0:
+            checkpoint_file = os.path.join(CHECKPOINT_DIR, f'checkpoint_epoch_{epoch+1}.pth')
+            save_checkpoint(model, optimizer, scheduler, epoch, best_acc, train_history, checkpoint_file)
+
     model.load_state_dict(best_model_state)
     logger.info(f"\n训练完成，最佳验证准确率: {best_acc:.2f}%")
     return model, best_acc, train_history
 
 
 def main():
-    logger.info("🚀 开始训练角色分类模型 (优化版本V2)")
+    import argparse
+    parser = argparse.ArgumentParser(description='带检查点的训练脚本')
+    parser.add_argument('--resume', type=str, default=None, help='从检查点恢复训练')
+    parser.add_argument('--save-checkpoint', type=str, default='checkpoint.pth', help='保存检查点路径')
+    args = parser.parse_args()
+
+    logger.info("🚀 开始训练角色分类模型 (带检查点版本)")
     
-    # 设置设备
     device = torch.device('mps' if torch.backends.mps.is_available() else 'cuda' if torch.cuda.is_available() else 'cpu')
     logger.info(f"使用设备: {device}")
 
-    # 获取数据变换
+    os.makedirs(CHECKPOINT_DIR, exist_ok=True)
+
     train_transform, val_transform = get_transforms(augment_level='heavy')
     
-    # 加载数据集
     full_dataset = CustomImageDataset(DATA_DIR, transform=None)
     
-    # 划分训练集和验证集
     train_size = int(0.8 * len(full_dataset))
     val_size = len(full_dataset) - train_size
     train_dataset, val_dataset = torch.utils.data.random_split(full_dataset, [train_size, val_size])
     
-    # 应用变换
     train_dataset.dataset.transform = train_transform
     val_dataset.dataset.transform = val_transform
     
-    # 计算类别权重
     class_weights = calculate_class_weights(full_dataset)
     
-    # 创建数据加载器（不使用采样器，改用采样权重在损失函数中处理）
-    train_loader = DataLoader(
-        train_dataset,
-        batch_size=BATCH_SIZE,
-        shuffle=True,
-        num_workers=NUM_WORKERS,
-        pin_memory=False
-    )
+    train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, num_workers=NUM_WORKERS, pin_memory=False)
+    val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False, num_workers=NUM_WORKERS, pin_memory=False)
     
-    val_loader = DataLoader(
-        val_dataset,
-        batch_size=BATCH_SIZE,
-        shuffle=False,
-        num_workers=NUM_WORKERS,
-        pin_memory=False
-    )
-    
-    # 训练模型
     model, best_acc, train_history = train_model(
         MODEL_TYPE, 
         train_loader, 
         val_loader, 
         len(full_dataset.class_to_idx),
         class_weights,
-        device
+        device,
+        checkpoint_path=args.resume
     )
     
-    # 保存模型
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     model_name = f"{MODEL_TYPE}_loli_optimized_v2_{timestamp}"
     model_dir = os.path.join(MODEL_DIR, model_name)
     os.makedirs(model_dir, exist_ok=True)
     
-    # 保存完整模型
     torch.save(model, os.path.join(model_dir, 'model_full.pth'))
-    
-    # 保存状态字典
     torch.save(model.state_dict(), os.path.join(model_dir, 'model_best.pth'))
     
-    # 保存训练结果
     results = {
         'model_name': MODEL_TYPE,
         'num_classes': len(full_dataset.class_to_idx),

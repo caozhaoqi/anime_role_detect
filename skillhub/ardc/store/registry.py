@@ -60,9 +60,15 @@ class SkillRegistry:
                 data[skill_id] = {}
                 for version, info in versions.items():
                     info_dict = info.dict() if hasattr(info, 'dict') else dict(info)
+                    # 处理顶层的 datetime 字段
                     for key in ['released_at', 'created_at', 'updated_at']:
                         if isinstance(info_dict.get(key), datetime):
                             info_dict[key] = info_dict[key].isoformat()
+                    # 处理嵌套的 metadata 对象中的 datetime 字段
+                    if 'metadata' in info_dict and isinstance(info_dict['metadata'], dict):
+                        for key in ['created_at', 'updated_at']:
+                            if isinstance(info_dict['metadata'].get(key), datetime):
+                                info_dict['metadata'][key] = info_dict['metadata'][key].isoformat()
                     data[skill_id][version] = info_dict
             json.dump(data, f, ensure_ascii=False, indent=2)
     
@@ -227,7 +233,7 @@ class SkillRegistry:
 def execute(**kwargs):
     import logging
     logger = logging.getLogger(__name__)
-    logger.info("执行 {skill_id} v{skill_version}".format(skill_id="{id}", skill_version="{ver}"))
+    logger.info("执行 {id} v{ver}")
     return {{"success": True, "message": "技能执行成功"}}
 
 if __name__ == "__main__":
@@ -261,7 +267,7 @@ if __name__ == "__main__":
             logger.info(f"技能 {skill_id} v{metadata.version} 安装成功")
             return True
         except Exception as e:
-            logger.error(f"安装技能失败: {e}")
+            logger.error(f"安装技能失败: {e}", exc_info=True)
             return False
     
     def uninstall_skill(self, skill_id: str) -> bool:
