@@ -1,28 +1,35 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-API 主入口 - 修复版
-提供技能仓库 RESTful API，修复 Swagger UI 渲染异常问题
+API 主入口 - 生产环境优化版
+提供技能仓库 RESTful API，支持请求日志、全局异常处理、版本号比对等
 """
+
+import os
+import uuid
+from datetime import datetime, timezone
+from typing import List, Optional
+from pathlib import Path
+import json
 
 from fastapi import FastAPI, HTTPException, Depends, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.openapi.docs import get_swagger_ui_html, get_redoc_html
 from fastapi.openapi.utils import get_openapi
+from fastapi.exceptions import RequestValidationError
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from pydantic import BaseModel
-from typing import List, Optional
-from pathlib import Path
-import json
-from datetime import datetime
+from packaging.version import parse as parse_version
 
 from ardc.store.registry import SkillRegistry
 from ardc.store.index import SkillIndex
 from ardc.version.manager import VersionManager
 from ardc.api.auth import router as auth_router, get_current_user, get_current_developer, oauth2_scheme
-from ardc.utils.logging import get_logger
+from ardc.utils.logging import get_logger, get_request_logger, set_request_context
 
 logger = get_logger(__name__)
+request_logger = get_request_logger()
 
 # 1. 初始化 FastAPI，禁用默认文档路径以避免冲突
 app = FastAPI(
@@ -37,13 +44,93 @@ app = FastAPI(
 # 包含认证路由
 app.include_router(auth_router)
 
+# CORS 配置 - 生产环境应限制具体域名
+ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "*").split(",")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
+
+# ==================== 请求日志中间件 ====================
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    """请求日志中间件 - 记录所有请求的详细信息"""
+    request_id = str(uuid.uuid4())[:8]
+    client_ip = request.client.host if request.client else "unknown"
+    method = request.method
+    path = str(request.url.path)
+    
+    # 设置请求上下文
+    set_request_context(request_id=request_id, client_ip=client_ip)
+    
+    logger.info(f"📥 收到请求: [{request_id}] {method} {path} | IP: {client_ip}")
+    
+    start_time = datetime.now()
+    try:
+        response = await call_next(request)
+        duration = (datetime.now() - start_time).total_seconds() * 1000
+        
+        # 记录响应信息
+        request_logger.log_request(
+            method=method,
+            path=path,
+            client_ip=client_ip,
+            status_code=response.status_code,
+            duration=duration
+        )
+        
+        return response
+    except Exception as e:
+        duration = (datetime.now() - start_time).total_seconds() * 1000
+        logger.error(f"❌ 请求异常: [{request_id}] {method} {path} | 耗时: {duration:.2f}ms | 错误: {str(e)}", exc_info=True)
+        raise
+
+# ==================== 全局异常处理器 ====================
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    """全局异常处理器 - 统一处理未捕获的异常"""
+    request_id = str(uuid.uuid4())[:8]
+    logger.critical(f"💥 未捕获异常: [{request_id}] {request.method} {request.url} | 错误: {str(exc)}", exc_info=True)
+    
+    return JSONResponse(
+        status_code=500,
+        content={
+            "success": False,
+            "detail": "服务器内部错误",
+            "request_id": request_id,
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+    )
+
+@app.exception_handler(StarletteHTTPException)
+async def http_exception_handler(request: Request, exc: StarletteHTTPException):
+    """HTTP 异常处理器 - 统一处理 HTTP 错误"""
+    logger.warning(f"⚠️ HTTP 错误: {request.method} {request.url} | 状态码: {exc.status_code} | 详情: {exc.detail}")
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "success": False,
+            "detail": exc.detail,
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+    )
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    """请求验证异常处理器"""
+    logger.warning(f"⚠️ 请求验证失败: {request.method} {request.url} | 错误: {exc.errors()}")
+    return JSONResponse(
+        status_code=422,
+        content={
+            "success": False,
+            "detail": "请求参数验证失败",
+            "errors": exc.errors(),
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+    )
 
 registry = SkillRegistry()
 index = SkillIndex()
@@ -141,6 +228,7 @@ def get_skill_versions(skill_id: str):
 
 @app.get("/api/skills/{skill_id}/check-update")
 def check_skill_update(skill_id: str, current_version: str = None):
+    """检查技能是否有更新"""
     try:
         latest = registry.get_latest_version(skill_id)
         if not latest:
@@ -149,10 +237,14 @@ def check_skill_update(skill_id: str, current_version: str = None):
         has_update = False
         if current_version:
             try:
-                curr = [int(x) for x in current_version.split('.')]
-                late = [int(x) for x in latest.version.split('.')]
-                has_update = late > curr
-            except: pass
+                # 使用 packaging.version 进行标准的版本号比对
+                curr_version = parse_version(current_version)
+                latest_version = parse_version(latest.version)
+                has_update = latest_version > curr_version
+                logger.debug(f"版本比对: 当前={current_version}, 最新={latest.version}, 有更新={has_update}")
+            except Exception as e:
+                logger.warning(f"版本号解析失败: {current_version} 或 {latest.version}, 错误: {str(e)}")
+                has_update = False
         
         return {
             "has_update": has_update,
@@ -160,8 +252,9 @@ def check_skill_update(skill_id: str, current_version: str = None):
             "latest_version": latest.version,
             "changelog": latest.release_notes if hasattr(latest, 'release_notes') else ""
         }
-    except:
-        return {"has_update": False, "current_version": current_version}
+    except Exception as e:
+        logger.error(f"检查更新失败: {skill_id}, 错误: {str(e)}")
+        raise HTTPException(status_code=500, detail="检查更新失败")
 
 @app.get("/api/search")
 def search_skills(keyword: str, category: Optional[str] = None, limit: int = 20):

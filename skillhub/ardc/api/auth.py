@@ -5,26 +5,31 @@
 提供登录、注册、登出等功能
 """
 
+import os
+import uuid
+from datetime import datetime, timedelta, timezone
+from typing import Optional, Dict
+
 from fastapi import APIRouter, HTTPException, Depends, Form, Request
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from pydantic import BaseModel
-from datetime import datetime, timedelta
+from fastapi.responses import JSONResponse
 from jose import JWTError, jwt
 from passlib.context import CryptContext
-from typing import Optional, Dict
-import json
+from pydantic import BaseModel
+from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 
+from ardc.api.database import get_db, DBUser, TokenBlacklist, init_db
 from ardc.utils.logging import get_logger
 
 logger = get_logger(__name__)
-from pathlib import Path
 
-# JWT 配置
-SECRET_KEY = "ard-skill-hub-secret-key-2026"
+# JWT 配置 - 从环境变量读取密钥
+SECRET_KEY = os.getenv("JWT_SECRET_KEY", "ard-skill-hub-secret-key-2026-change-in-production")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
-# 密码上下文 - 使用 sha256_crypt 避免 bcrypt 的平台依赖问题
+# 密码上下文 - 使用 sha256_crypt（跨平台兼容性好，无密码长度限制）
 pwd_context = CryptContext(schemes=["sha256_crypt"], deprecated="auto")
 
 # OAuth2 Scheme
@@ -33,163 +38,174 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/auth/login")
 # 路由
 router = APIRouter(prefix="/api/auth")
 
-# 用户数据存储
-USER_DATA_PATH = Path.home() / ".ardc" / "users.json"
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+
 
 class User(BaseModel):
     id: str
     username: str
     email: str
     hashed_password: str
-    is_developer: bool = False
+    is_developer: bool
     created_at: str
     updated_at: str
 
-class UserCreate(BaseModel):
-    username: str
-    email: str
-    password: str
+    class Config:
+        orm_mode = True
 
-class UserLogin(BaseModel):
-    username: str
-    password: str
-
-class Token(BaseModel):
-    success: bool
-    token: str
-    username: str
-    email: str
-    role: str
-    access_token: str
-    token_type: str
-    user: dict
-
-class LoginRequest(BaseModel):
-    """JSON 格式登录请求"""
-    username: str
-    password: str
-
-def load_users() -> Dict[str, User]:
-    """加载用户数据"""
-    if USER_DATA_PATH.exists():
-        try:
-            with open(USER_DATA_PATH, 'r', encoding='utf-8') as f:
-                data = json.load(f)
-                return {k: User(**v) for k, v in data.items()}
-        except Exception as e:
-            print(f"加载用户数据失败: {e}")
-    return {}
-
-def save_users(users: Dict[str, User]):
-    """保存用户数据"""
-    USER_DATA_PATH.parent.mkdir(parents=True, exist_ok=True)
-    with open(USER_DATA_PATH, 'w', encoding='utf-8') as f:
-        json.dump({k: v.dict() for k, v in users.items()}, f, indent=2, ensure_ascii=False)
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """验证密码"""
     return pwd_context.verify(plain_password, hashed_password)
 
+
 def get_password_hash(password: str) -> str:
-    """生成密码哈希"""
-    # bcrypt 限制密码长度不能超过 72 字节
-    password = password[:72]
+    """生成密码哈希值 - 处理 bcrypt 的 72 字节限制"""
+    # bcrypt 限制密码长度为 72 字节
+    if len(password.encode('utf-8')) > 72:
+        logger.warning(f"密码长度超过 72 字节，已自动截断")
+        password = password[:72]
     return pwd_context.hash(password)
+
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
     """创建访问令牌"""
     to_encode = data.copy()
     if expires_delta:
-        expire = datetime.utcnow() + expires_delta
+        expire = datetime.now(timezone.utc) + expires_delta
     else:
-        expire = datetime.utcnow() + timedelta(minutes=15)
-    to_encode.update({"exp": expire})
+        expire = datetime.now(timezone.utc) + timedelta(minutes=15)
+    to_encode.update({"exp": expire, "jti": str(uuid.uuid4())})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 
-async def get_current_user(token: str = Depends(oauth2_scheme)) -> User:
-    """获取当前用户"""
+
+async def get_current_user(request: Request, db: Session = Depends(get_db)) -> User:
+    """获取当前用户 - 支持从 header 或 cookie 获取 token"""
     credentials_exception = HTTPException(
         status_code=401,
         detail="无法验证凭证",
         headers={"WWW-Authenticate": "Bearer"},
     )
+    
+    # 优先从 cookie 获取 token
+    token = request.cookies.get("access_token")
+    
+    # 如果 cookie 中没有，从 Authorization header 获取
+    if not token:
+        auth_header = request.headers.get("Authorization")
+        if auth_header and auth_header.startswith("Bearer "):
+            token = auth_header[7:]
+    
+    if not token:
+        raise credentials_exception
+    
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         username: str = payload.get("sub")
+        jti: str = payload.get("jti")
         if username is None:
             raise credentials_exception
     except JWTError:
         raise credentials_exception
     
-    users = load_users()
-    user = users.get(username)
+    # 检查 token 是否在黑名单中
+    blacklisted_token = db.query(TokenBlacklist).filter(TokenBlacklist.jti == jti).first()
+    if blacklisted_token:
+        raise HTTPException(
+            status_code=401,
+            detail="令牌已失效",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    # 查询用户（用户名大小写不敏感）
+    user = db.query(DBUser).filter(DBUser.username.ilike(username)).first()
     if user is None:
         raise credentials_exception
     return user
+
 
 async def get_current_developer(current_user: User = Depends(get_current_user)) -> User:
     """获取当前开发者用户（需要开发者权限）"""
     if not current_user.is_developer:
         raise HTTPException(
             status_code=403,
-            detail="需要开发者权限"
+            detail="需要开发者权限",
         )
     return current_user
 
-@router.post("/register", response_model=dict)
-def register(user: UserCreate):
+
+@router.post("/register")
+async def register(
+    username: str = Form(...),
+    email: str = Form(...),
+    password: str = Form(...),
+    db: Session = Depends(get_db)
+):
     """用户注册"""
-    logger.info(f"用户注册请求: {user.username}, {user.email}")
+    # 用户名和邮箱归一化（转为小写并去除首尾空格）
+    username = username.lower().strip()
+    email = email.lower().strip()
     
-    users = load_users()
+    # 验证参数
+    if not username or not email or not password:
+        raise HTTPException(
+            status_code=422,
+            detail="需要提供用户名、邮箱和密码",
+        )
     
-    # 检查用户名是否已存在
-    if user.username in users:
-        logger.warning(f"用户名已存在: {user.username}")
+    # 检查用户是否已存在
+    existing_user = db.query(DBUser).filter(DBUser.username == username).first()
+    if existing_user:
         raise HTTPException(status_code=400, detail="用户名已存在")
     
-    # 检查邮箱是否已存在
-    for existing_user in users.values():
-        if existing_user.email == user.email:
-            logger.warning(f"邮箱已被注册: {user.email}")
-            raise HTTPException(status_code=400, detail="邮箱已被注册")
+    existing_email = db.query(DBUser).filter(DBUser.email == email).first()
+    if existing_email:
+        raise HTTPException(status_code=400, detail="邮箱已被注册")
     
-    # 创建新用户
-    now = datetime.now().isoformat()
-    new_user = User(
-        id=user.username,
-        username=user.username,
-        email=user.email,
-        hashed_password=get_password_hash(user.password),
-        is_developer=False,
-        created_at=now,
-        updated_at=now
-    )
-    
-    users[user.username] = new_user
-    save_users(users)
-    
-    logger.info(f"用户注册成功: {user.username}, {user.email}")
-    
-    return {
-        "message": "注册成功",
-        "user": {
-            "username": user.username,
-            "email": user.email,
-            "is_developer": False
+    # 创建用户
+    try:
+        hashed_password = get_password_hash(password)
+        new_user = DBUser(
+            id=str(uuid.uuid4()),
+            username=username,
+            email=email,
+            hashed_password=hashed_password,
+            is_developer=False,
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc)
+        )
+        db.add(new_user)
+        db.commit()
+        db.refresh(new_user)
+        
+        logger.info(f"用户注册成功: {username}")
+        
+        return {
+            "success": True,
+            "message": "注册成功",
+            "user": {
+                "username": new_user.username,
+                "email": new_user.email,
+                "is_developer": new_user.is_developer
+            }
         }
-    }
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="用户名或邮箱已存在")
 
-@router.post("/login", response_model=Token)
+
+@router.post("/login")
 async def login(
     request: Request,
     username: Optional[str] = Form(None),
-    password: Optional[str] = Form(None)
+    password: Optional[str] = Form(None),
+    db: Session = Depends(get_db)
 ):
     """用户登录 - 支持表单格式和JSON格式"""
-    users = load_users()
-    
     # 尝试从JSON请求体获取数据
     try:
         json_data = await request.json()
@@ -206,7 +222,12 @@ async def login(
             detail="需要提供用户名和密码",
         )
     
-    user = users.get(username)
+    # 用户名归一化
+    username = username.lower().strip()
+    
+    # 查询用户
+    user = db.query(DBUser).filter(DBUser.username == username).first()
+    
     if not user or not verify_password(password, user.hashed_password):
         raise HTTPException(
             status_code=401,
@@ -222,7 +243,7 @@ async def login(
     
     logger.info(f"用户登录成功: {user.username}, 开发者: {user.is_developer}")
     
-    return {
+    response = JSONResponse({
         "success": True,
         "token": access_token,
         "username": user.username,
@@ -235,70 +256,127 @@ async def login(
             "email": user.email,
             "is_developer": user.is_developer
         }
-    }
+    })
+    
+    # 设置 cookie
+    response.set_cookie(
+        key="access_token",
+        value=access_token,
+        httponly=True,
+        secure=False,  # 生产环境应设为 True
+        max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        samesite="lax"
+    )
+    
+    return response
+
 
 @router.post("/logout")
-def logout():
-    """用户登出"""
-    return {"message": "登出成功"}
+async def logout(
+    request: Request,
+    token: str = Depends(oauth2_scheme),
+    db: Session = Depends(get_db)
+):
+    """用户登出 - 将 Token 加入黑名单"""
+    # 优先从 cookie 获取 token
+    token_from_cookie = request.cookies.get("access_token")
+    if token_from_cookie:
+        token = token_from_cookie
+    
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        jti = payload.get("jti")
+        expires_at = datetime.fromtimestamp(payload.get("exp"), timezone.utc)
+        
+        # 将 token 加入黑名单
+        blacklisted_token = TokenBlacklist(
+            id=str(uuid.uuid4()),
+            jti=jti,
+            expires_at=expires_at
+        )
+        db.add(blacklisted_token)
+        db.commit()
+        
+        logger.info(f"用户登出成功")
+        
+        # 清除 cookie
+        response = JSONResponse({"success": True, "message": "登出成功"})
+        response.delete_cookie("access_token")
+        return response
+        
+    except JWTError:
+        raise HTTPException(
+            status_code=401,
+            detail="无效的令牌",
+        )
+
 
 @router.get("/me")
 async def get_profile(current_user: User = Depends(get_current_user)):
     """获取当前用户信息"""
     return {
-        "username": current_user.username,
-        "email": current_user.email,
-        "is_developer": current_user.is_developer,
-        "created_at": current_user.created_at
+        "success": True,
+        "user": {
+            "username": current_user.username,
+            "email": current_user.email,
+            "is_developer": current_user.is_developer,
+            "created_at": current_user.created_at,
+            "updated_at": current_user.updated_at
+        }
     }
 
-@router.post("/users/{username}/promote")
-async def promote_user(username: str, current_user: User = Depends(get_current_developer)):
+
+@router.post("/promote")
+async def promote_user(
+    username: str,
+    current_user: User = Depends(get_current_developer),
+    db: Session = Depends(get_db)
+):
     """提升用户为开发者（需要开发者权限）"""
-    users = load_users()
+    # 用户名归一化
+    username = username.lower().strip()
     
-    if username not in users:
+    user = db.query(DBUser).filter(DBUser.username == username).first()
+    if not user:
         raise HTTPException(status_code=404, detail="用户不存在")
     
-    users[username].is_developer = True
-    users[username].updated_at = datetime.now().isoformat()
-    save_users(users)
+    user.is_developer = True
+    user.updated_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(user)
     
-    return {"message": f"用户 {username} 已提升为开发者"}
+    logger.info(f"用户提升为开发者: {username}")
+    
+    return {
+        "success": True,
+        "message": f"用户 {username} 已提升为开发者",
+        "user": {
+            "username": user.username,
+            "email": user.email,
+            "is_developer": user.is_developer
+        }
+    }
+
 
 @router.get("/users")
-async def list_users(current_user: User = Depends(get_current_developer)):
+async def list_users(
+    current_user: User = Depends(get_current_developer),
+    db: Session = Depends(get_db)
+):
     """列出所有用户（需要开发者权限）"""
-    users = load_users()
+    users = db.query(DBUser).all()
     return {
+        "success": True,
         "users": [
             {
-                "username": u.username,
-                "email": u.email,
-                "is_developer": u.is_developer,
-                "created_at": u.created_at
-            }
-            for u in users.values()
+                "username": user.username,
+                "email": user.email,
+                "is_developer": user.is_developer,
+                "created_at": user.created_at
+            } for user in users
         ]
     }
 
-@router.get("/users/{username}")
-async def get_user(username: str, current_user: User = Depends(get_current_user)):
-    """查看用户信息（自己或开发者可以查看所有）"""
-    users = load_users()
-    
-    if username not in users:
-        raise HTTPException(status_code=404, detail="用户不存在")
-    
-    # 普通用户只能查看自己的信息
-    if not current_user.is_developer and current_user.username != username:
-        raise HTTPException(status_code=403, detail="无权限查看此用户信息")
-    
-    user = users[username]
-    return {
-        "username": user.username,
-        "email": user.email,
-        "is_developer": user.is_developer,
-        "created_at": user.created_at,
-        "updated_at": user.updated_at
-    }
+
+# 初始化数据库
+init_db()
