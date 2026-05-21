@@ -77,6 +77,32 @@ def send_feishu_message(title, message):
         return False
 
 
+def save_checkpoint(model, optimizer, scheduler, epoch, best_acc, best_loss, train_history, checkpoint_path):
+    """保存训练检查点"""
+    checkpoint = {
+        'epoch': epoch,
+        'model_state_dict': model.state_dict(),
+        'optimizer_state_dict': optimizer.state_dict(),
+        'scheduler_state_dict': scheduler.state_dict() if scheduler else None,
+        'best_acc': best_acc,
+        'best_loss': best_loss,
+        'train_history': train_history
+    }
+    torch.save(checkpoint, checkpoint_path)
+    logger.info(f"✅ 检查点已保存: {checkpoint_path}")
+
+
+def load_checkpoint(checkpoint_path, model, optimizer, scheduler):
+    """加载训练检查点"""
+    checkpoint = torch.load(checkpoint_path, map_location='cpu')
+    model.load_state_dict(checkpoint['model_state_dict'])
+    optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+    if scheduler is not None and checkpoint['scheduler_state_dict'] is not None:
+        scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
+    logger.info(f"✅ 检查点已加载: 从第 {checkpoint['epoch']} 轮恢复训练")
+    return checkpoint['epoch'], checkpoint['best_acc'], checkpoint['best_loss'], checkpoint['train_history']
+
+
 def get_augmented_transforms(image_size=224, augment_level='high'):
     """
     获取增强版数据变换
@@ -161,17 +187,25 @@ def get_augmented_transforms(image_size=224, augment_level='high'):
     return train_transform, base_transform
 
 
-def train_model(model, dataloaders, criterion, optimizer, scheduler, device, num_epochs=30, patience=5):
-    """训练模型"""
+def train_model(model, dataloaders, criterion, optimizer, scheduler, device, num_epochs=30, patience=5, checkpoint_dir=None, start_epoch=0, initial_best_acc=0.0, initial_best_loss=float('inf')):
+    """
+    训练模型
+    
+    Args:
+        checkpoint_dir: 检查点保存目录，如果为None则不保存检查点
+        start_epoch: 起始训练轮次（用于恢复训练）
+        initial_best_acc: 恢复训练时的最佳准确率
+        initial_best_loss: 恢复训练时的最佳损失
+    """
     best_model_wts = None
-    best_acc = 0.0
-    early_stop_counter = 0
+    best_acc = initial_best_acc
+    best_loss = initial_best_loss
     train_history = []
-    best_loss = float('inf')
+    early_stop_counter = 0
     
     logger.info(f"🚀 开始训练，共 {num_epochs} 轮")
     
-    for epoch in range(num_epochs):
+    for epoch in range(start_epoch, num_epochs):
         logger.info(f"\nEpoch {epoch + 1}/{num_epochs}")
         logger.info('-' * 10)
         
@@ -237,6 +271,11 @@ def train_model(model, dataloaders, criterion, optimizer, scheduler, device, num
                 best_model_wts = model.state_dict().copy()
                 early_stop_counter = 0
                 
+                # 保存检查点
+                if checkpoint_dir is not None:
+                    checkpoint_path = os.path.join(checkpoint_dir, 'checkpoint_latest.pth')
+                    save_checkpoint(model, optimizer, scheduler, epoch + 1, best_acc, best_loss, train_history, checkpoint_path)
+                
                 # 发送进度通知
                 send_feishu_message(
                     f"📈 训练进度更新 (Epoch {epoch + 1})",
@@ -278,6 +317,8 @@ def main():
     parser.add_argument("--use_pretrained", action='store_true', default=True, help="使用预训练权重")
     parser.add_argument("--freeze_backbone", action='store_true', default=False, help="冻结主干网络")
     parser.add_argument("--label_smoothing", type=float, default=0.1, help="标签平滑系数")
+    parser.add_argument("--resume", type=str, default=None, help="从检查点恢复训练（包含完整状态）")
+    parser.add_argument("--pretrained_model", type=str, default=None, help="从已有最佳模型加载权重继续训练（仅加载权重）")
     
     args = parser.parse_args()
     
@@ -396,10 +437,41 @@ def main():
     # 使用余弦退火学习率调度器
     scheduler = optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=10, T_mult=2)
     
+    # 创建检查点保存目录
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    pretrained_tag = 'pretrained' if args.use_pretrained else 'scratch'
+    checkpoint_dir = f"./models/{args.model_name}_loli_{num_classes}_{pretrained_tag}_{timestamp}"
+    os.makedirs(checkpoint_dir, exist_ok=True)
+    
+    # 如果指定了resume参数，从检查点恢复
+    start_epoch = 0
+    initial_best_acc = 0.0
+    initial_best_loss = float('inf')
+    
+    if args.resume and os.path.exists(args.resume):
+        start_epoch, initial_best_acc, initial_best_loss, _ = load_checkpoint(
+            args.resume, model, optimizer, scheduler
+        )
+        logger.info(f"从检查点恢复: 准确率={initial_best_acc:.4f}, 损失={initial_best_loss:.4f}")
+        logger.info(f"将从第 {start_epoch + 1} 轮继续训练，剩余 {args.epochs - start_epoch} 轮")
+    elif args.resume:
+        logger.warning(f"⚠️ 指定的检查点文件不存在: {args.resume}")
+    
+    # 如果指定了pretrained_model参数，从已有模型加载权重
+    if args.pretrained_model and os.path.exists(args.pretrained_model):
+        logger.info(f"📂 从已有模型加载权重: {args.pretrained_model}")
+        state_dict = torch.load(args.pretrained_model, map_location=device)
+        model.load_state_dict(state_dict)
+        logger.info("✅ 权重加载成功，将从头开始训练")
+        # 使用较低学习率微调
+        logger.info("💡 建议使用较低学习率 (如 1e-5 或 5e-5) 进行微调")
+    elif args.pretrained_model:
+        logger.warning(f"⚠️ 指定的模型文件不存在: {args.pretrained_model}")
+    
     # 训练模型
     model, best_acc, best_loss, train_history = train_model(
         model, dataloaders, criterion, optimizer, scheduler, 
-        device, args.epochs, args.patience
+        device, args.epochs, args.patience, checkpoint_dir, start_epoch, initial_best_acc, initial_best_loss
     )
     
     # 保存模型

@@ -7,14 +7,20 @@ API 主入口
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, PlainTextResponse
 from pydantic import BaseModel
 from typing import List, Optional
+from pathlib import Path
 
 from ardc.store.registry import SkillRegistry
 from ardc.store.index import SkillIndex
 from ardc.version.manager import VersionManager
+from ardc.api.auth import router as auth_router
 
 app = FastAPI(title="ARD Skill Repository API", version="1.0.0")
+
+# 包含认证路由
+app.include_router(auth_router)
 
 app.add_middleware(
     CORSMiddleware,
@@ -110,6 +116,28 @@ def get_categories():
 @app.get("/api/stats")
 def get_stats():
     return index.get_statistics()
+
+@app.get("/api/install/install.sh")
+def get_install_script():
+    install_script_path = Path(__file__).parent.parent.parent / "install.sh"
+    if not install_script_path.exists():
+        raise HTTPException(status_code=404, detail="安装脚本不存在")
+    return FileResponse(install_script_path, media_type="text/x-shellscript")
+
+@app.get("/api/install/install.bat")
+def get_install_bat():
+    install_bat_path = Path(__file__).parent.parent.parent / "install.bat"
+    if not install_bat_path.exists():
+        raise HTTPException(status_code=404, detail="Windows 安装脚本不存在")
+    return FileResponse(install_bat_path, media_type="text/plain")
+
+@app.get("/api/health")
+def health_check():
+    return {
+        "status": "healthy",
+        "service": "ARD Skill Hub API",
+        "version": "1.0.0"
+    }
 
 def start_server(host: str = "0.0.0.0", port: int = 8000):
     import uvicorn
