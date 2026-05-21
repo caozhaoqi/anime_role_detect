@@ -422,10 +422,13 @@ def add_favorite(skill_id: str, developer=Depends(get_current_developer)):
     return {"message": "收藏成功"}
 
 # ==================== CLI 安装脚本 API ====================
-# 计算项目根目录: ardc/api/main.py -> ardc/ -> skillhub/
-SKILLHUB_ROOT = Path(__file__).parent.parent
+# 项目根目录: ardc/api/main.py -> ardc/ -> skillhub/
+SKILLHUB_ROOT = Path(__file__).parent.parent.parent
 INSTALL_SCRIPT_PATH = SKILLHUB_ROOT / "sh" / "install.sh"
 CLI_SCRIPT_PATH = SKILLHUB_ROOT / "cli.py"
+
+logger.info(f"SKILLHUB_ROOT: {SKILLHUB_ROOT}")
+logger.info(f"INSTALL_SCRIPT_PATH exists: {INSTALL_SCRIPT_PATH.exists()}")
 
 @app.get("/api/install/install.sh")
 def get_install_script():
