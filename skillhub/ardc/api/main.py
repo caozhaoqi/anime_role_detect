@@ -277,6 +277,158 @@ def health_check():
         "version": "1.0.0"
     }
 
+# ==================== 更新日志 API ====================
+
+from ardc.store.changelog import ChangelogStore, ChangelogEntry
+
+changelog_store = ChangelogStore()
+
+class ChangelogCreate(BaseModel):
+    version: str
+    title: str
+    description: str
+    changes: List[str]
+    author: Optional[str] = None
+    is_major: bool = False
+    affected_components: Optional[List[str]] = None
+
+@app.get("/api/changelog")
+def get_changelog(
+    limit: int = 20,
+    component: Optional[str] = None,
+    after_date: Optional[str] = None
+):
+    """
+    获取更新日志列表
+    
+    Args:
+        limit: 返回条数限制，默认20
+        component: 按组件过滤 (core, api, auth, ui, etc.)
+        after_date: 按日期过滤，只返回指定日期之后的更新
+    """
+    logger.info(f"🔍 获取更新日志: limit={limit}, component={component}, after_date={after_date}")
+    
+    if component:
+        entries = changelog_store.get_entries_by_component(component)
+    elif after_date:
+        entries = changelog_store.get_entries_after_date(after_date)
+    else:
+        entries = changelog_store.get_all_entries(limit=limit)
+    
+    return {
+        "total": len(entries),
+        "entries": [e.dict() for e in entries]
+    }
+
+@app.get("/api/changelog/latest")
+def get_latest_changelog():
+    """获取最新的更新日志"""
+    entry = changelog_store.get_latest_entry()
+    if not entry:
+        raise HTTPException(status_code=404, detail="暂无更新日志")
+    return entry.dict()
+
+@app.get("/api/changelog/{version}")
+def get_changelog_by_version(version: str):
+    """根据版本号获取更新日志"""
+    entry = changelog_store.get_entry_by_version(version)
+    if not entry:
+        raise HTTPException(status_code=404, detail=f"版本 {version} 的更新日志不存在")
+    return entry.dict()
+
+@app.post("/api/changelog")
+def add_changelog(
+    entry: ChangelogCreate,
+    developer=Depends(get_current_developer)
+):
+    """
+    添加更新日志（仅开发者可访问）
+    
+    Args:
+        entry: 更新日志条目信息
+    """
+    logger.info(f"📝 开发者 {developer.username} 添加更新日志: {entry.version} - {entry.title}")
+    
+    try:
+        changelog_entry = ChangelogEntry(
+            version=entry.version,
+            title=entry.title,
+            description=entry.description,
+            changes=entry.changes,
+            release_date=datetime.now().strftime("%Y-%m-%d"),
+            author=entry.author or developer.username,
+            is_major=entry.is_major,
+            affected_components=entry.affected_components
+        )
+        
+        changelog_store.add_entry(changelog_entry)
+        
+        logger.info(f"✅ 更新日志添加成功: {entry.version}")
+        return {
+            "message": "更新日志添加成功",
+            "version": entry.version
+        }
+    except ValueError as e:
+        logger.error(f"❌ 更新日志添加失败: {str(e)}")
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.delete("/api/changelog/{version}")
+def delete_changelog(
+    version: str,
+    developer=Depends(get_current_developer)
+):
+    """
+    删除更新日志（仅开发者可访问）
+    
+    Args:
+        version: 要删除的版本号
+    """
+    logger.info(f"🗑️ 开发者 {developer.username} 删除更新日志: {version}")
+    
+    if changelog_store.delete_entry(version):
+        logger.info(f"✅ 更新日志删除成功: {version}")
+        return {"message": "更新日志删除成功"}
+    else:
+        raise HTTPException(status_code=404, detail=f"版本 {version} 的更新日志不存在")
+
+@app.get("/api/changelog/check-update")
+def check_changelog_update(last_checked_version: Optional[str] = None):
+    """
+    检查是否有新的更新日志
+    
+    Args:
+        last_checked_version: 上次检查的版本号
+    
+    Returns:
+        has_update: 是否有更新
+        latest_version: 最新版本号
+        update_info: 最新更新信息（如有更新）
+    """
+    logger.info(f"🔍 检查更新日志: last_checked_version={last_checked_version}")
+    
+    latest = changelog_store.get_latest_entry()
+    if not latest:
+        return {
+            "has_update": False,
+            "latest_version": "1.0.0",
+            "update_info": None
+        }
+    
+    has_update = False
+    if last_checked_version:
+        try:
+            last_parts = [int(x) for x in last_checked_version.split('.')]
+            latest_parts = [int(x) for x in latest.version.split('.')]
+            has_update = latest_parts > last_parts
+        except:
+            has_update = last_checked_version != latest.version
+    
+    return {
+        "has_update": has_update,
+        "latest_version": latest.version,
+        "update_info": latest.dict() if has_update else None
+    }
+
 # ==================== 日志查看 API ====================
 @app.get("/api/logs")
 async def get_logs(

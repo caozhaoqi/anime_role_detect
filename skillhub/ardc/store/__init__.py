@@ -8,6 +8,7 @@
 from .metadata import SkillMetadata, VersionInfo, InstalledSkill, SkillDependency, SkillConfigSchema
 from .registry import SkillRegistry
 from .index import SkillIndex
+from .changelog import ChangelogStore, ChangelogEntry
 
 __all__ = [
     'SkillMetadata',
@@ -16,5 +17,7 @@ __all__ = [
     'SkillDependency',
     'SkillConfigSchema',
     'SkillRegistry',
-    'SkillIndex'
+    'SkillIndex',
+    'ChangelogStore',
+    'ChangelogEntry'
 ]
