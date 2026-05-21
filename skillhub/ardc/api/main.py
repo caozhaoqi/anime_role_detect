@@ -28,7 +28,8 @@ app = FastAPI(
     version="1.0.0",
     description="技能仓库 RESTful API - 提供技能管理、用户认证、技能搜索等功能",
     docs_url="/api/docs",
-    redoc_url="/api/redoc"
+    redoc_url="/api/redoc",
+    openapi_url="/api/openapi.json"
 )
 
 logger.info("✅ ARD Skill Hub API 初始化完成")
