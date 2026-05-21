@@ -246,7 +246,9 @@ def get_cli():
 async def custom_swagger_ui_html(developer=Depends(get_current_developer)):
     return get_swagger_ui_html(
         openapi_url="/openapi.json",
-        title="ARD Skill Repository API - Swagger UI"
+        title="ARD Skill Repository API - Swagger UI",
+        swagger_js_url="https://cdn.jsdelivr.net/npm/swagger-ui-dist@4/swagger-ui-bundle.js",
+        swagger_css_url="https://cdn.jsdelivr.net/npm/swagger-ui-dist@4/swagger-ui.css",
     )
 
 @app.get("/redoc")
