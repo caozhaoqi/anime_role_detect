@@ -131,6 +131,13 @@ def get_install_bat():
         raise HTTPException(status_code=404, detail="Windows 安装脚本不存在")
     return FileResponse(install_bat_path, media_type="text/plain")
 
+@app.get("/api/install/cli.py")
+def get_cli():
+    cli_path = Path(__file__).parent.parent.parent / "cli.py"
+    if not cli_path.exists():
+        raise HTTPException(status_code=404, detail="CLI 工具不存在")
+    return FileResponse(cli_path, media_type="text/x-python")
+
 @app.get("/api/health")
 def health_check():
     return {
