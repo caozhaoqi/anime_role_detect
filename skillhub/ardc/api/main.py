@@ -260,7 +260,7 @@ async def custom_redoc_html(developer=Depends(get_current_developer)):
     )
 
 @app.get("/openapi.json")
-async def custom_openapi(developer=Depends(get_current_developer)):
+async def custom_openapi():
     return get_openapi(
         title=app.title,
         version=app.version,
@@ -328,6 +328,44 @@ def get_latest_changelog():
         raise HTTPException(status_code=404, detail="暂无更新日志")
     return entry.dict()
 
+@app.get("/api/changelog/check-update")
+def check_changelog_update(last_checked_version: Optional[str] = None):
+    """
+    检查是否有新的更新日志
+    
+    Args:
+        last_checked_version: 上次检查的版本号
+    
+    Returns:
+        has_update: 是否有更新
+        latest_version: 最新版本号
+        update_info: 最新更新信息（如有更新）
+    """
+    logger.info(f"🔍 检查更新日志: last_checked_version={last_checked_version}")
+    
+    latest = changelog_store.get_latest_entry()
+    if not latest:
+        return {
+            "has_update": False,
+            "latest_version": "1.0.0",
+            "update_info": None
+        }
+    
+    has_update = False
+    if last_checked_version:
+        try:
+            last_parts = [int(x) for x in last_checked_version.split('.')]
+            latest_parts = [int(x) for x in latest.version.split('.')]
+            has_update = latest_parts > last_parts
+        except:
+            has_update = last_checked_version != latest.version
+    
+    return {
+        "has_update": has_update,
+        "latest_version": latest.version,
+        "update_info": latest.dict() if has_update else None
+    }
+
 @app.get("/api/changelog/{version}")
 def get_changelog_by_version(version: str):
     """根据版本号获取更新日志"""
@@ -390,44 +428,6 @@ def delete_changelog(
         return {"message": "更新日志删除成功"}
     else:
         raise HTTPException(status_code=404, detail=f"版本 {version} 的更新日志不存在")
-
-@app.get("/api/changelog/check-update")
-def check_changelog_update(last_checked_version: Optional[str] = None):
-    """
-    检查是否有新的更新日志
-    
-    Args:
-        last_checked_version: 上次检查的版本号
-    
-    Returns:
-        has_update: 是否有更新
-        latest_version: 最新版本号
-        update_info: 最新更新信息（如有更新）
-    """
-    logger.info(f"🔍 检查更新日志: last_checked_version={last_checked_version}")
-    
-    latest = changelog_store.get_latest_entry()
-    if not latest:
-        return {
-            "has_update": False,
-            "latest_version": "1.0.0",
-            "update_info": None
-        }
-    
-    has_update = False
-    if last_checked_version:
-        try:
-            last_parts = [int(x) for x in last_checked_version.split('.')]
-            latest_parts = [int(x) for x in latest.version.split('.')]
-            has_update = latest_parts > last_parts
-        except:
-            has_update = last_checked_version != latest.version
-    
-    return {
-        "has_update": has_update,
-        "latest_version": latest.version,
-        "update_info": latest.dict() if has_update else None
-    }
 
 # ==================== 日志查看 API ====================
 @app.get("/api/logs")
