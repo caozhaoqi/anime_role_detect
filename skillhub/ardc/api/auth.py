@@ -13,6 +13,10 @@ from jose import JWTError, jwt
 from passlib.context import CryptContext
 from typing import Optional, Dict
 import json
+
+from ardc.utils.logging import get_logger
+
+logger = get_logger(__name__)
 from pathlib import Path
 
 # JWT 配置
@@ -51,6 +55,11 @@ class UserLogin(BaseModel):
     password: str
 
 class Token(BaseModel):
+    success: bool
+    token: str
+    username: str
+    email: str
+    role: str
     access_token: str
     token_type: str
     user: dict
@@ -131,15 +140,19 @@ async def get_current_developer(current_user: User = Depends(get_current_user)) 
 @router.post("/register", response_model=dict)
 def register(user: UserCreate):
     """用户注册"""
+    logger.info(f"用户注册请求: {user.username}, {user.email}")
+    
     users = load_users()
     
     # 检查用户名是否已存在
     if user.username in users:
+        logger.warning(f"用户名已存在: {user.username}")
         raise HTTPException(status_code=400, detail="用户名已存在")
     
     # 检查邮箱是否已存在
     for existing_user in users.values():
         if existing_user.email == user.email:
+            logger.warning(f"邮箱已被注册: {user.email}")
             raise HTTPException(status_code=400, detail="邮箱已被注册")
     
     # 创建新用户
@@ -156,6 +169,8 @@ def register(user: UserCreate):
     
     users[user.username] = new_user
     save_users(users)
+    
+    logger.info(f"用户注册成功: {user.username}, {user.email}")
     
     return {
         "message": "注册成功",
@@ -205,7 +220,14 @@ async def login(
         expires_delta=access_token_expires
     )
     
+    logger.info(f"用户登录成功: {user.username}, 开发者: {user.is_developer}")
+    
     return {
+        "success": True,
+        "token": access_token,
+        "username": user.username,
+        "email": user.email,
+        "role": "developer" if user.is_developer else "user",
         "access_token": access_token,
         "token_type": "bearer",
         "user": {

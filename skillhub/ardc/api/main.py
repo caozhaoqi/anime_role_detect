@@ -18,6 +18,9 @@ from ardc.store.registry import SkillRegistry
 from ardc.store.index import SkillIndex
 from ardc.version.manager import VersionManager
 from ardc.api.auth import router as auth_router, get_current_developer
+from ardc.utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 app = FastAPI(
     title="ARD Skill Repository API",
@@ -26,6 +29,8 @@ app = FastAPI(
     docs_url=None,
     redoc_url=None
 )
+
+logger.info("✅ ARD Skill Hub API 初始化完成")
 
 # 包含认证路由
 app.include_router(auth_router)
@@ -67,24 +72,30 @@ def get_skill(skill_id: str, version: Optional[str] = None):
 
 @app.post("/api/skills")
 def create_skill(skill: SkillCreate):
+    logger.info(f"🎯 创建技能请求: {skill.id} - {skill.name}")
     from ardc.store.metadata import SkillMetadata
     
-    metadata = SkillMetadata(
-        id=skill.id,
-        name=skill.name,
-        version=skill.version,
-        description=skill.description,
-        author=skill.author,
-        category=skill.category,
-        entry_point=skill.entry_point,
-        tags=skill.tags
-    )
-    
-    registry.register_skill(metadata, skill.release_notes)
-    index.add_skill(metadata)
-    version_manager.release_version(metadata, skill.release_notes)
-    
-    return {"message": "技能注册成功", "skill_id": skill.id}
+    try:
+        metadata = SkillMetadata(
+            id=skill.id,
+            name=skill.name,
+            version=skill.version,
+            description=skill.description,
+            author=skill.author,
+            category=skill.category,
+            entry_point=skill.entry_point,
+            tags=skill.tags
+        )
+        
+        registry.register_skill(metadata, skill.release_notes)
+        index.add_skill(metadata)
+        version_manager.release_version(metadata, skill.release_notes)
+        
+        logger.info(f"✅ 技能注册成功: {skill.id}")
+        return {"message": "技能注册成功", "skill_id": skill.id}
+    except Exception as e:
+        logger.error(f"❌ 技能注册失败: {skill.id}, 错误: {str(e)}")
+        raise
 
 @app.delete("/api/skills/{skill_id}")
 def delete_skill(skill_id: str):
@@ -98,9 +109,16 @@ def get_versions(skill_id: str):
 
 @app.post("/api/skills/{skill_id}/install")
 def install_skill(skill_id: str, version: Optional[str] = None):
-    if registry.install_skill(skill_id, version):
-        return {"message": "技能安装成功"}
-    raise HTTPException(status_code=400, detail="安装失败")
+    logger.info(f"🎯 安装技能请求: {skill_id} (版本: {version or '最新'})")
+    try:
+        if registry.install_skill(skill_id, version):
+            logger.info(f"✅ 技能安装成功: {skill_id}")
+            return {"message": "技能安装成功"}
+        logger.warning(f"⚠️ 技能安装失败: {skill_id}")
+        raise HTTPException(status_code=400, detail="安装失败")
+    except Exception as e:
+        logger.error(f"❌ 技能安装异常: {skill_id}, 错误: {str(e)}")
+        raise
 
 @app.delete("/api/skills/{skill_id}/uninstall")
 def uninstall_skill(skill_id: str):
@@ -110,8 +128,14 @@ def uninstall_skill(skill_id: str):
 
 @app.get("/api/search")
 def search_skills(keyword: str, category: Optional[str] = None, limit: int = 20):
-    results = index.search(keyword, category, limit=limit)
-    return {"total": len(results), "skills": [s.dict() for s in results]}
+    logger.info(f"🔍 搜索技能: 关键词='{keyword}', 分类='{category}', 限制={limit}")
+    try:
+        results = index.search(keyword, category, limit=limit)
+        logger.info(f"🔍 搜索完成: 找到 {len(results)} 个技能")
+        return {"total": len(results), "skills": [s.dict() for s in results]}
+    except Exception as e:
+        logger.error(f"❌ 搜索失败: 关键词='{keyword}', 错误: {str(e)}")
+        raise
 
 @app.get("/api/tags")
 def get_tags():
@@ -177,6 +201,144 @@ def health_check():
         "service": "ARD Skill Hub API",
         "version": "1.0.0"
     }
+
+# ==================== 日志查看 API ====================
+@app.get("/api/logs")
+async def get_logs(
+    developer=Depends(get_current_developer),
+    level: Optional[str] = None,
+    keyword: Optional[str] = None,
+    limit: int = 100,
+    offset: int = 0
+):
+    """
+    获取日志（仅开发者可访问）
+    
+    Args:
+        level: 日志级别过滤 (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+        keyword: 关键词过滤
+        limit: 返回条数限制
+        offset: 偏移量
+    """
+    logger.info(f"🔍 开发者 {developer.username} 查看日志: level={level}, keyword={keyword}")
+    
+    from ardc.utils.logging import LogConfig
+    import os
+    
+    all_logs = []
+    log_dir = LogConfig.LOG_DIR
+    
+    if not os.path.exists(log_dir):
+        return {"logs": [], "total": 0}
+    
+    # 读取所有日志文件
+    log_files = sorted([f for f in os.listdir(log_dir) if f.endswith('.log') and not f.endswith('_json.log')])
+    
+    for filename in log_files:
+        filepath = os.path.join(log_dir, filename)
+        try:
+            with open(filepath, 'r', encoding='utf-8') as f:
+                lines = f.readlines()
+                for line in lines:
+                    # 解析日志行
+                    # 格式: 2026-05-21 10:30:45,123 - logger - LEVEL - module:line - message
+                    parts = line.strip().split(' - ', 4)
+                    if len(parts) == 5:
+                        log_entry = {
+                            'timestamp': parts[0],
+                            'logger': parts[1],
+                            'level': parts[2],
+                            'source': parts[3],
+                            'message': parts[4],
+                            'file': filename
+                        }
+                        all_logs.append(log_entry)
+        except Exception as e:
+            logger.error(f"❌ 读取日志文件失败: {filename}, 错误: {str(e)}")
+    
+    # 按级别过滤
+    if level:
+        all_logs = [log for log in all_logs if log['level'] == level.upper()]
+    
+    # 按关键词过滤
+    if keyword:
+        all_logs = [log for log in all_logs if keyword.lower() in log['message'].lower()]
+    
+    # 按时间排序（最新的在前）
+    all_logs.sort(key=lambda x: x['timestamp'], reverse=True)
+    
+    total = len(all_logs)
+    paginated_logs = all_logs[offset:offset + limit]
+    
+    return {
+        "logs": paginated_logs,
+        "total": total,
+        "limit": limit,
+        "offset": offset
+    }
+
+@app.get("/api/logs/stats")
+async def get_log_stats(developer=Depends(get_current_developer)):
+    """
+    获取日志统计信息（仅开发者可访问）
+    """
+    logger.info(f"📊 开发者 {developer.username} 获取日志统计")
+    
+    from ardc.utils.logging import LogConfig
+    import os
+    
+    stats = {
+        'total': 0,
+        'levels': {'DEBUG': 0, 'INFO': 0, 'WARNING': 0, 'ERROR': 0, 'CRITICAL': 0},
+        'files': []
+    }
+    
+    log_dir = LogConfig.LOG_DIR
+    
+    if not os.path.exists(log_dir):
+        return stats
+    
+    log_files = sorted([f for f in os.listdir(log_dir) if f.endswith('.log') and not f.endswith('_json.log')])
+    
+    for filename in log_files:
+        filepath = os.path.join(log_dir, filename)
+        try:
+            with open(filepath, 'r', encoding='utf-8') as f:
+                lines = f.readlines()
+                file_stats = {
+                    'filename': filename,
+                    'line_count': len(lines),
+                    'size': os.path.getsize(filepath)
+                }
+                stats['files'].append(file_stats)
+                
+                for line in lines:
+                    parts = line.strip().split(' - ', 4)
+                    if len(parts) == 5:
+                        stats['total'] += 1
+                        level = parts[2]
+                        if level in stats['levels']:
+                            stats['levels'][level] += 1
+        except Exception as e:
+            logger.error(f"❌ 读取日志文件失败: {filename}, 错误: {str(e)}")
+    
+    return stats
+
+@app.get("/api/logs/errors")
+async def get_error_logs(developer=Depends(get_current_developer), limit: int = 50):
+    """
+    获取错误日志（仅开发者可访问）
+    """
+    logger.info(f"❌ 开发者 {developer.username} 获取错误日志")
+    return await get_logs(developer=developer, level="ERROR", limit=limit)
+
+@app.get("/api/logs/warnings")
+async def get_warning_logs(developer=Depends(get_current_developer), limit: int = 50):
+    """
+    获取警告日志（仅开发者可访问）
+    """
+    logger.info(f"⚠️ 开发者 {developer.username} 获取警告日志")
+    return await get_logs(developer=developer, level="WARNING", limit=limit)
 
 def start_server(host: str = "0.0.0.0", port: int = 8000):
     import uvicorn
