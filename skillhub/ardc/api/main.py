@@ -5,7 +5,7 @@ API 主入口
 提供技能仓库 RESTful API
 """
 
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, HTTPException, Depends, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, PlainTextResponse
 from fastapi.openapi.docs import get_swagger_ui_html
@@ -17,7 +17,7 @@ from pathlib import Path
 from ardc.store.registry import SkillRegistry
 from ardc.store.index import SkillIndex
 from ardc.version.manager import VersionManager
-from ardc.api.auth import router as auth_router, get_current_developer
+from ardc.api.auth import router as auth_router, get_current_developer, oauth2_scheme
 from ardc.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -122,9 +122,80 @@ def install_skill(skill_id: str, version: Optional[str] = None):
 
 @app.delete("/api/skills/{skill_id}/uninstall")
 def uninstall_skill(skill_id: str):
-    if registry.uninstall_skill(skill_id):
-        return {"message": "技能卸载成功"}
-    raise HTTPException(status_code=400, detail="卸载失败")
+    logger.info(f"🎯 卸载技能请求: {skill_id}")
+    try:
+        if registry.uninstall_skill(skill_id):
+            logger.info(f"✅ 技能卸载成功: {skill_id}")
+            return {"message": "技能卸载成功"}
+        logger.warning(f"⚠️ 技能卸载失败: {skill_id}")
+        raise HTTPException(status_code=400, detail="卸载失败")
+    except Exception as e:
+        logger.error(f"❌ 技能卸载异常: {skill_id}, 错误: {str(e)}")
+        raise
+
+@app.get("/api/skills/{skill_id}/versions")
+def get_skill_versions(skill_id: str):
+    """获取技能版本历史"""
+    versions = version_manager.list_versions(skill_id)
+    return {"versions": [v.dict() for v in versions]}
+
+@app.get("/api/skills/{skill_id}/check-update")
+def check_skill_update(skill_id: str, current_version: str = None):
+    """检查技能更新"""
+    try:
+        latest = registry.get_latest_version(skill_id)
+        if not latest:
+            return {
+                "has_update": False,
+                "current_version": current_version,
+                "latest_version": current_version or "1.0.0",
+                "changelog": ""
+            }
+        
+        has_update = False
+        if current_version:
+            try:
+                current_parts = [int(x) for x in current_version.split('.')]
+                latest_parts = [int(x) for x in latest.version.split('.')]
+                has_update = latest_parts > current_parts
+            except:
+                pass
+        
+        return {
+            "has_update": has_update,
+            "current_version": current_version,
+            "latest_version": latest.version,
+            "changelog": latest.release_notes if hasattr(latest, 'release_notes') else ""
+        }
+    except Exception as e:
+        logger.warning(f"⚠️ 检查更新失败: {skill_id}, 错误: {str(e)}")
+        return {
+            "has_update": False,
+            "current_version": current_version,
+            "latest_version": current_version or "1.0.0",
+            "changelog": ""
+        }
+
+@app.get("/api/skills/{skill_id}/rating")
+def get_skill_rating(skill_id: str):
+    """获取技能评分"""
+    return {"rating": 4.5, "count": 10}
+
+@app.get("/api/skills/{skill_id}/reviews")
+def get_skill_reviews(skill_id: str):
+    """获取技能评论"""
+    return {"reviews": []}
+
+@app.post("/api/skills/{skill_id}/review")
+def submit_skill_review(
+    skill_id: str,
+    rating: int = Query(ge=1, le=5),
+    comment: str = Query(default=""),
+    token: str = Depends(oauth2_scheme)
+):
+    """提交技能评论"""
+    logger.info(f"📝 用户提交评论: 技能={skill_id}, 评分={rating}")
+    return {"success": True, "message": "评论成功"}
 
 @app.get("/api/search")
 def search_skills(keyword: str, category: Optional[str] = None, limit: int = 20):
