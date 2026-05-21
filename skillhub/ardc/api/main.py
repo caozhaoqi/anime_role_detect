@@ -262,6 +262,7 @@ async def custom_openapi(developer=Depends(get_current_developer)):
     return get_openapi(
         title=app.title,
         version=app.version,
+        openapi_version="3.0.2",
         description=app.description,
         routes=app.routes,
     )
