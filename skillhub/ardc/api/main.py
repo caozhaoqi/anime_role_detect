@@ -13,6 +13,7 @@ from fastapi.openapi.utils import get_openapi
 from pydantic import BaseModel
 from typing import List, Optional
 from pathlib import Path
+import json
 
 from ardc.store.registry import SkillRegistry
 from ardc.store.index import SkillIndex
@@ -26,8 +27,8 @@ app = FastAPI(
     title="ARD Skill Repository API",
     version="1.0.0",
     description="技能仓库 RESTful API - 提供技能管理、用户认证、技能搜索等功能",
-    docs_url=None,
-    redoc_url=None
+    docs_url="/api/docs",
+    redoc_url="/api/redoc"
 )
 
 logger.info("✅ ARD Skill Hub API 初始化完成")
@@ -410,6 +411,76 @@ async def get_warning_logs(developer=Depends(get_current_developer), limit: int 
     """
     logger.info(f"⚠️ 开发者 {developer.username} 获取警告日志")
     return await get_logs(developer=developer, level="WARNING", limit=limit)
+
+@app.get("/api/favorites")
+def get_favorites(developer=Depends(get_current_developer)):
+    """获取收藏列表（仅开发者可访问）"""
+    logger.info(f"⭐ 开发者 {developer.username} 获取收藏列表")
+    
+    favorites_file = Path.home() / ".ardc" / "favorites.json"
+    if favorites_file.exists():
+        try:
+            with open(favorites_file, 'r', encoding='utf-8') as f:
+                favorites = json.load(f)
+                return {"favorites": favorites.get(developer.username, [])}
+        except Exception as e:
+            logger.error(f"❌ 读取收藏文件失败: {str(e)}")
+    
+    return {"favorites": []}
+
+@app.post("/api/favorites/{skill_id}")
+def add_favorite(skill_id: str, developer=Depends(get_current_developer)):
+    """添加收藏（仅开发者可访问）"""
+    logger.info(f"⭐ 开发者 {developer.username} 添加收藏: {skill_id}")
+    
+    favorites_file = Path.home() / ".ardc" / "favorites.json"
+    favorites = {}
+    
+    if favorites_file.exists():
+        try:
+            with open(favorites_file, 'r', encoding='utf-8') as f:
+                favorites = json.load(f)
+        except Exception as e:
+            logger.error(f"❌ 读取收藏文件失败: {str(e)}")
+    
+    if developer.username not in favorites:
+        favorites[developer.username] = []
+    
+    if skill_id not in favorites[developer.username]:
+        favorites[developer.username].append(skill_id)
+    
+    try:
+        with open(favorites_file, 'w', encoding='utf-8') as f:
+            json.dump(favorites, f, ensure_ascii=False, indent=2)
+        return {"message": "收藏成功"}
+    except Exception as e:
+        logger.error(f"❌ 保存收藏失败: {str(e)}")
+        raise HTTPException(status_code=500, detail="保存失败")
+
+@app.delete("/api/favorites/{skill_id}")
+def remove_favorite(skill_id: str, developer=Depends(get_current_developer)):
+    """移除收藏（仅开发者可访问）"""
+    logger.info(f"⭐ 开发者 {developer.username} 移除收藏: {skill_id}")
+    
+    favorites_file = Path.home() / ".ardc" / "favorites.json"
+    
+    if favorites_file.exists():
+        try:
+            with open(favorites_file, 'r', encoding='utf-8') as f:
+                favorites = json.load(f)
+            
+            if developer.username in favorites and skill_id in favorites[developer.username]:
+                favorites[developer.username].remove(skill_id)
+                
+                with open(favorites_file, 'w', encoding='utf-8') as f:
+                    json.dump(favorites, f, ensure_ascii=False, indent=2)
+            
+            return {"message": "取消收藏成功"}
+        except Exception as e:
+            logger.error(f"❌ 操作收藏失败: {str(e)}")
+            raise HTTPException(status_code=500, detail="操作失败")
+    
+    return {"message": "取消收藏成功"}
 
 def start_server(host: str = "0.0.0.0", port: int = 8000):
     import uvicorn

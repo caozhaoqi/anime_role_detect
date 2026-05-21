@@ -140,16 +140,26 @@ class SkillIndex:
         candidate_ids = set()
         
         if keyword:
-            tokens = self._tokenize(keyword)
-            if tokens:
-                for token in tokens:
-                    if token in self._inverted_index:
-                        if not candidate_ids:
-                            candidate_ids = set(self._inverted_index[token])
-                        else:
-                            candidate_ids.intersection_update(self._inverted_index[token])
+            keyword_lower = keyword.lower()
+            
+            if keyword_lower in self._inverted_index:
+                candidate_ids = set(self._inverted_index[keyword_lower])
             else:
-                candidate_ids = set(self._index["skills"].keys())
+                tokens = self._tokenize(keyword)
+                if tokens:
+                    for token in tokens:
+                        if token in self._inverted_index:
+                            if not candidate_ids:
+                                candidate_ids = set(self._inverted_index[token])
+                            else:
+                                candidate_ids.intersection_update(self._inverted_index[token])
+                else:
+                    candidate_ids = set(self._index["skills"].keys())
+            
+            if not candidate_ids:
+                for skill_id in self._index["skills"].keys():
+                    if keyword_lower in skill_id.lower():
+                        candidate_ids.add(skill_id)
         else:
             candidate_ids = set(self._index["skills"].keys())
         

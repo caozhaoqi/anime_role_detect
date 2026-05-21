@@ -182,6 +182,15 @@ class SkillRegistry:
     def install_skill(self, skill_id: str, version: str = None) -> bool:
         try:
             metadata = self.get_skill_by_version(skill_id, version)
+            
+            if not metadata:
+                from .index import SkillIndex
+                index = SkillIndex()
+                skills = index.search(skill_id)
+                if skills:
+                    metadata = skills[0]
+                    print(f"从索引获取技能 {skill_id}")
+            
             if not metadata:
                 print(f"未找到技能 {skill_id} 的版本 {version or 'latest'}")
                 return False
