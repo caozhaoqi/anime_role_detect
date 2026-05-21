@@ -40,7 +40,7 @@ class ChangelogStore:
             # 创建初始更新日志
             initial_data = [
                 {
-                    "version": "1.0.0",
+                    "version": "1.0.1",
                     "title": "系统初始化",
                     "description": "ARD Skill Hub 系统正式上线",
                     "changes": [
@@ -50,7 +50,7 @@ class ChangelogStore:
                         "✅ 版本管理系统",
                         "✅ API文档支持"
                     ],
-                    "release_date": "2024-01-01",
+                    "release_date": "2026-05-20",
                     "author": "System",
                     "is_major": True,
                     "affected_components": ["core", "api", "auth"]

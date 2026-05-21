@@ -19,7 +19,7 @@ from datetime import datetime
 from ardc.store.registry import SkillRegistry
 from ardc.store.index import SkillIndex
 from ardc.version.manager import VersionManager
-from ardc.api.auth import router as auth_router, get_current_developer, oauth2_scheme
+from ardc.api.auth import router as auth_router, get_current_user, get_current_developer, oauth2_scheme
 from ardc.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -79,7 +79,7 @@ async def custom_openapi_json():
 
 @app.get("/api/docs", include_in_schema=False)
 async def custom_swagger_ui_html(developer=Depends(get_current_developer)):
-    """自定义 Swagger UI 页面，增加开发者认证"""
+    """自定义 Swagger UI 页面，仅开发者可访问"""
     return get_swagger_ui_html(
         openapi_url="/api/openapi.json", # 必须与上面的路由一致
         title=app.title + " - Swagger UI",
@@ -91,7 +91,7 @@ async def custom_swagger_ui_html(developer=Depends(get_current_developer)):
 
 @app.get("/api/redoc", include_in_schema=False)
 async def custom_redoc_ui_html(developer=Depends(get_current_developer)):
-    """自定义 ReDoc 页面"""
+    """自定义 ReDoc 页面，仅开发者可访问"""
     return get_redoc_html(
         openapi_url="/api/openapi.json",
         title=app.title + " - ReDoc"
