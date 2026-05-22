@@ -1,0 +1,18 @@
+[Unit]
+Description=ARD Skill Hub API Service
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/czq/anime_role_detect/skillhub
+ExecStart=/root/czq/anime_role_detect/.venv/bin/uvicorn ardc.api.main:app --host 0.0.0.0 --port 8000 --workers 4
+Environment=JWT_SECRET_KEY=ard-skill-hub-secret-key-2026-production
+Environment=ALLOWED_ORIGINS=http://localhost:3000,http://47.79.91.89:8888
+Restart=always
+RestartSec=5
+StandardOutput=journal+console
+StandardError=journal+console
+
+[Install]
+WantedBy=multi-user.target
