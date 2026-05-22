@@ -275,6 +275,12 @@ def search_skills(keyword: str, category: Optional[str] = None, limit: int = 20)
 def get_stats():
     return index.get_statistics()
 
+@app.get("/api/categories")
+def get_categories():
+    """获取所有技能分类"""
+    categories = index._index.get("categories", {})
+    return {"categories": [{"name": name, "count": count} for name, count in categories.items()]}
+
 @app.get("/api/health")
 def health_check():
     return {"status": "healthy", "service": "ARD Skill Hub API", "version": "1.0.0"}
@@ -403,11 +409,23 @@ async def get_logs(
 # ==================== 收藏夹 API ====================
 @app.get("/api/favorites")
 def get_favorites(developer=Depends(get_current_developer)):
+    """获取用户收藏的技能（需要开发者权限）"""
     favorites_file = Path.home() / ".ardc" / "favorites.json"
     if favorites_file.exists():
         with open(favorites_file, 'r', encoding='utf-8') as f:
             return {"favorites": json.load(f).get(developer.username, [])}
     return {"favorites": []}
+
+@app.get("/api/favorites/public")
+def get_public_favorites():
+    """获取公开收藏列表（无需认证）"""
+    favorites_file = Path.home() / ".ardc" / "favorites.json"
+    if favorites_file.exists():
+        with open(favorites_file, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+            # 返回所有用户的收藏数量统计
+            return {"total_users": len(data), "total_favorites": sum(len(v) for v in data.values())}
+    return {"total_users": 0, "total_favorites": 0, "favorites": []}
 
 @app.post("/api/favorites/{skill_id}")
 def add_favorite(skill_id: str, developer=Depends(get_current_developer)):
