@@ -12,8 +12,8 @@ import shutil
 # 添加项目根目录到Python路径
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 
-from src.data.collection.data_collection import ImageCollector
-from src.data.preprocessing.split_dataset import split_dataset
+from src.data_collection.keyword_based_collector import KeywordBasedDataCollector
+from src.core.utils.utils import split_dataset
 
 class TestDataIntegration(unittest.TestCase):
     """测试数据集成"""
@@ -29,7 +29,7 @@ class TestDataIntegration(unittest.TestCase):
         os.makedirs(self.collection_dir)
         
         # 初始化收集器
-        self.collector = ImageCollector(output_dir=self.collection_dir)
+        self.collector = KeywordBasedDataCollector(output_dir=self.collection_dir)
     
     def tearDown(self):
         """清理测试环境"""
@@ -48,9 +48,11 @@ class TestDataIntegration(unittest.TestCase):
                 f.write('test')
         
         # 测试数据预处理
-        train_dir = os.path.join(self.preprocessing_dir, 'train')
-        val_dir = os.path.join(self.preprocessing_dir, 'val')
-        split_dataset(self.collection_dir, train_dir, val_dir, val_ratio=0.2)
+        output_dir = self.preprocessing_dir
+        split_dataset(self.collection_dir, output_dir, train_ratio=0.8, val_ratio=0.2, test_ratio=0.0)
+        
+        train_dir = os.path.join(output_dir, 'train')
+        val_dir = os.path.join(output_dir, 'val')
         
         # 检查输出目录结构
         train_class_dir = os.path.join(train_dir, 'test_class')

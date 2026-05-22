@@ -66,6 +66,8 @@ class BenchmarkEvaluator:
         
         if model_name == 'efficientnet_b0':
             self.model = models.efficientnet_b0(num_classes=num_classes)
+        elif model_name == 'efficientnet_b3':
+            self.model = models.efficientnet_b3(num_classes=num_classes)
         elif model_name == 'resnet18':
             self.model = models.resnet18(num_classes=num_classes)
         else:
@@ -350,9 +352,15 @@ def main():
     parser = argparse.ArgumentParser(description="模型基准测试工具")
     parser.add_argument("--model_path", type=str, required=True, help="模型文件路径")
     parser.add_argument("--results_path", type=str, required=True, help="训练结果JSON路径")
-    parser.add_argument("--test_dir", type=str, required=True, help="测试数据目录")
+    parser.add_argument("--test_dir", type=str, default=None, help="测试数据目录（可选，默认使用训练数据目录）")
     
     args = parser.parse_args()
+    
+    # 如果没有指定测试目录，使用expanded_dataset
+    if args.test_dir is None:
+        # 获取项目根目录（向上走3级：scripts/model_evaluation/benchmark_test.py）
+        project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        args.test_dir = os.path.join(project_root, 'data', 'expanded_dataset')
     
     evaluator = BenchmarkEvaluator(args.model_path, args.results_path, args.test_dir)
     evaluator.run_benchmark()
