@@ -1,0 +1,61 @@
+"""
+系统常量定义 - 集中管理所有魔法数字和字符串
+"""
+
+# 模型相关常量
+DEFAULT_MODEL_NAME = "mobilenet_v2"
+DEFAULT_THRESHOLD = 0.1
+MAX_PREDICTION_RESULTS = 5
+MODEL_CACHE_MAX_SIZE = 5
+MODEL_CACHE_TTL_SECONDS = 3600  # 1小时
+
+# 服务端口常量
+API_GATEWAY_PORT = 8080
+CORE_API_PORT = 8001
+MODEL_SERVICE_PORT = 8004
+MULTIMEDIA_SERVICE_PORT = 8002
+SEARCH_SERVICE_PORT = 8003
+
+# 图像相关常量
+IMAGE_INPUT_SIZE = 224
+FEATURE_VECTOR_SIZE = 512
+MAX_UPLOAD_SIZE = 50 * 1024 * 1024  # 50MB
+
+# 限流相关常量
+RATE_LIMIT_REQUESTS = 100
+RATE_LIMIT_PERIOD = "minute"
+
+# 日志相关常量
+LOG_LEVEL_INFO = "INFO"
+LOG_LEVEL_DEBUG = "DEBUG"
+LOG_LEVEL_ERROR = "ERROR"
+
+# 缓存策略常量
+CACHE_STRATEGY_LOCAL_FIRST = "local_first"
+CACHE_STRATEGY_REDIS_ONLY = "redis_only"
+CACHE_STRATEGY_DUAL = "dual"
+
+# 环境变量常量
+ENV_PRODUCTION = "production"
+ENV_DEVELOPMENT = "development"
+ENV_TEST = "test"
+
+# API路径常量
+API_HEALTH_PATH = "/api/health"
+API_MODEL_PREDICT_PATH = "/api/model/predict"
+API_MODEL_EXTRACT_PATH = "/api/model/extract"
+API_CLASSIFY_PATH = "/api/classify"
+API_SEARCH_PATH = "/api/search"
+API_VIDEO_PATH = "/api/video"
+
+# 响应状态常量
+STATUS_HEALTHY = "healthy"
+STATUS_UNHEALTHY = "unhealthy"
+STATUS_RUNNING = "running"
+
+# 错误消息常量
+ERROR_IMAGE_PROCESSING = "图像预处理失败"
+ERROR_MODEL_INIT = "模型初始化失败"
+ERROR_FEATURE_EXTRACTION = "特征提取失败"
+ERROR_SERVICE_UNAVAILABLE = "服务不可用"
+ERROR_INTERNAL_SERVER = "内部服务器错误"

@@ -4,25 +4,31 @@
 
 本文档详细描述如何在公网服务器上部署 ARD（Anime Role Detect）技能仓库系统。
 
+---
+
 ## 环境要求
 
 ### 硬件要求
-- CPU: 2核及以上
-- 内存: 4GB及以上
-- 存储: 10GB及以上可用空间
+| 配置 | 最低要求 | 推荐配置 |
+|------|----------|----------|
+| CPU | 2核 | 4核及以上 |
+| 内存 | 4GB | 8GB及以上 |
+| 存储 | 10GB可用空间 | 20GB及以上 |
 
 ### 软件要求
-- Python 3.8+
-- Node.js 16+
-- Docker 20.10+（可选）
-- Docker Compose 2.0+（可选）
-- Nginx（可选，用于反向代理）
+- **Python**: 3.8+
+- **Node.js**: 16+
+- **Docker**: 20.10+（可选）
+- **Docker Compose**: 2.0+（可选）
+- **Nginx**: 1.20+（推荐用于反向代理）
+
+---
 
 ## 部署方式
 
 ### 方式一：Docker Compose（推荐）
 
-这是最简单的部署方式，适合生产环境。
+这是最简单的部署方式，适合开发、测试和生产环境。
 
 ```bash
 # 克隆项目
@@ -37,6 +43,12 @@ docker-compose ps
 
 # 查看日志
 docker-compose logs -f
+
+# 停止服务
+docker-compose down
+
+# 重启服务
+docker-compose restart
 ```
 
 **服务访问：**
@@ -44,25 +56,22 @@ docker-compose logs -f
 - API 接口: `http://localhost/api/`
 - Prometheus 监控: `http://localhost:9090`
 
-**停止服务：**
-```bash
-docker-compose down
-```
-
-### 方式二：手动部署
+### 方式二：手动部署（生产环境）
 
 #### 1. 安装依赖
 
 ```bash
 cd skillhub
 
-# 后端依赖
-python -m venv venv
-source venv/bin/activate
+# 创建虚拟环境
+python -m venv .venv
+source .venv/bin/activate
+
+# 安装后端依赖
 pip install -r requirements.txt
 pip install -e .
 
-# 前端依赖
+# 安装前端依赖并构建
 cd web
 npm install
 npm run build
@@ -71,36 +80,24 @@ cd ..
 
 #### 2. 启动后端服务
 
+**开发模式（带热重载）：**
 ```bash
-source venv/bin/activate
-
-# 开发模式
+source .venv/bin/activate
 uvicorn ardc.api.main:app --host 0.0.0.0 --port 8000 --reload
+```
 
-# 生产模式
+**生产模式：**
+```bash
+source .venv/bin/activate
 uvicorn ardc.api.main:app --host 0.0.0.0 --port 8000 --workers 4
 ```
 
-#### 3. 部署前端
-
-```bash
-cd web
-npm run build
-
-# 使用 serve 部署
-npm install -g serve
-serve -s dist -l 5173
-
-# 或使用 nginx 部署
-# 将 dist 目录内容复制到 nginx html 目录
-```
-
-### 方式三：使用 Makefile
+#### 3. 使用 Makefile（简化操作）
 
 ```bash
 cd skillhub
 
-# 安装依赖
+# 安装所有依赖
 make install
 
 # 开发模式
@@ -109,272 +106,55 @@ make run-dev
 # 生产模式
 make run-prod
 
-# 完整部署
+# 完整部署（安装 + 前端构建）
 make deploy
 ```
 
-### 方式四：系统服务（systemd）
+### 方式三：系统服务（systemd）
 
-创建服务文件 `/etc/systemd/system/ardc.service`：
-
-```ini
-[Unit]
-Description=ARD Skill Repository API
-After=network.target
-
-[Service]
-User=www-data
-WorkingDirectory=/path/to/skillhub
-Environment="PATH=/path/to/skillhub/venv/bin"
-ExecStart=/path/to/skillhub/venv/bin/uvicorn ardc.api.main:app --host 0.0.0.0 --port 8000 --workers 4
-Restart=always
-
-[Install]
-WantedBy=multi-user.target
-```
-
-启动服务：
+项目已提供预配置的 systemd 服务文件：
 
 ```bash
+# 复制服务配置
+cp conf/ardc-api.service /etc/systemd/system/
+
+# 根据实际路径修改配置
+sed -i 's|/root/czq/anime_role_detect|/your/actual/path/to/anime_role_detect|g' /etc/systemd/system/ardc-api.service
+
+# 启动服务
 sudo systemctl daemon-reload
-sudo systemctl enable ardc
-sudo systemctl start ardc
+sudo systemctl enable ardc-api
+sudo systemctl start ardc-api
 
 # 查看状态
-sudo systemctl status ardc
+sudo systemctl status ardc-api
 
 # 查看日志
-sudo journalctl -u ardc -f
+sudo journalctl -u ardc-api -f
 ```
+
+---
 
 ## Nginx 反向代理配置
 
-创建配置文件 `/etc/nginx/sites-available/ardc`：
+### 基础配置
+
+创建或修改 `/etc/nginx/sites-available/default`：
 
 ```nginx
-server {
-    listen 80;
-    server_name your-domain.com;
-
-    # 前端静态文件
-    location / {
-        root /path/to/skillhub/web/dist;
-        index index.html;
-        try_files $uri $uri/ /index.html;
-    }
-
-    # API 代理
-    location /api/ {
-        proxy_pass http://127.0.0.1:8000/api/;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    }
-
-    # 监控指标
-    location /metrics {
-        proxy_pass http://127.0.0.1:8000/metrics;
-    }
-}
-```
-
-启用配置：
-
-```bash
-sudo ln -s /etc/nginx/sites-available/ardc /etc/nginx/sites-enabled/
-sudo nginx -t
-sudo systemctl reload nginx
-```
-
-## HTTPS 配置（推荐）
-
-使用 Let's Encrypt 获取免费 SSL 证书：
-
-```bash
-# 安装 Certbot
-sudo apt update && sudo apt install certbot python3-certbot-nginx
-
-# 获取证书
-sudo certbot --nginx -d your-domain.com
-
-# 自动续期
-sudo certbot renew --dry-run
-```
-
-配置完成后，Nginx 会自动更新配置文件。
-
-## 安全配置
-
-### 防火墙设置
-
-```bash
-# 允许 SSH
-sudo ufw allow ssh
-
-# 允许 HTTP/HTTPS
-sudo ufw allow 80/tcp
-sudo ufw allow 443/tcp
-
-# 如果直接访问 API，允许 8000 端口
-sudo ufw allow 8000/tcp
-
-# 启用防火墙
-sudo ufw enable
-```
-
-### 访问控制（可选）
-
-可以在 API 层面添加认证机制：
-
-```python
-# ardc/api/main.py
-from fastapi import Header, HTTPException
-
-async def get_api_key(api_key: str = Header(None)):
-    if api_key != "your-secret-key":
-        raise HTTPException(status_code=403, detail="Invalid API Key")
-```
-
-## 数据备份与恢复
-
-### 备份
-
-```bash
-# 备份整个数据目录
-tar -czvf ardc_backup_$(date +%Y%m%d).tar.gz ~/.ardc/
-
-# 备份数据库文件
-cp ~/.ardc/registry.json ~/.ardc/registry.json.bak
-cp ~/.ardc/skill_index.json ~/.ardc/skill_index.json.bak
-```
-
-### 恢复
-
-```bash
-# 恢复备份
-tar -xzvf ardc_backup_20240101.tar.gz -C /
-
-# 恢复单个文件
-cp ~/.ardc/registry.json.bak ~/.ardc/registry.json
-```
-
-## 性能优化
-
-### 后端优化
-
-```bash
-# 使用多个工作进程
-uvicorn ardc.api.main:app --host 0.0.0.0 --port 8000 --workers 4
-
-# 启用 gzip 压缩（通过 Nginx）
-gzip on;
-gzip_types text/plain text/css application/json application/javascript;
-```
-
-### 前端优化
-
-```bash
-# 生产构建
-npm run build
-
-# 启用缓存
-# 在 Nginx 中添加缓存配置
-location ~* \.(js|css|png|jpg|jpeg|gif|ico)$ {
-    expires 1y;
-    add_header Cache-Control "public, immutable";
-}
-```
-
-## 监控与日志
-
-### Prometheus 监控
-
-访问 `http://your-domain.com/metrics` 查看指标。
-
-主要指标：
-- `ardc_skill_executions_total` - 技能执行次数
-- `ardc_requests_total` - API 请求次数
-- `ardc_uptime_seconds` - 服务运行时间
-- `ardc_skill_execution_latency_seconds` - 技能执行延迟
-
-### 日志管理
-
-```bash
-# 查看 Nginx 日志
-tail -f /var/log/nginx/access.log
-tail -f /var/log/nginx/error.log
-
-# 查看应用日志
-sudo journalctl -u ardc
-
-# 查看 Docker 日志
-docker-compose logs -f backend
-```
-
-## 故障排查
-
-### 服务无法启动
-
-```bash
-# 检查端口占用
-netstat -tlnp | grep 8000
-
-# 检查 Python 环境
-source venv/bin/activate
-python -c "import ardc; print(ardc.__version__)"
-
-# 检查依赖
-pip list | grep -E "fastapi|uvicorn|pydantic"
-```
-
-### API 无法访问
-
-```bash
-# 测试本地 API
-curl http://localhost:8000/api/skills
-
-# 检查防火墙
-ufw status
-
-# 检查 Nginx 配置
-nginx -t
-```
-
-### 前端无法访问
-
-```bash
-# 检查前端服务
-curl http://localhost:5173
-
-# 检查 Nginx 配置
-cat /var/log/nginx/error.log
-```
-
-### 500 Internal Server Error（重定向循环）
-
-**问题描述：**
-```
-rewrite or internal redirection cycle while internally redirecting to "/index.html"
-```
-
-**原因：**
-Nginx 配置中的 `try_files` 指令导致无限循环。
-
-**解决方案：**
-```bash
-# 修改 Nginx 配置，使用 named location 避免循环
-cat > /etc/nginx/sites-available/default << 'EOF'
 server {
     listen 8888;
     server_name caozhaoqi.top;
 
+    # 前端静态文件目录
     root /var/www/ardc-web;
     index index.html;
 
-    # 静态资源缓存
+    # 静态资源缓存（重要：提升性能）
     location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf)$ {
         expires 1y;
         add_header Cache-Control "public, immutable";
+        add_header Access-Control-Allow-Origin *;
     }
 
     # API 反向代理
@@ -383,6 +163,23 @@ server {
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        
+        # 连接超时设置
+        proxy_connect_timeout 60s;
+        proxy_send_timeout 60s;
+        proxy_read_timeout 60s;
+    }
+
+    # 健康检查
+    location /health {
+        proxy_pass http://127.0.0.1:8000/health;
+        access_log off;
+    }
+
+    # Prometheus 监控指标
+    location /metrics {
+        proxy_pass http://127.0.0.1:8000/metrics;
     }
 
     # SPA 路由回退（关键：使用 named location 避免循环）
@@ -394,71 +191,260 @@ server {
         rewrite ^ /index.html break;
     }
 }
-EOF
-
-# 重启 Nginx
-systemctl restart nginx
 ```
 
-### 502 Bad Gateway（后端服务未启动）
+### 启用配置
 
-**问题描述：**
-API 接口返回 502 错误，但前端页面正常。
+```bash
+# 验证配置
+sudo nginx -t
 
-**原因：**
-后端服务（FastAPI）未运行或端口未监听。
+# 重启服务
+sudo systemctl reload nginx
+```
 
-**解决方案：**
+---
+
+## HTTPS 配置（推荐）
+
+使用 Let's Encrypt 获取免费 SSL 证书：
+
+```bash
+# 安装 Certbot
+sudo apt update && sudo apt install certbot python3-certbot-nginx -y
+
+# 获取证书（自动配置 Nginx）
+sudo certbot --nginx -d caozhaoqi.top
+
+# 测试自动续期
+sudo certbot renew --dry-run
+```
+
+配置完成后，Nginx 会自动更新配置文件，包括重定向 HTTP 到 HTTPS。
+
+---
+
+## 安全配置
+
+### 防火墙设置
+
+```bash
+# 允许 SSH（保持远程访问）
+sudo ufw allow ssh
+
+# 允许 HTTP/HTTPS
+sudo ufw allow 80/tcp
+sudo ufw allow 443/tcp
+
+# 如果使用 8888 端口（开发/测试）
+sudo ufw allow 8888/tcp
+
+# 如果直接访问 API（不推荐，应通过 Nginx 代理）
+# sudo ufw allow 8000/tcp
+
+# 启用防火墙
+sudo ufw enable
+
+# 查看状态
+sudo ufw status
+```
+
+### 目录权限
+
+**重要：Nginx 以 `www-data` 用户运行，无法访问 `/root/` 目录！**
+
+```bash
+# 创建标准 Web 目录（推荐）
+mkdir -p /var/www/ardc-web
+
+# 复制前端构建文件
+cp -r /path/to/skillhub/web/dist/* /var/www/ardc-web/
+
+# 设置正确权限
+chown -R www-data:www-data /var/www/ardc-web
+chmod -R 755 /var/www/ardc-web
+```
+
+### 环境变量配置
+
+创建 `.env` 文件或在启动时设置环境变量：
+
+```bash
+# 设置环境变量
+export JWT_SECRET_KEY="your-secret-key-here-keep-it-safe"
+export ALLOWED_ORIGINS="http://localhost:3000,https://your-domain.com"
+export ARD_C_DATA_DIR="/var/lib/ardc"
+
+# 启动服务
+uvicorn ardc.api.main:app --host 0.0.0.0 --port 8000 --workers 4
+```
+
+---
+
+## 数据备份与恢复
+
+### 备份
+
+```bash
+# 备份整个数据目录
+tar -czvf ardc_backup_$(date +%Y%m%d).tar.gz ~/.ardc/
+
+# 备份到远程服务器（可选）
+scp ardc_backup_$(date +%Y%m%d).tar.gz user@backup-server:/backup/
+```
+
+### 恢复
+
+```bash
+# 恢复备份
+tar -xzvf ardc_backup_20240101.tar.gz -C ~/
+
+# 恢复后重启服务
+sudo systemctl restart ardc-api
+```
+
+---
+
+## 性能优化
+
+### 后端优化
+
+```bash
+# 使用多个工作进程（建议值：CPU核心数 * 2 + 1）
+uvicorn ardc.api.main:app --host 0.0.0.0 --port 8000 --workers 4
+
+# 使用 Gunicorn（生产环境推荐）
+pip install gunicorn
+gunicorn -w 4 -k uvicorn.workers.UvicornWorker ardc.api.main:app --bind 0.0.0.0:8000
+```
+
+### Nginx 优化
+
+```nginx
+# 在 http 块中添加
+http {
+    # 启用 gzip 压缩
+    gzip on;
+    gzip_types text/plain text/css application/json application/javascript;
+    gzip_min_length 1024;
+    
+    # 连接池优化
+    keepalive_timeout 65;
+    keepalive_requests 100;
+    
+    # 缓冲区设置
+    client_max_body_size 10M;
+    client_body_buffer_size 128k;
+}
+```
+
+---
+
+## 监控与日志
+
+### Prometheus 监控
+
+访问 `http://your-domain.com/metrics` 查看指标：
+
+| 指标名 | 类型 | 说明 |
+|--------|------|------|
+| `ardc_skill_executions_total` | counter | 技能执行总次数 |
+| `ardc_requests_total` | counter | API 请求总次数 |
+| `ardc_uptime_seconds` | gauge | 服务运行时间（秒） |
+| `ardc_skills_count` | gauge | 已注册技能数量 |
+
+### 日志管理
+
+```bash
+# 查看 Nginx 访问日志
+tail -f /var/log/nginx/access.log
+
+# 查看 Nginx 错误日志
+tail -f /var/log/nginx/error.log
+
+# 查看应用日志（systemd）
+sudo journalctl -u ardc-api -f
+
+# 查看 Docker 日志
+docker-compose logs -f backend
+```
+
+---
+
+## 故障排查
+
+### 服务无法启动
+
+```bash
+# 检查端口占用
+netstat -tlnp | grep 8000
+lsof -i:8000
+
+# 检查 Python 环境
+source .venv/bin/activate
+python -c "import ardc; print('OK')"
+
+# 检查依赖版本
+pip list | grep -E "fastapi|uvicorn|pydantic"
+
+# 直接运行查看错误
+uvicorn ardc.api.main:app --host 0.0.0.0 --port 8000
+```
+
+### API 返回 502 Bad Gateway
+
+**问题原因：** 后端服务未运行或端口未监听。
+
 ```bash
 # 检查后端服务状态
 netstat -tlnp | grep 8000
 
 # 如果未运行，启动后端服务
 cd /path/to/skillhub
-source venv/bin/activate
+source .venv/bin/activate
 nohup uvicorn ardc.api.main:app --host 127.0.0.1 --port 8000 --workers 4 > /var/log/ardc.log 2>&1 &
 
 # 验证服务启动
 sleep 3
-curl http://127.0.0.1:8000/api/skills
+curl http://127.0.0.1:8000/api/health
 ```
 
-### 403 Forbidden（权限问题）
+### Nginx 重定向循环
 
-**问题描述：**
+**错误信息：**
+```
+rewrite or internal redirection cycle while internally redirecting to "/index.html"
+```
+
+**解决方案：** 使用 named location 避免循环（参考本文档 Nginx 配置部分）。
+
+### 403 Forbidden 权限错误
+
+**错误信息：**
 ```
 stat() "/root/czq/anime_role_detect/skillhub/web/dist/" failed (13: Permission denied)
 ```
 
-**原因：**
-Nginx 以 `www-data` 用户运行，无法访问 `/root/` 目录（Linux 安全限制）。
+**解决方案：** 将前端文件移动到标准 Web 目录：
 
-**解决方案：**
-
-**方法一：修改目录权限（简单）**
 ```bash
-chown -R www-data:www-data /root/czq/anime_role_detect/skillhub/web/dist
-chmod -R 755 /root/czq/anime_role_detect/skillhub/web/dist
-systemctl restart nginx
-```
-
-**方法二：移动文件到标准位置（推荐）**
-```bash
-# 创建标准 Web 目录
 mkdir -p /var/www/ardc-web
-
-# 复制前端文件
 cp -r /root/czq/anime_role_detect/skillhub/web/dist/* /var/www/ardc-web/
-
-# 设置权限
 chown -R www-data:www-data /var/www/ardc-web
 chmod -R 755 /var/www/ardc-web
+```
 
-# 修改 Nginx 配置
-sed -i 's|root /root/czq/anime_role_detect/skillhub/web/dist;|root /var/www/ardc-web;|' /etc/nginx/sites-available/default
+### 前端页面显示空白
 
-# 重启 Nginx
-systemctl restart nginx
+```bash
+# 检查前端文件是否存在
+ls -la /var/www/ardc-web/
+
+# 检查 Nginx 配置
+nginx -t
+
+# 检查浏览器控制台错误
+# 在浏览器中按 F12 查看 Console 标签
 ```
 
 ### 技能安装失败
@@ -474,6 +460,8 @@ ls -la ~/.ardc/
 curl -v http://localhost:8000/api/skills/<skill_id>
 ```
 
+---
+
 ## 更新维护
 
 ### 更新代码
@@ -485,7 +473,7 @@ cd skillhub
 git pull
 
 # 更新后端依赖
-source venv/bin/activate
+source .venv/bin/activate
 pip install -r requirements.txt
 
 # 更新前端
@@ -494,23 +482,28 @@ npm install
 npm run build
 
 # 重启服务
-sudo systemctl restart ardc
+sudo systemctl restart ardc-api
+sudo systemctl reload nginx
 ```
 
 ### 版本升级
 
 ```bash
-# 备份数据
+# 备份数据（重要！）
 tar -czvf ardc_backup_$(date +%Y%m%d).tar.gz ~/.ardc/
 
-# 升级版本
+# 切换到新版本
 git checkout v2.0.0
+
+# 更新依赖
 pip install -r requirements.txt
 npm install && npm run build
 
 # 重启服务
-sudo systemctl restart ardc
+sudo systemctl restart ardc-api
 ```
+
+---
 
 ## 常见问题
 
@@ -518,16 +511,22 @@ sudo systemctl restart ardc
 
 A: 使用 Web 界面或 CLI 命令注册技能：
 ```bash
-ardc skill register --id ardc-my-skill --name "我的技能" --version 1.0.0 --author me --category utility --entry-point scripts/main.py
+ardc skill register \
+  --id ardc-my-skill \
+  --name "我的技能" \
+  --version 1.0.0 \
+  --author "your-name" \
+  --category utility \
+  --entry-point scripts/main.py
 ```
 
 **Q: 如何发布新版本？**
 
-A: 使用相同的技能 ID 和不同的版本号注册即可。
+A: 使用相同的技能 ID 和不同的版本号注册即可。系统会自动管理版本历史。
 
 **Q: 如何卸载技能？**
 
-A: 使用 CLI 命令或 Web 界面卸载：
+A: 使用 CLI 命令或 Web 界面：
 ```bash
 ardc skill uninstall ardc-my-skill
 ```
@@ -538,7 +537,7 @@ A: 访问 `http://your-domain.com/metrics`。
 
 **Q: 如何配置域名？**
 
-A: 在 Nginx 配置文件中修改 `server_name` 指令，并确保 DNS 解析正确。
+A: 在 Nginx 配置文件中修改 `server_name` 指令，并确保 DNS 解析正确指向服务器 IP。
 
 **Q: 如何设置 HTTPS？**
 
@@ -547,7 +546,9 @@ A: 使用 Let's Encrypt 获取 SSL 证书：
 sudo certbot --nginx -d your-domain.com
 ```
 
-## 架构图
+---
+
+## 部署架构图
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -556,36 +557,52 @@ sudo certbot --nginx -d your-domain.com
                                 │ HTTPS
                                 ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                        Nginx                                   │
+│                        Nginx (反向代理)                         │
 │  ┌─────────────────────────────────────────────────────────┐   │
 │  │  / → 前端静态文件 (dist)      /api/ → Backend API      │   │
-│  │  /metrics → Prometheus指标                           │   │
+│  │  /metrics → Prometheus指标   /health → 健康检查        │   │
 │  └─────────────────────────────────────────────────────────┘   │
 └───────────────────────────────┬─────────────────────────────────┘
                                 │ HTTP
-                                ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                    Backend API (FastAPI)                       │
-│  ┌─────────┐  ┌─────────┐  ┌─────────┐  ┌─────────────────┐   │
-│  │  store  │  │ version │  │workflow │  │   monitoring    │   │
-│  │ (存储)  │  │ (版本)  │  │ (引擎)  │  │ (Prometheus)    │   │
-│  └─────────┘  └─────────┘  └─────────┘  └─────────────────┘   │
-└───────────────────────────────┬─────────────────────────────────┘
-                                │ 文件系统
-                                ▼
+          ┌─────────────────────┴─────────────────────┐
+          ▼                                           ▼
+┌───────────────────┐                     ┌───────────────────┐
+│   Backend API     │                     │    Prometheus     │
+│   (FastAPI)       │◄────────────────────│   (监控采集)      │
+└───────────────────┘                     └───────────────────┘
+          │
+          ▼ 文件系统
 ┌─────────────────────────────────────────────────────────────────┐
 │                      数据存储 (~/.ardc/)                        │
 │  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐           │
 │  │ registry.json│ │skill_index.json│ │   skills/   │           │
-│  │ (技能注册)   │ │  (搜索索引)   │ │ (已安装技能) │           │
+│  │ (技能注册表)  │ │  (搜索索引)   │ │ (已安装技能) │           │
 │  └──────────────┘ └──────────────┘ └──────────────┘           │
-│  ┌──────────────┐ ┌──────────────┐                             │
-│  │  versions/  │ │ workflows/   │                             │
-│  │ (版本历史)   │ │ (工作流定义) │                             │
-│  └──────────────┘ └──────────────┘                             │
+│  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐           │
+│  │  versions/  │ │ workflows/   │ │ favorites.json│           │
+│  │ (版本历史)   │ │ (工作流定义) │ │  (收藏列表)   │           │
+│  └──────────────┘ └──────────────┘ └──────────────┘           │
 └─────────────────────────────────────────────────────────────────┘
 ```
+
+---
+
+## 服务管理命令速查
+
+| 操作 | 命令 |
+|------|------|
+| 启动服务 | `sudo systemctl start ardc-api` |
+| 停止服务 | `sudo systemctl stop ardc-api` |
+| 重启服务 | `sudo systemctl restart ardc-api` |
+| 查看状态 | `sudo systemctl status ardc-api` |
+| 开机自启 | `sudo systemctl enable ardc-api` |
+| 查看日志 | `sudo journalctl -u ardc-api -f` |
+
+---
 
 ## 联系方式
 
 如有问题，请提交 Issue 或联系维护人员。
+
+**文档版本**: v1.0  
+**最后更新**: 2026年5月

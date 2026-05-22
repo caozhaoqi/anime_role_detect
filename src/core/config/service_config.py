@@ -22,7 +22,7 @@ class ServiceConfig:
         self.API_PORT = int(os.environ.get('API_PORT', '8000'))
 
         self.MODEL_SERVICE_HOST = os.environ.get('MODEL_SERVICE_HOST', 'localhost')
-        self.MODEL_SERVICE_PORT = int(os.environ.get('MODEL_SERVICE_PORT', '8888'))
+        self.MODEL_SERVICE_PORT = int(os.environ.get('MODEL_SERVICE_PORT', '8004'))
         self.MODEL_SERVICE_URL = f"http://{self.MODEL_SERVICE_HOST}:{self.MODEL_SERVICE_PORT}"
 
         self.CORE_API_HOST = os.environ.get('CORE_API_HOST', 'localhost')

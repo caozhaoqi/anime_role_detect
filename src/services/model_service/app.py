@@ -68,8 +68,12 @@ logger = get_logger("model_service")
 
 # 添加线程锁
 import threading
+import asyncio
 torch_import_lock = threading.Lock()
-model_init_lock = threading.Lock()
+model_init_lock = asyncio.Lock()
+
+# 导入模型缓存
+from src.core.cache.model_cache import model_cache
 
 # 延迟导入torch
 def import_torch():
@@ -135,6 +139,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# 添加响应压缩中间件
+from fastapi.middleware.gzip import GZipMiddleware
+app.add_middleware(GZipMiddleware, minimum_size=1000)
+
 # 健康检查
 @app.get("/api/health")
 async def health_check():
@@ -145,9 +153,6 @@ async def health_check():
 preprocessor = None  # 预处理器实例
 feature_extractor = None  # 特征提取器实例
 tagger = None  # 标签生成器实例
-
-# 模型实例缓存
-model_cache = {}
 
 # 初始化模型
 async def init_models():
@@ -178,12 +183,6 @@ async def startup_event():
     logger.info("启动模型服务")
     await init_models()
     logger.info("模型服务启动完成")
-
-# 健康检查
-@app.get("/api/health")
-async def health_check():
-    """健康检查"""
-    return {"status": "healthy", "service": "Model Service"}
 
 # 模型预测
 @app.post("/api/model/predict")
@@ -296,7 +295,10 @@ async def predict_image(
         
         # [6] 角色分类 → 基于特征向量匹配角色
         logger.info("开始角色分类...")
-        if model_name not in model_cache:
+        
+        # 使用带过期机制的缓存
+        classifier = model_cache.get(model_name)
+        if classifier is None:
             logger.info(f"初始化分类器: {model_name}")
             # 检查模型路径
             index_path = f"./models/{model_name}"
@@ -318,9 +320,9 @@ async def predict_image(
                 classifier = Classification(threshold=0.1)
                 logger.warning(f"索引文件不存在，创建空分类器: {model_name}, 阈值: 0.1")
             
-            model_cache[model_name] = classifier
-        else:
-            classifier = model_cache[model_name]
+            # 缓存分类器
+            model_cache.set(model_name, classifier)
+            logger.info(f"模型已缓存，当前缓存大小: {model_cache.size()}")
         
         # 检查分类器是否有索引
         if classifier.index is not None:
@@ -706,7 +708,9 @@ async def batch_predict_images(
                             logger.error(f"标签生成失败: {e}")
                 
                 # 角色分类
-                if model_name not in model_cache:
+                # 使用带过期机制的缓存
+                classifier = model_cache.get(model_name)
+                if classifier is None:
                     logger.info(f"初始化分类器: {model_name}")
                     # 检查模型路径
                     index_path = f"./models/{model_name}"
@@ -728,9 +732,8 @@ async def batch_predict_images(
                         classifier = Classification(threshold=0.1)
                         logger.warning(f"索引文件不存在，创建空分类器: {model_name}, 阈值: 0.1")
                     
-                    model_cache[model_name] = classifier
-                else:
-                    classifier = model_cache[model_name]
+                    # 缓存分类器
+                    model_cache.set(model_name, classifier)
                 
                 # 检查分类器是否有索引
                 if classifier.index is not None:
