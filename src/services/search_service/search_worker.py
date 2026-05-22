@@ -64,6 +64,27 @@ def load_clip_model_with_mps():
         traceback.print_exc()
         return None, None, None
 
+def find_image_datasets():
+    """查找可用的图像数据集目录"""
+    possible_paths = [
+        "data",
+        "datasets",
+        "images",
+        "data/optimized_detection_v2",
+        "data/expanded_dataset",
+        "data/test",
+        os.path.join(os.path.expanduser("~"), "datasets"),
+    ]
+    
+    for path in possible_paths:
+        if os.path.exists(path) and os.path.isdir(path):
+            # 检查是否有图片文件
+            for root, dirs, files in os.walk(path):
+                for f in files:
+                    if f.lower().endswith(('.jpg', '.jpeg', '.png')):
+                        return path
+    return None
+
 def process_task_real_model(task_id):
     """使用真实CLIP模型处理搜索任务"""
     global model, preprocess
@@ -83,42 +104,105 @@ def process_task_real_model(task_id):
         image = Image.open(input_file).convert("RGB")
         image_input = preprocess(image).unsqueeze(0).to("mps" if torch.backends.mps.is_available() else "cpu")
         
-        # 提取特征
+        # 提取输入图片的特征
         with torch.no_grad():
-            features = model.encode_image(image_input)
-            features = features / features.norm(dim=-1, keepdim=True)
+            query_features = model.encode_image(image_input)
+            query_features = query_features / query_features.norm(dim=-1, keepdim=True)
         
-        # 模拟搜索结果（使用特征相似度）
+        # 查找真实数据集
+        dataset_path = find_image_datasets()
+        print(f"[Worker] 数据集路径: {dataset_path}")
+        
+        # 获取数据集中的真实图片
+        real_images = []
+        if dataset_path:
+            for root, dirs, files in os.walk(dataset_path):
+                for f in files:
+                    if f.lower().endswith(('.jpg', '.jpeg', '.png')):
+                        real_images.append(os.path.join(root, f))
+        
+        print(f"[Worker] 数据集中找到 {len(real_images)} 张图片")
+        
+        # 准备搜索结果 - 计算真实相似度
         results = []
-        color_map = [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0), (255, 0, 255)]
-        roles = ["Madoka", "Homura", "Sayaka", "Mami", "Kyoko"]
+        device = "mps" if torch.backends.mps.is_available() else "cpu"
         
-        for i in range(5):
-            # 基于特征生成模拟相似度
-            similarity = 0.9 - i * 0.08 + (features[0][i].item() % 0.1)
+        if real_images:
+            # 遍历数据集计算相似度
+            similarity_scores = []
             
-            # 创建彩色方块图片
-            sim_image = Image.new('RGB', (150, 150), color=color_map[i % len(color_map)])
-            img_buffer = io.BytesIO()
-            sim_image.save(img_buffer, format='JPEG')
-            base64_img = base64.b64encode(img_buffer.getvalue()).decode('utf-8')
+            for img_path in real_images[:100]:  # 限制处理数量以提高速度
+                try:
+                    # 读取并预处理数据集图片
+                    dataset_image = Image.open(img_path).convert("RGB")
+                    dataset_input = preprocess(dataset_image).unsqueeze(0).to(device)
+                    
+                    # 提取特征
+                    with torch.no_grad():
+                        dataset_features = model.encode_image(dataset_input)
+                        dataset_features = dataset_features / dataset_features.norm(dim=-1, keepdim=True)
+                    
+                    # 计算余弦相似度
+                    similarity = torch.nn.functional.cosine_similarity(query_features, dataset_features).item()
+                    similarity_scores.append((similarity, img_path))
+                except Exception as e:
+                    print(f"[Worker] 跳过图片 {img_path}: {e}")
+                    continue
             
-            results.append({
-                "path": f"/data/{roles[i]}_{i}.jpg",
-                "image": f"data:image/jpeg;base64,{base64_img}",
-                "similarity": float(min(1.0, max(0.0, similarity))),
-                "role": roles[i]
-            })
+            # 按相似度排序（降序）
+            similarity_scores.sort(key=lambda x: x[0], reverse=True)
+            
+            # 取Top-5结果
+            top_results = similarity_scores[:5]
+            print(f"[Worker] Top-5 相似度: {[s[0] for s in top_results]}")
+            
+            for similarity, img_path in top_results:
+                try:
+                    real_image = Image.open(img_path).convert("RGB")
+                    real_image = real_image.resize((150, 150), Image.Resampling.LANCZOS)
+                    img_buffer = io.BytesIO()
+                    real_image.save(img_buffer, format='JPEG')
+                    base64_img = base64.b64encode(img_buffer.getvalue()).decode('utf-8')
+                    role_name = os.path.basename(os.path.dirname(img_path))
+                    
+                    results.append({
+                        "path": img_path,
+                        "image": f"data:image/jpeg;base64,{base64_img}",
+                        "similarity": float(similarity),
+                        "role": role_name
+                    })
+                except Exception as e:
+                    print(f"[Worker] 处理图片失败 {img_path}: {e}")
+                    continue
+        else:
+            # 没有真实数据集，使用彩色方块（模拟模式）
+            color_map = [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0), (255, 0, 255)]
+            roles = ["Madoka", "Homura", "Sayaka", "Mami", "Kyoko"]
+            
+            for i in range(5):
+                sim_image = Image.new('RGB', (150, 150), color=color_map[i % len(color_map)])
+                img_buffer = io.BytesIO()
+                sim_image.save(img_buffer, format='JPEG')
+                base64_img = base64.b64encode(img_buffer.getvalue()).decode('utf-8')
+                
+                results.append({
+                    "path": f"/data/{roles[i % len(roles)]}_{i}.jpg",
+                    "image": f"data:image/jpeg;base64,{base64_img}",
+                    "similarity": float(0.9 - i * 0.08),
+                    "role": roles[i % len(roles)]
+                })
         
         # 写入结果
         with open(output_file, "w") as f:
             json.dump({
                 "status": "success",
                 "results": results,
-                "model": "CLIP ViT-B/32 (MPS)"
+                "model": "CLIP ViT-B/32 (MPS)",
+                "dataset_found": dataset_path is not None,
+                "total_images_scanned": len(real_images)
             }, f)
         
-        print(f"[Worker] ✓ 任务完成: {task_id}")
+        print(f"[Worker] ✓ 任务完成: {task_id}, 返回 {len(results)} 个结果")
         
     except Exception as e:
         print(f"[Worker] ✗ 任务失败: {task_id} - {e}")
