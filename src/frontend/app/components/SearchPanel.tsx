@@ -58,7 +58,7 @@ export default function SearchPanel({ darkMode, accessToken }: SearchPanelProps)
 
       const response = await axios.post("/api/search/image", formData, { headers });
       
-      if (response.data.success) {
+      if (response.data.results) {
         setResults(response.data.results || []);
       }
     } catch (error) {
@@ -159,9 +159,9 @@ export default function SearchPanel({ darkMode, accessToken }: SearchPanelProps)
                   className={`relative rounded-lg overflow-hidden cursor-pointer group ${darkMode ? "bg-gray-700" : "bg-gray-100"} transition-all hover:shadow-lg`}
                 >
                   <div className="aspect-square bg-gray-200 dark:bg-gray-600 flex items-center justify-center">
-                    {result.image_path ? (
+                    {result.image ? (
                       <img
-                        src={result.image_path}
+                        src={result.image}
                         alt={result.role}
                         className="w-full h-full object-cover"
                       />

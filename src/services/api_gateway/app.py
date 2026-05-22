@@ -160,8 +160,11 @@ async def get_and_fix_openapi(service_key: str):
                     else:
                         full_path = f"{prefix}{path}"
                 elif service_key == "search":
-                    # search 服务使用独立前缀
-                    full_path = f"{prefix}{path}".replace("//", "/")
+                    # search 服务的路径映射: /api/search/image -> /api/search/image
+                    if path.startswith("/api"):
+                        full_path = path
+                    else:
+                        full_path = f"{prefix}{path}".replace("//", "/")
                 elif service_key == "api":
                     # core api 服务：路径已经有 /api 前缀，不需要重复添加
                     # 例如 /api/classify -> /api/classify
@@ -256,7 +259,7 @@ async def proxy_request(request: Request, path: str):
     # 1. 路由分配逻辑
     if path.startswith("search/image") or path.startswith("search/build-index") or path.startswith("search/stats"):
         service = "search"
-        url = f"{config.SEARCH_SERVICE_URL}/search/{path[7:]}"
+        url = f"{config.SEARCH_SERVICE_URL}/api/{path}"
     elif path.startswith("video/"):
         service = "multimedia"
         url = f"{config.MULTIMEDIA_SERVICE_URL}/video/{path[6:]}"
