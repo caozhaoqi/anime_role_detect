@@ -37,7 +37,6 @@ COPY --from=builder /app/deps /usr/local/lib/python3.9/site-packages
 COPY src/ ./src/
 COPY scripts/ ./scripts/
 COPY tests ./tests
-COPY auto_spider_img ./auto_spider_img
 
 # 环境变量设置（脱敏处理）
 ENV PYTHONUNBUFFERED=1 \

@@ -202,7 +202,15 @@ def list_skills(category: Optional[str] = None):
 def get_skill(skill_id: str, version: Optional[str] = None):
     skill = registry.get_skill_by_version(skill_id, version)
     if not skill:
-        raise HTTPException(status_code=404, detail="技能不存在")
+        # 获取可用技能列表供参考
+        all_skills = index.get_all_skills()
+        available_skills = [s.id for s in all_skills[:5]]
+        hint = f"可用技能示例: {', '.join(available_skills)}" if available_skills else "暂无可用技能"
+        raise HTTPException(
+            status_code=404, 
+            detail=f"技能不存在: {skill_id}",
+            headers={"X-Available-Skills": ",".join(available_skills)[:200]} if available_skills else {}
+        )
     return skill.dict()
 
 @app.post("/api/skills")
@@ -278,12 +286,29 @@ def get_stats():
 @app.get("/api/categories")
 def get_categories():
     """获取所有技能分类"""
-    categories = index._index.get("categories", {})
-    return {"categories": [{"name": name, "count": count} for name, count in categories.items()]}
+    try:
+        categories = index.get_categories()
+        if not categories:
+            return {"categories": [], "message": "暂无分类数据"}
+        return {"categories": [{"name": name, "count": count} for name, count in categories.items()]}
+    except Exception as e:
+        logger.error(f"获取分类失败: {e}")
+        return {"categories": [], "message": "获取分类失败"}
 
 @app.get("/api/health")
 def health_check():
     return {"status": "healthy", "service": "ARD Skill Hub API", "version": "1.0.0"}
+
+# ==================== 通知 API ====================
+@app.post("/api/notifications/check-updates")
+def check_notifications_updates():
+    """检查通知更新（公开端点）"""
+    return {
+        "has_update": False,
+        "latest_version": "1.0.0",
+        "message": "当前已是最新版本",
+        "notification_count": 0
+    }
 
 # ==================== 更新日志 API ====================
 
@@ -427,17 +452,37 @@ def get_public_favorites():
             return {"total_users": len(data), "total_favorites": sum(len(v) for v in data.values())}
     return {"total_users": 0, "total_favorites": 0, "favorites": []}
 
+@app.get("/api/favorites/anonymous")
+def get_anonymous_favorites():
+    """匿名用户获取收藏列表（返回公共收藏或空列表）"""
+    return {"favorites": [], "message": "请登录以查看个人收藏", "hint": "使用 POST /api/auth/login 登录"}
+
 @app.post("/api/favorites/{skill_id}")
 def add_favorite(skill_id: str, developer=Depends(get_current_developer)):
+    """添加收藏（需要开发者权限）"""
+    # 先验证技能是否存在
+    skill = registry.get_skill_by_version(skill_id)
+    if not skill:
+        raise HTTPException(status_code=404, detail=f"技能不存在: {skill_id}")
+    
     fav_path = Path.home() / ".ardc" / "favorites.json"
     fav_path.parent.mkdir(parents=True, exist_ok=True)
     favs = {}
     if fav_path.exists():
-        with open(fav_path, 'r', encoding='utf-8') as f: favs = json.load(f)
-    if developer.username not in favs: favs[developer.username] = []
-    if skill_id not in favs[developer.username]: favs[developer.username].append(skill_id)
-    with open(fav_path, 'w', encoding='utf-8') as f: json.dump(favs, f, indent=2)
-    return {"message": "收藏成功"}
+        with open(fav_path, 'r', encoding='utf-8') as f: 
+            favs = json.load(f)
+    if developer.username not in favs: 
+        favs[developer.username] = []
+    if skill_id not in favs[developer.username]: 
+        favs[developer.username].append(skill_id)
+    with open(fav_path, 'w', encoding='utf-8') as f: 
+        json.dump(favs, f, indent=2)
+    return {"message": "收藏成功", "skill_id": skill_id}
+
+@app.post("/api/favorites/{skill_id}/favorite")
+def add_favorite_alt(skill_id: str, developer=Depends(get_current_developer)):
+    """添加收藏（备用路径，兼容旧版客户端）"""
+    return add_favorite(skill_id, developer)
 
 # ==================== CLI 安装脚本 API ====================
 # 项目根目录: ardc/api/main.py -> ardc/ -> skillhub/
