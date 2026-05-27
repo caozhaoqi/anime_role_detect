@@ -315,12 +315,12 @@ def save_checkpoint(model, optimizer, scheduler, epoch, best_acc, train_history,
     torch.save(checkpoint, filepath)
     logger.info(f"💾 检查点已保存: {filepath}")
 
-def load_checkpoint(filepath, model, optimizer, scheduler, ema=None):
+def load_checkpoint(filepath, model, optimizer, scheduler=None, ema=None):
     checkpoint = torch.load(filepath, map_location='cpu')
     model.load_state_dict(checkpoint['model_state_dict'])
     optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-    if scheduler and checkpoint.get('scheduler_state_dict'):
-        scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
+    # 注意：由于调度器类型可能不同，不加载调度器状态
+    # 会在调用处手动设置 last_epoch
     if ema and checkpoint.get('ema_shadow'):
         ema.shadow = checkpoint['ema_shadow']
     logger.info(f"🔄 检查点已加载: epoch {checkpoint['epoch']}, best_acc: {checkpoint['best_acc']:.2f}%")
@@ -386,7 +386,9 @@ def incremental_train(existing_model_path, train_loader, val_loader, num_classes
     start_epoch = 0
 
     if resume_checkpoint and os.path.exists(resume_checkpoint):
-        start_epoch, best_acc, train_history = load_checkpoint(resume_checkpoint, model, optimizer, scheduler, ema)
+        start_epoch, best_acc, train_history = load_checkpoint(resume_checkpoint, model, optimizer, ema=ema)
+        # 设置调度器的 last_epoch，使其从正确的位置开始
+        scheduler.last_epoch = start_epoch
         start_epoch += 1
         logger.info(f"🔄 从 epoch {start_epoch} 继续训练")
     else:
@@ -404,10 +406,14 @@ def incremental_train(existing_model_path, train_loader, val_loader, num_classes
         # EMA 更新
         ema.update()
         
-        # 使用 EMA 模型进行验证
-        ema.apply_shadow()
-        val_loss, val_acc = validate(model, val_loader, criterion, device)
-        ema.restore()
+        # 使用 EMA 模型进行验证（如果 EMA 已初始化）
+        if ema.shadow:
+            ema.apply_shadow()
+            val_loss, val_acc = validate(model, val_loader, criterion, device)
+            ema.restore()
+        else:
+            # EMA 未初始化，直接使用原始模型验证
+            val_loss, val_acc = validate(model, val_loader, criterion, device)
 
         scheduler.step()
 

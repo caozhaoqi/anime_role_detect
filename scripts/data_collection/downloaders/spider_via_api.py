@@ -56,12 +56,12 @@ except ImportError as e:
 # 配置
 API_BASE_URL = "http://localhost:33333/api/v1.2.5.260305"
 WS_BASE_URL = "ws://localhost:33333/api/v1.2.5.260305"
-ROLE_LIST_FILE = '/Users/caozhaoqi/PycharmProjects/anime_role_detect/auto_spider_img/loli-role.txt'
-URL_DIR = '/Users/caozhaoqi/PycharmProjects/anime_role_detect/spider_image_system/data/img_url'
+ROLE_LIST_FILE = '/Users/caozhaoqi/PycharmProjects/anime_role_detect/archived/auto_spider_img/loli-role.txt'
+URL_DIR = '/Users/caozhaoqi/PycharmProjects/anime_role_detect/archived/spider_image_system/data/img_url'
 
 # 爬取配置
-MAX_URLS_PER_ROLE = 500  # 每个角色最多采集100个URL
-MIN_URLS_PER_ROLE = 200   # 每个角色至少采集200个URL
+MAX_URLS_PER_ROLE = 300  # 每个角色最多采集300个URL（避免资源浪费）
+MIN_URLS_PER_ROLE = 150   # 每个角色至少采集150个URL
 
 logging.basicConfig(
     level=logging.INFO,
