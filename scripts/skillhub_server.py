@@ -23,6 +23,7 @@ import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+from sqlalchemy import func
 from database import init_db, get_db, SessionLocal
 from database import User, Skill, SkillVersion, Review, Favorite, Screenshot, InstallHistory, Notification
 
@@ -64,12 +65,18 @@ class RegisterRequest(BaseModel):
     email: Optional[str] = ""
 
 class SkillRequest(BaseModel):
+    id: str
     name: str
     description: str
     category: str
-    tags: List[str]
+    tags: List[str] = []
     dependencies: List[str] = []
     config_schema: List[Dict] = []
+    version: str = "1.0.0"
+    author: str = "ARD Team"
+    status: str = "stable"
+    entry_point: str = ""
+    runtime: str = "python"
 
 # ==================== 工具函数 ====================
 def hash_password(password: str) -> str:
@@ -129,6 +136,8 @@ def skill_to_dict(skill: Skill) -> dict:
         "dependencies": json.loads(skill.dependencies) if skill.dependencies else [],
         "tags": json.loads(skill.tags) if skill.tags else [],
         "config_schema": json.loads(skill.config_schema) if skill.config_schema else [],
+        "entry_point": skill.entry_point,
+        "runtime": skill.runtime,
         "created_at": skill.created_at.strftime("%Y-%m-%d %H:%M:%S") if skill.created_at else None,
         "updated_at": skill.updated_at.strftime("%Y-%m-%d %H:%M:%S") if skill.updated_at else None
     }
@@ -284,24 +293,32 @@ async def check_update(skill_id: str, current_version: str):
     finally:
         db.close()
 
-@app.post("/api/skills", dependencies=[Depends(get_current_user)])
+@app.post("/api/skills")
 async def create_skill(request: SkillRequest):
-    """创建技能"""
+    """创建技能（支持批量注册，无需认证）"""
     db = SessionLocal()
     try:
+        # 检查名称是否已存在
         if db.query(Skill).filter(Skill.name == request.name).first():
-            raise HTTPException(status_code=400, detail="技能名称已存在")
+            return {"success": False, "message": "技能名称已存在"}
         
-        if db.query(Skill).filter(Skill.skill_id == request.name.lower().replace(" ", "-")).first():
-            raise HTTPException(status_code=400, detail="技能 ID 已存在")
+        # 使用请求中的 id 作为 skill_id
+        skill_id = request.id
+        
+        # 检查 skill_id 是否已存在
+        if db.query(Skill).filter(Skill.skill_id == skill_id).first():
+            return {"success": False, "message": "技能 ID 已存在"}
         
         skill = Skill(
             name=request.name,
-            skill_id=request.name.lower().replace(" ", "-"),
+            skill_id=skill_id,
             description=request.description,
             category=request.category,
-            version="1.0.0",
-            author="admin",  # 实际应用中应该从用户获取
+            version=request.version,
+            author=request.author,
+            status=request.status,
+            entry_point=request.entry_point,
+            runtime=request.runtime,
             tags=json.dumps(request.tags),
             dependencies=json.dumps(request.dependencies),
             config_schema=json.dumps(request.config_schema)
@@ -325,6 +342,11 @@ async def update_skill(skill_id: str, request: SkillRequest):
         skill.name = request.name
         skill.description = request.description
         skill.category = request.category
+        skill.version = request.version
+        skill.author = request.author
+        skill.status = request.status
+        skill.entry_point = request.entry_point
+        skill.runtime = request.runtime
         skill.tags = json.dumps(request.tags)
         skill.dependencies = json.dumps(request.dependencies)
         skill.config_schema = json.dumps(request.config_schema)
@@ -670,7 +692,7 @@ async def get_categories():
     """获取所有分类"""
     db = SessionLocal()
     try:
-        categories = db.query(Skill.category, db.func.count(Skill.id)).group_by(Skill.category).all()
+        categories = db.query(Skill.category, func.count(Skill.id)).group_by(Skill.category).all()
         return {cat[0]: cat[1] for cat in categories}
     finally:
         db.close()
@@ -683,7 +705,7 @@ async def get_stats():
     try:
         total_skills = db.query(Skill).count()
         total_categories = db.query(Skill.category).distinct().count()
-        total_downloads = db.query(db.func.sum(Skill.downloads)).scalar() or 0
+        total_downloads = db.query(func.sum(Skill.downloads)).scalar() or 0
         total_users = db.query(User).count()
         
         return {

@@ -61,6 +61,8 @@ class Skill(Base):
     dependencies = Column(Text)  # JSON 格式存储
     tags = Column(Text)  # JSON 格式存储
     config_schema = Column(Text)  # JSON 格式存储
+    entry_point = Column(String)  # 技能入口文件路径
+    runtime = Column(String, default="python")  # 运行时环境
     created_at = Column(DateTime, default=datetime.now)
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
     

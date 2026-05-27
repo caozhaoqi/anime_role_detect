@@ -206,10 +206,14 @@ const handleSearch = (keyword) => {
 
 const viewSkillDetail = async (skillId) => {
   try {
+    console.log('Loading skill detail for:', skillId)
     const response = await skillApi.getSkill(skillId)
+    console.log('Skill detail response:', response)
     selectedSkill.value = response.data
+    console.log('Selected skill set:', selectedSkill.value)
   } catch (error) {
     console.error('Failed to load skill detail:', error)
+    alert(`加载技能详情失败: ${error.message || '未知错误'}`)
   }
 }
 

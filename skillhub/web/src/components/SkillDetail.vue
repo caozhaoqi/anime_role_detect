@@ -189,7 +189,7 @@
             <p>1. 点击下方"安装技能"按钮开始安装</p>
             <p>2. 安装完成后，技能将自动下载并配置</p>
             <p>3. 在命令行使用 <code class="bg-white px-1.5 py-0.5 rounded text-blue-600">ardc-skill-sync list</code> 查看已安装技能</p>
-            <p>4. 使用 <code class="bg-white px-1.5 py-0.5 rounded text-blue-600">ardc-skill-sync install {{ skill.name }}</code> 命令手动安装</p>
+            <p>4. 使用 <code class="bg-white px-1.5 py-0.5 rounded text-blue-600">ardc-skill-sync install {{ skill.id }}</code> 命令手动安装</p>
           </div>
         </div>
         
@@ -399,7 +399,7 @@
           <button
             v-if="skill.installed && updateInfo && updateInfo.has_update"
             class="btn btn-primary flex items-center gap-2 whitespace-nowrap"
-            @click="emit('update', skill.name)"
+            @click="emit('update', skill.id)"
           >
             <RefreshCw class="w-4 h-4" />
             更新 ({{ updateInfo.latest_version }})
@@ -450,7 +450,7 @@ const previewImageIndex = ref(-1)
 
 const loadVersions = async () => {
   try {
-    const response = await fetch(`/api/skills/${props.skill.name}/versions`)
+    const response = await fetch(`/api/skills/${props.skill.id}/versions`)
     versions.value = await response.json()
   } catch (error) {
     console.error('Failed to load versions:', error)
@@ -460,7 +460,7 @@ const loadVersions = async () => {
 const checkUpdate = async () => {
   checkingUpdate.value = true
   try {
-    const response = await fetch(`/api/skills/${props.skill.name}/check-update?current_version=${props.skill.version}`)
+    const response = await fetch(`/api/skills/${props.skill.id}/check-update?current_version=${props.skill.version}`)
     updateInfo.value = await response.json()
   } catch (error) {
     console.error('Failed to check update:', error)
@@ -471,7 +471,7 @@ const checkUpdate = async () => {
 
 const loadRating = async () => {
   try {
-    const response = await fetch(`/api/skills/${props.skill.name}/rating`)
+    const response = await fetch(`/api/skills/${props.skill.id}/rating`)
     const data = await response.json()
     ratingInfo.value = data
   } catch (error) {
@@ -481,7 +481,7 @@ const loadRating = async () => {
 
 const loadReviews = async () => {
   try {
-    const response = await fetch(`/api/skills/${props.skill.name}/reviews`)
+    const response = await fetch(`/api/skills/${props.skill.id}/reviews`)
     const data = await response.json()
     reviews.value = data.reviews || []
   } catch (error) {
@@ -498,7 +498,7 @@ const submitReview = async () => {
   try {
     const token = localStorage.getItem('token')
     const response = await fetch(
-      `/api/skills/${props.skill.name}/review?rating=${newReview.value.rating}&comment=${encodeURIComponent(newReview.value.comment)}`,
+      `/api/skills/${props.skill.id}/review?rating=${newReview.value.rating}&comment=${encodeURIComponent(newReview.value.comment)}`,
       {
         method: 'POST',
         headers: {
@@ -524,7 +524,7 @@ const submitReview = async () => {
 
 const loadScreenshots = async () => {
   try {
-    const response = await fetch(`/api/skills/${props.skill.name}/screenshots`)
+    const response = await fetch(`/api/skills/${props.skill.id}/screenshots`)
     const data = await response.json()
     screenshots.value = data.screenshots || []
   } catch (error) {
@@ -588,9 +588,9 @@ const formatDate = (dateStr) => {
 
 const handleAction = () => {
   if (props.skill.installed) {
-    emit('uninstall', props.skill.name)
+    emit('uninstall', props.skill.id)
   } else {
-    emit('install', props.skill.name)
+    emit('install', props.skill.id)
   }
 }
 </script>

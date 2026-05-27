@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>API Test</title>
+</head>
+<body>
+    <h1>API Test</h1>
+    <button onclick="testGetSkills()">Test Get Skills</button>
+    <button onclick="testGetSkill()">Test Get Skill Detail</button>
+    <pre id="result"></pre>
+    
+    <script>
+        async function testGetSkills() {
+            try {
+                const response = await fetch('/api/skills');
+                const data = await response.json();
+                document.getElementById('result').textContent = JSON.stringify(data, null, 2);
+            } catch (error) {
+                document.getElementById('result').textContent = 'Error: ' + error.message;
+            }
+        }
+        
+        async function testGetSkill() {
+            try {
+                const response = await fetch('/api/skills/ardc-collector');
+                const data = await response.json();
+                document.getElementById('result').textContent = JSON.stringify(data, null, 2);
+            } catch (error) {
+                document.getElementById('result').textContent = 'Error: ' + error.message;
+            }
+        }
+    </script>
+</body>
+</html>

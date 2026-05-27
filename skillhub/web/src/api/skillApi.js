@@ -5,6 +5,17 @@ const api = axios.create({
   timeout: 10000
 })
 
+api.interceptors.response.use(
+  response => {
+    console.log('API Response:', response.config.url, response)
+    return response
+  },
+  error => {
+    console.error('API Error:', error.config?.url, error)
+    return Promise.reject(error)
+  }
+)
+
 export const skillApi = {
   getSkills: (params = {}) => api.get('/skills', { params }),
   

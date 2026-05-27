@@ -28,7 +28,7 @@
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         <div
           v-for="skill in skills"
-          :key="skill.name"
+          :key="skill.id"
           class="border border-gray-100 rounded-xl p-4 hover:border-primary-200 transition-colors cursor-pointer"
           @click="selectSkill(skill)"
         >
@@ -411,18 +411,34 @@ const uploadData = ref({
 
 const loadSkills = async () => {
   try {
+    console.log('=== Loading skills ===')
     const response = await fetch('/api/skills')
     const data = await response.json()
     skills.value = data.skills || []
+    console.log('Skills loaded:', skills.value.length, 'skills')
+    console.log('First skill:', skills.value[0])
   } catch (error) {
     console.error('Failed to load skills:', error)
   }
 }
 
 const selectSkill = async (skill) => {
-  selectedSkill.value = skill
-  uploadData.value.skillName = skill.name
-  await loadVersions(skill.name)
+  console.log('=== selectSkill called ===')
+  console.log('Skill object:', skill)
+  console.log('Skill id:', skill.id)
+  console.log('Skill name:', skill.name)
+  
+  // 使用新对象触发响应式更新
+  selectedSkill.value = null
+  await new Promise(resolve => setTimeout(resolve, 0))
+  selectedSkill.value = { ...skill }
+  uploadData.value.skillName = skill.id
+  
+  await loadVersions(skill.id)
+  
+  console.log('=== After selection ===')
+  console.log('selectedSkill.value:', selectedSkill.value)
+  console.log('selectedSkill.value is truthy:', !!selectedSkill.value)
 }
 
 const loadVersions = async (skillName) => {
@@ -482,7 +498,7 @@ const createVersion = async () => {
   try {
     const token = localStorage.getItem('token')
     const response = await fetch(
-      `/api/skills/${selectedSkill.value.name}/versions?version=${newVersion.value.version}&changelog=${encodeURIComponent(newVersion.value.changelog)}`,
+      `/api/skills/${selectedSkill.value.id}/versions?version=${newVersion.value.version}&changelog=${encodeURIComponent(newVersion.value.changelog)}`,
       {
         method: 'POST',
         headers: {
@@ -499,7 +515,7 @@ const createVersion = async () => {
         version: '',
         changelog: ''
       }
-      await loadVersions(selectedSkill.value.name)
+      await loadVersions(selectedSkill.value.id)
       await loadSkills()
     } else {
       alert(result.message || '发布失败')
@@ -562,12 +578,12 @@ const doUploadPackage = async () => {
       alert(`更新包上传成功！版本 ${uploadData.value.version} 已发布。`)
       showUploadPackage.value = false
       uploadData.value = {
-        skillName: selectedSkill.value?.name || '',
+        skillName: selectedSkill.value?.id || '',
         version: '',
         changelog: '',
         file: null
       }
-      await loadVersions(selectedSkill.value.name)
+      await loadVersions(selectedSkill.value.id)
       await loadSkills()
     } else {
       alert(result.message || '上传失败')
