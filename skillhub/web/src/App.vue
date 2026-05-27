@@ -153,11 +153,23 @@ const loadStats = async () => {
 const loadCategories = async () => {
   try {
     const response = await skillApi.getCategories()
-    categories.value = Object.entries(response.data).map(([name, count]) => ({
-      name,
-      count,
-      label: getCategoryLabel(name)
-    }))
+    // 兼容两种格式：对象格式和数组格式
+    const data = response.data
+    if (Array.isArray(data)) {
+      // 数组格式: [{name: 'utility', count: 7}, ...]
+      categories.value = data.map(item => ({
+        name: item.name,
+        count: item.count,
+        label: getCategoryLabel(item.name)
+      }))
+    } else {
+      // 对象格式: {utility: 7, cleaner: 5, ...}
+      categories.value = Object.entries(data).map(([name, count]) => ({
+        name,
+        count,
+        label: getCategoryLabel(name)
+      }))
+    }
   } catch (error) {
     console.error('Failed to load categories:', error)
   }
