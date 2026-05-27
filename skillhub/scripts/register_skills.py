@@ -241,6 +241,32 @@ SKILLS = [
         "tags": ["CLI", "命令行", "终端", "工具"],
         "runtime": "python",
         "dependencies": []
+    },
+    {
+        "id": "ardc-notifier",
+        "name": "通知服务",
+        "version": "1.0.0",
+        "description": "通知服务技能，提供消息通知和状态推送能力。支持飞书通知、邮件通知、日志推送。",
+        "author": "ARD Team",
+        "category": "service",
+        "status": "stable",
+        "entry_point": "scripts/common/notification_utils.py",
+        "tags": ["通知", "消息", "推送", "飞书"],
+        "runtime": "python",
+        "dependencies": []
+    },
+    {
+        "id": "ardc-importer",
+        "name": "数据导入器",
+        "version": "1.0.0",
+        "description": "数据导入技能，用于导入外部数据源到数据库。支持URL导入、批量导入、数据同步。",
+        "author": "ARD Team",
+        "category": "data",
+        "status": "stable",
+        "entry_point": "scripts/data_collection/database/import_all_urls.py",
+        "tags": ["导入", "数据同步", "数据库", "批量"],
+        "runtime": "python",
+        "dependencies": ["ardc-collector"]
     }
 ]
 
