@@ -3,12 +3,12 @@
 """
 用户认证模块
 提供登录、注册、登出等功能
+支持密钥轮换和安全 Cookie 配置
 """
 
-import os
 import uuid
 from datetime import datetime, timedelta, timezone
-from typing import Optional, Dict
+from typing import Optional, Dict, List
 
 from fastapi import APIRouter, HTTPException, Depends, Form, Request
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
@@ -21,15 +21,17 @@ from sqlalchemy.exc import IntegrityError
 
 from ardc.api.database import get_db, DBUser, TokenBlacklist, init_db
 from ardc.utils.logging import get_logger
+from ardc.config import settings
 
 logger = get_logger(__name__)
 
-# JWT 配置 - 必须从环境变量读取密钥
-SECRET_KEY = os.getenv("JWT_SECRET_KEY")
-if not SECRET_KEY:
-    raise RuntimeError("JWT_SECRET_KEY 环境变量未设置")
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
+# JWT 配置 - 从统一配置读取
+JWT_SECRET_KEY = settings.jwt.secret_key
+JWT_ALGORITHM = settings.jwt.algorithm
+ACCESS_TOKEN_EXPIRE_MINUTES = settings.jwt.access_token_expire_minutes
+
+# 所有有效的密钥（支持密钥轮换）
+ALL_SECRET_KEYS: List[str] = [JWT_SECRET_KEY] + settings.jwt.additional_secret_keys
 
 # 密码上下文 - 使用 sha256_crypt（跨平台兼容性好，无密码长度限制）
 pwd_context = CryptContext(schemes=["sha256_crypt"], deprecated="auto")
@@ -39,6 +41,17 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/auth/login")
 
 # 路由
 router = APIRouter(prefix="/api/auth")
+
+
+def decode_jwt_token(token: str) -> Optional[Dict]:
+    """解码 JWT Token，支持密钥轮换"""
+    for secret_key in ALL_SECRET_KEYS:
+        try:
+            payload = jwt.decode(token, secret_key, algorithms=[JWT_ALGORITHM])
+            return payload
+        except JWTError:
+            continue
+    return None
 
 
 class Token(BaseModel):
@@ -79,14 +92,14 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     if expires_delta:
         expire = datetime.now(timezone.utc) + expires_delta
     else:
-        expire = datetime.now(timezone.utc) + timedelta(minutes=15)
+        expire = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     to_encode.update({"exp": expire, "jti": str(uuid.uuid4())})
-    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    encoded_jwt = jwt.encode(to_encode, JWT_SECRET_KEY, algorithm=JWT_ALGORITHM)
     return encoded_jwt
 
 
 async def get_current_user(request: Request, db: Session = Depends(get_db)) -> User:
-    """获取当前用户 - 支持从 header 或 cookie 获取 token"""
+    """获取当前用户 - 支持从 header 或 cookie 获取 token，支持密钥轮换"""
     credentials_exception = HTTPException(
         status_code=401,
         detail="无法验证凭证",
@@ -105,13 +118,14 @@ async def get_current_user(request: Request, db: Session = Depends(get_db)) -> U
     if not token:
         raise credentials_exception
     
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        username: str = payload.get("sub")
-        jti: str = payload.get("jti")
-        if username is None:
-            raise credentials_exception
-    except JWTError:
+    # 使用支持密钥轮换的解码函数
+    payload = decode_jwt_token(token)
+    if payload is None:
+        raise credentials_exception
+    
+    username: str = payload.get("sub")
+    jti: str = payload.get("jti")
+    if username is None:
         raise credentials_exception
     
     # 检查 token 是否在黑名单中
@@ -285,14 +299,14 @@ async def login(
         }
     })
     
-    # 设置 cookie
+    # 设置 cookie - 使用安全配置
     response.set_cookie(
         key="access_token",
         value=access_token,
         httponly=True,
-        secure=False,  # 生产环境应设为 True
+        secure=settings.security.cookie_secure,  # 从配置读取
         max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-        samesite="lax"
+        samesite=settings.security.cookie_samesite
     )
     
     return response
@@ -304,38 +318,38 @@ async def logout(
     token: str = Depends(oauth2_scheme),
     db: Session = Depends(get_db)
 ):
-    """用户登出 - 将 Token 加入黑名单"""
+    """用户登出 - 将 Token 加入黑名单，支持密钥轮换"""
     # 优先从 cookie 获取 token
     token_from_cookie = request.cookies.get("access_token")
     if token_from_cookie:
         token = token_from_cookie
     
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        jti = payload.get("jti")
-        expires_at = datetime.fromtimestamp(payload.get("exp"), timezone.utc)
-        
-        # 将 token 加入黑名单
-        blacklisted_token = TokenBlacklist(
-            id=str(uuid.uuid4()),
-            jti=jti,
-            expires_at=expires_at
-        )
-        db.add(blacklisted_token)
-        db.commit()
-        
-        logger.info(f"用户登出成功")
-        
-        # 清除 cookie
-        response = JSONResponse({"success": True, "message": "登出成功"})
-        response.delete_cookie("access_token")
-        return response
-        
-    except JWTError:
+    # 使用支持密钥轮换的解码函数
+    payload = decode_jwt_token(token)
+    if payload is None:
         raise HTTPException(
             status_code=401,
             detail="无效的令牌",
         )
+    
+    jti = payload.get("jti")
+    expires_at = datetime.fromtimestamp(payload.get("exp"), timezone.utc)
+    
+    # 将 token 加入黑名单
+    blacklisted_token = TokenBlacklist(
+        id=str(uuid.uuid4()),
+        jti=jti,
+        expires_at=expires_at
+    )
+    db.add(blacklisted_token)
+    db.commit()
+    
+    logger.info(f"用户登出成功")
+    
+    # 清除 cookie
+    response = JSONResponse({"success": True, "message": "登出成功"})
+    response.delete_cookie("access_token", secure=settings.security.cookie_secure)
+    return response
 
 
 @router.get("/me")

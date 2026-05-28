@@ -5,15 +5,14 @@
 负责技能版本的发布、升级和回滚
 """
 
-import json
 import logging
 import shutil
 from pathlib import Path
-from typing import List, Dict, Optional, Tuple
+from typing import List, Dict, Optional
 from datetime import datetime, timezone
-import re
 
 from ardc.store.metadata import SkillMetadata, VersionInfo
+from ardc.store.utils import parse_version, compare_versions, is_valid_version, serialize_datetime_fields, load_json_file
 
 logger = logging.getLogger(__name__)
 
@@ -41,38 +40,27 @@ class VersionManager:
                 for version_file in skill_dir.glob("*.json"):
                     version = version_file.stem
                     try:
-                        with open(version_file, 'r', encoding='utf-8') as f:
-                            data = json.load(f)
-                            
-                            if 'released_at' in data:
-                                data['released_at'] = datetime.fromisoformat(data['released_at'])
-                            
-                            if isinstance(data.get('metadata'), dict):
-                                meta_data = data['metadata']
-                                if 'created_at' in meta_data:
-                                    meta_data['created_at'] = datetime.fromisoformat(meta_data['created_at'])
-                                if 'updated_at' in meta_data:
-                                    meta_data['updated_at'] = datetime.fromisoformat(meta_data['updated_at'])
-                                data['metadata'] = SkillMetadata(**meta_data)
-                            
-                            versions[skill_id][version] = VersionInfo(**data)
+                        data = load_json_file(str(version_file))
+                        
+                        if isinstance(data.get('metadata'), dict):
+                            data['metadata'] = SkillMetadata(**data['metadata'])
+                        
+                        versions[skill_id][version] = VersionInfo(**data)
                     except Exception as e:
                         logger.error(f"加载版本 {skill_id}-{version} 失败: {e}")
         
         return versions
     
     def _save_version(self, skill_id: str, version_info: VersionInfo):
+        import json
+        
         skill_dir = self.data_path / skill_id
         skill_dir.mkdir(parents=True, exist_ok=True)
         
         version_file = skill_dir / f"{version_info.version}.json"
         
         data = version_info.dict()
-        for key in ['released_at', 'created_at', 'updated_at']:
-            if isinstance(data.get(key), datetime):
-                data[key] = data[key].isoformat()
-            if isinstance(data.get('metadata', {}).get(key), datetime):
-                data['metadata'][key] = data['metadata'][key].isoformat()
+        data = serialize_datetime_fields(data)
         
         with open(version_file, 'w', encoding='utf-8') as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
@@ -82,7 +70,7 @@ class VersionManager:
             skill_id = metadata.id
             version = metadata.version
             
-            if not self._is_valid_version(version):
+            if not is_valid_version(version):
                 logger.error(f"无效的版本号格式: {version}")
                 return False
             
@@ -108,25 +96,13 @@ class VersionManager:
             logger.error(f"发布版本失败: {e}")
             return False
     
-    def _is_valid_version(self, version: str) -> bool:
-        pattern = r'^(\d+)\.(\d+)\.(\d+)(-[a-zA-Z0-9.]+)?(\+[a-zA-Z0-9.]+)?$'
-        return re.match(pattern, version) is not None
-    
     def list_versions(self, skill_id: str) -> List[VersionInfo]:
         if skill_id not in self._versions:
             return []
         
         versions = list(self._versions[skill_id].values())
-        versions.sort(key=lambda v: self._version_to_tuple(v.version), reverse=True)
+        versions.sort(key=lambda v: parse_version(v.version), reverse=True)
         return versions
-    
-    def _version_to_tuple(self, version: str) -> Tuple[int, int, int, str]:
-        try:
-            main_version = version.split('-')[0].split('+')[0]
-            parts = main_version.split('.')
-            return (int(parts[0]), int(parts[1]), int(parts[2]), version)
-        except:
-            return (0, 0, 0, version)
     
     def get_version(self, skill_id: str, version: str) -> Optional[VersionInfo]:
         if skill_id not in self._versions:
@@ -252,12 +228,5 @@ class VersionManager:
         return history
     
     def compare_versions(self, version1: str, version2: str) -> int:
-        v1 = self._version_to_tuple(version1)
-        v2 = self._version_to_tuple(version2)
-        
-        if v1 < v2:
-            return -1
-        elif v1 > v2:
-            return 1
-        else:
-            return 0
+        """比较两个版本号"""
+        return compare_versions(version1, version2)

@@ -2,43 +2,66 @@
 # -*- coding: utf-8 -*-
 """
 统一日志模块
-提供统一的日志配置和使用接口
+提供统一的日志配置和使用接口，支持结构化日志输出和请求追踪
 """
 
 import logging
 import logging.config
+import json
 import os
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Dict, Any
+from logging.handlers import RotatingFileHandler
 
-class LogConfig:
-    """日志配置类"""
+from ardc.config import settings
+
+class ContextFormatter(logging.Formatter):
+    """上下文格式化器 - 为缺失的上下文字段提供默认值"""
     
-    LOG_LEVEL = os.getenv("LOG_LEVEL", "DEBUG").upper()
-    LOG_DIR = os.getenv("LOG_DIR", "logs")
-    LOG_FORMAT = "%(asctime)s - %(levelname)s - %(name)s - %(module)s:%(lineno)d - [Req:%(request_id)s] [User:%(user)s] [IP:%(client_ip)s] %(message)s"
-    JSON_LOG_FORMAT = (
-        '{"time": "%(asctime)s", "level": "%(levelname)s", "logger": "%(name)s", '
-        '"module": "%(module)s", "line": %(lineno)d, "request_id": "%(request_id)s", '
-        '"user": "%(user)s", "client_ip": "%(client_ip)s", "message": "%(message)s"}'
-    )
+    def format(self, record):
+        # 确保所有上下文字段都有默认值
+        if not hasattr(record, 'request_id'):
+            record.request_id = "N/A"
+        if not hasattr(record, 'user'):
+            record.user = "anonymous"
+        if not hasattr(record, 'client_ip'):
+            record.client_ip = "unknown"
+        if not hasattr(record, 'trace_id'):
+            record.trace_id = "N/A"
+        if not hasattr(record, 'span_id'):
+            record.span_id = "N/A"
+        return super().format(record)
+
+
+class StructuredFormatter(logging.Formatter):
+    """结构化日志格式化器 - 输出 JSON 格式日志"""
     
-    # 默认值（用于未设置时）
-    DEFAULT_REQUEST_ID = "N/A"
-    DEFAULT_USER = "anonymous"
-    DEFAULT_CLIENT_IP = "unknown"
-    
-    @classmethod
-    def ensure_log_dir(cls):
-        """确保日志目录存在"""
-        if not os.path.exists(cls.LOG_DIR):
-            os.makedirs(cls.LOG_DIR)
-    
-    @classmethod
-    def get_log_file_path(cls, name: str) -> str:
-        """获取日志文件路径"""
-        timestamp = datetime.now().strftime("%Y%m%d")
-        return os.path.join(cls.LOG_DIR, f"{name}_{timestamp}.log")
+    def format(self, record):
+        # 获取基本字段
+        log_entry = {
+            "time": datetime.fromtimestamp(record.created).isoformat(),
+            "level": record.levelname,
+            "logger": record.name,
+            "module": record.module,
+            "line": record.lineno,
+            "message": record.getMessage(),
+            "request_id": getattr(record, 'request_id', "N/A"),
+            "user": getattr(record, 'user', "anonymous"),
+            "client_ip": getattr(record, 'client_ip', "unknown"),
+            "trace_id": getattr(record, 'trace_id', "N/A"),
+            "span_id": getattr(record, 'span_id', "N/A"),
+        }
+        
+        # 添加异常信息
+        if record.exc_info:
+            log_entry["exc_info"] = self.formatException(record.exc_info)
+        
+        # 添加额外字段
+        if hasattr(record, 'extra'):
+            log_entry.update(record.extra)
+        
+        return json.dumps(log_entry, ensure_ascii=False)
+
 
 def setup_logging(name: str, log_level: Optional[str] = None) -> logging.Logger:
     """
@@ -51,10 +74,14 @@ def setup_logging(name: str, log_level: Optional[str] = None) -> logging.Logger:
     Returns:
         配置好的日志器实例
     """
-    LogConfig.ensure_log_dir()
+    # 使用统一配置
+    log_settings = settings.log
+    
+    # 确保日志目录存在
+    os.makedirs(log_settings.dir, exist_ok=True)
     
     # 确定日志级别
-    level = log_level or LogConfig.LOG_LEVEL
+    level = log_level or log_settings.level
     level_map = {
         "DEBUG": logging.DEBUG,
         "INFO": logging.INFO,
@@ -72,43 +99,46 @@ def setup_logging(name: str, log_level: Optional[str] = None) -> logging.Logger:
     if logger.handlers:
         return logger
     
-    # 创建自定义格式化器，支持默认值
-    formatter = ContextFormatter(LogConfig.LOG_FORMAT)
-    json_formatter = ContextFormatter(LogConfig.JSON_LOG_FORMAT)
+    # 创建格式化器
+    text_formatter = ContextFormatter(
+        "%(asctime)s - %(levelname)s - %(name)s - %(module)s:%(lineno)d "
+        "- [Req:%(request_id)s] [Trace:%(trace_id)s] [User:%(user)s] [IP:%(client_ip)s] %(message)s"
+    )
+    
+    structured_formatter = StructuredFormatter()
     
     # 控制台处理器
     console_handler = logging.StreamHandler()
     console_handler.setLevel(log_level_int)
-    console_handler.setFormatter(formatter)
+    console_handler.setFormatter(text_formatter)
     logger.addHandler(console_handler)
     
-    # 文件处理器（按日期轮转）
-    file_handler = logging.FileHandler(LogConfig.get_log_file_path(name))
+    # 文件处理器（按大小轮转）
+    file_path = os.path.join(log_settings.dir, f"{name}.log")
+    file_handler = RotatingFileHandler(
+        file_path,
+        maxBytes=log_settings.max_file_size_mb * 1024 * 1024,
+        backupCount=log_settings.backup_count,
+        encoding="utf-8"
+    )
     file_handler.setLevel(log_level_int)
-    file_handler.setFormatter(formatter)
+    file_handler.setFormatter(text_formatter)
     logger.addHandler(file_handler)
     
     # JSON格式文件处理器（用于结构化分析）
-    json_file_handler = logging.FileHandler(LogConfig.get_log_file_path(f"{name}_json"))
+    json_file_path = os.path.join(log_settings.dir, f"{name}_json.log")
+    json_file_handler = RotatingFileHandler(
+        json_file_path,
+        maxBytes=log_settings.max_file_size_mb * 1024 * 1024,
+        backupCount=log_settings.backup_count,
+        encoding="utf-8"
+    )
     json_file_handler.setLevel(log_level_int)
-    json_file_handler.setFormatter(json_formatter)
+    json_file_handler.setFormatter(structured_formatter)
     logger.addHandler(json_file_handler)
     
     return logger
 
-
-class ContextFormatter(logging.Formatter):
-    """上下文格式化器 - 为缺失的上下文字段提供默认值"""
-    
-    def format(self, record):
-        # 确保所有上下文字段都有默认值
-        if not hasattr(record, 'request_id'):
-            record.request_id = LogConfig.DEFAULT_REQUEST_ID
-        if not hasattr(record, 'user'):
-            record.user = LogConfig.DEFAULT_USER
-        if not hasattr(record, 'client_ip'):
-            record.client_ip = LogConfig.DEFAULT_CLIENT_IP
-        return super().format(record)
 
 def get_logger(name: str) -> logging.Logger:
     """
@@ -124,25 +154,38 @@ def get_logger(name: str) -> logging.Logger:
 
 
 class RequestContextFilter(logging.Filter):
-    """请求上下文过滤器 - 注入请求ID、用户、客户端IP等信息"""
+    """请求上下文过滤器 - 注入请求ID、用户、客户端IP等信息，支持追踪"""
+    
+    # 默认值
+    DEFAULT_REQUEST_ID = "N/A"
+    DEFAULT_USER = "anonymous"
+    DEFAULT_CLIENT_IP = "unknown"
+    DEFAULT_TRACE_ID = "N/A"
+    DEFAULT_SPAN_ID = "N/A"
     
     def __init__(self):
         super().__init__()
-        self.request_id = LogConfig.DEFAULT_REQUEST_ID
-        self.user = LogConfig.DEFAULT_USER
-        self.client_ip = LogConfig.DEFAULT_CLIENT_IP
+        self.request_id = self.DEFAULT_REQUEST_ID
+        self.user = self.DEFAULT_USER
+        self.client_ip = self.DEFAULT_CLIENT_IP
+        self.trace_id = self.DEFAULT_TRACE_ID
+        self.span_id = self.DEFAULT_SPAN_ID
     
-    def set_context(self, request_id: str = None, user: str = None, client_ip: str = None):
+    def set_context(self, request_id: str = None, user: str = None, client_ip: str = None, trace_id: str = None, span_id: str = None):
         """设置请求上下文"""
-        self.request_id = request_id or LogConfig.DEFAULT_REQUEST_ID
-        self.user = user or LogConfig.DEFAULT_USER
-        self.client_ip = client_ip or LogConfig.DEFAULT_CLIENT_IP
+        self.request_id = request_id or self.DEFAULT_REQUEST_ID
+        self.user = user or self.DEFAULT_USER
+        self.client_ip = client_ip or self.DEFAULT_CLIENT_IP
+        self.trace_id = trace_id or self.DEFAULT_TRACE_ID
+        self.span_id = span_id or self.DEFAULT_SPAN_ID
     
     def filter(self, record):
         """注入上下文信息到日志记录"""
         record.request_id = self.request_id
         record.user = self.user
         record.client_ip = self.client_ip
+        record.trace_id = self.trace_id
+        record.span_id = self.span_id
         return True
 
 
@@ -178,9 +221,9 @@ def get_request_logger(name: str = "ardc.request") -> RequestLogger:
     return RequestLogger(logger)
 
 
-def set_request_context(request_id: str = None, user: str = None, client_ip: str = None):
-    """设置当前请求上下文（供中间件调用）"""
-    _request_context_filter.set_context(request_id, user, client_ip)
+def set_request_context(request_id: str = None, user: str = None, client_ip: str = None, trace_id: str = None, span_id: str = None):
+    """设置当前请求上下文（供中间件调用），支持追踪信息"""
+    _request_context_filter.set_context(request_id, user, client_ip, trace_id, span_id)
 
 class LoggerMixin:
     """日志混入类，方便其他类使用日志"""

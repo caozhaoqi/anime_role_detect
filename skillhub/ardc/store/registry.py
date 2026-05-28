@@ -6,14 +6,14 @@
 """
 
 import os
-import json
 import shutil
 import logging
 from pathlib import Path
-from typing import List, Dict, Optional, Tuple
+from typing import List, Dict, Optional
 from datetime import datetime
 
 from .metadata import SkillMetadata, VersionInfo, InstalledSkill
+from .utils import parse_version, serialize_datetime_fields
 
 logger = logging.getLogger(__name__)
 
@@ -34,29 +34,26 @@ class SkillRegistry:
         self._installed_skills: Dict[str, InstalledSkill] = self._load_installed_skills()
     
     def _load_registry(self) -> Dict[str, Dict[str, VersionInfo]]:
+        from .utils import load_json_file
+        
         if self.registry_path.exists():
             try:
-                with open(self.registry_path, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
-                    registry = {}
-                    for skill_id, versions in data.items():
-                        registry[skill_id] = {}
-                        for version, info in versions.items():
-                            if 'released_at' in info:
-                                info['released_at'] = datetime.fromisoformat(info['released_at'])
-                            if isinstance(info.get('metadata'), dict):
-                                if 'created_at' in info['metadata']:
-                                    info['metadata']['created_at'] = datetime.fromisoformat(info['metadata']['created_at'])
-                                if 'updated_at' in info['metadata']:
-                                    info['metadata']['updated_at'] = datetime.fromisoformat(info['metadata']['updated_at'])
-                            # 将字典转换为 VersionInfo 对象
-                            registry[skill_id][version] = VersionInfo(**info)
+                data = load_json_file(str(self.registry_path))
+                registry = {}
+                for skill_id, versions in data.items():
+                    registry[skill_id] = {}
+                    for version, info in versions.items():
+                        if isinstance(info.get('metadata'), dict):
+                            info['metadata'] = SkillMetadata(**info['metadata'])
+                        registry[skill_id][version] = VersionInfo(**info)
                     return registry
             except Exception as e:
                 logger.error(f"加载注册表失败: {e}")
         return {}
     
     def _save_registry(self):
+        import json
+        
         self.registry_path.parent.mkdir(parents=True, exist_ok=True)
         with open(self.registry_path, 'w', encoding='utf-8') as f:
             data = {}
@@ -64,19 +61,12 @@ class SkillRegistry:
                 data[skill_id] = {}
                 for version, info in versions.items():
                     info_dict = info.dict() if hasattr(info, 'dict') else dict(info)
-                    # 处理顶层的 datetime 字段
-                    for key in ['released_at', 'created_at', 'updated_at']:
-                        if isinstance(info_dict.get(key), datetime):
-                            info_dict[key] = info_dict[key].isoformat()
-                    # 处理嵌套的 metadata 对象中的 datetime 字段
-                    if 'metadata' in info_dict and isinstance(info_dict['metadata'], dict):
-                        for key in ['created_at', 'updated_at']:
-                            if isinstance(info_dict['metadata'].get(key), datetime):
-                                info_dict['metadata'][key] = info_dict['metadata'][key].isoformat()
-                    data[skill_id][version] = info_dict
+                    data[skill_id][version] = serialize_datetime_fields(info_dict)
             json.dump(data, f, ensure_ascii=False, indent=2)
     
     def _load_installed_skills(self) -> Dict[str, InstalledSkill]:
+        from .utils import load_json_file
+        
         installed = {}
         for skill_dir in self.skills_dir.iterdir():
             if skill_dir.is_dir():
@@ -84,22 +74,17 @@ class SkillRegistry:
                 meta_file = skill_dir / "metadata.json"
                 if meta_file.exists():
                     try:
-                        with open(meta_file, 'r', encoding='utf-8') as f:
-                            meta_data = json.load(f)
-                            if 'created_at' in meta_data:
-                                meta_data['created_at'] = datetime.fromisoformat(meta_data['created_at'])
-                            if 'updated_at' in meta_data:
-                                meta_data['updated_at'] = datetime.fromisoformat(meta_data['updated_at'])
-                            metadata = SkillMetadata(**meta_data)
-                            
-                            installed_info = {
-                                "metadata": metadata,
-                                "install_path": str(skill_dir),
-                                "installed_at": datetime.now(),
-                                "enabled": True,
-                                "config": {}
-                            }
-                            installed[skill_id] = InstalledSkill(**installed_info)
+                        meta_data = load_json_file(str(meta_file))
+                        metadata = SkillMetadata(**meta_data)
+                        
+                        installed_info = {
+                            "metadata": metadata,
+                            "install_path": str(skill_dir),
+                            "installed_at": datetime.now(),
+                            "enabled": True,
+                            "config": {}
+                        }
+                        installed[skill_id] = InstalledSkill(**installed_info)
                     except Exception as e:
                         logger.error(f"加载已安装技能 {skill_id} 失败: {e}")
         return installed
@@ -134,15 +119,8 @@ class SkillRegistry:
         if skill_id not in self._registry:
             return []
         versions = list(self._registry[skill_id].values())
-        versions.sort(key=lambda v: self._parse_version(v.version), reverse=True)
+        versions.sort(key=lambda v: parse_version(v.version), reverse=True)
         return versions
-    
-    def _parse_version(self, version_str: str) -> Tuple[int, int, int]:
-        try:
-            parts = version_str.split('.')
-            return (int(parts[0]), int(parts[1]), int(parts[2]))
-        except:
-            return (0, 0, 0)
     
     def get_latest_version(self, skill_id: str) -> Optional[VersionInfo]:
         versions = self.get_skill_versions(skill_id)

@@ -2,10 +2,9 @@
 # -*- coding: utf-8 -*-
 """
 API 主入口 - 生产环境优化版
-提供技能仓库 RESTful API，支持请求日志、全局异常处理、版本号比对等
+提供技能仓库 RESTful API，支持请求日志、全局异常处理、版本号比对、缓存优化等
 """
 
-import os
 import uuid
 from datetime import datetime, timezone
 from typing import List, Optional
@@ -20,22 +19,21 @@ from fastapi.openapi.utils import get_openapi
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from pydantic import BaseModel
-from packaging.version import parse as parse_version
 
-from ardc.store.registry import SkillRegistry
-from ardc.store.index import SkillIndex
-from ardc.version.manager import VersionManager
-from ardc.api.auth import router as auth_router, get_current_user, get_current_developer, oauth2_scheme
+
+from ardc.api.auth import router as auth_router, get_current_developer, oauth2_scheme
+from ardc.api.v1 import router as v1_router
 from ardc.utils.logging import get_logger, get_request_logger, set_request_context
+from ardc.config import settings
 
 logger = get_logger(__name__)
 request_logger = get_request_logger()
 
 # 1. 初始化 FastAPI，禁用默认文档路径以避免冲突
 app = FastAPI(
-    title="ARD Skill Repository API",
-    version="1.0.0",
-    description="技能仓库 RESTful API - 提供技能管理、用户认证、技能搜索等功能",
+    title=settings.api_title,
+    version=settings.api_version,
+    description=settings.api_description,
     docs_url=None,      # 禁用默认 Swagger
     redoc_url=None,     # 禁用默认 ReDoc
     openapi_url=None    # 禁用默认 OpenAPI JSON
@@ -44,41 +42,54 @@ app = FastAPI(
 # 包含认证路由
 app.include_router(auth_router)
 
-# CORS 配置 - 生产环境必须设置 ALLOWED_ORIGINS 环境变量
-ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "").split(",")
-# 过滤空字符串
-ALLOWED_ORIGINS = [origin.strip() for origin in ALLOWED_ORIGINS if origin.strip()]
+# 包含 v1 版本路由
+app.include_router(v1_router)
 
-# 如果没有配置允许的域名，默认允许本地开发环境
-if not ALLOWED_ORIGINS:
-    ALLOWED_ORIGINS = ["http://localhost:3000", "http://127.0.0.1:3000"]
-
+# CORS 配置 - 使用统一配置
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=ALLOWED_ORIGINS,
-    allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allow_headers=["*"],
+    allow_origins=settings.cors.allowed_origins,
+    allow_credentials=settings.cors.allow_credentials,
+    allow_methods=settings.cors.allow_methods,
+    allow_headers=settings.cors.allow_headers,
 )
 
 # ==================== 请求日志中间件 ====================
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
-    """请求日志中间件 - 记录所有请求的详细信息"""
+    """请求日志中间件 - 记录所有请求的详细信息，支持请求追踪"""
     request_id = str(uuid.uuid4())[:8]
     client_ip = request.client.host if request.client else "unknown"
     method = request.method
     path = str(request.url.path)
     
-    # 设置请求上下文
-    set_request_context(request_id=request_id, client_ip=client_ip)
+    # 从请求头获取追踪信息（支持分布式追踪）
+    trace_id = request.headers.get("X-Trace-ID", str(uuid.uuid4()))
+    span_id = request.headers.get("X-Span-ID", str(uuid.uuid4())[:8])
     
-    logger.info(f"📥 收到请求: [{request_id}] {method} {path} | IP: {client_ip}")
+    # 设置请求上下文（包含追踪信息）
+    set_request_context(
+        request_id=request_id,
+        client_ip=client_ip,
+        trace_id=trace_id,
+        span_id=span_id
+    )
+    
+    # 获取请求体大小
+    try:
+        body_size = int(request.headers.get("Content-Length", 0))
+    except ValueError:
+        body_size = 0
+    
+    logger.info(f"📥 [{request_id}] {method} {path} | IP: {client_ip} | Trace: {trace_id}")
     
     start_time = datetime.now()
     try:
         response = await call_next(request)
         duration = (datetime.now() - start_time).total_seconds() * 1000
+        
+        # 获取响应大小
+        response_size = int(response.headers.get("Content-Length", 0))
         
         # 记录响应信息
         request_logger.log_request(
@@ -86,13 +97,18 @@ async def log_requests(request: Request, call_next):
             path=path,
             client_ip=client_ip,
             status_code=response.status_code,
-            duration=duration
+            duration=duration,
+            size=response_size
         )
+        
+        # 添加追踪信息到响应头
+        response.headers["X-Request-ID"] = request_id
+        response.headers["X-Trace-ID"] = trace_id
         
         return response
     except Exception as e:
         duration = (datetime.now() - start_time).total_seconds() * 1000
-        logger.error(f"❌ 请求异常: [{request_id}] {method} {path} | 耗时: {duration:.2f}ms | 错误: {str(e)}", exc_info=True)
+        logger.error(f"❌ [{request_id}] {method} {path} | 耗时: {duration:.2f}ms | 错误: {str(e)}", exc_info=True)
         raise
 
 # ==================== 全局异常处理器 ====================
@@ -139,21 +155,6 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
         }
     )
 
-registry = SkillRegistry()
-index = SkillIndex()
-version_manager = VersionManager()
-
-class SkillCreate(BaseModel):
-    id: str
-    name: str
-    version: str
-    description: Optional[str] = ""
-    author: str
-    category: str
-    entry_point: str
-    tags: Optional[List[str]] = []
-    release_notes: Optional[str] = ""
-
 # ==================== 核心 OpenAPI 定义路由 ====================
 
 @app.get("/api/openapi.json", include_in_schema=False)
@@ -191,113 +192,36 @@ async def custom_redoc_ui_html(developer=Depends(get_current_developer)):
         title=app.title + " - ReDoc"
     )
 
-# ==================== 业务 API ====================
-
-@app.get("/api/skills")
-def list_skills(category: Optional[str] = None):
-    skills = index.get_by_category(category) if category else index.get_all_skills()
-    return {"skills": [s.dict() for s in skills]}
-
-@app.get("/api/skills/{skill_id}")
-def get_skill(skill_id: str, version: Optional[str] = None):
-    skill = registry.get_skill_by_version(skill_id, version)
-    if not skill:
-        # 获取可用技能列表供参考
-        all_skills = index.get_all_skills()
-        available_skills = [s.id for s in all_skills[:5]]
-        hint = f"可用技能示例: {', '.join(available_skills)}" if available_skills else "暂无可用技能"
-        raise HTTPException(
-            status_code=404, 
-            detail=f"技能不存在: {skill_id}",
-            headers={"X-Available-Skills": ",".join(available_skills)[:200]} if available_skills else {}
-        )
-    return skill.dict()
-
-@app.post("/api/skills")
-def create_skill(skill: SkillCreate):
-    logger.info(f"🎯 创建技能请求: {skill.id} - {skill.name}")
-    from ardc.store.metadata import SkillMetadata
-    try:
-        metadata = SkillMetadata(
-            id=skill.id, name=skill.name, version=skill.version,
-            description=skill.description, author=skill.author,
-            category=skill.category, entry_point=skill.entry_point, tags=skill.tags
-        )
-        registry.register_skill(metadata, skill.release_notes)
-        index.add_skill(metadata)
-        version_manager.release_version(metadata, skill.release_notes)
-        return {"message": "技能注册成功", "skill_id": skill.id}
-    except Exception as e:
-        logger.error(f"❌ 技能注册失败: {skill.id}, 错误: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.delete("/api/skills/{skill_id}")
-def delete_skill(skill_id: str):
-    index.remove_skill(skill_id)
-    return {"message": "技能删除成功"}
-
-@app.get("/api/skills/{skill_id}/versions")
-def get_skill_versions(skill_id: str):
-    versions = version_manager.list_versions(skill_id)
-    return {"versions": [v.dict() for v in versions]}
-
-@app.get("/api/skills/{skill_id}/check-update")
-def check_skill_update(skill_id: str, current_version: str = None):
-    """检查技能是否有更新"""
-    try:
-        latest = registry.get_latest_version(skill_id)
-        if not latest:
-            return {"has_update": False, "latest_version": current_version or "1.0.0"}
-        
-        has_update = False
-        if current_version:
-            try:
-                # 使用 packaging.version 进行标准的版本号比对
-                curr_version = parse_version(current_version)
-                latest_version = parse_version(latest.version)
-                has_update = latest_version > curr_version
-                logger.debug(f"版本比对: 当前={current_version}, 最新={latest.version}, 有更新={has_update}")
-            except Exception as e:
-                logger.warning(f"版本号解析失败: {current_version} 或 {latest.version}, 错误: {str(e)}")
-                has_update = False
-        
-        return {
-            "has_update": has_update,
-            "current_version": current_version,
-            "latest_version": latest.version,
-            "changelog": latest.release_notes if hasattr(latest, 'release_notes') else ""
+# ==================== API 版本端点 ====================
+@app.get("/api/v1/")
+def api_v1_root():
+    """API v1 根端点 - 重定向到当前版本"""
+    return {
+        "version": "1.0.0",
+        "message": "欢迎使用 ARD Skill Hub API v1",
+        "endpoints": {
+            "skills": "/api/skills",
+            "search": "/api/search",
+            "categories": "/api/categories",
+            "stats": "/api/stats"
         }
-    except Exception as e:
-        logger.error(f"检查更新失败: {skill_id}, 错误: {str(e)}")
-        raise HTTPException(status_code=500, detail="检查更新失败")
+    }
 
-@app.get("/api/search")
-def search_skills(keyword: str, category: Optional[str] = None, limit: int = 20):
-    try:
-        results = index.search(keyword, category, limit=limit)
-        return {"total": len(results), "skills": [s.dict() for s in results]}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.get("/api/stats")
-def get_stats():
-    return index.get_statistics()
-
-@app.get("/api/categories")
-def get_categories():
-    """获取所有技能分类"""
-    try:
-        categories = index.get_categories()
-        if not categories:
-            return {"categories": [], "message": "暂无分类数据"}
-        return {"categories": [{"name": name, "count": count} for name, count in categories.items()]}
-    except Exception as e:
-        logger.error(f"获取分类失败: {e}")
-        return {"categories": [], "message": "获取分类失败"}
-
-@app.get("/api/health")
-def health_check():
-    return {"status": "healthy", "service": "ARD Skill Hub API", "version": "1.0.0"}
+@app.get("/api/v2/")
+def api_v2_root():
+    """API v2 根端点 - 当前版本"""
+    return {
+        "version": "2.0.0",
+        "message": "欢迎使用 ARD Skill Hub API v2",
+        "endpoints": {
+            "skills": "/api/skills",
+            "search": "/api/search",
+            "categories": "/api/categories",
+            "stats": "/api/stats",
+            "favorites": "/api/favorites"
+        },
+        "features": ["技能管理", "搜索功能", "分类浏览", "统计数据", "收藏功能"]
+    }
 
 # ==================== 通知 API ====================
 @app.post("/api/notifications/check-updates")
@@ -433,8 +357,12 @@ async def get_logs(
 
 # ==================== 收藏夹 API ====================
 @app.get("/api/favorites")
-def get_favorites(developer=Depends(get_current_developer)):
-    """获取用户收藏的技能（需要开发者权限）"""
+def get_favorites(developer=Depends(get_current_developer), token: Optional[str] = Depends(oauth2_scheme)):
+    """获取用户收藏的技能（支持匿名访问）"""
+    # 如果未登录（token无效或没有developer），返回空列表
+    if not developer:
+        return {"favorites": [], "message": "请登录以查看个人收藏", "hint": "使用 POST /api/auth/login 登录"}
+    
     favorites_file = Path.home() / ".ardc" / "favorites.json"
     if favorites_file.exists():
         with open(favorites_file, 'r', encoding='utf-8') as f:
