@@ -54,8 +54,8 @@ WEIGHT_DECAY = 1e-4  # 权重衰减
 LABEL_SMOOTHING = 0.1  # 标签平滑
 
 MODEL_TYPE = 'efficientnet_b3'
-DATA_DIR = './data/expanded_dataset'
-MODEL_DIR = './models'
+DATA_DIR = '/Users/caozhaoqi/PycharmProjects/anime_role_detect/data/final_dataset'
+MODEL_DIR = '/Users/caozhaoqi/PycharmProjects/anime_role_detect/models'
 
 
 class CustomImageDataset(torch.utils.data.Dataset):
