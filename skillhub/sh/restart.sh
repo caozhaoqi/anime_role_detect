@@ -26,7 +26,14 @@ cd ~/czq/anime_role_detect/skillhub
 # 激活虚拟环境
 echo ""
 echo "🔧 激活虚拟环境..."
-source .venv/bin/activate
+# 尝试激活虚拟环境（支持 .venv 和 venv 两种命名）
+if [ -f ".venv/bin/activate" ]; then
+    source .venv/bin/activate
+elif [ -f "venv/bin/activate" ]; then
+    source venv/bin/activate
+else
+    echo "⚠️  未找到虚拟环境，使用系统 Python"
+fi
 
 # 启动新服务
 echo ""

@@ -412,6 +412,12 @@ def add_favorite_alt(skill_id: str, developer=Depends(get_current_developer)):
     """添加收藏（备用路径，兼容旧版客户端）"""
     return add_favorite(skill_id, developer)
 
+# ==================== 健康检查 API ====================
+@app.get("/api/health")
+def health_check():
+    """健康检查端点 - 用于服务状态监控"""
+    return {"status": "healthy", "service": "ARD Skill Hub API", "version": "1.0.0"}
+
 # ==================== CLI 安装脚本 API ====================
 # 项目根目录: ardc/api/main.py -> ardc/ -> skillhub/
 SKILLHUB_ROOT = Path(__file__).parent.parent.parent
