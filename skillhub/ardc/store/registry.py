@@ -38,7 +38,9 @@ class SkillRegistry:
             try:
                 with open(self.registry_path, 'r', encoding='utf-8') as f:
                     data = json.load(f)
+                    registry = {}
                     for skill_id, versions in data.items():
+                        registry[skill_id] = {}
                         for version, info in versions.items():
                             if 'released_at' in info:
                                 info['released_at'] = datetime.fromisoformat(info['released_at'])
@@ -47,7 +49,9 @@ class SkillRegistry:
                                     info['metadata']['created_at'] = datetime.fromisoformat(info['metadata']['created_at'])
                                 if 'updated_at' in info['metadata']:
                                     info['metadata']['updated_at'] = datetime.fromisoformat(info['metadata']['updated_at'])
-                    return data
+                            # 将字典转换为 VersionInfo 对象
+                            registry[skill_id][version] = VersionInfo(**info)
+                    return registry
             except Exception as e:
                 logger.error(f"加载注册表失败: {e}")
         return {}
