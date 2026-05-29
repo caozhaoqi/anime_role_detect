@@ -1,0 +1,44 @@
+# ==============================================
+# 开发依赖 - Development Dependencies
+# 用于开发、测试和代码质量保证
+# ==============================================
+
+# 测试框架
+pytest==8.3.3
+pytest-asyncio==0.23.6
+pytest-cov==5.0.0
+pytest-mock==3.12.0
+
+# 代码质量
+black==24.10.0
+flake8==7.1.1
+pylint==3.2.2
+mypy==1.11.2
+isort==5.13.2
+
+# 安全扫描
+bandit==1.7.8
+safety==2.3.5
+
+# 预提交钩子
+pre-commit==3.7.1
+
+# 文档生成
+sphinx==7.4.7
+sphinx-rtd-theme==2.0.0
+mkdocs==1.6.0
+mkdocs-material==9.5.29
+
+# 代码格式化
+autoflake==2.3.1
+docformatter==1.7.5
+
+# 类型检查
+types-requests==2.32.0.20240923
+types-redis==5.0.8.20241003
+types-python-jose==3.3.0.20240827
+
+# 调试工具
+ipython==8.28.0
+ipdb==0.13.13
+rich==13.8.1

@@ -1,0 +1,33 @@
+# ==============================================
+# 基础依赖 - Base Dependencies
+# 用于生产环境的核心依赖
+# ==============================================
+
+# Web框架
+fastapi==0.115.0
+uvicorn==0.31.1
+starlette==0.37.2
+
+# 数据验证
+pydantic==2.9.2
+pydantic-settings==2.5.2
+
+# HTTP客户端
+requests==2.32.3
+
+# 文件处理
+python-multipart==0.0.9
+
+# 监控指标
+prometheus-client==0.20.0
+
+# 安全
+python-jose[cryptography]==3.3.0
+passlib[sha256_crypt]==1.7.4
+
+# 数据库
+sqlalchemy==2.0.32
+redis==5.0.8
+
+# 配置管理
+python-dotenv==1.0.1

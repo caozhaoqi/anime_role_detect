@@ -1,9 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-处理器工具函数（增强版）
-
-提供通用的文件操作和工具函数
+增强的文件验证工具 - 修复文件验证缺陷
 
 修复的问题：
 1. 验证文件是否真的是图像
@@ -14,7 +12,6 @@
 
 import os
 import io
-import tempfile
 from typing import Optional, Tuple
 from PIL import Image
 
@@ -27,33 +24,6 @@ ALLOWED_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp'}
 
 # 文件大小限制（50MB）
 MAX_FILE_SIZE = int(os.environ.get('MAX_FILE_SIZE', '52428800'))
-
-
-def with_temp_file(content, suffix, callback):
-    """
-    创建临时文件并在处理完成后清理
-    
-    Args:
-        content: 文件内容
-        suffix: 文件后缀
-        callback: 处理函数，接收临时文件路径作为参数
-    
-    Returns:
-        callback 的返回值
-    """
-    temp_path = None
-    try:
-        with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as temp_file:
-            temp_file.write(content)
-            temp_path = temp_file.name
-        
-        return callback(temp_path)
-    finally:
-        if temp_path and os.path.exists(temp_path):
-            try:
-                os.remove(temp_path)
-            except Exception as e:
-                logger.error(f"清理临时文件失败：{e}")
 
 
 def validate_file(content: bytes) -> Tuple[bool, Optional[str]]:

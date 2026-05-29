@@ -130,3 +130,5 @@ Thumbs.db
 src/frontend/node_modules/
 
 src/frontend/.next/
+
+dump.rdb

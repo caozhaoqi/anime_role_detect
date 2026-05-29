@@ -1,0 +1,35 @@
+# ==============================================
+# 机器学习依赖 - Machine Learning Dependencies
+# 用于模型训练和推理
+# ==============================================
+
+# 深度学习框架
+torch==2.4.1
+torchvision==0.19.1
+torchaudio==2.4.1
+
+# 计算机视觉
+opencv-python==4.10.0.84
+Pillow==10.4.0
+
+# 模型评估
+scikit-learn==1.5.1
+scikit-image==0.24.0
+
+# 数据处理
+numpy==1.26.4
+pandas==2.2.2
+
+# 特征提取和向量数据库
+faiss-cpu==1.8.0.post1
+sentence-transformers==3.0.1
+
+# YOLO目标检测
+ultralytics==8.2.87
+
+# 标签生成
+transformers==4.44.2
+accelerate==0.34.2
+
+# 日志和监控
+mlflow==2.16.2

@@ -1,3 +1,15 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+增强的认证中间件 - 修复安全漏洞
+
+修复的问题：
+1. 启用核心 API 端点的认证
+2. 使用环境变量强制要求生产密钥
+3. 移除明文密码
+4. 添加速率限制
+"""
+
 import os
 import time
 from fastapi import Request, HTTPException, Depends

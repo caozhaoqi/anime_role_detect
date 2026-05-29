@@ -1,5 +1,11 @@
 # Character Classification System
 
+![GitHub Actions](https://img.shields.io/github/actions/workflow/status/ard-team/anime_role_detect/ci-cd.yml?branch=main)
+![Python Version](https://img.shields.io/badge/python-3.9%2B-blue)
+![License](https://img.shields.io/badge/license-MIT-green)
+![Code Coverage](https://img.shields.io/codecov/c/github/ard-team/anime_role_detect)
+![Last Commit](https://img.shields.io/github/last-commit/ard-team/anime_role_detect)
+
 An AI-powered image recognition system designed to identify characters from games and anime.
 
 ## ✨ Features
@@ -23,8 +29,22 @@ An AI-powered image recognition system designed to identify characters from game
 ### Installation
 
 ```bash
+# Clone the repository
+git clone https://github.com/ard-team/anime_role_detect.git
+cd anime_role_detect
+
+# Create virtual environment
+python -m venv .venv
+source .venv/bin/activate
+
 # Install dependencies
-pip3 install -r requirements.txt
+pip install -r requirements-base.txt
+pip install -r requirements-ml.txt  # For model training/inference
+pip install -r requirements-dev.txt  # For development
+
+# Configure environment
+cp .env.example .env
+# Edit .env with your configuration
 
 # Start services
 python3 src/application.py start --core
@@ -56,7 +76,13 @@ anime_role_detect/
 ├── models/                 # Model weights
 ├── tests/                  # Test suites
 ├── docs/                   # Documentation
-└── skillhub/               # Skill Hub module
+├── skillhub/               # Skill Hub module
+├── scripts/                # Utility scripts
+├── requirements-base.txt   # Base dependencies
+├── requirements-ml.txt     # ML dependencies
+├── requirements-dev.txt    # Development dependencies
+├── pyproject.toml          # Project configuration
+└── .env.example           # Environment template
 ```
 
 ## 🌐 API Endpoints
@@ -103,10 +129,28 @@ For detailed documentation:
 - `docs/training/` - Model training guides
 - `skillhub/docs/` - Skill Hub documentation
 
+## 🤝 Contributing
+
+We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for details on:
+- How to submit bug reports and feature requests
+- Code style guidelines
+- Pull request process
+
+## 🔒 Security
+
+- JWT authentication with secret key rotation
+- Password hashing with bcrypt/sha256
+- Rate limiting to prevent abuse
+- Input validation and sanitization
+
 ## 📄 License
 
-MIT License
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ---
 
-**Version**: v2.0 | **Last Updated**: May 2026
+**Version**: v2.0 | **Last Updated**: May 2026 | **Maintainer**: ARD Team
+
+---
+
+**Topics**: anime, character-recognition, image-classification, deep-learning, python-api, computer-vision

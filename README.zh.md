@@ -1,5 +1,11 @@
 # 角色分类系统
 
+![GitHub Actions](https://img.shields.io/github/actions/workflow/status/ard-team/anime_role_detect/ci-cd.yml?branch=main)
+![Python 版本](https://img.shields.io/badge/python-3.9%2B-blue)
+![许可证](https://img.shields.io/badge/license-MIT-green)
+![代码覆盖率](https://img.shields.io/codecov/c/github/ard-team/anime_role_detect)
+![最后提交](https://img.shields.io/github/last-commit/ard-team/anime_role_detect)
+
 基于人工智能的图片识别系统，专门用于识别游戏和动漫中的角色。
 
 ## ✨ 核心功能
@@ -23,8 +29,22 @@
 ### 安装
 
 ```bash
+# 克隆仓库
+git clone https://github.com/ard-team/anime_role_detect.git
+cd anime_role_detect
+
+# 创建虚拟环境
+python -m venv .venv
+source .venv/bin/activate
+
 # 安装依赖
-pip3 install -r requirements.txt
+pip install -r requirements-base.txt
+pip install -r requirements-ml.txt   # 用于模型训练/推理
+pip install -r requirements-dev.txt  # 用于开发
+
+# 配置环境变量
+cp .env.example .env
+# 编辑 .env 文件配置
 
 # 启动服务
 python3 src/application.py start --core
@@ -56,7 +76,13 @@ anime_role_detect/
 ├── models/                 # 模型权重
 ├── tests/                  # 测试套件
 ├── docs/                   # 文档
-└── skillhub/               # 技能仓库模块
+├── skillhub/               # 技能仓库模块
+├── scripts/                # 工具脚本
+├── requirements-base.txt   # 基础依赖
+├── requirements-ml.txt     # ML依赖
+├── requirements-dev.txt    # 开发依赖
+├── pyproject.toml          # 项目配置
+└── .env.example           # 环境变量模板
 ```
 
 ## 🌐 API 接口
@@ -103,10 +129,28 @@ anime_role_detect/
 - `docs/training/` - 模型训练指南
 - `skillhub/docs/` - 技能仓库文档
 
+## 🤝 贡献
+
+欢迎贡献代码！请查看 [CONTRIBUTING.md](CONTRIBUTING.md) 了解：
+- 如何提交 Bug 报告和功能请求
+- 代码风格规范
+- Pull Request 流程
+
+## 🔒 安全
+
+- JWT 认证与密钥轮换
+- bcrypt/sha256 密码哈希
+- 请求速率限制
+- 输入验证与清理
+
 ## 📄 许可证
 
-MIT License
+本项目采用 MIT 许可证 - 详见 [LICENSE](LICENSE) 文件。
 
 ---
 
-**版本**: v2.0 | **最后更新**: 2026年5月
+**版本**: v2.0 | **最后更新**: 2026年5月 | **维护者**: ARD Team
+
+---
+
+**关键词**: anime, character-recognition, image-classification, deep-learning, python-api, computer-vision

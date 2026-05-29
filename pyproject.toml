@@ -1,0 +1,177 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "anime-role-detect"
+version = "2.0.0"
+description = "AI-powered image recognition system for identifying characters from games and anime"
+readme = "README.md"
+requires-python = ">=3.9"
+license = {file = "LICENSE"}
+authors = [
+  {name = "ARD Team", email = "zhaoqi.cao@icloud.com"}
+]
+maintainers = [
+  {name = "ARD Team", email = "zhaoqi.cao@icloud.com"}
+]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Developers",
+  "Intended Audience :: Science/Research",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
+  "Topic :: Multimedia :: Graphics :: Recognition",
+  "Topic :: Internet :: WWW/HTTP :: HTTP Servers",
+]
+keywords = [
+  "anime",
+  "character-recognition",
+  "image-classification",
+  "deep-learning",
+  "python-api",
+  "computer-vision"
+]
+dependencies = [
+  "fastapi>=0.100.0",
+  "uvicorn>=0.23.0",
+  "pydantic>=2.0.0",
+  "pydantic-settings>=2.0.0",
+  "requests>=2.31.0",
+  "python-multipart>=0.0.6",
+  "prometheus-client>=0.17.0",
+  "redis>=5.0.0",
+  "python-jose[cryptography]>=3.3.0",
+  "passlib[sha256_crypt]>=1.7.4",
+  "sqlalchemy>=2.0.0",
+  "python-dotenv>=1.0.0",
+]
+
+[project.optional-dependencies]
+ml = [
+  "torch>=2.0.0",
+  "torchvision>=0.15.0",
+  "opencv-python>=4.8.0",
+  "Pillow>=10.0.0",
+  "scikit-learn>=1.2.0",
+  "numpy>=1.24.0",
+  "pandas>=2.0.0",
+  "faiss-cpu>=1.8.0",
+  "sentence-transformers>=2.2.0",
+  "ultralytics>=8.0.0",
+  "transformers>=4.30.0",
+  "accelerate>=0.20.0",
+  "mlflow>=2.0.0",
+]
+dev = [
+  "pytest>=8.0.0",
+  "pytest-asyncio>=0.21.0",
+  "pytest-cov>=4.0.0",
+  "black>=24.0.0",
+  "flake8>=6.0.0",
+  "pylint>=3.0.0",
+  "mypy>=1.0.0",
+  "isort>=5.12.0",
+  "bandit>=1.7.0",
+  "safety>=2.3.0",
+  "pre-commit>=3.0.0",
+  "sphinx>=7.0.0",
+  "mkdocs>=1.5.0",
+  "mkdocs-material>=9.0.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["src", "skillhub"]
+
+[tool.setuptools.package-data]
+"*" = ["*.json", "*.yaml", "*.yml", "*.md"]
+
+[tool.black]
+line-length = 100
+target-version = ["py39", "py310", "py311"]
+include = '\.pyi?$'
+exclude = '''
+/(
+    \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | _build
+  | buck-out
+  | build
+  | dist
+)/
+'''
+
+[tool.isort]
+profile = "black"
+line_length = 100
+multi_line_output = 3
+include_trailing_comma = true
+force_alphabetical_sort = true
+
+[tool.flake8]
+max-line-length = 100
+extend-ignore = ["E203", "W503"]
+exclude = [
+  ".git",
+  "__pycache__",
+  "*.pyc",
+  "*.pyo",
+  ".tox",
+  ".venv",
+  "build",
+  "dist",
+]
+
+[tool.mypy]
+python_version = "3.9"
+strict = true
+show_error_codes = true
+ignore_missing_imports = true
+follow_imports = "silent"
+exclude = [
+  ".git",
+  "__pycache__",
+  ".tox",
+  ".venv",
+  "build",
+  "dist",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = [
+  "-v",
+  "--tb=short",
+  "--cov=src",
+  "--cov=skillhub",
+  "--cov-report=term-missing",
+  "--cov-fail-under=80",
+]
+pythonpath = ["src", "skillhub"]
+asyncio_mode = "auto"
+
+[tool.bandit]
+exclude_dirs = [
+  "tests",
+  ".git",
+  ".tox",
+  ".venv",
+  "build",
+  "dist",
+]
+skips = ["B101"]
+
+[tool.safety]
+full-report = true
+
+[tool.pre-commit]
+default_language_version = {python = "python3.9"}
