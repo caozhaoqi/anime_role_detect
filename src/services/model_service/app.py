@@ -41,6 +41,15 @@ print(f"Python路径: {sys.path}")
 # 添加项目根目录到Python路径（备用方案）
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
+
+# 注册 HEIF/HEIC 图像解码器
+try:
+    import pillow_heif
+    pillow_heif.register_heif_opener()
+    print("✅ HEIF/HEIC 解码器已注册")
+except ImportError:
+    print("⚠️ HEIF/HEIC 支持不可用，将无法处理 HEIC 格式图片")
+
 # 延迟导入核心模块，避免启动时的锁竞争
 Preprocessing = None
 FeatureExtraction = None
@@ -66,11 +75,11 @@ config = get_service_config()
 import_core_modules()
 logger = get_logger("model_service")
 
-# 添加线程锁
+# 添加线程锁和异步锁
 import threading
 import asyncio
 torch_import_lock = threading.Lock()
-model_init_lock = asyncio.Lock()
+model_init_lock = asyncio.Lock()  # 异步锁，用于异步函数中
 
 # 导入模型缓存
 from src.core.cache.model_cache import model_cache
@@ -188,7 +197,7 @@ async def startup_event():
 @app.post("/api/model/predict")
 async def predict_image(
     file: UploadFile = File(...),
-    model_name: str = Form("mobilenet_v2"),
+    model_name: str = Form("efficientnet_b3_loli_optimized_v2_20260529_133654"),
     use_attributes: bool = Form(True),
     multilabel: bool = Form(False),
     threshold: float = Form(0.4)
@@ -229,7 +238,7 @@ async def predict_image(
             # [1] 图像预处理（解码、缩放、归一化）
             logger.info("开始图像预处理...")
             if preprocessor is None:
-                with model_init_lock:
+                async with model_init_lock:
                     if preprocessor is None:
                         preprocessor = Preprocessing()
             
@@ -251,7 +260,7 @@ async def predict_image(
         # [4] 特征提取 → 生成512维特征向量
         logger.info("开始特征提取...")
         if feature_extractor is None:
-            with model_init_lock:
+            async with model_init_lock:
                 if feature_extractor is None:
                     logger.info("初始化特征提取器...")
                     try:
@@ -269,7 +278,7 @@ async def predict_image(
         attributes = []
         if use_attributes:
             if tagger is None:
-                with model_init_lock:
+                async with model_init_lock:
                     if tagger is None:
                         logger.info("初始化标签生成器...")
                         try:
@@ -304,8 +313,8 @@ async def predict_image(
             index_path = f"./models/{model_name}"
             if not os.path.exists(index_path):
                 # 尝试使用默认模型路径
-                index_path = f"./models/mobilenet_v2"
-                model_name = "mobilenet_v2"  # 使用默认模型名称
+                index_path = f"./models/efficientnet_b3_loli_optimized_v2_20260529_133654"
+                model_name = "efficientnet_b3_loli_optimized_v2_20260529_133654"  # 使用默认模型名称
                 logger.warning(f"模型路径不存在，使用默认模型: {model_name}")
             
             # 检查索引文件是否存在
@@ -343,16 +352,8 @@ async def predict_image(
                 
                 # 分类角色
                 if detector.model and detector.class_to_idx:
-                    # 转换特征向量为PIL图像
-                    from PIL import Image
-                    import numpy as np
-                    import torch
-                    
-                    # 转换特征向量为图像（这里只是为了使用分类方法）
-                    # 注意：这不是最佳方法，但是为了兼容现有代码
-                    # 实际应用中应该直接使用特征向量进行分类
-                    role_image = Image.fromarray(np.zeros((224, 224, 3), dtype=np.uint8))
-                    role, similarity = detector._classify_role(role_image)
+                    # 使用实际上传的图像进行分类
+                    role, similarity = detector._classify_role(image)
                     logger.info(f"本地模型分类结果: {role}, 相似度: {similarity}")
                 else:
                     role = "unknown"
@@ -494,7 +495,7 @@ async def detect_multiple_characters(
         
         # 使用MultiRoleDetector进行多角色检测
         from src.core.detection.multi_role_detection import MultiRoleDetector
-        detector = MultiRoleDetector(model_name="mobilenet_v2")
+        detector = MultiRoleDetector(model_name="efficientnet_b3_loli_optimized_v2_20260529_133654")
         detection_results = detector.detect_roles(temp_path)
         
         # 初始化特征提取器
@@ -579,7 +580,7 @@ async def classify_image(
     use_coreml: bool = Form(False),
     use_model: bool = Form(True),
     use_attributes: bool = Form(True),
-    model_name: str = Form("mobilenet_v2"),
+    model_name: str = Form("efficientnet_b3_loli_optimized_v2_20260529_133654"),
     cache_bypass: bool = Form(False)
 ):
     """
@@ -607,7 +608,7 @@ async def classify_image(
 @app.post("/api/model/batch-predict")
 async def batch_predict_images(
     files: List[UploadFile] = File(...),
-    model_name: str = Form("mobilenet_v2"),
+    model_name: str = Form("efficientnet_b3_loli_optimized_v2_20260529_133654"),
     use_attributes: bool = Form(True),
     batch_size: int = Form(8),
     multilabel: bool = Form(False),
@@ -651,7 +652,7 @@ async def batch_predict_images(
                 
                 # 图像预处理
                 if preprocessor is None:
-                    with model_init_lock:
+                    async with model_init_lock:
                         if preprocessor is None:
                             preprocessor = Preprocessing()
                 
@@ -666,7 +667,7 @@ async def batch_predict_images(
                 
                 # 特征提取
                 if feature_extractor is None:
-                    with model_init_lock:
+                    async with model_init_lock:
                         if feature_extractor is None:
                             logger.info("初始化特征提取器...")
                             try:
@@ -686,7 +687,7 @@ async def batch_predict_images(
                 attributes = []
                 if use_attributes:
                     if tagger is None:
-                        with model_init_lock:
+                        async with model_init_lock:
                             if tagger is None:
                                 logger.info("初始化标签生成器...")
                                 try:
@@ -716,8 +717,8 @@ async def batch_predict_images(
                     index_path = f"./models/{model_name}"
                     if not os.path.exists(index_path):
                         # 尝试使用默认模型路径
-                        index_path = f"./models/mobilenet_v2"
-                        model_name = "mobilenet_v2"  # 使用默认模型名称
+                        index_path = f"./models/efficientnet_b3_loli_optimized_v2_20260529_133654"
+                        model_name = "efficientnet_b3_loli_optimized_v2_20260529_133654"  # 使用默认模型名称
                         logger.warning(f"模型路径不存在，使用默认模型: {model_name}")
                     
                     # 检查索引文件是否存在

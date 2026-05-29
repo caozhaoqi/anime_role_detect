@@ -98,27 +98,36 @@ class MultiRoleDetector:
                 "resnet18": "models/resnet18/model_best.pth",
                 "resnet18_loli8": "models/resnet18_loli8/model_best.pth",
                 "mobilenet_v2_loli8": "models/mobilenet_v2_loli8/model_best.pth",
-                "efficientnet_b0_loli8": "models/efficientnet_b0_loli8/model_best.pth"
+                "efficientnet_b0_loli8": "models/efficientnet_b0_loli8/model_best.pth",
+                "efficientnet_b3_loli_optimized_v2_20260529_133654": "models/efficientnet_b3_loli_optimized_v2_20260529_133654/model_best.pth",
+                "efficientnet_b3_loli_optimized_v2_20260522_165046": "models/efficientnet_b3_loli_optimized_v2_20260522_165046/model_best.pth"
             }
             
             # 处理默认模型
             model_name = self.model_name
             if model_name == "default":
-                model_name = "efficientnet_b0"
+                model_name = "efficientnet_b3_loli_optimized_v2_20260529_133654"
                 logger.info(f"使用默认模型: {model_name}")
             
             # 检查模型是否存在
             if model_name not in model_paths:
-                # 尝试提取基础模型名称
-                base_model_name = model_name.split('_loli8')[0]
-                if base_model_name in model_paths:
-                    logger.info(f"使用基础模型 {base_model_name} 替代 {model_name}")
-                    model_name = base_model_name
+                # 尝试动态构造路径
+                dynamic_path = f"models/{model_name}/model_best.pth"
+                if os.path.exists(dynamic_path):
+                    logger.info(f"使用动态路径: {dynamic_path}")
+                    model_path = dynamic_path
                 else:
-                    logger.error(f"不支持的模型类型: {model_name}")
-                    return
-            
-            model_path = model_paths[model_name]
+                    # 尝试提取基础模型名称
+                    base_model_name = model_name.split('_loli8')[0]
+                    if base_model_name in model_paths:
+                        logger.info(f"使用基础模型 {base_model_name} 替代 {model_name}")
+                        model_name = base_model_name
+                        model_path = model_paths[model_name]
+                    else:
+                        logger.error(f"不支持的模型类型: {model_name}")
+                        return
+            else:
+                model_path = model_paths[model_name]
             
             # 检查模型文件是否存在
             if not os.path.exists(model_path):
@@ -127,7 +136,25 @@ class MultiRoleDetector:
             
             # 加载模型数据
             model_data = torch.load(model_path, map_location=torch.device('cpu'), weights_only=False)
+            
+            # 尝试从模型数据中获取 class_to_idx
             self.class_to_idx = model_data.get('class_to_idx', {})
+            
+            # 如果 class_to_idx 为空，尝试从 training_results.json 文件中读取类别信息
+            if not self.class_to_idx:
+                model_dir = os.path.dirname(model_path)
+                training_results_path = os.path.join(model_dir, 'training_results.json')
+                if os.path.exists(training_results_path):
+                    logger.info(f"从训练结果文件加载类别信息: {training_results_path}")
+                    import json
+                    with open(training_results_path, 'r', encoding='utf-8') as f:
+                        training_results = json.load(f)
+                    class_names = training_results.get('class_names', [])
+                    if class_names:
+                        self.class_to_idx = {name: idx for idx, name in enumerate(class_names)}
+                        logger.info(f"成功加载 {len(self.class_to_idx)} 个类别")
+                else:
+                    logger.error(f"训练结果文件不存在: {training_results_path}")
             
             # 尝试直接加载完整模型
             model_full_path = model_path.replace('model_best.pth', 'model_full.pth')

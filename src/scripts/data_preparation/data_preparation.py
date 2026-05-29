@@ -81,7 +81,12 @@ class DataPreparation:
                 
                 try:
                     # 预处理图像
-                    normalized_img, _ = self.preprocessor.process(img_path)
+                    normalized_img = self.preprocessor.preprocess(img_path)
+                    
+                    # 检查预处理结果
+                    if normalized_img is None:
+                        print(f"预处理图像 {img_path} 失败")
+                        continue
                     
                     # 提取特征
                     feature = self.extractor.extract_features(normalized_img)

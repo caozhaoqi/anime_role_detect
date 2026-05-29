@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
 
     const backendFormData = new FormData();
     backendFormData.append('file', file);
-    backendFormData.append('model_name', formData.get('model_name') as string || 'resnet18_loli8');
+    backendFormData.append('model_name', formData.get('model_name') as string || 'efficientnet_b3_loli_optimized_v2_20260529_133654');
     backendFormData.append('use_coreml', formData.get('use_coreml') as string || 'false');
     backendFormData.append('use_model', formData.get('use_model') as string || 'true');
     backendFormData.append('use_attributes', formData.get('use_attributes') as string || 'true');
@@ -53,13 +53,35 @@ export async function POST(request: NextRequest) {
       if (!response.ok) {
         const errorText = await response.text();
         console.error('后端API返回错误:', response.status, errorText);
+        
+        // 处理认证失败
+        if (response.status === 401) {
+          let errorMessage = '认证失败，请登录';
+          try {
+            const errorData = JSON.parse(errorText);
+            errorMessage = errorData.detail || errorData.error || errorData.message || '认证失败，请登录';
+          } catch {
+            errorMessage = errorText || '认证失败，请登录';
+          }
+          return NextResponse.json({ 
+            error: errorMessage,
+            code: 'UNAUTHORIZED',
+            message: '请登录后再试'
+          }, { status: 401 });
+        }
+        
         return NextResponse.json({ error: 'Backend API error' }, { status: response.status });
       }
 
       const result = await response.json();
       console.log('后端API返回结果:', result);
 
-      return NextResponse.json(result, { status: 200 });
+      // 将后端响应包装成前端期望的格式
+      const wrappedResult = {
+        data: result
+      };
+
+      return NextResponse.json(wrappedResult, { status: 200 });
     } catch (fetchError) {
       console.error('发送请求到后端API失败:', fetchError);
       return NextResponse.json({ error: 'Failed to connect to backend API' }, { status: 500 });

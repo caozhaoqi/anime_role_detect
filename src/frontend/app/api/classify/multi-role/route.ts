@@ -90,7 +90,12 @@ export async function POST(request: NextRequest) {
       const result = await response.json();
       console.log('后端API返回结果:', result);
 
-      return NextResponse.json(result, { status: 200 });
+      // 将后端响应包装成前端期望的格式
+      const wrappedResult = {
+        data: result
+      };
+
+      return NextResponse.json(wrappedResult, { status: 200 });
     } catch (fetchError) {
       console.error('发送请求到后端API失败:', fetchError);
       return NextResponse.json({ error: 'Failed to connect to backend API' }, { status: 500 });

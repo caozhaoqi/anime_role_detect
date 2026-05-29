@@ -12,6 +12,7 @@
 
 import os
 import time
+import threading
 from fastapi import Request, HTTPException, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from typing import Optional, Dict
@@ -27,9 +28,52 @@ security = HTTPBearer()
 # 速率限制配置
 RATE_LIMIT_MAX_REQUESTS = int(os.environ.get('RATE_LIMIT_MAX_REQUESTS', '100'))
 RATE_LIMIT_WINDOW_SECONDS = int(os.environ.get('RATE_LIMIT_WINDOW_SECONDS', '3600'))
+# 定期清理间隔（秒）
+RATE_LIMIT_CLEANUP_INTERVAL = int(os.environ.get('RATE_LIMIT_CLEANUP_INTERVAL', '300'))
 
 # 速率限制追踪
 _request_counts: Dict[str, list] = defaultdict(list)
+# 上次清理时间
+_last_cleanup_time = time.time()
+# 保护字典访问的锁
+_counts_lock = threading.Lock()
+
+
+def _cleanup_expired_entries():
+    """
+    清理完全过期的 IP 条目，防止内存泄漏
+    
+    这个函数会：
+    1. 删除没有任何有效记录的 IP 条目
+    2. 定期执行，而不是每次请求都执行
+    """
+    global _last_cleanup_time
+    
+    current_time = time.time()
+    
+    # 检查是否需要清理（定期清理，不是每次请求都清理）
+    if current_time - _last_cleanup_time < RATE_LIMIT_CLEANUP_INTERVAL:
+        return
+    
+    with _counts_lock:
+        window_start = current_time - RATE_LIMIT_WINDOW_SECONDS
+        
+        # 找出需要保留的 IP（至少有1条有效记录）
+        ips_to_keep = {
+            ip: [req_time for req_time in req_list if req_time > window_start]
+            for ip, req_list in _request_counts.items()
+        }
+        
+        # 过滤掉空列表（所有记录都过期的 IP）
+        _request_counts.clear()
+        for ip, req_list in ips_to_keep.items():
+            if req_list:  # 只保留有有效记录的 IP
+                _request_counts[ip] = req_list
+        
+        _last_cleanup_time = current_time
+        
+        if _request_counts:
+            logger.info(f"速率限制清理完成：当前追踪 {len(_request_counts)} 个 IP")
 
 
 def check_rate_limit(client_ip: str) -> bool:
@@ -45,22 +89,26 @@ def check_rate_limit(client_ip: str) -> bool:
     Raises:
         HTTPException: 如果超过速率限制
     """
+    # 尝试清理过期条目（可能不做任何事）
+    _cleanup_expired_entries()
+    
     current_time = time.time()
     window_start = current_time - RATE_LIMIT_WINDOW_SECONDS
     
-    # 清理过期请求记录
-    _request_counts[client_ip] = [
-        req_time for req_time in _request_counts[client_ip]
-        if req_time > window_start
-    ]
-    
-    # 检查是否超过限制
-    if len(_request_counts[client_ip]) >= RATE_LIMIT_MAX_REQUESTS:
-        return False
-    
-    # 记录当前请求
-    _request_counts[client_ip].append(current_time)
-    return True
+    with _counts_lock:
+        # 清理过期请求记录
+        _request_counts[client_ip] = [
+            req_time for req_time in _request_counts[client_ip]
+            if req_time > window_start
+        ]
+        
+        # 检查是否超过限制
+        if len(_request_counts[client_ip]) >= RATE_LIMIT_MAX_REQUESTS:
+            return False
+        
+        # 记录当前请求
+        _request_counts[client_ip].append(current_time)
+        return True
 
 
 async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)) -> dict:

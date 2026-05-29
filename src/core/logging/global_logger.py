@@ -30,13 +30,13 @@ class GlobalLogger:
         """
         创建日志目录结构
         """
-        # 按类型分目录
+        self.log_dir.mkdir(parents=True, exist_ok=True)
+
         self.system_log_dir = self.log_dir / "system"
         self.inference_log_dir = self.log_dir / "inference"
         self.training_log_dir = self.log_dir / "training"
         self.error_log_dir = self.log_dir / "error"
-        
-        # 创建所有目录
+
         for dir_path in [
             self.system_log_dir,
             self.inference_log_dir,
@@ -49,13 +49,21 @@ class GlobalLogger:
         """
         配置loguru日志系统
         """
-        # 清除默认的日志处理器
         logger.remove()
-        
-        # 日志格式
+
         log_format = "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> | <level>{message}</level>"
-        
-        # 系统日志配置
+
+        unified_log_file = str(self.log_dir / "unified.log")
+        logger.add(
+            unified_log_file,
+            rotation="100 MB",
+            retention="7 days",
+            compression="zip",
+            level="DEBUG",
+            format=log_format,
+            enqueue=True
+        )
+
         system_log_file = str(self.system_log_dir / "system_{time:YYYY-MM-DD}.log")
         logger.add(
             system_log_file,
@@ -218,10 +226,60 @@ def log_training(message: str, level: str = "info", **kwargs):
 def log_error(message: str, level: str = "error", **kwargs):
     """
     记录错误日志
-    
+
     Args:
         message: 日志消息
         level: 日志级别
         **kwargs: 额外参数
     """
     global_logger.log_error(message, level, **kwargs)
+
+def get_unified_log(tail: int = 100) -> str:
+    """
+    获取统一日志的最后N行
+
+    Args:
+        tail: 返回的最后行数
+
+    Returns:
+        str: 日志内容
+    """
+    unified_log_file = global_logger.log_dir / "unified.log"
+    if unified_log_file.exists():
+        try:
+            lines = unified_log_file.read_text(encoding='utf-8').split('\n')
+            return '\n'.join(lines[-tail:])
+        except Exception as e:
+            return f"读取日志失败: {e}"
+    return "暂无日志"
+
+def tail_unified_log(lines: int = 50) -> str:
+    """
+    获取统一日志的最后N行（简洁别名）
+
+    Args:
+        lines: 返回的最后行数
+
+    Returns:
+        str: 日志内容
+    """
+    return get_unified_log(tail=lines)
+
+def get_log_info() -> dict:
+    """
+    获取日志系统信息
+
+    Returns:
+        dict: 日志目录和文件信息
+    """
+    log_dir = global_logger.log_dir
+    info = {
+        "log_dir": str(log_dir),
+        "unified_log": str(log_dir / "unified.log"),
+        "files": {}
+    }
+    for subdir in ["system", "inference", "training", "error"]:
+        path = log_dir / subdir
+        if path.exists():
+            info["files"][subdir] = [str(f) for f in path.glob("*.log*")]
+    return info

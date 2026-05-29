@@ -22,8 +22,18 @@ from src.core.logging.global_logger import get_logger
 
 logger = get_logger("processor_utils")
 
-# 允许的图像格式
-ALLOWED_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp'}
+# 尝试导入 HEIC 支持库
+try:
+    import pillow_heif
+    pillow_heif.register_heif_opener()  # 注册 HEIF/HEIC 解码器
+    HEIC_SUPPORTED = True
+    logger.info("HEIC/HEIF 支持已启用")
+except ImportError:
+    HEIC_SUPPORTED = False
+    logger.warning("HEIC 支持库未安装，将无法处理 HEIC/HEIF 格式图片")
+
+# 允许的图像格式（添加 HEIC 支持）
+ALLOWED_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.heic', '.heif'}
 
 # 文件大小限制（50MB）
 MAX_FILE_SIZE = int(os.environ.get('MAX_FILE_SIZE', '52428800'))
@@ -87,7 +97,7 @@ def validate_file(content: bytes) -> Tuple[bool, Optional[str]]:
 
 def is_valid_image_content(content: bytes) -> bool:
     """
-    验证内容是否为有效的图像文件
+    验证内容是否为有效的图像文件（支持 HEIC/HEIF 格式）
     
     Args:
         content: 文件内容（字节）
@@ -107,13 +117,14 @@ def is_valid_image_content(content: bytes) -> bool:
         if format_name is None:
             return False
         
-        # 检查格式是否在允许列表中
+        # 检查格式是否在允许列表中（添加 HEIC/HEIF 支持）
         format_to_ext = {
             'JPEG': ['.jpg', '.jpeg'],
             'PNG': ['.png'],
             'GIF': ['.gif'],
             'WEBP': ['.webp'],
             'BMP': ['.bmp'],
+            'HEIF': ['.heic', '.heif'],  # 添加 HEIF/HEIC 格式
         }
         
         # 检查是否支持该格式

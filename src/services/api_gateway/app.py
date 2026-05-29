@@ -252,7 +252,7 @@ async def check_services():
 @app.api_route("/api/{path:path}", methods=["GET", "POST", "PUT", "DELETE"])
 async def proxy_request(request: Request, path: str):
     """
-    通用请求转发逻辑
+    通用请求转发逻辑，带重试机制
     """
     logger.info(f"收到请求: {request.method} /api/{path}")
 
@@ -263,57 +263,60 @@ async def proxy_request(request: Request, path: str):
     elif path.startswith("video/"):
         service = "multimedia"
         url = f"{config.MULTIMEDIA_SERVICE_URL}/video/{path[6:]}"
-    elif path.startswith("classify"):
-        service = "api"
-        url = f"{config.CORE_API_URL}/api/{path}"
-    elif path.startswith("model/"):
+    elif path.startswith("classify") or path.startswith("model/"):
         service = "model"
-        # model/predict -> model_service/api/predict
-        model_path = path[6:] 
-        url = f"{config.MODEL_SERVICE_URL}/api/{model_path}"
+        if path.startswith("classify"):
+            url = f"{config.MODEL_SERVICE_URL}/api/{path}"
+        else:
+            model_path = path[6:]
+            url = f"{config.MODEL_SERVICE_URL}/api/{model_path}"
     elif path == "model" or path == "model/health":
         service = "model"
         url = f"{config.MODEL_SERVICE_URL}/api/health"
     else:
-        # 默认转发到核心 API 服务
         service = "api"
         url = f"{config.CORE_API_URL}/api/{path}"
 
     logger.info(f"转发请求到 [{service}]: {url}")
 
-    try:
-        # 2. 准备转发请求头
-        headers = dict(request.headers)
-        headers.pop("host", None)
-        headers.pop("content-length", None)
-        headers.pop("expect", None)
+    headers = dict(request.headers)
+    headers.pop("host", None)
+    headers.pop("content-length", None)
+    headers.pop("expect", None)
+    body = await request.body()
 
-        body = await request.body()
+    max_retries = 3
+    retry_delay = 0.5
 
-        # 3. 执行转发
-        response = await client.request(
-            method=request.method,
-            url=url,
-            headers=headers,
-            content=body
-        )
-
-        # 4. 返回响应
+    for attempt in range(max_retries):
         try:
-            content = response.json()
-        except ValueError:
-            content = response.text
+            response = await client.request(
+                method=request.method,
+                url=url,
+                headers=headers,
+                content=body
+            )
 
-        return JSONResponse(
-            content=content,
-            status_code=response.status_code
-        )
-    except httpx.HTTPError as e:
-        logger.error(f"代理请求失败: {e}")
-        raise HTTPException(status_code=503, detail=f"服务不可用: {str(e)}")
-    except Exception as e:
-        logger.error(f"代理请求处理失败: {e}\n{traceback.format_exc()}")
-        raise HTTPException(status_code=500, detail="内部服务器错误")
+            try:
+                content = response.json()
+            except ValueError:
+                content = response.text
+
+            return JSONResponse(content=content, status_code=response.status_code)
+
+        except (httpx.ConnectError, httpx.RemoteProtocolError, httpx.ReadTimeout) as e:
+            logger.warning(f"连接失败 (尝试 {attempt + 1}/{max_retries}): {e}")
+            if attempt < max_retries - 1:
+                await asyncio.sleep(retry_delay * (attempt + 1))
+                continue
+            logger.error(f"代理请求最终失败: {e}")
+            raise HTTPException(status_code=503, detail=f"服务不可用: {str(e)}")
+        except httpx.HTTPError as e:
+            logger.error(f"代理请求失败: {e}")
+            raise HTTPException(status_code=503, detail=f"服务不可用: {str(e)}")
+        except Exception as e:
+            logger.error(f"代理请求处理失败: {e}\n{traceback.format_exc()}")
+            raise HTTPException(status_code=500, detail="内部服务器错误")
 
 if __name__ == "__main__":
     import argparse
