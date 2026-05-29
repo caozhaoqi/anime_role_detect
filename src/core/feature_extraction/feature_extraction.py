@@ -88,6 +88,21 @@ class FeatureExtraction:
             if img is None:
                 raise ValueError("输入图像为None")
             
+            # 检查输入类型，如果是PyTorch Tensor则转换为PIL Image
+            if hasattr(img, 'shape') and hasattr(img, 'cpu'):
+                # 这是一个PyTorch Tensor
+                logger.debug("输入是PyTorch Tensor，转换为PIL Image")
+                # 如果在GPU上，先移到CPU
+                if img.device.type != 'cpu':
+                    img = img.cpu()
+                # 转换为numpy数组
+                img_array = img.numpy()
+                # 如果形状是 (C, H, W)，转换为 (H, W, C)
+                if img_array.ndim == 3 and img_array.shape[0] in [1, 3]:
+                    img_array = img_array.transpose(1, 2, 0)
+                # 转换为PIL Image
+                img = Image.fromarray((img_array * 255).astype('uint8'))
+            
             # 使用改进的简单特征提取方法，避免使用PyTorch
             logger.debug("使用改进的简单特征提取方法")
             

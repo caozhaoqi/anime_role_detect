@@ -266,7 +266,13 @@ async def proxy_request(request: Request, path: str):
     elif path.startswith("classify") or path.startswith("model/"):
         service = "model"
         if path.startswith("classify"):
-            url = f"{config.MODEL_SERVICE_URL}/api/{path}"
+            # 处理 classify 路径
+            classify_path = path
+            # 将 /api/classify/multi-role 映射到 /api/model/detect-multiple
+            if classify_path == "classify/multi-role":
+                url = f"{config.MODEL_SERVICE_URL}/api/model/detect-multiple"
+            else:
+                url = f"{config.MODEL_SERVICE_URL}/api/{classify_path}"
         else:
             model_path = path[6:]
             url = f"{config.MODEL_SERVICE_URL}/api/{model_path}"

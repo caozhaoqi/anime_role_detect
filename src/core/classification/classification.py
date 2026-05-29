@@ -201,13 +201,15 @@ class Classification:
         for i in range(top_k):
             idx = indices[0][i]
             distance = distances[0][i]
-            
+
             # 确保索引在有效范围内
             if idx < len(self.role_mapping):
                 role_name = self.role_mapping[idx]
+                # 将距离转换为相似度 (距离越小，相似度越高)
+                similarity = 1.0 / (1.0 + distance)
                 results.append({
                     "role": role_name,
-                    "similarity": float(distance)
+                    "similarity": float(similarity)
                 })
         
         # 如果没有结果
@@ -348,13 +350,15 @@ class Classification:
             for j in range(top_k):
                 idx = indices[i][j]
                 distance = distances[i][j]
-                
+
                 # 确保索引在有效范围内
                 if idx < len(self.role_mapping):
                     role_name = self.role_mapping[idx]
+                    # 将距离转换为相似度 (距离越小，相似度越高)
+                    similarity = 1.0 / (1.0 + distance)
                     results.append({
                         "role": role_name,
-                        "similarity": float(distance)
+                        "similarity": float(similarity)
                     })
             
             # 如果没有结果，返回unknown

@@ -492,7 +492,7 @@ export default function AnimeRoleDetect() {
         if (multiRole) {
           const roles = data.data.roles || [];
           const count = data.data.count || 0;
-          
+
           assistantMessage = {
             id: Date.now().toString(),
             role: "assistant",
@@ -500,6 +500,9 @@ export default function AnimeRoleDetect() {
             multi_roles: roles.map((role: any, index: number) => ({
               id: role.id || index + 1,
               role: role.role || "未知角色",
+              role_cn: role.role_cn || "",
+              role_jp: role.role_jp || "",
+              role_anime: role.role_anime || "",
               similarity: role.similarity || 0,
               confidence: role.confidence || 0,
               box: role.box || {},
@@ -520,6 +523,9 @@ export default function AnimeRoleDetect() {
             content: data.data.summary || `识别完成！${data.data.mode ? ` (使用 ${data.data.mode})` : ''}`,
             classification: {
               role: data.data.role || data.data.ai_predicted_role || data.data.predicted_role || "未知角色",
+              role_cn: data.data.role_cn || "",
+              role_jp: data.data.role_jp || "",
+              role_anime: data.data.role_anime || "",
               similarity: data.data.similarity || 0,
               confidence: data.data.confidence || "medium",
             },

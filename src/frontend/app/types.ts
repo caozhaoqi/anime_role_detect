@@ -5,6 +5,9 @@ export interface Message {
   image?: string | null;
   classification?: {
     role: string;
+    role_cn?: string;
+    role_jp?: string;
+    role_anime?: string;
     similarity: number;
     confidence: "high" | "medium" | "low";
   };
@@ -32,6 +35,9 @@ export interface Message {
   tags?: string[];
   multi_roles?: Array<{
     role: string;
+    role_cn?: string;
+    role_jp?: string;
+    role_anime?: string;
     similarity: number;
     attributes?: Array<{
       tag: string;

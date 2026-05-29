@@ -84,6 +84,9 @@ model_init_lock = asyncio.Lock()  # 异步锁，用于异步函数中
 # 导入模型缓存
 from src.core.cache.model_cache import model_cache
 
+# 导入角色信息加载器
+from src.core.utils.role_info_loader import get_role_info
+
 # 延迟导入torch
 def import_torch():
     """延迟导入torch，避免启动时的锁竞争问题"""
@@ -366,8 +369,13 @@ async def predict_image(
         
         # [7] 返回结果：角色名称、标签、关键点、NSFW状态
         logger.info(f"准备返回结果: role={role}, similarity={similarity}, feature类型={type(feature)}, feature长度={len(feature) if hasattr(feature, '__len__') else 'N/A'}")
+
+        role_full_info = get_role_info(role)
         result = {
             "role": role,
+            "role_cn": role_full_info.get("cn", role),
+            "role_jp": role_full_info.get("jp", ""),
+            "role_anime": role_full_info.get("anime", ""),
             "similarity": float(similarity),
             "attributes": attributes,
             "keypoints": keypoints,
@@ -542,9 +550,13 @@ async def detect_multiple_characters(
                     logger.error(f"标签生成失败: {e}")
             
             # 构建角色结果
+            role_full_info = get_role_info(role)
             results.append({
                 "id": i + 1,
                 "role": role,
+                "role_cn": role_full_info.get("cn", role),
+                "role_jp": role_full_info.get("jp", ""),
+                "role_anime": role_full_info.get("anime", ""),
                 "similarity": float(similarity),
                 "box": bbox,
                 "confidence": float(confidence),
@@ -758,17 +770,21 @@ async def batch_predict_images(
                     similarity = 0.0
                 
                 # 构建结果
+                role_full_info = get_role_info(role)
                 result = {
                     "filename": file.filename,
                     "role": role,
+                    "role_cn": role_full_info.get("cn", role),
+                    "role_jp": role_full_info.get("jp", ""),
+                    "role_anime": role_full_info.get("anime", ""),
                     "similarity": float(similarity),
                     "attributes": attributes
                 }
-                
+
                 # 如果是多标签模式，添加所有识别到的角色
                 if multilabel:
                     result["roles"] = [
-                        {"role": r[0], "similarity": float(r[1])}
+                        {"role": r[0], "similarity": float(r[1]), **get_role_info(r[0])}
                         for r in roles
                     ]
                 

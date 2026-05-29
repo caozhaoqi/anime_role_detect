@@ -16,7 +16,8 @@ project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 sys.path.insert(0, str(project_root.parent))
 
-from src.core.logging import get_log_info, get_unified_log, tail_unified_log, LOG_DIR
+from src.core.logging import get_log_info, get_unified_log, tail_unified_log
+from src.core.logging.unified_logger import LOG_DIR
 
 def main():
     parser = argparse.ArgumentParser(description='统一日志查看器')

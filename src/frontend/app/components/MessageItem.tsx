@@ -67,25 +67,23 @@ const MessageItem: React.FC<MessageItemProps> = ({ message, darkMode, handleCopy
                 <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
                 <h4 className="font-semibold text-sm">识别结果</h4>
               </div>
-              <div className={`grid grid-cols-3 gap-3 ${darkMode ? 'text-gray-100' : 'text-gray-900'}`}>
+              <div className={`grid grid-cols-2 gap-3 ${darkMode ? 'text-gray-100' : 'text-gray-900'}`}>
                 <div className={`p-3 ${darkMode ? 'bg-gray-600' : 'bg-gray-200'} rounded-lg transform hover:scale-[1.02] transition-transform`}>
                   <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">角色</p>
                   <p className="text-sm font-medium">{message.classification.role}</p>
+                  {message.classification.role_cn && message.classification.role_cn !== message.classification.role && (
+                    <p className="text-xs text-blue-500 mt-1">{message.classification.role_cn}</p>
+                  )}
+                  {message.classification.role_jp && (
+                    <p className="text-xs text-pink-500 mt-1">{message.classification.role_jp}</p>
+                  )}
+                  {message.classification.role_anime && (
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{message.classification.role_anime}</p>
+                  )}
                 </div>
                 <div className={`p-3 ${darkMode ? 'bg-gray-600' : 'bg-gray-200'} rounded-lg transform hover:scale-[1.02] transition-transform`}>
                   <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">相似度</p>
                   <p className="text-sm font-medium">{(message.classification.similarity * 100).toFixed(1)}%</p>
-                </div>
-                <div className={`p-3 ${darkMode ? 'bg-gray-600' : 'bg-gray-200'} rounded-lg transform hover:scale-[1.02] transition-transform`}>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">置信度</p>
-                  <div className="flex items-center space-x-2">
-                    <p className="text-sm font-medium">
-                      {message.classification.confidence === "high" ? "高" : message.classification.confidence === "medium" ? "中" : "低"}
-                    </p>
-                    <div
-                      className={`w-2 h-2 rounded-full ${message.classification.confidence === "high" ? "bg-green-500" : message.classification.confidence === "medium" ? "bg-yellow-500" : "bg-red-500"}`}
-                    />
-                  </div>
                 </div>
               </div>
             </div>
@@ -101,7 +99,18 @@ const MessageItem: React.FC<MessageItemProps> = ({ message, darkMode, handleCopy
                 {message.multi_roles.map((role, index) => (
                   <div key={index} className={`p-3 ${darkMode ? 'bg-gray-600' : 'bg-gray-200'} rounded-lg transform hover:scale-[1.02] transition-transform`}>
                     <div className="flex justify-between items-center">
-                      <p className="text-sm font-medium">{role.role}</p>
+                      <div>
+                        <p className="text-sm font-medium">{role.role}</p>
+                        {role.role_cn && role.role_cn !== role.role && (
+                          <p className="text-xs text-blue-500 mt-1">{role.role_cn}</p>
+                        )}
+                        {role.role_jp && (
+                          <p className="text-xs text-pink-500 mt-1">{role.role_jp}</p>
+                        )}
+                        {role.role_anime && (
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{role.role_anime}</p>
+                        )}
+                      </div>
                       <div className="flex items-center space-x-2">
                         <p className="text-sm">{(role.similarity * 100).toFixed(1)}%</p>
                         <div
