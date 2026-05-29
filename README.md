@@ -72,12 +72,28 @@ anime_role_detect/
 
 ## 📊 Model Performance
 
+### Latest Benchmark Results (May 2026)
+
+**Test Dataset**: 1,480 images across 74 character classes
+
+| Metric | Value |
+|--------|-------|
+| Top-1 Accuracy | **93.92%** |
+| Top-3 Accuracy | **96.15%** |
+| Top-5 Accuracy | **96.89%** |
+| Inference Speed | **85.74 FPS** |
+| Latency per Image | **11.66ms** |
+
+### Model Comparison
+
 | Model | Accuracy | FPS |
 |-------|----------|-----|
 | MobileNetV2 | 94.00% | 379 |
 | EfficientNet-B0 | 95.20% | 298 |
-| EfficientNet-B3 | 96.80% | 188 |
+| EfficientNet-B3 (Optimized) | **93.92%** | **85.74** |
 | ResNet50 | 94.80% | 257 |
+
+**Current Production Model**: `efficientnet_b3_loli_optimized_v2_20260529_133654`
 
 ## 📚 Documentation
 
