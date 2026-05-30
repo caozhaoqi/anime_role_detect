@@ -10,14 +10,14 @@ from .cache_service import (
     init_cache_manager,
     get_cache_manager,
     get_image_transform,
-    get_cache_stats
+    get_cache_stats,
 )
 
 __all__ = [
-    'get_redis_cache',
-    'get_cache_factory',
-    'init_cache_manager',
-    'get_cache_manager',
-    'get_image_transform',
-    'get_cache_stats'
+    "get_redis_cache",
+    "get_cache_factory",
+    "init_cache_manager",
+    "get_cache_manager",
+    "get_image_transform",
+    "get_cache_stats",
 ]

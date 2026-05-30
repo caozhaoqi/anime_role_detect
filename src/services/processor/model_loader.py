@@ -30,27 +30,30 @@ _model_cache: Dict[str, Tuple[Any, Dict]] = {}
 
 class ModelLoadingError(Exception):
     """模型加载异常"""
+
     pass
 
 
-def validate_model_architecture(model: torch.nn.Module, expected_num_classes: int, model_name: str) -> bool:
+def validate_model_architecture(
+    model: torch.nn.Module, expected_num_classes: int, model_name: str
+) -> bool:
     """
     验证模型架构是否正确
-    
+
     Args:
         model: 模型实例
         expected_num_classes: 期望的类别数量
         model_name: 模型名称
-        
+
     Returns:
         bool: 架构是否匹配
-        
+
     Raises:
         ModelLoadingError: 如果架构不匹配
     """
     try:
         # 获取模型的最后一个层
-        if hasattr(model, 'classifier'):
+        if hasattr(model, "classifier"):
             # MobileNet, EfficientNet 等
             if isinstance(model.classifier, nn.Sequential):
                 last_layer = model.classifier[-1]
@@ -61,13 +64,13 @@ def validate_model_architecture(model: torch.nn.Module, expected_num_classes: in
                             f"模型架构不匹配：期望{expected_num_classes}个类别，"
                             f"但模型最后一层输出{actual_num_classes}个类别"
                         )
-        elif hasattr(model, 'fc'):
+        elif hasattr(model, "fc"):
             # ResNet 等
             if isinstance(model.fc, nn.Sequential):
                 last_layer = model.fc[-1]
             else:
                 last_layer = model.fc
-            
+
             if isinstance(last_layer, nn.Linear):
                 actual_num_classes = last_layer.out_features
                 if actual_num_classes != expected_num_classes:
@@ -75,7 +78,7 @@ def validate_model_architecture(model: torch.nn.Module, expected_num_classes: in
                         f"模型架构不匹配：期望{expected_num_classes}个类别，"
                         f"但模型最后一层输出{actual_num_classes}个类别"
                     )
-        
+
         return True
     except ModelLoadingError:
         raise
@@ -87,10 +90,10 @@ def validate_model_architecture(model: torch.nn.Module, expected_num_classes: in
 def get_model_class_to_idx_from_training_config(model_dir: str) -> Optional[Dict[str, int]]:
     """
     从训练配置文件中加载类别映射
-    
+
     Args:
         model_dir: 模型目录
-        
+
     Returns:
         类别映射字典或 None
     """
@@ -98,29 +101,33 @@ def get_model_class_to_idx_from_training_config(model_dir: str) -> Optional[Dict
     training_results_path = os.path.join(model_dir, "training_results.json")
     if os.path.exists(training_results_path):
         try:
-            with open(training_results_path, 'r', encoding='utf-8') as f:
+            with open(training_results_path, "r", encoding="utf-8") as f:
                 training_results = json.load(f)
-                class_to_idx = training_results.get('class_to_idx', {})
+                class_to_idx = training_results.get("class_to_idx", {})
                 if class_to_idx:
-                    logger.info(f"从 training_results.json 加载类别映射：{len(class_to_idx)} 个类别")
+                    logger.info(
+                        f"从 training_results.json 加载类别映射：{len(class_to_idx)} 个类别"
+                    )
                     return class_to_idx
         except Exception as e:
             logger.warning(f"从 training_results.json 加载失败：{e}")
-    
+
     return None
 
 
-def load_trained_model(model_name: str, force_reload: bool = False) -> Optional[Tuple[Any, Dict[str, int]]]:
+def load_trained_model(
+    model_name: str, force_reload: bool = False
+) -> Optional[Tuple[Any, Dict[str, int]]]:
     """
     加载训练好的模型（增强版）
-    
+
     Args:
         model_name: 模型名称
         force_reload: 是否强制重新加载
-        
+
     Returns:
         tuple: (模型，类别映射) 或 None
-        
+
     Raises:
         ModelLoadingError: 如果模型加载失败
     """
@@ -129,62 +136,60 @@ def load_trained_model(model_name: str, force_reload: bool = False) -> Optional[
         if model_name in _model_cache and not force_reload:
             logger.info(f"使用缓存的模型：{model_name}")
             return _model_cache[model_name]
-        
+
         # 处理默认模型
         if model_name == "default":
             model_name = "efficientnet_b0"
-        
+
         # 获取项目根目录
         project_root = Path(__file__).parent.parent.parent.parent
         model_dir = project_root / "models" / model_name
-        
+
         # 优先使用 model_full.pth
         model_path = model_dir / "model_full.pth"
         if not model_path.exists():
             model_path = model_dir / "model_best.pth"
-        
+
         class_map_path = model_dir / "class_to_idx.json"
-        
+
         # 检查模型文件是否存在
         if not model_path.exists():
             error_msg = f"模型文件不存在：{model_path}"
             logger.error(error_msg)
             raise ModelLoadingError(error_msg)
-        
+
         logger.info(f"加载模型：{model_path}")
-        
+
         # 加载模型
         try:
             checkpoint = torch.load(
-                model_path,
-                map_location=torch.device('cpu'),
-                weights_only=False
+                model_path, map_location=torch.device("cpu"), weights_only=False
             )
         except Exception as e:
             error_msg = f"模型文件损坏或格式错误：{e}"
             logger.error(error_msg)
             raise ModelLoadingError(error_msg)
-        
+
         # 加载类别映射（优先级：training_results.json > class_to_idx.json > 模型文件内嵌）
         class_to_idx = {}
-        
+
         # 1. 从 training_results.json 加载（最可靠）
         class_to_idx = get_model_class_to_idx_from_training_config(str(model_dir))
-        
+
         # 2. 从 class_to_idx.json 加载
         if not class_to_idx and class_map_path.exists():
             try:
-                with open(class_map_path, 'r', encoding='utf-8') as f:
+                with open(class_map_path, "r", encoding="utf-8") as f:
                     class_to_idx = json.load(f)
                 logger.info(f"从 class_to_idx.json 加载类别映射：{len(class_to_idx)} 个类别")
             except Exception as e:
                 logger.warning(f"从 class_to_idx.json 加载失败：{e}")
-        
+
         # 3. 从模型文件中加载
-        if not class_to_idx and isinstance(checkpoint, dict) and 'class_to_idx' in checkpoint:
-            class_to_idx = checkpoint['class_to_idx']
+        if not class_to_idx and isinstance(checkpoint, dict) and "class_to_idx" in checkpoint:
+            class_to_idx = checkpoint["class_to_idx"]
             logger.info(f"从模型文件加载类别映射：{len(class_to_idx)} 个类别")
-        
+
         # 4. 如果都失败，抛出错误（不再使用硬编码的 3 个类别）
         if not class_to_idx:
             error_msg = (
@@ -195,10 +200,10 @@ def load_trained_model(model_name: str, force_reload: bool = False) -> Optional[
             )
             logger.error(error_msg)
             raise ModelLoadingError(error_msg)
-        
+
         num_classes = len(class_to_idx)
         logger.info(f"类别数量：{num_classes}")
-        
+
         # 创建或加载模型
         if isinstance(checkpoint, torch.nn.Module):
             # 完整模型文件
@@ -209,30 +214,30 @@ def load_trained_model(model_name: str, force_reload: bool = False) -> Optional[
             # 需要创建模型架构
             logger.info(f"创建模型架构：{model_name}")
             model = create_model_from_name(model_name, num_classes)
-            
+
             # 加载权重
             state_dict = None
-            if 'model_state_dict' in checkpoint:
-                state_dict = checkpoint['model_state_dict']
-            elif 'state_dict' in checkpoint:
-                state_dict = checkpoint['state_dict']
+            if "model_state_dict" in checkpoint:
+                state_dict = checkpoint["model_state_dict"]
+            elif "state_dict" in checkpoint:
+                state_dict = checkpoint["state_dict"]
             else:
                 error_msg = f"模型文件中没有找到权重数据"
                 logger.error(error_msg)
                 raise ModelLoadingError(error_msg)
-            
+
             model.load_state_dict(state_dict, strict=False)
             model.eval()
-        
+
         # 验证模型架构
         validate_model_architecture(model, num_classes, model_name)
-        
+
         # 缓存模型
         _model_cache[model_name] = (model, class_to_idx)
         logger.info(f"成功加载模型：{model_name} ({num_classes}个类别)")
-        
+
         return model, class_to_idx
-        
+
     except ModelLoadingError:
         raise
     except Exception as e:
@@ -244,15 +249,15 @@ def load_trained_model(model_name: str, force_reload: bool = False) -> Optional[
 def create_model_from_name(model_name: str, num_classes: int) -> torch.nn.Module:
     """
     根据模型名称创建模型架构
-    
+
     Args:
         model_name: 模型名称
         num_classes: 类别数量
-        
+
     Returns:
         模型实例
     """
-    if 'resnet18' in model_name:
+    if "resnet18" in model_name:
         model = models.resnet18(pretrained=False)
         model.fc = nn.Sequential(
             nn.Dropout(p=0.2),
@@ -260,9 +265,9 @@ def create_model_from_name(model_name: str, num_classes: int) -> torch.nn.Module
             nn.ReLU(inplace=True),
             nn.BatchNorm1d(512),
             nn.Dropout(p=0.1),
-            nn.Linear(512, num_classes)
+            nn.Linear(512, num_classes),
         )
-    elif 'resnet50' in model_name:
+    elif "resnet50" in model_name:
         model = models.resnet50(pretrained=False)
         model.fc = nn.Sequential(
             nn.Dropout(p=0.2),
@@ -270,9 +275,9 @@ def create_model_from_name(model_name: str, num_classes: int) -> torch.nn.Module
             nn.ReLU(inplace=True),
             nn.BatchNorm1d(512),
             nn.Dropout(p=0.1),
-            nn.Linear(512, num_classes)
+            nn.Linear(512, num_classes),
         )
-    elif 'mobilenet_v2' in model_name:
+    elif "mobilenet_v2" in model_name:
         model = models.mobilenet_v2(pretrained=False)
         model.classifier = nn.Sequential(
             nn.Dropout(p=0.2),
@@ -280,9 +285,9 @@ def create_model_from_name(model_name: str, num_classes: int) -> torch.nn.Module
             nn.ReLU(inplace=True),
             nn.BatchNorm1d(512),
             nn.Dropout(p=0.1),
-            nn.Linear(512, num_classes)
+            nn.Linear(512, num_classes),
         )
-    elif 'efficientnet_b0' in model_name:
+    elif "efficientnet_b0" in model_name:
         model = models.efficientnet_b0(pretrained=False)
         model.classifier = nn.Sequential(
             nn.Dropout(p=0.2),
@@ -290,9 +295,9 @@ def create_model_from_name(model_name: str, num_classes: int) -> torch.nn.Module
             nn.ReLU(inplace=True),
             nn.BatchNorm1d(512),
             nn.Dropout(p=0.1),
-            nn.Linear(512, num_classes)
+            nn.Linear(512, num_classes),
         )
-    elif 'efficientnet_b3' in model_name:
+    elif "efficientnet_b3" in model_name:
         model = models.efficientnet_b3(pretrained=False)
         model.classifier = nn.Sequential(
             nn.Dropout(p=0.3),
@@ -300,7 +305,7 @@ def create_model_from_name(model_name: str, num_classes: int) -> torch.nn.Module
             nn.ReLU(inplace=True),
             nn.BatchNorm1d(768),
             nn.Dropout(p=0.15),
-            nn.Linear(768, num_classes)
+            nn.Linear(768, num_classes),
         )
     else:
         # 默认使用 EfficientNet-B0
@@ -312,9 +317,9 @@ def create_model_from_name(model_name: str, num_classes: int) -> torch.nn.Module
             nn.ReLU(inplace=True),
             nn.BatchNorm1d(512),
             nn.Dropout(p=0.1),
-            nn.Linear(512, num_classes)
+            nn.Linear(512, num_classes),
         )
-    
+
     return model
 
 
@@ -328,7 +333,7 @@ def clear_model_cache():
 def load_models():
     """
     加载所有模型
-    
+
     Returns:
         bool: 是否加载成功
     """
@@ -346,12 +351,13 @@ def load_models():
 def get_preprocessor():
     """
     获取预处理器
-    
+
     Returns:
         callable: 预处理器函数
     """
     try:
         from src.core.preprocessing.preprocessing import Preprocessing
+
         preprocessor = Preprocessing()
         return preprocessor.preprocess
     except Exception as e:
@@ -362,12 +368,13 @@ def get_preprocessor():
 def get_keypoint_detector():
     """
     获取关键点检测器
-    
+
     Returns:
         callable: 关键点检测器函数
     """
     try:
         from src.core.keypoint.mediapipe_keypoint_detector import MediaPipeKeypointDetector
+
         detector = MediaPipeKeypointDetector()
         return detector.detect
     except Exception as e:
@@ -378,12 +385,13 @@ def get_keypoint_detector():
 def get_tagger():
     """
     获取标签器
-    
+
     Returns:
         callable: 标签器函数
     """
     try:
         from src.core.tagging.wd_vit_v3_tagger import WDViTV3Tagger
+
         tagger = WDViTV3Tagger()
         tagger.load_model()
         return tagger.generate_tags
@@ -395,14 +403,15 @@ def get_tagger():
 def get_role_predictor():
     """
     获取角色预测器
-    
+
     Returns:
         callable: 角色预测器函数
     """
     try:
         from src.core.classification.classification import Classification
+
         classifier = Classification()
-        
+
         # 检查分类器是否有索引
         if classifier.index is not None:
             return classifier.classify
@@ -418,50 +427,50 @@ def get_role_predictor():
 def _search_based_role_predictor(image_path=None, image_bytes=None, tags=None):
     """
     基于搜索服务的角色预测器 - 通过以图搜图获取最相似的角色名
-    
+
     Args:
         image_path: 图像路径或 BytesIO 对象
         image_bytes: 图像字节数据
         tags: 标签列表（备用）
-        
+
     Returns:
         str: 预测的角色名
     """
     try:
         # 首先尝试使用搜索服务
         from src.services.search_service.search_client import get_search_client
-        
+
         client = get_search_client()
-        
+
         # 检查搜索服务是否可用
         if not client.health_check():
             logger.warning("搜索服务不可用，使用标签预测")
             return _simple_role_predictor(tags)
-        
+
         # 如果有图像数据，使用搜索服务获取角色名
         if image_path:
             # 检查 image_path 是否是字符串（文件路径）
             if isinstance(image_path, str):
                 # 文件路径
                 result = client.search_image(image_path, top_k=1)
-                if result.get('success') and result.get('results'):
-                    role_name = result['results'][0].get('role')
+                if result.get("success") and result.get("results"):
+                    role_name = result["results"][0].get("role")
                     if role_name:
                         logger.info(f"通过搜索服务识别角色：{role_name}")
                         return role_name
-            elif hasattr(image_path, 'read'):
+            elif hasattr(image_path, "read"):
                 # BytesIO 对象
                 image_data = image_path.read()
                 result = client.search_image_bytes(image_data, "temp.jpg", top_k=1)
-                if result.get('success') and result.get('results'):
-                    role_name = result['results'][0].get('role')
+                if result.get("success") and result.get("results"):
+                    role_name = result["results"][0].get("role")
                     if role_name:
                         logger.info(f"通过搜索服务识别角色：{role_name}")
                         return role_name
-        
+
         # 如果没有图像数据或搜索失败，使用标签预测
         return _simple_role_predictor(tags)
-        
+
     except Exception as e:
         logger.error(f"搜索服务角色预测器失败：{e}")
         return _simple_role_predictor(tags)
@@ -470,39 +479,39 @@ def _search_based_role_predictor(image_path=None, image_bytes=None, tags=None):
 def _simple_role_predictor(tags):
     """
     简单的基于规则的角色预测器
-    
+
     Args:
         tags: 标签列表
-        
+
     Returns:
         str: 预测的角色名
     """
     try:
         if tags is None:
-            return '未知角色'
-            
+            return "未知角色"
+
         # 转换为小写的标签列表
         tags_lower = [str(t).lower() for t in tags]
-        
+
         # 基于标签进行简单的角色预测
-        if any(keyword in tags_lower for keyword in ['honkai', '崩坏', 'star', 'rail']):
-            return '崩坏角色'
-        elif any(keyword in tags_lower for keyword in ['genshin', '原神', 'impact']):
-            return '原神角色'
-        elif any(keyword in tags_lower for keyword in ['blue', 'archive', '碧蓝', '档案']):
-            return '碧蓝档案角色'
-        elif any(keyword in tags_lower for keyword in ['arknights', '明日', '方舟']):
-            return '明日方舟角色'
-        elif any(keyword in tags_lower for keyword in ['fate', 'fgo', 'grand', 'order']):
-            return 'Fate 角色'
-        elif any(keyword in tags_lower for keyword in ['touhou', '东方']):
-            return '东方角色'
-        elif any(keyword in tags_lower for keyword in ['hololive', 'vtuber']):
-            return '虚拟主播'
-        elif 'anime' in tags_lower or '动漫' in tags_lower:
-            return '动漫角色'
+        if any(keyword in tags_lower for keyword in ["honkai", "崩坏", "star", "rail"]):
+            return "崩坏角色"
+        elif any(keyword in tags_lower for keyword in ["genshin", "原神", "impact"]):
+            return "原神角色"
+        elif any(keyword in tags_lower for keyword in ["blue", "archive", "碧蓝", "档案"]):
+            return "碧蓝档案角色"
+        elif any(keyword in tags_lower for keyword in ["arknights", "明日", "方舟"]):
+            return "明日方舟角色"
+        elif any(keyword in tags_lower for keyword in ["fate", "fgo", "grand", "order"]):
+            return "Fate 角色"
+        elif any(keyword in tags_lower for keyword in ["touhou", "东方"]):
+            return "东方角色"
+        elif any(keyword in tags_lower for keyword in ["hololive", "vtuber"]):
+            return "虚拟主播"
+        elif "anime" in tags_lower or "动漫" in tags_lower:
+            return "动漫角色"
         else:
-            return '未知角色'
+            return "未知角色"
     except Exception as e:
         logger.error(f"简单角色预测器失败：{e}")
-        return '未知角色'
+        return "未知角色"

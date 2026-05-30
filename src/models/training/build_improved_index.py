@@ -10,32 +10,35 @@ import logging
 
 # 配置日志
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
-logger = logging.getLogger('build_improved_index')
+logger = logging.getLogger("build_improved_index")
 
 # 添加项目根目录到Python路径
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from src.core.general_classification import build_index_from_directory
 
 
 def main():
     """主函数"""
-    parser = argparse.ArgumentParser(description='构建改进的特征索引')
-    parser.add_argument('--data_dir', type=str, default='data/augmented_characters', help='数据目录')
-    parser.add_argument('--output_index', type=str, default='models/improved_character_index', help='输出索引路径')
-    
+    parser = argparse.ArgumentParser(description="构建改进的特征索引")
+    parser.add_argument(
+        "--data_dir", type=str, default="data/augmented_characters", help="数据目录"
+    )
+    parser.add_argument(
+        "--output_index", type=str, default="models/improved_character_index", help="输出索引路径"
+    )
+
     args = parser.parse_args()
-    
+
     logger.info("开始构建改进的特征索引")
     logger.info(f"数据目录: {args.data_dir}")
     logger.info(f"输出索引路径: {args.output_index}")
-    
+
     # 构建索引
     success = build_index_from_directory(args.data_dir)
-    
+
     if success:
         logger.info("🎉 改进的特征索引构建成功！")
         print(f"\n🎉 改进的特征索引构建成功！")

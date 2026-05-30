@@ -6,16 +6,18 @@ ROLE_INFO_PATH = Path(__file__).parent.parent / "data" / "role_info.json"
 
 _role_info_cache = None
 
+
 def load_role_info():
     """加载角色信息缓存"""
     global _role_info_cache
     if _role_info_cache is None:
         if ROLE_INFO_PATH.exists():
-            with open(ROLE_INFO_PATH, 'r', encoding='utf-8') as f:
+            with open(ROLE_INFO_PATH, "r", encoding="utf-8") as f:
                 _role_info_cache = json.load(f)
         else:
             _role_info_cache = {}
     return _role_info_cache
+
 
 def get_role_info(role_name: str) -> dict:
     """
@@ -42,15 +44,15 @@ def get_role_info(role_name: str) -> dict:
             return info
 
     for key, info in role_info.items():
-        if role_name_lower.split()[0] == key.lower().split()[0] if role_name_lower and key.lower() else False:
+        if (
+            role_name_lower.split()[0] == key.lower().split()[0]
+            if role_name_lower and key.lower()
+            else False
+        ):
             return info
 
-    return {
-        "cn": role_name,
-        "en": role_name,
-        "jp": "",
-        "anime": ""
-    }
+    return {"cn": role_name, "en": role_name, "jp": "", "anime": ""}
+
 
 def get_all_roles() -> dict:
     """获取所有角色信息"""

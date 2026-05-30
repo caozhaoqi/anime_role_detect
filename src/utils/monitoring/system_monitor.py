@@ -18,18 +18,18 @@ class SystemMonitor:
     """
     系统监控类
     """
-    
+
     def __init__(self):
         """
         初始化系统监控
         """
         self.start_time = time.time()
         self.process = psutil.Process(os.getpid())
-    
+
     def get_system_info(self):
         """
         获取系统信息
-        
+
         Returns:
             dict: 系统信息
         """
@@ -43,28 +43,28 @@ class SystemMonitor:
                     "total": psutil.virtual_memory().total,
                     "available": psutil.virtual_memory().available,
                     "used": psutil.virtual_memory().used,
-                    "percent": psutil.virtual_memory().percent
+                    "percent": psutil.virtual_memory().percent,
                 },
                 "disk": {
-                    "total": psutil.disk_usage('/').total,
-                    "used": psutil.disk_usage('/').used,
-                    "free": psutil.disk_usage('/').free,
-                    "percent": psutil.disk_usage('/').percent
+                    "total": psutil.disk_usage("/").total,
+                    "used": psutil.disk_usage("/").used,
+                    "free": psutil.disk_usage("/").free,
+                    "percent": psutil.disk_usage("/").percent,
                 },
                 "network": {
                     "sent": psutil.net_io_counters().bytes_sent,
-                    "received": psutil.net_io_counters().bytes_recv
-                }
+                    "received": psutil.net_io_counters().bytes_recv,
+                },
             }
             return system_info
         except Exception as e:
             logger.error(f"获取系统信息失败: {e}")
             return {}
-    
+
     def get_process_info(self):
         """
         获取进程信息
-        
+
         Returns:
             dict: 进程信息
         """
@@ -77,20 +77,20 @@ class SystemMonitor:
                 "memory_info": {
                     "rss": self.process.memory_info().rss,
                     "vms": self.process.memory_info().vms,
-                    "percent": self.process.memory_percent()
+                    "percent": self.process.memory_percent(),
                 },
                 "threads": self.process.num_threads(),
-                "open_files": len(self.process.open_files())
+                "open_files": len(self.process.open_files()),
             }
             return process_info
         except Exception as e:
             logger.error(f"获取进程信息失败: {e}")
             return {}
-    
+
     def get_usage_stats(self):
         """
         获取使用统计
-        
+
         Returns:
             dict: 使用统计
         """
@@ -99,17 +99,17 @@ class SystemMonitor:
             stats = {
                 "system": self.get_system_info(),
                 "process": self.get_process_info(),
-                "timestamp": time.time()
+                "timestamp": time.time(),
             }
             return stats
         except Exception as e:
             logger.error(f"获取使用统计失败: {e}")
             return {}
-    
+
     def monitor(self, interval=5):
         """
         监控系统状态
-        
+
         Args:
             interval: 监控间隔（秒）
         """

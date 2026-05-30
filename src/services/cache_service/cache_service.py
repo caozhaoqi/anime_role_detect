@@ -42,7 +42,7 @@ def init_cache_manager():
 def get_cache_manager():
     """
     获取缓存管理器实例
-    
+
     Returns:
         缓存管理器实例
     """
@@ -55,33 +55,32 @@ def get_cache_manager():
 def get_image_transform():
     """
     获取图像变换对象（缓存）
-    
+
     Returns:
         图像变换对象
     """
     # 延迟导入PyTorch和相关库
     import torchvision.transforms as transforms
-    
+
     global transform_cache
     transform_key = "default"
-    
+
     if transform_key not in transform_cache:
-        transform_cache[transform_key] = transforms.Compose([
-            transforms.Resize((224, 224)),
-            transforms.ToTensor(),
-            transforms.Normalize(
-                mean=[0.485, 0.456, 0.406],
-                std=[0.229, 0.224, 0.225]
-            )
-        ])
-    
+        transform_cache[transform_key] = transforms.Compose(
+            [
+                transforms.Resize((224, 224)),
+                transforms.ToTensor(),
+                transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+            ]
+        )
+
     return transform_cache[transform_key]
 
 
 def get_cache_stats():
     """
     获取缓存统计信息
-    
+
     Returns:
         缓存统计信息
     """

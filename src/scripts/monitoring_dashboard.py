@@ -13,11 +13,11 @@ from datetime import datetime
 from flask import Flask, render_template, jsonify, request
 
 # 添加项目根目录到Python路径
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
 from src.utils.monitoring_system import MonitoringSystem
 
-app = Flask(__name__, template_folder='../templates')
+app = Flask(__name__, template_folder="../templates")
 
 # 创建监控系统实例
 monitoring_system = MonitoringSystem()
@@ -26,118 +26,84 @@ monitoring_system = MonitoringSystem()
 monitoring_system.start()
 
 
-@app.route('/')
+@app.route("/")
 def index():
     """
     仪表板首页
     """
-    return render_template('dashboard.html')
+    return render_template("dashboard.html")
 
 
-@app.route('/api/stats')
+@app.route("/api/stats")
 def get_stats():
     """
     获取监控统计信息
     """
     try:
         stats = monitoring_system.get_all_stats()
-        return jsonify({
-            'success': True,
-            'data': stats,
-            'timestamp': datetime.now().isoformat()
-        })
+        return jsonify({"success": True, "data": stats, "timestamp": datetime.now().isoformat()})
     except Exception as e:
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        })
+        return jsonify({"success": False, "error": str(e)})
 
 
-@app.route('/api/alerts')
+@app.route("/api/alerts")
 def get_alerts():
     """
     获取告警信息
     """
     try:
-        limit = int(request.args.get('limit', 10))
+        limit = int(request.args.get("limit", 10))
         alerts = monitoring_system.get_alerts(limit=limit)
-        return jsonify({
-            'success': True,
-            'data': alerts,
-            'timestamp': datetime.now().isoformat()
-        })
+        return jsonify({"success": True, "data": alerts, "timestamp": datetime.now().isoformat()})
     except Exception as e:
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        })
+        return jsonify({"success": False, "error": str(e)})
 
 
-@app.route('/api/monitor-data/<monitor_name>')
+@app.route("/api/monitor-data/<monitor_name>")
 def get_monitor_data(monitor_name):
     """
     获取监控器数据
     """
     try:
-        limit = int(request.args.get('limit', 20))
+        limit = int(request.args.get("limit", 20))
         data = monitoring_system.get_monitor_data(monitor_name, limit=limit)
-        return jsonify({
-            'success': True,
-            'data': data,
-            'timestamp': datetime.now().isoformat()
-        })
+        return jsonify({"success": True, "data": data, "timestamp": datetime.now().isoformat()})
     except Exception as e:
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        })
+        return jsonify({"success": False, "error": str(e)})
 
 
-@app.route('/api/dashboard')
+@app.route("/api/dashboard")
 def get_dashboard_data():
     """
     获取仪表板数据
     """
     try:
         data = monitoring_system.get_dashboard_data()
-        return jsonify({
-            'success': True,
-            'data': data,
-            'timestamp': datetime.now().isoformat()
-        })
+        return jsonify({"success": True, "data": data, "timestamp": datetime.now().isoformat()})
     except Exception as e:
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        })
+        return jsonify({"success": False, "error": str(e)})
 
 
-@app.route('/api/save-stats')
+@app.route("/api/save-stats")
 def save_stats():
     """
     保存统计信息
     """
     try:
-        output_file = request.args.get('output_file', './monitoring_stats.json')
+        output_file = request.args.get("output_file", "./monitoring_stats.json")
         monitoring_system.save_stats(output_file=output_file)
-        return jsonify({
-            'success': True,
-            'message': f'统计信息已保存到 {output_file}'
-        })
+        return jsonify({"success": True, "message": f"统计信息已保存到 {output_file}"})
     except Exception as e:
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        })
+        return jsonify({"success": False, "error": str(e)})
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     # 创建templates目录
-    templates_dir = os.path.join(os.path.dirname(__file__), '../templates')
+    templates_dir = os.path.join(os.path.dirname(__file__), "../templates")
     os.makedirs(templates_dir, exist_ok=True)
-    
+
     # 创建dashboard.html模板
-    dashboard_html = '''
+    dashboard_html = """
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -584,15 +550,11 @@ if __name__ == '__main__':
     </script>
 </body>
 </html>
-    '''
-    
+    """
+
     # 写入dashboard.html模板
-    with open(os.path.join(templates_dir, 'dashboard.html'), 'w', encoding='utf-8') as f:
+    with open(os.path.join(templates_dir, "dashboard.html"), "w", encoding="utf-8") as f:
         f.write(dashboard_html)
-    
+
     # 运行Flask应用
-    app.run(
-        host='0.0.0.0',
-        port=5000,
-        debug=False
-    )
+    app.run(host="0.0.0.0", port=5000, debug=False)

@@ -14,13 +14,16 @@ import json
 DATASET_PATH = Path(__file__).parent.parent.parent / "data" / "combined_dataset"
 MULTI_FACE_DIR = Path(__file__).parent.parent.parent / "data" / "multi_face_detected"
 
+
 def get_face_detector():
     """获取人脸检测器 - 优先使用DNN，fallback到Haar"""
     dnn_model = cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
     dnn_weights = cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
 
     try:
-        cascade = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
+        cascade = cv2.CascadeClassifier(
+            cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
+        )
         if not cascade.empty():
             return ("Haar", cascade)
     except:
@@ -28,11 +31,13 @@ def get_face_detector():
 
     return None
 
+
 def detect_faces_haar(cascade, image):
     """使用Haar级联检测人脸"""
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     faces = cascade.detectMultiScale(gray, 1.1, 4, minSize=(30, 30))
     return [tuple(f) for f in faces]
+
 
 def detect_faces(image_path, detector_info):
     """检测图片中的人脸数量"""
@@ -49,16 +54,17 @@ def detect_faces(image_path, detector_info):
         print(f"Error processing {image_path}: {e}")
         return str(image_path), 0, []
 
+
 def process_dataset(dataset_path, output_path, min_faces=2, max_workers=8, sample_limit=None):
     """处理整个数据集，检测多角色图片"""
     dataset_path = Path(dataset_path)
     output_path = Path(output_path)
     output_path.mkdir(parents=True, exist_ok=True)
 
-    image_extensions = {'.jpg', '.jpeg', '.png', '.webp', '.bmp'}
+    image_extensions = {".jpg", ".jpeg", ".png", ".webp", ".bmp"}
     image_files = []
     for ext in image_extensions:
-        image_files.extend(dataset_path.rglob(f'*{ext}'))
+        image_files.extend(dataset_path.rglob(f"*{ext}"))
 
     if sample_limit:
         image_files = image_files[:sample_limit]
@@ -91,7 +97,9 @@ def process_dataset(dataset_path, output_path, min_faces=2, max_workers=8, sampl
             no_face_images.append((path, face_count))
 
         if (i + 1) % 100 == 0:
-            print(f"已处理: {i + 1}/{total} | 多脸: {len(multi_face_images)} | 单脸: {len(single_face_images)} | 无脸: {len(no_face_images)}")
+            print(
+                f"已处理: {i + 1}/{total} | 多脸: {len(multi_face_images)} | 单脸: {len(single_face_images)} | 无脸: {len(no_face_images)}"
+            )
 
     print(f"\n处理完成!")
     print(f"=" * 50)
@@ -106,7 +114,9 @@ def process_dataset(dataset_path, output_path, min_faces=2, max_workers=8, sampl
 
     if multi_face_images:
         print(f"\n正在复制多角色图片到 {multi_face_dir}...")
-        for i, (img_path, face_count) in enumerate(sorted(multi_face_images, key=lambda x: x[1], reverse=True)):
+        for i, (img_path, face_count) in enumerate(
+            sorted(multi_face_images, key=lambda x: x[1], reverse=True)
+        ):
             src = Path(img_path)
             dst = multi_face_dir / f"face_{face_count}_{src.name}"
             try:
@@ -126,7 +136,7 @@ def process_dataset(dataset_path, output_path, min_faces=2, max_workers=8, sampl
         "single_face_count": len(single_face_images),
         "no_face_count": len(no_face_images),
         "error_count": len(error_images),
-        "min_faces_threshold": min_faces
+        "min_faces_threshold": min_faces,
     }
 
     with open(output_path / "detection_summary.json", "w", encoding="utf-8") as f:
@@ -135,6 +145,7 @@ def process_dataset(dataset_path, output_path, min_faces=2, max_workers=8, sampl
     print(f"\n结果摘要已保存到 {output_path / 'detection_summary.json'}")
 
     return summary
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="多角色图片检测工具")

@@ -23,12 +23,12 @@ from .preprocessors import (
 Preprocessing = ImagePreprocessor
 
 __all__ = [
-    'ImagePreprocessor',
-    'Preprocessing',  # 向后兼容
-    'DataPreprocessor',
-    'preprocess_image',
-    'preprocess_data',
-    'get_preprocessing_transform',
-    'get_image_preprocessor',
-    'get_data_preprocessor',
+    "ImagePreprocessor",
+    "Preprocessing",  # 向后兼容
+    "DataPreprocessor",
+    "preprocess_image",
+    "preprocess_data",
+    "get_preprocessing_transform",
+    "get_image_preprocessor",
+    "get_data_preprocessor",
 ]

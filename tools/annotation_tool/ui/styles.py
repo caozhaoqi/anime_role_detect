@@ -10,21 +10,19 @@ STYLES = {
     "warning_color": "#f59e0b",
     "danger_color": "#ef4444",
     "info_color": "#3b82f6",
-    
     "bg_dark": "#0f172a",
     "bg_card": "#1e293b",
     "bg_card_hover": "#334155",
     "bg_input": "#334155",
     "bg_button": "#334155",
-    
     "border_color": "#475569",
     "border_radius": "8px",
     "border_radius_large": "12px",
-    
     "text_primary": "#f1f5f9",
     "text_secondary": "#94a3b8",
     "text_muted": "#64748b",
 }
+
 
 def get_style_sheet():
     """生成完整的样式表"""
@@ -163,6 +161,7 @@ def get_style_sheet():
     QSplitter::handle:hover {{ background-color: {STYLES['text_muted']}; }}
     """
 
+
 def get_button_style(color, hover_color=None):
     """生成按钮样式"""
     if hover_color is None:
@@ -174,6 +173,7 @@ def get_button_style(color, hover_color=None):
         }}
         QPushButton:hover {{ background-color: {hover_color}; }}
     """
+
 
 def get_gradient_button_style(start_color, end_color, hover_start=None, hover_end=None):
     """生成渐变按钮样式"""

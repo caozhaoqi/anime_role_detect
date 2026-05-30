@@ -9,61 +9,89 @@ import numpy as np
 from concurrent.futures import ThreadPoolExecutor
 import time
 
+
 class EfficientNetInference:
-    def __new__(cls, model_path=None, data_dir=None, enable_optimizations=True, enable_keypoint_detection=True):
+    def __new__(
+        cls,
+        model_path=None,
+        data_dir=None,
+        enable_optimizations=True,
+        enable_keypoint_detection=True,
+    ):
         return super(EfficientNetInference, cls).__new__(cls)
 
-    def __init__(self, model_path=None, data_dir=None, enable_optimizations=True, enable_keypoint_detection=True):
+    def __init__(
+        self,
+        model_path=None,
+        data_dir=None,
+        enable_optimizations=True,
+        enable_keypoint_detection=True,
+    ):
         # 检查是否已经初始化并且模型路径相同
-        if hasattr(self, 'initialized') and self.initialized and getattr(self, 'model_path', None) == model_path:
+        if (
+            hasattr(self, "initialized")
+            and self.initialized
+            and getattr(self, "model_path", None) == model_path
+        ):
             return
-            
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")
+
+        self.device = torch.device(
+            "cuda"
+            if torch.cuda.is_available()
+            else "mps" if torch.backends.mps.is_available() else "cpu"
+        )
         self.enable_optimizations = enable_optimizations
         self.enable_keypoint_detection = enable_keypoint_detection
         print(f"EfficientNet推理使用设备: {self.device}")
         print(f"启用优化: {self.enable_optimizations}")
         print(f"启用关键点检测: {self.enable_keypoint_detection}")
-        
+
         # 默认路径配置
         if model_path is None:
             # 尝试查找包含测试数据角色的模型
-            base_model_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..', 'models'))
-            
+            base_model_dir = os.path.abspath(
+                os.path.join(os.path.dirname(__file__), "..", "..", "..", "models")
+            )
+
             # 优先查找包含测试数据角色的模型
-            augmented_model_path = os.path.join(base_model_dir, 'augmented_training', 'mobilenet_v2', 'model_best.pth')
+            augmented_model_path = os.path.join(
+                base_model_dir, "augmented_training", "mobilenet_v2", "model_best.pth"
+            )
             if os.path.exists(augmented_model_path):
                 model_path = augmented_model_path
                 print(f"使用包含测试数据角色的模型: {model_path}")
             else:
                 # 尝试查找其他模型
                 candidates = [
-                    'character_classifier_best_improved.pth',
-                    'character_classifier_best_v2.pth',
-                    'character_classifier_best.pth'
+                    "character_classifier_best_improved.pth",
+                    "character_classifier_best_v2.pth",
+                    "character_classifier_best.pth",
                 ]
                 for cand in candidates:
                     p = os.path.join(base_model_dir, cand)
                     if os.path.exists(p):
                         model_path = p
                         break
-                
+
                 if model_path is None:
                     raise FileNotFoundError("未找到预训练模型文件")
 
         if data_dir is None:
-            data_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..', 'data', 'all_characters'))
+            data_dir = os.path.abspath(
+                os.path.join(os.path.dirname(__file__), "..", "..", "..", "data", "all_characters")
+            )
 
         self.model_path = model_path
         self.data_dir = data_dir
         self.classes = self._load_classes()
         self.model = self._load_model()
         self.transform = self._get_transforms()
-        
+
         # 初始化关键点检测器
         if self.enable_keypoint_detection:
             try:
                 from src.core.keypoint.mediapipe_keypoint_detector import MediaPipeKeypointDetector
+
                 self.keypoint_detector = MediaPipeKeypointDetector()
                 print("关键点检测器初始化成功")
             except Exception as e:
@@ -72,9 +100,9 @@ class EfficientNetInference:
                 self.keypoint_detector = None
         else:
             self.keypoint_detector = None
-        
+
         self.initialized = True
-        
+
         # 性能统计
         self.inference_times = []
 
@@ -83,8 +111,8 @@ class EfficientNetInference:
         # 1. 首先尝试从模型文件中加载class_to_idx
         try:
             checkpoint = torch.load(self.model_path, map_location=self.device)
-            if 'class_to_idx' in checkpoint:
-                class_to_idx = checkpoint['class_to_idx']
+            if "class_to_idx" in checkpoint:
+                class_to_idx = checkpoint["class_to_idx"]
                 # 转换为按索引排序的类别列表
                 idx_to_class = {v: k for k, v in class_to_idx.items()}
                 classes = [idx_to_class[i] for i in sorted(idx_to_class.keys())]
@@ -92,13 +120,14 @@ class EfficientNetInference:
                 return classes
         except Exception as e:
             print(f"从模型文件加载类别失败: {e}")
-        
+
         # 2. 尝试从class_to_idx.json文件加载（针对augmented_training模型）
         class_to_idx_path = os.path.join(os.path.dirname(self.model_path), "class_to_idx.json")
         if os.path.exists(class_to_idx_path):
             try:
                 import json
-                with open(class_to_idx_path, 'r', encoding='utf-8') as f:
+
+                with open(class_to_idx_path, "r", encoding="utf-8") as f:
                     class_to_idx = json.load(f)
                 # 转换为按索引排序的类别列表
                 idx_to_class = {int(v): k for k, v in class_to_idx.items()}
@@ -107,20 +136,27 @@ class EfficientNetInference:
                 return classes
             except Exception as e:
                 print(f"从class_to_idx.json文件加载类别失败: {e}")
-        
+
         # 3. 尝试从class_mapping.json文件加载
-        class_mapping_path = os.path.join(os.path.dirname(self.model_path), f"{os.path.basename(self.model_path).split('.')[0]}_class_mapping.json")
+        class_mapping_path = os.path.join(
+            os.path.dirname(self.model_path),
+            f"{os.path.basename(self.model_path).split('.')[0]}_class_mapping.json",
+        )
         if not os.path.exists(class_mapping_path):
             # 尝试默认的class_mapping文件
-            class_mapping_path = os.path.join(os.path.dirname(self.model_path), "character_classifier_best_improved_class_mapping.json")
-        
+            class_mapping_path = os.path.join(
+                os.path.dirname(self.model_path),
+                "character_classifier_best_improved_class_mapping.json",
+            )
+
         if os.path.exists(class_mapping_path):
             try:
                 import json
-                with open(class_mapping_path, 'r', encoding='utf-8') as f:
+
+                with open(class_mapping_path, "r", encoding="utf-8") as f:
                     mapping = json.load(f)
-                if 'class_to_idx' in mapping:
-                    class_to_idx = mapping['class_to_idx']
+                if "class_to_idx" in mapping:
+                    class_to_idx = mapping["class_to_idx"]
                     # 转换为按索引排序的类别列表
                     idx_to_class = {int(v): k for k, v in class_to_idx.items()}
                     classes = [idx_to_class[i] for i in sorted(idx_to_class.keys())]
@@ -128,21 +164,26 @@ class EfficientNetInference:
                     return classes
             except Exception as e:
                 print(f"从class_mapping.json文件加载类别失败: {e}")
-        
+
         # 4. 如果从模型文件加载失败，回退到从目录加载
         if not os.path.exists(self.data_dir):
             # 尝试从train目录加载
-            train_data_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..', 'data', 'train'))
+            train_data_dir = os.path.abspath(
+                os.path.join(os.path.dirname(__file__), "..", "..", "..", "data", "train")
+            )
             if os.path.exists(train_data_dir):
                 self.data_dir = train_data_dir
                 print(f"使用train目录作为数据目录: {self.data_dir}")
             else:
                 raise FileNotFoundError(f"数据目录不存在: {self.data_dir}")
-            
+
         # 必须与训练时一致的排序逻辑
         # 过滤掉非目录文件，如 .DS_Store
-        classes = [d for d in os.listdir(self.data_dir) 
-                  if os.path.isdir(os.path.join(self.data_dir, d)) and not d.startswith('.')]
+        classes = [
+            d
+            for d in os.listdir(self.data_dir)
+            if os.path.isdir(os.path.join(self.data_dir, d)) and not d.startswith(".")
+        ]
         classes.sort()
         print(f"从目录加载了 {len(classes)} 个类别")
         return classes
@@ -151,15 +192,15 @@ class EfficientNetInference:
         """加载模型结构和权重"""
         print(f"加载模型: {self.model_path}")
         num_classes = len(self.classes)
-        
+
         # 根据模型文件路径选择合适的模型结构
         model = None
-        if 'mobilenet_v2' in self.model_path:
+        if "mobilenet_v2" in self.model_path:
             # 使用MobileNetV2模型结构
             print("使用MobileNetV2模型结构")
             model = models.mobilenet_v2(pretrained=False)
             model.classifier[1] = nn.Linear(model.classifier[1].in_features, num_classes)
-        elif 'efficientnet_b3' in self.model_path:
+        elif "efficientnet_b3" in self.model_path:
             # 使用EfficientNetB3模型结构
             print("使用EfficientNetB3模型结构")
             model = models.efficientnet_b3(pretrained=False)
@@ -169,7 +210,7 @@ class EfficientNetInference:
                 nn.ReLU(inplace=True),
                 nn.BatchNorm1d(512),
                 nn.Dropout(p=0.1),
-                nn.Linear(512, num_classes)
+                nn.Linear(512, num_classes),
             )
         else:
             # 默认使用EfficientNetB0模型结构
@@ -181,59 +222,59 @@ class EfficientNetInference:
                 nn.ReLU(inplace=True),
                 nn.BatchNorm1d(512),
                 nn.Dropout(p=0.1),
-                nn.Linear(512, num_classes)
+                nn.Linear(512, num_classes),
             )
-        
+
         # 加载权重
         try:
             checkpoint = torch.load(self.model_path, map_location=self.device)
-            
+
             # 处理可能的不同保存格式
-            if 'model_state_dict' in checkpoint:
-                state_dict = checkpoint['model_state_dict']
-            elif 'state_dict' in checkpoint:
-                state_dict = checkpoint['state_dict']
+            if "model_state_dict" in checkpoint:
+                state_dict = checkpoint["model_state_dict"]
+            elif "state_dict" in checkpoint:
+                state_dict = checkpoint["state_dict"]
             else:
                 state_dict = checkpoint
-            
+
             # 修复键名不匹配问题
             new_state_dict = OrderedDict()
             for k, v in state_dict.items():
                 # 处理不同模型的键名前缀
-                if k.startswith('backbone.'):
-                    name = k[9:] # 移除 'backbone.'
-                elif k.startswith('module.'):
-                    name = k[7:] # 移除 'module.'
+                if k.startswith("backbone."):
+                    name = k[9:]  # 移除 'backbone.'
+                elif k.startswith("module."):
+                    name = k[7:]  # 移除 'module.'
                 else:
                     name = k
                 new_state_dict[name] = v
-                
+
             # 尝试加载权重，允许非严格匹配（如果还有其他微小差异）
             model.load_state_dict(new_state_dict, strict=False)
             print("模型权重加载成功 (已处理键名不匹配)")
-            
+
         except Exception as e:
             print(f"模型加载失败: {e}")
             raise
 
         model = model.to(self.device)
         model.eval()
-        
+
         # 应用优化
         if self.enable_optimizations:
             model = self._optimize_model(model)
-        
+
         return model
 
     def _optimize_model(self, model):
         """优化模型以提高推理速度"""
         print("应用模型优化...")
-        
+
         # 1. 启用FP16精度（如果支持）
         if torch.cuda.is_available():
             model = model.half()
             print("启用FP16精度")
-        
+
         # 2. 启用CUDA图（如果支持）
         if torch.cuda.is_available():
             try:
@@ -241,82 +282,84 @@ class EfficientNetInference:
                 sample_input = torch.randn(1, 3, 224, 224, device=self.device)
                 if torch.cuda.is_available():
                     sample_input = sample_input.half()
-                
+
                 # 预热模型
                 with torch.no_grad():
                     for _ in range(3):
                         model(sample_input)
-                
+
                 print("模型优化完成")
             except Exception as e:
                 print(f"CUDA图优化失败: {e}")
-        
+
         return model
 
     def _get_transforms(self):
         """预处理转换"""
-        return transforms.Compose([
-            transforms.Resize((224, 224)),
-            transforms.ToTensor(),
-            transforms.Normalize(
-                mean=[0.485, 0.456, 0.406],
-                std=[0.229, 0.224, 0.225]
-            )
-        ])
+        return transforms.Compose(
+            [
+                transforms.Resize((224, 224)),
+                transforms.ToTensor(),
+                transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+            ]
+        )
 
     def predict_with_tags(self, image_path, top_k=5, tags=None, return_keypoints=True):
         """使用标签辅助预测图片角色
-        
+
         Args:
             image_path: 图片路径
             top_k: 返回前k个结果
             tags: DeepDanbooru标签列表，如果为None则自动提取
             return_keypoints: 是否返回关键点信息
-            
+
         Returns:
             (best_role, best_score, results, keypoints): 最佳角色、最佳相似度、所有结果、关键点信息
         """
         start_time = time.time()
-        
+
         try:
             # 如果没有提供标签，使用DeepDanbooru提取
             if tags is None:
                 try:
                     from core.classification.deepdanbooru_inference import DeepDanbooruInference
+
                     deepdanbooru = DeepDanbooruInference()
                     tags = deepdanbooru.predict(image_path)
                     print(f"DeepDanbooru提取到 {len(tags)} 个标签")
                 except Exception as e:
                     print(f"DeepDanbooru提取标签失败: {e}")
                     tags = []
-            
+
             # 预测图片角色
-            image = Image.open(image_path).convert('RGB')
+            image = Image.open(image_path).convert("RGB")
             image_tensor = self.transform(image).unsqueeze(0).to(self.device)
-            
+
             # 检测关键点
             keypoints = None
             if self.enable_keypoint_detection and return_keypoints:
                 try:
                     keypoints = self.keypoint_detector.detect_keypoints(image)
-                    print(f"关键点检测完成: 面部={keypoints['face'] is not None}, 手部={keypoints['hands'] is not None}, 姿态={keypoints['pose'] is not None}")
+                    print(
+                        f"关键点检测完成: 面部={keypoints['face'] is not None}, 手部={keypoints['hands'] is not None}, 姿态={keypoints['pose'] is not None}"
+                    )
                 except Exception as e:
                     print(f"关键点检测失败: {e}")
                     keypoints = None
-            
+
             # 如果启用了FP16，转换输入
             if self.enable_optimizations and torch.cuda.is_available():
                 image_tensor = image_tensor.half()
-            
+
             with torch.no_grad():
                 outputs = self.model(image_tensor)
                 probabilities = torch.nn.functional.softmax(outputs, dim=1)
-                
+
             # 获取Top-K结果
             # 确保 k 不超过类别总数
             k = min(top_k, len(self.classes))
             top_prob, top_idx = torch.topk(probabilities, k)
-            
+
             results = []
             for i in range(k):
                 idx = top_idx[0][i].item()
@@ -324,97 +367,125 @@ class EfficientNetInference:
                 # 确保索引不越界
                 if idx < len(self.classes):
                     role_name = self.classes[idx]
-                    results.append({
-                        "role": role_name,
-                        "similarity": prob
-                    })
-            
+                    results.append({"role": role_name, "similarity": prob})
+
             # 如果有标签，使用标签辅助调整结果
             if tags:
                 # 简单的角色-标签映射表
                 role_tag_mapping = {
-                    'Blue Archive_Hoshino': ['hoshino', 'blue archive', 'hoshino (blue archive)'],
-                    'Blue Archive_Shiroko': ['shiroko', 'blue archive', 'shiroko (blue archive)'],
-                    'Blue Archive_Arona': ['arona', 'blue archive', 'arona (blue archive)'],
-                    'Blue Archive_Miyako': ['miyako', 'blue archive', 'miyako (blue archive)'],
-                    'Blue Archive_Hina': ['hina', 'blue archive', 'hina (blue archive)'],
-                    'Blue Archive_Yuuka': ['yuuka', 'blue archive', 'yuuka (blue archive)'],
-                    'BangDream_MyGo_Aimi Kanazawa': ['aimi kanazawa', 'kanazawa aimi', 'mygo', 'bang dream'],
-                    'BangDream_MyGo_Ritsuki': ['ritsuki', 'mygo', 'bang dream'],
-                    'BangDream_MyGo_Touko Takamatsu': ['touko takamatsu', 'takamatsu touko', 'mygo', 'bang dream'],
-                    'BangDream_MyGo_Soyo Nagasaki': ['soyo nagasaki', 'nagasaki soyo', 'mygo', 'bang dream'],
-                    'BangDream_MyGo_Sakiko Tamagawa': ['sakiko tamagawa', 'tamagawa sakiko', 'mygo', 'bang dream'],
-                    'BangDream_MyGo_Mutsumi Wakaba': ['mutsumi wakaba', 'wakaba mutsumi', 'mygo', 'bang dream'],
+                    "Blue Archive_Hoshino": ["hoshino", "blue archive", "hoshino (blue archive)"],
+                    "Blue Archive_Shiroko": ["shiroko", "blue archive", "shiroko (blue archive)"],
+                    "Blue Archive_Arona": ["arona", "blue archive", "arona (blue archive)"],
+                    "Blue Archive_Miyako": ["miyako", "blue archive", "miyako (blue archive)"],
+                    "Blue Archive_Hina": ["hina", "blue archive", "hina (blue archive)"],
+                    "Blue Archive_Yuuka": ["yuuka", "blue archive", "yuuka (blue archive)"],
+                    "BangDream_MyGo_Aimi Kanazawa": [
+                        "aimi kanazawa",
+                        "kanazawa aimi",
+                        "mygo",
+                        "bang dream",
+                    ],
+                    "BangDream_MyGo_Ritsuki": ["ritsuki", "mygo", "bang dream"],
+                    "BangDream_MyGo_Touko Takamatsu": [
+                        "touko takamatsu",
+                        "takamatsu touko",
+                        "mygo",
+                        "bang dream",
+                    ],
+                    "BangDream_MyGo_Soyo Nagasaki": [
+                        "soyo nagasaki",
+                        "nagasaki soyo",
+                        "mygo",
+                        "bang dream",
+                    ],
+                    "BangDream_MyGo_Sakiko Tamagawa": [
+                        "sakiko tamagawa",
+                        "tamagawa sakiko",
+                        "mygo",
+                        "bang dream",
+                    ],
+                    "BangDream_MyGo_Mutsumi Wakaba": [
+                        "mutsumi wakaba",
+                        "wakaba mutsumi",
+                        "mygo",
+                        "bang dream",
+                    ],
                 }
-                
+
                 # 提取标签名称
-                tag_names = [tag['tag'] for tag in tags]
-                
+                tag_names = [tag["tag"] for tag in tags]
+
                 # 调整结果分数
                 for result in results:
-                    role = result['role']
+                    role = result["role"]
                     if role in role_tag_mapping:
                         # 计算标签匹配分数
                         match_score = 0
                         for tag in role_tag_mapping[role]:
                             if any(tag in tag_name for tag_name in tag_names):
                                 match_score += 1
-                        
+
                         # 如果有匹配，提高分数
                         if match_score > 0:
                             # 归一化匹配分数
                             normalized_match = match_score / len(role_tag_mapping[role])
                             # 调整相似度分数
-                            result['similarity'] = result['similarity'] * 0.7 + normalized_match * 0.3
-                            print(f"调整 {role} 分数: {result['similarity']:.4f} (匹配 {match_score} 个标签)")
-            
+                            result["similarity"] = (
+                                result["similarity"] * 0.7 + normalized_match * 0.3
+                            )
+                            print(
+                                f"调整 {role} 分数: {result['similarity']:.4f} (匹配 {match_score} 个标签)"
+                            )
+
             # 重新排序结果
-            results.sort(key=lambda x: x['similarity'], reverse=True)
-            
+            results.sort(key=lambda x: x["similarity"], reverse=True)
+
             if not results:
                 return "Unknown", 0.0, [], keypoints
-                
+
             # 返回最佳结果和完整列表
             best_role = results[0]["role"]
             best_score = results[0]["similarity"]
-            
+
             # 记录推理时间
             inference_time = time.time() - start_time
             self.inference_times.append(inference_time)
             if len(self.inference_times) % 100 == 0:
                 avg_time = sum(self.inference_times) / len(self.inference_times)
                 print(f"平均推理时间: {avg_time:.4f}秒")
-            
+
             return best_role, best_score, results, keypoints
-            
+
         except Exception as e:
             print(f"推理失败: {e}")
             return None, 0.0, [], None
-    
+
     def predict(self, image_path, top_k=5, return_keypoints=True):
         """预测图片角色"""
-        return self.predict_with_tags(image_path, top_k, tags=None, return_keypoints=return_keypoints)
+        return self.predict_with_tags(
+            image_path, top_k, tags=None, return_keypoints=return_keypoints
+        )
 
     def predict_batch(self, image_paths, batch_size=32, top_k=5, return_keypoints=False):
         """批量预测多张图片"""
         if not image_paths:
             return []
-        
+
         start_time = time.time()
         results = []
-        
+
         try:
             # 分批处理
             for i in range(0, len(image_paths), batch_size):
-                batch_paths = image_paths[i:i+batch_size]
+                batch_paths = image_paths[i : i + batch_size]
                 batch_images = []
                 valid_indices = []
                 original_images = []  # 保存原始图像用于关键点检测
-                
+
                 # 加载和预处理批量图像
                 for j, img_path in enumerate(batch_paths):
                     try:
-                        image = Image.open(img_path).convert('RGB')
+                        image = Image.open(img_path).convert("RGB")
                         original_images.append(image)
                         image_tensor = self.transform(image)
                         batch_images.append(image_tensor)
@@ -422,44 +493,43 @@ class EfficientNetInference:
                     except Exception as e:
                         print(f"加载图像 {img_path} 失败: {e}")
                         results.append({"image_path": img_path, "error": str(e)})
-                
+
                 if not batch_images:
                     continue
-                
+
                 # 创建批量张量
                 batch_tensor = torch.stack(batch_images).to(self.device)
-                
+
                 # 如果启用了FP16，转换输入
                 if self.enable_optimizations and torch.cuda.is_available():
                     batch_tensor = batch_tensor.half()
-                
+
                 # 批量推理
                 with torch.no_grad():
                     outputs = self.model(batch_tensor)
                     probabilities = torch.nn.functional.softmax(outputs, dim=1)
-                    
+
                     # 获取Top-K结果
                     k = min(top_k, len(self.classes))
                     top_probs, top_idxs = torch.topk(probabilities, k)
-                
+
                 # 处理批量结果
-                for j, (img_path, probs, idxs, original_image) in enumerate(zip(
-                    [batch_paths[idx] for idx in valid_indices], 
-                    top_probs, 
-                    top_idxs,
-                    [original_images[idx] for idx in valid_indices]
-                )):
+                for j, (img_path, probs, idxs, original_image) in enumerate(
+                    zip(
+                        [batch_paths[idx] for idx in valid_indices],
+                        top_probs,
+                        top_idxs,
+                        [original_images[idx] for idx in valid_indices],
+                    )
+                ):
                     img_results = []
                     for prob, idx in zip(probs, idxs):
                         idx = idx.item()
                         prob = prob.item()
                         if idx < len(self.classes):
                             role_name = self.classes[idx]
-                            img_results.append({
-                                "role": role_name,
-                                "similarity": prob
-                            })
-                    
+                            img_results.append({"role": role_name, "similarity": prob})
+
                     # 检测关键点
                     keypoints = None
                     if self.enable_keypoint_detection and return_keypoints:
@@ -468,7 +538,7 @@ class EfficientNetInference:
                         except Exception as e:
                             print(f"关键点检测失败 ({img_path}): {e}")
                             keypoints = None
-                    
+
                     if img_results:
                         best_role = img_results[0]["role"]
                         best_score = img_results[0]["similarity"]
@@ -476,7 +546,7 @@ class EfficientNetInference:
                             "image_path": img_path,
                             "best_role": best_role,
                             "best_score": best_score,
-                            "all_results": img_results
+                            "all_results": img_results,
                         }
                         if return_keypoints:
                             result["keypoints"] = keypoints
@@ -486,19 +556,19 @@ class EfficientNetInference:
                             "image_path": img_path,
                             "best_role": "Unknown",
                             "best_score": 0.0,
-                            "all_results": []
+                            "all_results": [],
                         }
                         if return_keypoints:
                             result["keypoints"] = keypoints
                         results.append(result)
-            
+
             # 计算批量处理时间
             total_time = time.time() - start_time
             avg_time_per_image = total_time / len(image_paths)
             print(f"批量处理完成: {len(image_paths)}张图像，平均每张 {avg_time_per_image:.4f}秒")
-            
+
             return results
-            
+
         except Exception as e:
             print(f"批量推理失败: {e}")
             return []
@@ -507,16 +577,19 @@ class EfficientNetInference:
         """并行预测多张图片"""
         if not image_paths:
             return []
-        
+
         start_time = time.time()
         results = []
-        
+
         try:
             # 使用线程池并行处理
             with ThreadPoolExecutor(max_workers=num_workers) as executor:
                 # 提交所有预测任务
-                future_to_path = {executor.submit(self.predict, path, top_k, return_keypoints): path for path in image_paths}
-                
+                future_to_path = {
+                    executor.submit(self.predict, path, top_k, return_keypoints): path
+                    for path in image_paths
+                }
+
                 # 收集结果
                 for future in future_to_path:
                     img_path = future_to_path[future]
@@ -525,30 +598,27 @@ class EfficientNetInference:
                             best_role, best_score, all_results, keypoints = future.result()
                         else:
                             best_role, best_score, all_results, keypoints = future.result()
-                        
+
                         result = {
                             "image_path": img_path,
                             "best_role": best_role,
                             "best_score": best_score,
-                            "all_results": all_results
+                            "all_results": all_results,
                         }
                         if return_keypoints:
                             result["keypoints"] = keypoints
                         results.append(result)
                     except Exception as e:
                         print(f"处理图像 {img_path} 失败: {e}")
-                        results.append({
-                            "image_path": img_path,
-                            "error": str(e)
-                        })
-            
+                        results.append({"image_path": img_path, "error": str(e)})
+
             # 计算并行处理时间
             total_time = time.time() - start_time
             avg_time_per_image = total_time / len(image_paths)
             print(f"并行处理完成: {len(image_paths)}张图像，平均每张 {avg_time_per_image:.4f}秒")
-            
+
             return results
-            
+
         except Exception as e:
             print(f"并行推理失败: {e}")
             return []
@@ -556,45 +626,43 @@ class EfficientNetInference:
     def get_performance_stats(self):
         """获取性能统计信息"""
         if not self.inference_times:
-            return {
-                "total_inferences": 0,
-                "average_time": 0.0,
-                "min_time": 0.0,
-                "max_time": 0.0
-            }
-        
+            return {"total_inferences": 0, "average_time": 0.0, "min_time": 0.0, "max_time": 0.0}
+
         return {
             "total_inferences": len(self.inference_times),
             "average_time": sum(self.inference_times) / len(self.inference_times),
             "min_time": min(self.inference_times),
-            "max_time": max(self.inference_times)
+            "max_time": max(self.inference_times),
         }
 
     def clear_stats(self):
         """清除性能统计信息"""
         self.inference_times = []
         print("性能统计信息已清除")
-    
+
     def close(self):
         """关闭检测器"""
-        if hasattr(self, 'keypoint_detector') and self.keypoint_detector:
+        if hasattr(self, "keypoint_detector") and self.keypoint_detector:
             try:
                 self.keypoint_detector.close()
                 print("关键点检测器已关闭")
             except Exception as e:
                 print(f"关闭关键点检测器失败: {e}")
 
+
 if __name__ == "__main__":
     # 测试代码
     try:
         infer = EfficientNetInference()
         print("模型初始化成功")
-        
+
         # 测试预测功能（带关键点检测）
         test_image = "test_image.jpg"
         if os.path.exists(test_image):
             print(f"测试预测: {test_image}")
-            best_role, best_score, results, keypoints = infer.predict(test_image, return_keypoints=True)
+            best_role, best_score, results, keypoints = infer.predict(
+                test_image, return_keypoints=True
+            )
             print(f"预测结果: {best_role} (相似度: {best_score:.4f})")
             print(f"关键点检测: {keypoints is not None}")
             if keypoints:
@@ -603,11 +671,12 @@ if __name__ == "__main__":
                 print(f"姿态检测: {keypoints['pose'] is not None}")
         else:
             print(f"测试图像不存在: {test_image}")
-            
+
         # 关闭检测器
         infer.close()
-        
+
     except Exception as e:
         print(f"初始化失败: {e}")
         import traceback
+
         traceback.print_exc()

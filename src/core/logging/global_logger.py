@@ -9,23 +9,24 @@ from datetime import datetime
 from pathlib import Path
 from loguru import logger
 
+
 class GlobalLogger:
     """
     全局日志系统类
     统一管理所有类型的日志
     """
-    
+
     def __init__(self, log_dir: str = "logs"):
         """
         初始化全局日志系统
-        
+
         Args:
             log_dir: 日志根目录
         """
         self.log_dir = Path(log_dir)
         self._setup_directories()
         self._configure_logger()
-        
+
     def _setup_directories(self):
         """
         创建日志目录结构
@@ -41,10 +42,10 @@ class GlobalLogger:
             self.system_log_dir,
             self.inference_log_dir,
             self.training_log_dir,
-            self.error_log_dir
+            self.error_log_dir,
         ]:
             dir_path.mkdir(parents=True, exist_ok=True)
-        
+
     def _configure_logger(self):
         """
         配置loguru日志系统
@@ -61,7 +62,7 @@ class GlobalLogger:
             compression="zip",
             level="DEBUG",
             format=log_format,
-            enqueue=True
+            enqueue=True,
         )
 
         system_log_file = str(self.system_log_dir / "system_{time:YYYY-MM-DD}.log")
@@ -71,9 +72,9 @@ class GlobalLogger:
             retention="7 days",
             compression="zip",
             level="INFO",
-            format=log_format
+            format=log_format,
         )
-        
+
         # 推理日志配置
         inference_log_file = str(self.inference_log_dir / "inference_{time:YYYY-MM-DD}.log")
         logger.add(
@@ -82,9 +83,9 @@ class GlobalLogger:
             retention="14 days",
             compression="zip",
             level="INFO",
-            format=log_format
+            format=log_format,
         )
-        
+
         # 训练日志配置
         training_log_file = str(self.training_log_dir / "training_{time:YYYY-MM-DD}.log")
         logger.add(
@@ -93,9 +94,9 @@ class GlobalLogger:
             retention="30 days",
             compression="zip",
             level="INFO",
-            format=log_format
+            format=log_format,
         )
-        
+
         # 错误日志配置
         error_log_file = str(self.error_log_dir / "error_{time:YYYY-MM-DD}.log")
         logger.add(
@@ -104,32 +105,28 @@ class GlobalLogger:
             retention="30 days",
             compression="zip",
             level="ERROR",
-            format=log_format
+            format=log_format,
         )
-        
+
         # 控制台输出配置
-        logger.add(
-            sys.stdout,
-            level="INFO",
-            format=log_format
-        )
-        
+        logger.add(sys.stdout, level="INFO", format=log_format)
+
     def get_logger(self, name: str = "global"):
         """
         获取日志记录器
-        
+
         Args:
             name: 记录器名称
-            
+
         Returns:
             loguru.Logger: 日志记录器
         """
         return logger.bind(name=name)
-    
+
     def log_system(self, message: str, level: str = "info", **kwargs):
         """
         记录系统日志
-        
+
         Args:
             message: 日志消息
             level: 日志级别
@@ -137,11 +134,11 @@ class GlobalLogger:
         """
         log_method = getattr(logger.bind(system=True), level.lower())
         log_method(message, **kwargs)
-    
+
     def log_inference(self, message: str, level: str = "info", **kwargs):
         """
         记录推理日志
-        
+
         Args:
             message: 日志消息
             level: 日志级别
@@ -149,11 +146,11 @@ class GlobalLogger:
         """
         log_method = getattr(logger.bind(inference=True), level.lower())
         log_method(message, **kwargs)
-    
+
     def log_training(self, message: str, level: str = "info", **kwargs):
         """
         记录训练日志
-        
+
         Args:
             message: 日志消息
             level: 日志级别
@@ -161,11 +158,11 @@ class GlobalLogger:
         """
         log_method = getattr(logger.bind(training=True), level.lower())
         log_method(message, **kwargs)
-    
+
     def log_error(self, message: str, level: str = "error", **kwargs):
         """
         记录错误日志
-        
+
         Args:
             message: 日志消息
             level: 日志级别
@@ -174,26 +171,29 @@ class GlobalLogger:
         log_method = getattr(logger.bind(error=True), level.lower())
         log_method(message, **kwargs)
 
+
 # 创建全局日志实例
 global_logger = GlobalLogger()
+
 
 # 便捷函数
 def get_logger(name: str = "global"):
     """
     获取日志记录器
-    
+
     Args:
         name: 记录器名称
-        
+
     Returns:
         loguru.Logger: 日志记录器
     """
     return global_logger.get_logger(name)
 
+
 def log_system(message: str, level: str = "info", **kwargs):
     """
     记录系统日志
-    
+
     Args:
         message: 日志消息
         level: 日志级别
@@ -201,10 +201,11 @@ def log_system(message: str, level: str = "info", **kwargs):
     """
     global_logger.log_system(message, level, **kwargs)
 
+
 def log_inference(message: str, level: str = "info", **kwargs):
     """
     记录推理日志
-    
+
     Args:
         message: 日志消息
         level: 日志级别
@@ -212,16 +213,18 @@ def log_inference(message: str, level: str = "info", **kwargs):
     """
     global_logger.log_inference(message, level, **kwargs)
 
+
 def log_training(message: str, level: str = "info", **kwargs):
     """
     记录训练日志
-    
+
     Args:
         message: 日志消息
         level: 日志级别
         **kwargs: 额外参数
     """
     global_logger.log_training(message, level, **kwargs)
+
 
 def log_error(message: str, level: str = "error", **kwargs):
     """
@@ -233,6 +236,7 @@ def log_error(message: str, level: str = "error", **kwargs):
         **kwargs: 额外参数
     """
     global_logger.log_error(message, level, **kwargs)
+
 
 def get_unified_log(tail: int = 100) -> str:
     """
@@ -247,11 +251,12 @@ def get_unified_log(tail: int = 100) -> str:
     unified_log_file = global_logger.log_dir / "unified.log"
     if unified_log_file.exists():
         try:
-            lines = unified_log_file.read_text(encoding='utf-8').split('\n')
-            return '\n'.join(lines[-tail:])
+            lines = unified_log_file.read_text(encoding="utf-8").split("\n")
+            return "\n".join(lines[-tail:])
         except Exception as e:
             return f"读取日志失败: {e}"
     return "暂无日志"
+
 
 def tail_unified_log(lines: int = 50) -> str:
     """
@@ -265,6 +270,7 @@ def tail_unified_log(lines: int = 50) -> str:
     """
     return get_unified_log(tail=lines)
 
+
 def get_log_info() -> dict:
     """
     获取日志系统信息
@@ -273,11 +279,7 @@ def get_log_info() -> dict:
         dict: 日志目录和文件信息
     """
     log_dir = global_logger.log_dir
-    info = {
-        "log_dir": str(log_dir),
-        "unified_log": str(log_dir / "unified.log"),
-        "files": {}
-    }
+    info = {"log_dir": str(log_dir), "unified_log": str(log_dir / "unified.log"), "files": {}}
     for subdir in ["system", "inference", "training", "error"]:
         path = log_dir / subdir
         if path.exists():

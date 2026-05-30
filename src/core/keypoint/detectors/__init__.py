@@ -10,8 +10,8 @@ from .mediapipe_detector import MediaPipeKeypointDetector
 from .keypoint_utils import detect_keypoints, draw_keypoints, get_keypoint_distance
 
 __all__ = [
-    'MediaPipeKeypointDetector',
-    'detect_keypoints',
-    'draw_keypoints',
-    'get_keypoint_distance',
+    "MediaPipeKeypointDetector",
+    "detect_keypoints",
+    "draw_keypoints",
+    "get_keypoint_distance",
 ]

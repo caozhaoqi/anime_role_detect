@@ -7,13 +7,19 @@
 """
 
 from .general_classifier import GeneralClassification
-from .classifier_utils import get_classifier, classify_image, classify_pil_image, classify_image_ensemble, build_index_from_directory
+from .classifier_utils import (
+    get_classifier,
+    classify_image,
+    classify_pil_image,
+    classify_image_ensemble,
+    build_index_from_directory,
+)
 
 __all__ = [
-    'GeneralClassification',
-    'get_classifier',
-    'classify_image',
-    'classify_pil_image',
-    'classify_image_ensemble',
-    'build_index_from_directory',
+    "GeneralClassification",
+    "get_classifier",
+    "classify_image",
+    "classify_pil_image",
+    "classify_image_ensemble",
+    "build_index_from_directory",
 ]

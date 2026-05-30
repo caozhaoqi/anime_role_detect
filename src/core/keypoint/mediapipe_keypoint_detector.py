@@ -21,12 +21,12 @@ from .detectors import (
 )
 
 __all__ = [
-    'MediaPipeKeypointDetector',
-    'detect_keypoints',
-    'draw_keypoints',
-    'get_keypoint_distance',
-    'get_keypoint_by_id',
-    'calculate_angle',
-    'get_detector',
-    'release_detector',
+    "MediaPipeKeypointDetector",
+    "detect_keypoints",
+    "draw_keypoints",
+    "get_keypoint_distance",
+    "get_keypoint_by_id",
+    "calculate_angle",
+    "get_detector",
+    "release_detector",
 ]

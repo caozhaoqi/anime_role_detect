@@ -29,7 +29,7 @@ def test_api_health():
     logger.info("=" * 60)
     logger.info("测试1: API健康检查")
     logger.info("=" * 60)
-    
+
     try:
         response = requests.get(f"{API_BASE_URL}/api/health", timeout=10)
         if response.status_code == 200:
@@ -49,7 +49,7 @@ def test_api_info():
     logger.info("\n" + "=" * 60)
     logger.info("测试2: API信息")
     logger.info("=" * 60)
-    
+
     try:
         response = requests.get(f"{API_BASE_URL}/api/info", timeout=10)
         if response.status_code == 200:
@@ -72,13 +72,9 @@ def test_monitoring_endpoints():
     logger.info("\n" + "=" * 60)
     logger.info("测试3: 监控端点")
     logger.info("=" * 60)
-    
-    endpoints = [
-        "/api/monitoring/status",
-        "/api/monitoring/memory",
-        "/api/monitoring/network"
-    ]
-    
+
+    endpoints = ["/api/monitoring/status", "/api/monitoring/memory", "/api/monitoring/network"]
+
     results = {}
     for endpoint in endpoints:
         try:
@@ -93,7 +89,7 @@ def test_monitoring_endpoints():
         except Exception as e:
             logger.warning(f"⚠ {endpoint}: 异常 - {e}")
             results[endpoint] = False
-    
+
     return all(results.values()), results
 
 
@@ -102,27 +98,27 @@ def test_diagnostics_integration():
     logger.info("\n" + "=" * 60)
     logger.info("测试4: 诊断系统集成")
     logger.info("=" * 60)
-    
+
     try:
         # 测试设备检测
         device = CrossPlatformDiagnostics.get_device_info()
         logger.info(f"✓ 设备检测: {device}")
-        
+
         # 测试内存快照
         snapshot = CrossPlatformDiagnostics.dump_memory_snapshot()
         logger.info(f"✓ 内存快照生成成功")
         logger.info(f"  平台: {snapshot.get('platform', 'N/A')}")
         logger.info(f"  CPU使用率: {snapshot.get('cpu_percent', 'N/A')}%")
         logger.info(f"  内存使用: {snapshot.get('ram_used_gb', 'N/A'):.2f} GB")
-        
+
         # 测试内存阈值检查
         is_high = CrossPlatformDiagnostics.check_memory_threshold(95.0)
         logger.info(f"✓ 内存阈值检查: {'超过阈值' if is_high else '正常'}")
-        
+
         # 测试缓存清理
         CrossPlatformDiagnostics.clear_cache()
         logger.info(f"✓ 缓存清理成功")
-        
+
         return True, snapshot
     except Exception as e:
         logger.error(f"✗ 诊断系统集成测试失败: {e}")
@@ -134,31 +130,26 @@ def test_image_classification():
     logger.info("\n" + "=" * 60)
     logger.info("测试5: 图像分类功能")
     logger.info("=" * 60)
-    
+
     # 创建测试图像
     try:
         from PIL import Image
         import io
-        
+
         # 创建测试图像
-        img = Image.new('RGB', (224, 224), color='red')
+        img = Image.new("RGB", (224, 224), color="red")
         img_bytes = io.BytesIO()
-        img.save(img_bytes, format='PNG')
+        img.save(img_bytes, format="PNG")
         img_bytes.seek(0)
-        
+
         # 发送分类请求
-        files = {'file': ('test.png', img_bytes, 'image/png')}
-        data = {'use_model': 'false', 'use_attributes': 'true', 'model_name': 'default'}
-        
+        files = {"file": ("test.png", img_bytes, "image/png")}
+        data = {"use_model": "false", "use_attributes": "true", "model_name": "default"}
+
         start_time = time.time()
-        response = requests.post(
-            f"{API_BASE_URL}/api/classify",
-            files=files,
-            data=data,
-            timeout=60
-        )
+        response = requests.post(f"{API_BASE_URL}/api/classify", files=files, data=data, timeout=60)
         elapsed_time = time.time() - start_time
-        
+
         if response.status_code == 200:
             result = response.json()
             logger.info(f"✓ 图像分类成功")
@@ -180,33 +171,33 @@ def test_batch_classification():
     logger.info("\n" + "=" * 60)
     logger.info("测试6: 批量分类功能")
     logger.info("=" * 60)
-    
+
     try:
         from PIL import Image
         import io
-        
+
         # 创建多个测试图像
         files = []
         for i in range(3):
-            img = Image.new('RGB', (224, 224), color=['red', 'green', 'blue'][i])
+            img = Image.new("RGB", (224, 224), color=["red", "green", "blue"][i])
             img_bytes = io.BytesIO()
-            img.save(img_bytes, format='PNG')
+            img.save(img_bytes, format="PNG")
             img_bytes.seek(0)
-            files.append(('files', (f'test_{i}.png', img_bytes, 'image/png')))
-        
+            files.append(("files", (f"test_{i}.png", img_bytes, "image/png")))
+
         # 发送批量分类请求
         start_time = time.time()
         response = requests.post(
             f"{API_BASE_URL}/api/classify/batch",
             files=files,
-            data={'model_name': 'default'},
-            timeout=120
+            data={"model_name": "default"},
+            timeout=120,
         )
         elapsed_time = time.time() - start_time
-        
+
         if response.status_code == 200:
             result = response.json()
-            results = result.get('results', [])
+            results = result.get("results", [])
             logger.info(f"✓ 批量分类成功")
             logger.info(f"  响应时间: {elapsed_time:.2f}秒")
             logger.info(f"  处理图像数: {len(results)}")
@@ -224,53 +215,46 @@ def test_performance():
     logger.info("\n" + "=" * 60)
     logger.info("测试7: 性能测试")
     logger.info("=" * 60)
-    
+
     try:
         from PIL import Image
         import io
-        
+
         # 创建测试图像
-        img = Image.new('RGB', (224, 224), color='red')
+        img = Image.new("RGB", (224, 224), color="red")
         img_bytes = io.BytesIO()
-        img.save(img_bytes, format='PNG')
-        
+        img.save(img_bytes, format="PNG")
+
         # 进行多次请求测试
         response_times = []
         for i in range(5):
             img_bytes.seek(0)
-            files = {'file': ('test.png', img_bytes, 'image/png')}
-            data = {'use_model': 'false', 'use_attributes': 'true', 'model_name': 'default'}
-            
+            files = {"file": ("test.png", img_bytes, "image/png")}
+            data = {"use_model": "false", "use_attributes": "true", "model_name": "default"}
+
             start_time = time.time()
             response = requests.post(
-                f"{API_BASE_URL}/api/classify",
-                files=files,
-                data=data,
-                timeout=60
+                f"{API_BASE_URL}/api/classify", files=files, data=data, timeout=60
             )
             elapsed_time = time.time() - start_time
-            
+
             if response.status_code == 200:
                 response_times.append(elapsed_time)
                 logger.info(f"  请求 {i+1}: {elapsed_time:.2f}秒")
             else:
                 logger.warning(f"  请求 {i+1}: 失败")
-        
+
         if response_times:
             avg_time = sum(response_times) / len(response_times)
             min_time = min(response_times)
             max_time = max(response_times)
-            
+
             logger.info(f"✓ 性能测试完成")
             logger.info(f"  平均响应时间: {avg_time:.2f}秒")
             logger.info(f"  最小响应时间: {min_time:.2f}秒")
             logger.info(f"  最大响应时间: {max_time:.2f}秒")
-            
-            return True, {
-                'avg_time': avg_time,
-                'min_time': min_time,
-                'max_time': max_time
-            }
+
+            return True, {"avg_time": avg_time, "min_time": min_time, "max_time": max_time}
         else:
             logger.error(f"✗ 性能测试失败: 无成功请求")
             return False, None
@@ -287,7 +271,7 @@ def run_all_tests():
     logger.info(f"测试时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     logger.info(f"API地址: {API_BASE_URL}")
     logger.info("")
-    
+
     tests = [
         ("API健康检查", test_api_health),
         ("API信息", test_api_info),
@@ -295,67 +279,61 @@ def run_all_tests():
         ("诊断系统集成", test_diagnostics_integration),
         ("图像分类功能", test_image_classification),
         ("批量分类功能", test_batch_classification),
-        ("性能测试", test_performance)
+        ("性能测试", test_performance),
     ]
-    
+
     results = {}
     for test_name, test_func in tests:
         try:
             success, data = test_func()
-            results[test_name] = {
-                'success': success,
-                'data': data
-            }
+            results[test_name] = {"success": success, "data": data}
         except Exception as e:
             logger.error(f"测试 '{test_name}' 执行失败: {e}")
-            results[test_name] = {
-                'success': False,
-                'error': str(e)
-            }
-    
+            results[test_name] = {"success": False, "error": str(e)}
+
     # 生成测试报告
     logger.info("\n" + "=" * 60)
     logger.info("测试结果汇总")
     logger.info("=" * 60)
-    
+
     passed = 0
     failed = 0
-    
+
     for test_name, result in results.items():
-        status = "✓ 通过" if result['success'] else "✗ 失败"
+        status = "✓ 通过" if result["success"] else "✗ 失败"
         logger.info(f"{test_name}: {status}")
-        if result['success']:
+        if result["success"]:
             passed += 1
         else:
             failed += 1
-    
+
     logger.info(f"\n总计: {passed}/{len(results)} 测试通过")
-    
+
     if failed == 0:
         logger.info("🎉 所有测试通过！系统运行正常！")
     else:
         logger.warning(f"⚠️ {failed} 个测试失败")
-    
+
     # 保存测试结果
     test_report = {
-        'test_time': datetime.now().isoformat(),
-        'api_url': API_BASE_URL,
-        'results': results,
-        'summary': {
-            'total': len(results),
-            'passed': passed,
-            'failed': failed,
-            'pass_rate': f"{passed/len(results)*100:.1f}%"
-        }
+        "test_time": datetime.now().isoformat(),
+        "api_url": API_BASE_URL,
+        "results": results,
+        "summary": {
+            "total": len(results),
+            "passed": passed,
+            "failed": failed,
+            "pass_rate": f"{passed/len(results)*100:.1f}%",
+        },
     }
-    
+
     report_file = project_root / "logs" / "full_system_test_report.json"
     report_file.parent.mkdir(exist_ok=True)
-    with open(report_file, 'w', encoding='utf-8') as f:
+    with open(report_file, "w", encoding="utf-8") as f:
         json.dump(test_report, f, indent=2, ensure_ascii=False)
-    
+
     logger.info(f"\n测试报告已保存: {report_file}")
-    
+
     return failed == 0
 
 

@@ -5,7 +5,17 @@ ARD SkillHub 数据库模型
 使用 SQLite + SQLAlchemy 实现数据持久化
 """
 
-from sqlalchemy import create_engine, Column, Integer, String, Float, Text, DateTime, Boolean, ForeignKey
+from sqlalchemy import (
+    create_engine,
+    Column,
+    Integer,
+    String,
+    Float,
+    Text,
+    DateTime,
+    Boolean,
+    ForeignKey,
+)
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
 from datetime import datetime
@@ -22,10 +32,12 @@ Base = declarative_base()
 
 # ==================== 模型定义 ====================
 
+
 class User(Base):
     """用户模型"""
+
     __tablename__ = "users"
-    
+
     id = Column(Integer, primary_key=True, index=True)
     username = Column(String, unique=True, index=True, nullable=False)
     password = Column(String, nullable=False)
@@ -35,15 +47,17 @@ class User(Base):
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.now)
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
-    
+
     # 关联关系
     reviews = relationship("Review", back_populates="user")
     favorites = relationship("Favorite", back_populates="user")
 
+
 class Skill(Base):
     """技能模型"""
+
     __tablename__ = "skills"
-    
+
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, unique=True, index=True, nullable=False)
     skill_id = Column(String, unique=True, index=True, nullable=False)  # 唯一标识
@@ -65,72 +79,82 @@ class Skill(Base):
     runtime = Column(String, default="python")  # 运行时环境
     created_at = Column(DateTime, default=datetime.now)
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
-    
+
     # 关联关系
     versions = relationship("SkillVersion", back_populates="skill")
     reviews = relationship("Review", back_populates="skill")
     favorites = relationship("Favorite", back_populates="skill")
     screenshots = relationship("Screenshot", back_populates="skill")
 
+
 class SkillVersion(Base):
     """技能版本模型"""
+
     __tablename__ = "skill_versions"
-    
+
     id = Column(Integer, primary_key=True, index=True)
     skill_id = Column(Integer, ForeignKey("skills.id"))
     version = Column(String, nullable=False)
     release_date = Column(DateTime)
     changelog = Column(Text)
     file_path = Column(String)
-    
+
     # 关联关系
     skill = relationship("Skill", back_populates="versions")
 
+
 class Review(Base):
     """评论模型"""
+
     __tablename__ = "reviews"
-    
+
     id = Column(Integer, primary_key=True, index=True)
     skill_id = Column(Integer, ForeignKey("skills.id"))
     user_id = Column(Integer, ForeignKey("users.id"))
     rating = Column(Integer, nullable=False)
     comment = Column(Text)
     created_at = Column(DateTime, default=datetime.now)
-    
+
     # 关联关系
     skill = relationship("Skill", back_populates="reviews")
     user = relationship("User", back_populates="reviews")
 
+
 class Favorite(Base):
     """收藏模型"""
+
     __tablename__ = "favorites"
-    
+
     id = Column(Integer, primary_key=True, index=True)
     skill_id = Column(Integer, ForeignKey("skills.id"))
     user_id = Column(Integer, ForeignKey("users.id"))
     created_at = Column(DateTime, default=datetime.now)
-    
+
     # 关联关系
     skill = relationship("Skill", back_populates="favorites")
     user = relationship("User", back_populates="favorites")
 
+
 class Screenshot(Base):
     """截图模型"""
+
     __tablename__ = "screenshots"
-    
+
     id = Column(Integer, primary_key=True, index=True)
     skill_id = Column(Integer, ForeignKey("skills.id"))
     url = Column(String, nullable=False)
     caption = Column(String)
     added_at = Column(DateTime, default=datetime.now)
-    
+
     # 关联关系
     skill = relationship("Skill", back_populates="screenshots")
 
+
 class InstallHistory(Base):
     """安装历史模型"""
+
     __tablename__ = "install_history"
-    
+
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"))
     skill_id = Column(Integer, ForeignKey("skills.id"))
@@ -138,10 +162,12 @@ class InstallHistory(Base):
     action = Column(String)  # install, update, rollback
     installed_at = Column(DateTime, default=datetime.now)
 
+
 class Notification(Base):
     """通知模型"""
+
     __tablename__ = "notifications"
-    
+
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"))
     skill_id = Column(Integer, ForeignKey("skills.id"))
@@ -150,11 +176,14 @@ class Notification(Base):
     read = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.now)
 
+
 # ==================== 初始化函数 ====================
+
 
 def init_db():
     """初始化数据库表"""
     Base.metadata.create_all(bind=engine)
+
 
 def get_db():
     """获取数据库会话"""
@@ -163,6 +192,7 @@ def get_db():
         yield db
     finally:
         db.close()
+
 
 # ==================== 初始数据 ====================
 
@@ -179,7 +209,7 @@ INITIAL_SKILLS = [
         "rating": 4.5,
         "review_count": 15,
         "tags": ["anime", "data", "collector"],
-        "dependencies": ["requests", "beautifulsoup4"]
+        "dependencies": ["requests", "beautifulsoup4"],
     },
     {
         "name": "ARD Cleaner",
@@ -193,7 +223,7 @@ INITIAL_SKILLS = [
         "rating": 4.3,
         "review_count": 12,
         "tags": ["data", "cleaning", "preprocessing"],
-        "dependencies": ["pandas", "numpy"]
+        "dependencies": ["pandas", "numpy"],
     },
     {
         "name": "ARD Classifier",
@@ -207,7 +237,7 @@ INITIAL_SKILLS = [
         "rating": 4.8,
         "review_count": 28,
         "tags": ["machine-learning", "classification", "ai"],
-        "dependencies": ["scikit-learn", "tensorflow"]
+        "dependencies": ["scikit-learn", "tensorflow"],
     },
     {
         "name": "ARD Trainer",
@@ -221,7 +251,7 @@ INITIAL_SKILLS = [
         "rating": 4.2,
         "review_count": 8,
         "tags": ["training", "machine-learning", "model"],
-        "dependencies": ["tensorflow", "pytorch"]
+        "dependencies": ["tensorflow", "pytorch"],
     },
     {
         "name": "ARD Search",
@@ -235,7 +265,7 @@ INITIAL_SKILLS = [
         "rating": 4.6,
         "review_count": 20,
         "tags": ["search", "elasticsearch", "fulltext"],
-        "dependencies": ["elasticsearch", "whoosh"]
+        "dependencies": ["elasticsearch", "whoosh"],
     },
     {
         "name": "ARD Analyzer",
@@ -249,7 +279,7 @@ INITIAL_SKILLS = [
         "rating": 4.4,
         "review_count": 11,
         "tags": ["analysis", "visualization", "report"],
-        "dependencies": ["matplotlib", "seaborn", "plotly"]
+        "dependencies": ["matplotlib", "seaborn", "plotly"],
     },
     {
         "name": "ARD Utility",
@@ -263,8 +293,8 @@ INITIAL_SKILLS = [
         "rating": 4.7,
         "review_count": 22,
         "tags": ["utility", "tools", "helpers"],
-        "dependencies": []
-    }
+        "dependencies": [],
+    },
 ]
 
 INITIAL_USERS = [
@@ -273,44 +303,46 @@ INITIAL_USERS = [
         "plain_password": "admin123",
         "email": "admin@example.com",
         "role": "admin",
-        "is_active": True
+        "is_active": True,
     },
     {
         "username": "developer",
         "plain_password": "developer123",
         "email": "dev@example.com",
         "role": "developer",
-        "is_active": True
+        "is_active": True,
     },
     {
         "username": "user",
         "plain_password": "user123",
         "email": "user@example.com",
         "role": "user",
-        "is_active": True
-    }
+        "is_active": True,
+    },
 ]
+
 
 def insert_initial_data(db):
     """插入初始数据"""
     import json
-    
+
     # 检查是否已有数据
     if db.query(Skill).first():
         return  # 已有数据，跳过初始化
-    
+
     # 插入用户
     for user_data in INITIAL_USERS:
         plain_password = user_data.pop("plain_password", None)
         if plain_password:
             import hashlib
             import os
+
             salt = hashlib.md5(os.urandom(16)).hexdigest()
             hashed = hashlib.sha256(f"{plain_password}{salt}".encode()).hexdigest()
             user_data["password"] = f"sha256${salt}${hashed}"
         user = User(**user_data)
         db.add(user)
-    
+
     # 插入技能
     for skill_data in INITIAL_SKILLS:
         skill = Skill(
@@ -325,16 +357,17 @@ def insert_initial_data(db):
             rating=skill_data["rating"],
             review_count=skill_data["review_count"],
             tags=json.dumps(skill_data["tags"]),
-            dependencies=json.dumps(skill_data["dependencies"])
+            dependencies=json.dumps(skill_data["dependencies"]),
         )
         db.add(skill)
-    
+
     db.commit()
+
 
 if __name__ == "__main__":
     # 创建表
     init_db()
-    
+
     # 插入初始数据
     db = next(get_db())
     insert_initial_data(db)

@@ -1,10 +1,11 @@
 import os
 from typing import Optional
 
+
 class ServiceConfig:
     """服务配置中心 - 统一管理所有服务的配置"""
 
-    _instance: Optional['ServiceConfig'] = None
+    _instance: Optional["ServiceConfig"] = None
     _initialized: bool = False
 
     def __new__(cls):
@@ -18,61 +19,67 @@ class ServiceConfig:
 
         self._initialized = True
 
-        self.API_HOST = os.environ.get('API_HOST', '0.0.0.0')
-        self.API_PORT = int(os.environ.get('API_PORT', '8000'))
+        self.API_HOST = os.environ.get("API_HOST", "0.0.0.0")
+        self.API_PORT = int(os.environ.get("API_PORT", "8000"))
 
-        self.MODEL_SERVICE_HOST = os.environ.get('MODEL_SERVICE_HOST', 'localhost')
-        self.MODEL_SERVICE_PORT = int(os.environ.get('MODEL_SERVICE_PORT', '8004'))
+        self.MODEL_SERVICE_HOST = os.environ.get("MODEL_SERVICE_HOST", "localhost")
+        self.MODEL_SERVICE_PORT = int(os.environ.get("MODEL_SERVICE_PORT", "8004"))
         self.MODEL_SERVICE_URL = f"http://{self.MODEL_SERVICE_HOST}:{self.MODEL_SERVICE_PORT}"
 
-        self.CORE_API_HOST = os.environ.get('CORE_API_HOST', 'localhost')
-        self.CORE_API_PORT = int(os.environ.get('CORE_API_PORT', '8001'))
+        self.CORE_API_HOST = os.environ.get("CORE_API_HOST", "localhost")
+        self.CORE_API_PORT = int(os.environ.get("CORE_API_PORT", "8001"))
         self.CORE_API_URL = f"http://{self.CORE_API_HOST}:{self.CORE_API_PORT}"
 
-        self.MULTIMEDIA_SERVICE_HOST = os.environ.get('MULTIMEDIA_SERVICE_HOST', 'localhost')
-        self.MULTIMEDIA_SERVICE_PORT = int(os.environ.get('MULTIMEDIA_SERVICE_PORT', '8002'))
-        self.MULTIMEDIA_SERVICE_URL = f"http://{self.MULTIMEDIA_SERVICE_HOST}:{self.MULTIMEDIA_SERVICE_PORT}"
+        self.MULTIMEDIA_SERVICE_HOST = os.environ.get("MULTIMEDIA_SERVICE_HOST", "localhost")
+        self.MULTIMEDIA_SERVICE_PORT = int(os.environ.get("MULTIMEDIA_SERVICE_PORT", "8002"))
+        self.MULTIMEDIA_SERVICE_URL = (
+            f"http://{self.MULTIMEDIA_SERVICE_HOST}:{self.MULTIMEDIA_SERVICE_PORT}"
+        )
 
-        self.SEARCH_SERVICE_HOST = os.environ.get('SEARCH_SERVICE_HOST', 'localhost')
-        self.SEARCH_SERVICE_PORT = int(os.environ.get('SEARCH_SERVICE_PORT', '8003'))
+        self.SEARCH_SERVICE_HOST = os.environ.get("SEARCH_SERVICE_HOST", "localhost")
+        self.SEARCH_SERVICE_PORT = int(os.environ.get("SEARCH_SERVICE_PORT", "8003"))
         self.SEARCH_SERVICE_URL = f"http://{self.SEARCH_SERVICE_HOST}:{self.SEARCH_SERVICE_PORT}"
 
-        self.API_GATEWAY_HOST = os.environ.get('API_GATEWAY_HOST', '0.0.0.0')
-        self.API_GATEWAY_PORT = int(os.environ.get('API_GATEWAY_PORT', '8080'))
+        self.API_GATEWAY_HOST = os.environ.get("API_GATEWAY_HOST", "0.0.0.0")
+        self.API_GATEWAY_PORT = int(os.environ.get("API_GATEWAY_PORT", "8080"))
         self.API_GATEWAY_URL = f"http://{self.API_GATEWAY_HOST}:{self.API_GATEWAY_PORT}"
 
-        self.USE_MODEL_SERVICE = os.environ.get('USE_MODEL_SERVICE', 'true').lower() == 'true'
-        self.USE_API_GATEWAY = os.environ.get('USE_API_GATEWAY', 'true').lower() == 'true'
+        self.USE_MODEL_SERVICE = os.environ.get("USE_MODEL_SERVICE", "true").lower() == "true"
+        self.USE_API_GATEWAY = os.environ.get("USE_API_GATEWAY", "true").lower() == "true"
 
-        self.ENABLE_NSFW_DETECTION = os.environ.get('ENABLE_NSFW_DETECTION', 'true').lower() == 'true'
+        self.ENABLE_NSFW_DETECTION = (
+            os.environ.get("ENABLE_NSFW_DETECTION", "true").lower() == "true"
+        )
 
-        self.CACHE_ENABLED = os.environ.get('CACHE_ENABLED', 'true').lower() == 'true'
-        self.CACHE_TTL = int(os.environ.get('CACHE_TTL', '3600'))
+        self.CACHE_ENABLED = os.environ.get("CACHE_ENABLED", "true").lower() == "true"
+        self.CACHE_TTL = int(os.environ.get("CACHE_TTL", "3600"))
 
-        self.USE_REDIS = os.environ.get('USE_REDIS', 'false').lower() == 'true'
-        self.REDIS_HOST = os.environ.get('REDIS_HOST', 'localhost')
-        self.REDIS_PORT = int(os.environ.get('REDIS_PORT', '6379'))
-        self.REDIS_DB = int(os.environ.get('REDIS_DB', '0'))
-        self.CACHE_STRATEGY = os.environ.get('CACHE_STRATEGY', 'local_first')
+        self.USE_REDIS = os.environ.get("USE_REDIS", "false").lower() == "true"
+        self.REDIS_HOST = os.environ.get("REDIS_HOST", "localhost")
+        self.REDIS_PORT = int(os.environ.get("REDIS_PORT", "6379"))
+        self.REDIS_DB = int(os.environ.get("REDIS_DB", "0"))
+        self.CACHE_STRATEGY = os.environ.get("CACHE_STRATEGY", "local_first")
 
         self.MODEL_CACHE_DIR = os.path.join(
-            os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
-            'models'
+            os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "models"
         )
 
         self.HF_CACHE_DIR = os.environ.get(
-            'HF_HOME',
-            os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'huggingface_cache')
+            "HF_HOME",
+            os.path.join(
+                os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "huggingface_cache"
+            ),
         )
         self.KERAS_CACHE_DIR = os.environ.get(
-            'KERAS_HOME',
-            os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'keras_cache')
+            "KERAS_HOME",
+            os.path.join(
+                os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "keras_cache"
+            ),
         )
 
-        self.LOG_LEVEL = os.environ.get('LOG_LEVEL', 'INFO')
+        self.LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO")
         self.LOG_DIR = os.path.join(
-            os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))),
-            'logs'
+            os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), "logs"
         )
 
     def get_model_service_url(self, endpoint: str = "") -> str:
@@ -83,7 +90,7 @@ class ServiceConfig:
 
     def is_production(self) -> bool:
         """检查是否为生产环境"""
-        return os.environ.get('ENVIRONMENT', 'development').lower() == 'production'
+        return os.environ.get("ENVIRONMENT", "development").lower() == "production"
 
     def reload(self):
         """重新加载配置"""

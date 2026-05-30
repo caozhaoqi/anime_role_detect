@@ -7,4 +7,4 @@ CLI 模块
 
 from .cli import ARDCLI, main
 
-__all__ = ['ARDCLI', 'main']
+__all__ = ["ARDCLI", "main"]

@@ -98,9 +98,20 @@ const MessageItem: React.FC<MessageItemProps> = ({ message, darkMode, handleCopy
               <div className="space-y-2">
                 {message.multi_roles.map((role, index) => (
                   <div key={index} className={`p-3 ${darkMode ? 'bg-gray-600' : 'bg-gray-200'} rounded-lg transform hover:scale-[1.02] transition-transform`}>
-                    <div className="flex justify-between items-center">
-                      <div>
-                        <p className="text-sm font-medium">{role.role}</p>
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1">
+                        <div className="flex items-center space-x-2">
+                          <p className="text-sm font-medium">{role.role}</p>
+                          {role.is_unknown && (
+                            <span className="px-2 py-0.5 text-xs bg-red-100 text-red-600 dark:bg-red-900 dark:text-red-400 rounded-full">未知</span>
+                          )}
+                          {role.is_fuzzy && !role.is_unknown && (
+                            <span className="px-2 py-0.5 text-xs bg-yellow-100 text-yellow-600 dark:bg-yellow-900 dark:text-yellow-400 rounded-full">模糊</span>
+                          )}
+                          {role.decision === "known" && !role.is_fuzzy && !role.is_unknown && (
+                            <span className="px-2 py-0.5 text-xs bg-green-100 text-green-600 dark:bg-green-900 dark:text-green-400 rounded-full">已知</span>
+                          )}
+                        </div>
                         {role.role_cn && role.role_cn !== role.role && (
                           <p className="text-xs text-blue-500 mt-1">{role.role_cn}</p>
                         )}
@@ -111,7 +122,7 @@ const MessageItem: React.FC<MessageItemProps> = ({ message, darkMode, handleCopy
                           <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{role.role_anime}</p>
                         )}
                       </div>
-                      <div className="flex items-center space-x-2">
+                      <div className="flex flex-col items-end space-y-1">
                         <p className="text-sm">{(role.similarity * 100).toFixed(1)}%</p>
                         <div
                           className={`w-2 h-2 rounded-full ${role.similarity >= 0.8 ? "bg-green-500" : role.similarity >= 0.5 ? "bg-yellow-500" : "bg-red-500"}`}

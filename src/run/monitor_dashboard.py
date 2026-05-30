@@ -21,10 +21,11 @@ from services_config import SERVICES
 MONITOR_PORT = 9000
 REFRESH_INTERVAL = 5  # 刷新间隔（秒）
 
+
 def check_service_health(service_config: dict) -> dict:
     """检查单个服务的健康状态"""
     import requests
-    
+
     result = {
         "name": service_config["name"],
         "port": service_config["port"],
@@ -32,23 +33,23 @@ def check_service_health(service_config: dict) -> dict:
         "response_time": 0,
         "last_check": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "enabled": service_config.get("enabled", True),
-        "is_core": service_config.get("is_core", False)
+        "is_core": service_config.get("is_core", False),
     }
-    
+
     if not result["enabled"]:
         result["status"] = "disabled"
         return result
-    
+
     try:
         health_path = service_config.get("health_path", "/health")
         url = f"http://localhost:{service_config['port']}{health_path}"
-        
+
         start_time = time.time()
         response = requests.get(url, timeout=2)
         end_time = time.time()
-        
+
         result["response_time"] = round((end_time - start_time) * 1000, 2)
-        
+
         if response.status_code == 200:
             result["status"] = "healthy"
         else:
@@ -59,30 +60,32 @@ def check_service_health(service_config: dict) -> dict:
         result["status"] = "unreachable"
     except Exception as e:
         result["status"] = f"error: {str(e)[:20]}"
-    
+
     return result
+
 
 def get_all_services_status() -> List[dict]:
     """获取所有服务的状态"""
     services_status = []
-    
+
     for key, config in SERVICES.items():
         status = check_service_health(config)
         status["key"] = key
         services_status.append(status)
-    
+
     return services_status
+
 
 def generate_html_dashboard(services_status: List[dict]) -> str:
     """生成HTML仪表板"""
-    
+
     # 统计信息
     total = len(services_status)
     healthy = sum(1 for s in services_status if s["status"] == "healthy")
     enabled = sum(1 for s in services_status if s["enabled"])
     core_services = [s for s in services_status if s["is_core"]]
     core_healthy = sum(1 for s in core_services if s["status"] == "healthy")
-    
+
     html = f"""<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -332,26 +335,26 @@ def generate_html_dashboard(services_status: List[dict]) -> str:
         
         <div class="services-grid">
 """
-    
+
     # 添加服务卡片
     for service in services_status:
         status_class = f"status-{service['status']}"
-        badge_class = "badge-core" if service['is_core'] else "badge-aux"
-        badge_text = "核心服务" if service['is_core'] else "辅助服务"
-        
+        badge_class = "badge-core" if service["is_core"] else "badge-aux"
+        badge_text = "核心服务" if service["is_core"] else "辅助服务"
+
         status_text = {
             "healthy": "✅ 运行正常",
             "unreachable": "❌ 无法连接",
             "timeout": "⏰ 超时",
             "disabled": "⏸️ 已禁用",
-            "unknown": "❓ 未知"
-        }.get(service['status'], f"⚠️ {service['status']}")
-        
+            "unknown": "❓ 未知",
+        }.get(service["status"], f"⚠️ {service['status']}")
+
         api_url = f"http://localhost:{service['port']}"
         docs_url = f"{api_url}/docs"
-        
+
         # 只在服务健康运行时显示链接
-        if service['status'] == 'healthy':
+        if service["status"] == "healthy":
             links_html = f"""
                 <div class="api-links">
                     <a href="{api_url}" class="api-link" target="_blank">🔗 访问API</a>
@@ -360,7 +363,7 @@ def generate_html_dashboard(services_status: List[dict]) -> str:
             """
         else:
             links_html = ""
-        
+
         html += f"""
             <div class="service-card">
                 <div class="service-header">
@@ -393,7 +396,7 @@ def generate_html_dashboard(services_status: List[dict]) -> str:
                 {links_html}
             </div>
 """
-    
+
     html += f"""
         </div>
         
@@ -404,49 +407,51 @@ def generate_html_dashboard(services_status: List[dict]) -> str:
 </body>
 </html>
 """
-    
+
     return html
+
 
 def start_monitor_server():
     """启动监控服务器"""
     from flask import Flask, jsonify, render_template_string
-    
+
     app = Flask(__name__)
-    
-    @app.route('/')
+
+    @app.route("/")
     def dashboard():
         """仪表板主页"""
         services_status = get_all_services_status()
         html = generate_html_dashboard(services_status)
         return html
-    
-    @app.route('/api/status')
+
+    @app.route("/api/status")
     def api_status():
         """API状态接口"""
         services_status = get_all_services_status()
-        return jsonify({
-            "success": True,
-            "timestamp": datetime.now().isoformat(),
-            "services": services_status
-        })
-    
-    @app.route('/api/health')
+        return jsonify(
+            {"success": True, "timestamp": datetime.now().isoformat(), "services": services_status}
+        )
+
+    @app.route("/api/health")
     def health():
         """健康检查"""
         services_status = get_all_services_status()
         all_healthy = all(s["status"] == "healthy" for s in services_status if s["enabled"])
-        return jsonify({
-            "status": "healthy" if all_healthy else "degraded",
-            "timestamp": datetime.now().isoformat()
-        })
-    
+        return jsonify(
+            {
+                "status": "healthy" if all_healthy else "degraded",
+                "timestamp": datetime.now().isoformat(),
+            }
+        )
+
     print(f"🚀 启动监控仪表板...")
     print(f"📊 仪表板地址: http://localhost:{MONITOR_PORT}")
     print(f"📡 API状态: http://localhost:{MONITOR_PORT}/api/status")
     print(f"💚 健康检查: http://localhost:{MONITOR_PORT}/api/health")
     print(f"\n按 Ctrl+C 停止监控服务")
-    
-    app.run(host='0.0.0.0', port=MONITOR_PORT, debug=False)
+
+    app.run(host="0.0.0.0", port=MONITOR_PORT, debug=False)
+
 
 if __name__ == "__main__":
     start_monitor_server()

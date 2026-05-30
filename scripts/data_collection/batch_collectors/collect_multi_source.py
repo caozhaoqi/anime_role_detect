@@ -14,10 +14,7 @@ import time
 import random
 import json
 
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
@@ -29,23 +26,27 @@ DELAY = 1.0
 
 os.makedirs(URL_DIR, exist_ok=True)
 
+
 def parse_loli_role_file(filepath):
     """解析萝莉角色文件"""
     roles = []
-    with open(filepath, 'r', encoding='utf-8') as f:
+    with open(filepath, "r", encoding="utf-8") as f:
         for line in f:
             line = line.strip()
             if not line:
                 continue
             parts = line.split()
             if len(parts) >= 2:
-                roles.append({
-                    "chinese": parts[0],
-                    "source": parts[1],
-                    "english": parts[2] if len(parts) > 2 else "",
-                    "japanese": parts[3] if len(parts) > 3 else ""
-                })
+                roles.append(
+                    {
+                        "chinese": parts[0],
+                        "source": parts[1],
+                        "english": parts[2] if len(parts) > 2 else "",
+                        "japanese": parts[3] if len(parts) > 3 else "",
+                    }
+                )
     return roles
+
 
 def get_search_keywords(role):
     """获取角色的搜索关键词列表"""
@@ -58,16 +59,20 @@ def get_search_keywords(role):
         keywords.append(role["chinese"])
     return keywords
 
+
 class ImageSource:
     """图片源基类"""
+
     def __init__(self, name):
         self.name = name
 
     def collect(self, keyword, max_urls):
         raise NotImplementedError
 
+
 class PicsumSource(ImageSource):
     """Picsum Photos - 固定尺寸版本"""
+
     def __init__(self):
         super().__init__("Picsum")
         self.sizes = [(800, 1000), (900, 1200), (1000, 800), (1200, 900)]
@@ -84,8 +89,10 @@ class PicsumSource(ImageSource):
                 urls.append(img_url)
         return urls[:max_urls]
 
+
 class PlaceholderSource(ImageSource):
     """Placeholder.com - 固定尺寸"""
+
     def __init__(self):
         super().__init__("Placeholder")
         self.sizes = [(800, 1000), (900, 1200), (1000, 800)]
@@ -102,8 +109,10 @@ class PlaceholderSource(ImageSource):
                 urls.append(img_url)
         return urls[:max_urls]
 
+
 class LoremFlickrSource(ImageSource):
     """Lorem Flickr - 可指定尺寸和主题"""
+
     def __init__(self):
         super().__init__("LoremFlickr")
 
@@ -120,8 +129,10 @@ class LoremFlickrSource(ImageSource):
                 urls.append(img_url)
         return urls[:max_urls]
 
+
 class FakeImageSource(ImageSource):
     """Fake images - 可指定尺寸"""
+
     def __init__(self):
         super().__init__("FakeImage")
 
@@ -138,8 +149,10 @@ class FakeImageSource(ImageSource):
                 urls.append(img_url)
         return urls[:max_urls]
 
+
 class UnsplashSource(ImageSource):
     """Unsplash Source - 按关键词搜索"""
+
     def __init__(self):
         super().__init__("Unsplash")
 
@@ -159,9 +172,19 @@ class UnsplashSource(ImageSource):
 
 class PicsumDarkSource(ImageSource):
     """Picsum Dark - 固定尺寸版本，增加更多变化"""
+
     def __init__(self):
         super().__init__("PicsumDark")
-        self.sizes = [(800, 1000), (900, 1200), (1000, 800), (1200, 900), (800, 800), (1000, 1000), (600, 800), (700, 900)]
+        self.sizes = [
+            (800, 1000),
+            (900, 1200),
+            (1000, 800),
+            (1200, 900),
+            (800, 800),
+            (1000, 1000),
+            (600, 800),
+            (700, 900),
+        ]
 
     def collect(self, keyword, max_urls):
         urls = []
@@ -178,6 +201,7 @@ class PicsumDarkSource(ImageSource):
 
 class ImagekitSource(ImageSource):
     """ImageKit - 动态图片服务"""
+
     def __init__(self):
         super().__init__("ImageKit")
         self.sizes = [(800, 1000), (900, 1200), (1000, 800), (1200, 900)]
@@ -197,6 +221,7 @@ class ImagekitSource(ImageSource):
 
 class DummyImageSource(ImageSource):
     """Dummy Image - 占位图片服务"""
+
     def __init__(self):
         super().__init__("DummyImage")
         self.sizes = [(800, 1000), (900, 1200), (1000, 800), (1200, 900)]
@@ -216,6 +241,7 @@ class DummyImageSource(ImageSource):
 
 class LorempixelSource(ImageSource):
     """Lorempixel - 随机图片"""
+
     def __init__(self):
         super().__init__("Lorempixel")
         self.sizes = ["800x1000", "900x1200", "1000x800"]
@@ -235,6 +261,7 @@ class LorempixelSource(ImageSource):
 
 class PexelsSource(ImageSource):
     """Pexels - 高质量图片（使用Picsum代替）"""
+
     def __init__(self):
         super().__init__("Pexels")
         self.sizes = [(800, 1000), (900, 1200), (1000, 800)]
@@ -254,6 +281,7 @@ class PexelsSource(ImageSource):
 
 class PixabaySource(ImageSource):
     """Pixabay - 图片（使用Picsum代替）"""
+
     def __init__(self):
         super().__init__("Pixabay")
         self.sizes = [(800, 1000), (900, 1200), (1000, 800), (1200, 900)]
@@ -286,6 +314,7 @@ IMAGE_SOURCES = [
     PixabaySource(),
 ]
 
+
 def collect_urls_for_role(role, max_urls=150):
     """为单个角色采集链接"""
     logger.info(f"🎯 开始采集: {role['chinese']} ({role['source']})")
@@ -316,16 +345,18 @@ def collect_urls_for_role(role, max_urls=150):
     logger.info(f"   总计获取 {len(unique_urls)} 个链接")
     return unique_urls
 
+
 def save_urls_to_file(role, urls):
     """保存链接到文件"""
     filename = f"{role['chinese']}_img.txt"
     filepath = URL_DIR / filename
 
-    with open(filepath, 'w', encoding='utf-8') as f:
+    with open(filepath, "w", encoding="utf-8") as f:
         for url in urls:
-            f.write(url + '\n')
+            f.write(url + "\n")
 
     return len(urls)
+
 
 def main():
     """主函数"""
@@ -390,6 +421,7 @@ def main():
     print("=" * 60)
     print("✅ 多数据源链接采集完成!")
     print("=" * 60)
+
 
 if __name__ == "__main__":
     main()

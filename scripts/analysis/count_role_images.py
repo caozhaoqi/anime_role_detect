@@ -6,18 +6,19 @@
 
 import os
 
+
 def count_role_images():
     # 角色列表文件
-    role_file = '/Users/caozhaoqi/PycharmProjects/anime_role_detect/auto_spider_img/loli-role.txt'
+    role_file = "/Users/caozhaoqi/PycharmProjects/anime_role_detect/auto_spider_img/loli-role.txt"
     # 图片目录
     image_dirs = [
-        '/Users/caozhaoqi/PycharmProjects/anime_role_detect/data/final_dataset',
-        '/Users/caozhaoqi/PycharmProjects/anime_role_detect/data/merged_english_dataset',
-        '/Users/caozhaoqi/PycharmProjects/anime_role_detect/data/organized_images'
+        "/Users/caozhaoqi/PycharmProjects/anime_role_detect/data/final_dataset",
+        "/Users/caozhaoqi/PycharmProjects/anime_role_detect/data/merged_english_dataset",
+        "/Users/caozhaoqi/PycharmProjects/anime_role_detect/data/organized_images",
     ]
 
     # 读取角色列表（提取英文名称，第三列）
-    with open(role_file, 'r', encoding='utf-8') as f:
+    with open(role_file, "r", encoding="utf-8") as f:
         roles = []
         role_info = {}  # 存储完整信息
         for line in f:
@@ -40,7 +41,11 @@ def count_role_images():
             role_dir = os.path.join(img_dir, role)
             if os.path.exists(role_dir) and os.path.isdir(role_dir):
                 try:
-                    files = [f for f in os.listdir(role_dir) if f.lower().endswith(('.jpg', '.jpeg', '.png', '.gif', '.webp'))]
+                    files = [
+                        f
+                        for f in os.listdir(role_dir)
+                        if f.lower().endswith((".jpg", ".jpeg", ".png", ".gif", ".webp"))
+                    ]
                     total_count += len(files)
                 except Exception as e:
                     pass
@@ -63,5 +68,6 @@ def count_role_images():
     print("-" * 60)
     print(f"无图片的角色: {sum(1 for _, c in low_count_roles if c == 0)} 个")
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     count_role_images()

@@ -506,7 +506,10 @@ export default function AnimeRoleDetect() {
               similarity: role.similarity || 0,
               confidence: role.confidence || 0,
               box: role.box || {},
-              attributes: role.attributes || []
+              attributes: role.attributes || [],
+              decision: role.decision || "",
+              is_unknown: role.is_unknown || false,
+              is_fuzzy: role.is_fuzzy || false
             })),
             tags: data.data.tags || [],
             text_detections: data.data.text_detections || [],

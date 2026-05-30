@@ -5,9 +5,10 @@ import gc
 
 # 启用MPS和CUDA支持
 import os
-os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
-os.environ['MPS_HIGH_WATERMARK_RATIO'] = '0.5'
-os.environ['PYTORCH_MPS_HIGH_WATERMARK_RATIO'] = '0.5'
+
+os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
+os.environ["MPS_HIGH_WATERMARK_RATIO"] = "0.5"
+os.environ["PYTORCH_MPS_HIGH_WATERMARK_RATIO"] = "0.5"
 
 # 导入torch
 import torch
@@ -18,15 +19,18 @@ CLIPModel = None
 
 # 使用全局日志系统
 from src.core.logging.global_logger import get_logger, log_system, log_error
+
 logger = get_logger("feature_extraction")
 
 # 导入跨平台诊断工具
 try:
     from utils.diagnostics import CrossPlatformDiagnostics
+
     DIAGNOSTICS_AVAILABLE = True
 except ImportError:
     logger.warning("跨平台诊断工具不可用")
     DIAGNOSTICS_AVAILABLE = False
+
 
 # 动态导入函数
 def import_torch_modules():
@@ -34,6 +38,7 @@ def import_torch_modules():
     # 导入模块
     from transformers import CLIPProcessor, CLIPModel
     import gc
+
 
 class FeatureExtraction:
     # 全局模型实例缓存
@@ -43,10 +48,10 @@ class FeatureExtraction:
     _quantized = False
     _model_name = None
     _coreml_extractor = None
-    
+
     def __init__(self, model_name="openai/clip-vit-base-patch32", quantize=True, use_coreml=False):
         """初始化特征提取模块
-        
+
         Args:
             model_name: 模型名称
             quantize: 是否使用量化模型
@@ -54,26 +59,26 @@ class FeatureExtraction:
         """
         # 禁用Core ML模式，避免锁竞争问题
         use_coreml = False
-        
+
         # 延迟加载模型，避免初始化时的锁竞争
         self.model_name = model_name
         self.quantize = quantize
         self.coreml_mode = False
-        
+
         # 初始化模型实例为None
         self.model = None
         self.processor = None
-        
+
         # 自动选择最佳设备
         if torch.backends.mps.is_available():
-            self.device = 'mps'
+            self.device = "mps"
         elif torch.cuda.is_available():
-            self.device = 'cuda'
+            self.device = "cuda"
         else:
-            self.device = 'cpu'
+            self.device = "cpu"
         logger.info(f"特征提取模块使用设备: {self.device}")
         logger.info("特征提取模块初始化完成，使用简单特征提取方法")
-    
+
     def _load_model(self):
         """延迟加载模型"""
         # 由于使用简单特征提取方法，不需要加载CLIP模型
@@ -87,13 +92,13 @@ class FeatureExtraction:
             # 检查输入图像
             if img is None:
                 raise ValueError("输入图像为None")
-            
+
             # 检查输入类型，如果是PyTorch Tensor则转换为PIL Image
-            if hasattr(img, 'shape') and hasattr(img, 'cpu'):
+            if hasattr(img, "shape") and hasattr(img, "cpu"):
                 # 这是一个PyTorch Tensor
                 logger.debug("输入是PyTorch Tensor，转换为PIL Image")
                 # 如果在GPU上，先移到CPU
-                if img.device.type != 'cpu':
+                if img.device.type != "cpu":
                     img = img.cpu()
                 # 转换为numpy数组
                 img_array = img.numpy()
@@ -101,76 +106,84 @@ class FeatureExtraction:
                 if img_array.ndim == 3 and img_array.shape[0] in [1, 3]:
                     img_array = img_array.transpose(1, 2, 0)
                 # 转换为PIL Image
-                img = Image.fromarray((img_array * 255).astype('uint8'))
-            
+                img = Image.fromarray((img_array * 255).astype("uint8"))
+
             # 使用改进的简单特征提取方法，避免使用PyTorch
             logger.debug("使用改进的简单特征提取方法")
-            
+
             # 调整图像大小
             img = img.resize((224, 224))
             # 转换为numpy数组
             import numpy as np
+
             img_array = np.array(img)
-            
+
             # 提取更丰富的特征
             # 1. 颜色直方图特征 (R, G, B)
-            hist_r = np.histogram(img_array[:,:,0], bins=16, range=(0, 255))[0]
-            hist_g = np.histogram(img_array[:,:,1], bins=16, range=(0, 255))[0]
-            hist_b = np.histogram(img_array[:,:,2], bins=16, range=(0, 255))[0]
-            
+            hist_r = np.histogram(img_array[:, :, 0], bins=16, range=(0, 255))[0]
+            hist_g = np.histogram(img_array[:, :, 1], bins=16, range=(0, 255))[0]
+            hist_b = np.histogram(img_array[:, :, 2], bins=16, range=(0, 255))[0]
+
             # 2. 纹理特征 (简单的边缘检测)
             from PIL import ImageFilter
+
             edges = img.filter(ImageFilter.FIND_EDGES)
             edges_array = np.array(edges)
             edge_density = np.mean(edges_array)
-            
+
             # 3. 颜色统计特征
             mean_color = img_array.mean(axis=(0, 1))
             std_color = img_array.std(axis=(0, 1))
-            
+
             # 4. 形状特征
             width, height = img.size
             aspect_ratio = width / height
-            
+
             # 组合所有特征
-            features = np.concatenate([
-                hist_r,  # 16维
-                hist_g,  # 16维
-                hist_b,  # 16维
-                mean_color,  # 3维
-                std_color,  # 3维
-                [edge_density, aspect_ratio]  # 2维
-            ])
-            
+            features = np.concatenate(
+                [
+                    hist_r,  # 16维
+                    hist_g,  # 16维
+                    hist_b,  # 16维
+                    mean_color,  # 3维
+                    std_color,  # 3维
+                    [edge_density, aspect_ratio],  # 2维
+                ]
+            )
+
             # 归一化特征
-            features = features / np.linalg.norm(features) if np.linalg.norm(features) > 0 else features
-            
+            features = (
+                features / np.linalg.norm(features) if np.linalg.norm(features) > 0 else features
+            )
+
             # 填充到512维
             if len(features) < 512:
-                features = np.pad(features, (0, 512 - len(features)), 'constant')
+                features = np.pad(features, (0, 512 - len(features)), "constant")
             elif len(features) > 512:
                 features = features[:512]
-            
+
             logger.debug(f"特征提取完成，特征形状: {features.shape}")
-            
+
             # 清理内存
             import gc
+
             gc.collect()
-            
+
             return features
         except Exception as e:
             logger.error(f"特征提取失败: {e}")
             # 返回随机特征向量作为降级方案
             import numpy as np
+
             return np.random.rand(512).astype(np.float32)
-    
+
     def batch_extract_features(self, imgs, batch_size=8):
         """批量提取图像特征
-        
+
         Args:
             imgs: 图像列表
             batch_size: 批量大小
-            
+
         Returns:
             特征向量列表
         """
@@ -178,14 +191,14 @@ class FeatureExtraction:
             # 检查输入图像列表
             if not imgs:
                 return []
-            
+
             # 使用简单特征提取方法，避免使用PyTorch
             logger.debug("使用简单特征提取方法进行批量处理")
             all_features = []
             for img in imgs:
                 feature = self.extract_features(img)
                 all_features.append(feature)
-            
+
             # 转换为numpy数组
             if all_features:
                 return np.vstack(all_features)
@@ -195,14 +208,14 @@ class FeatureExtraction:
             logger.error(f"批量特征提取失败: {e}")
             # 发生错误时，返回空数组
             return np.array([])
-    
+
     def extract_features_from_multiple_characters(self, characters, batch_size=8):
         """从多个角色中提取特征
-        
+
         Args:
             characters: 角色字典列表
             batch_size: 批量大小
-            
+
         Returns:
             添加了特征的角色字典列表
         """
@@ -210,39 +223,40 @@ class FeatureExtraction:
             # 检查输入角色列表
             if not characters:
                 return []
-            
+
             # 提取所有角色的图像
-            imgs = [char['image'] for char in characters if 'image' in char]
-            
+            imgs = [char["image"] for char in characters if "image" in char]
+
             # 批量提取特征
             features = self.batch_extract_features(imgs, batch_size=batch_size)
-            
+
             # 将特征与角色信息关联
             feature_idx = 0
             for char in characters:
-                if 'image' in char:
-                    char['feature'] = features[feature_idx]
+                if "image" in char:
+                    char["feature"] = features[feature_idx]
                     feature_idx += 1
-            
+
             return characters
         except Exception as e:
             logger.error(f"多角色特征提取失败: {e}")
             return []
 
+
 if __name__ == "__main__":
     # 测试特征提取模块
     extractor = FeatureExtraction()
-    
+
     # 测试图像路径（需要根据实际情况修改）
     test_image = "test.jpg"
-    
+
     try:
         # 加载图像
         img = Image.open(test_image)
-        
+
         # 提取特征
         features = extractor.extract_features(img)
-        
+
         logger.info(f"特征向量维度: {features.shape}")
         logger.info(f"特征向量前10个元素: {features[:10]}")
         logger.info("特征提取成功!")

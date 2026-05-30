@@ -7,7 +7,9 @@ from PIL import Image
 import os
 
 # 测试图像路径
-test_image_path = os.path.join(os.path.dirname(__file__), '..', 'data', 'train', '日奈', '日奈_1.svg')
+test_image_path = os.path.join(
+    os.path.dirname(__file__), "..", "data", "train", "日奈", "日奈_1.svg"
+)
 print(f"使用测试图像: {test_image_path}")
 
 # 确保文件存在
@@ -21,8 +23,8 @@ try:
     img = Image.open(test_image_path)
     print(f"成功打开SVG文件，格式: {img.format}, 大小: {img.size}")
     # 尝试将SVG转换为PNG
-    png_path = test_image_path.replace('.svg', '.png')
-    img.save(png_path, 'PNG')
+    png_path = test_image_path.replace(".svg", ".png")
+    img.save(png_path, "PNG")
     print(f"成功将SVG转换为PNG: {png_path}")
 except Exception as e:
     print(f"PIL 加载SVG文件失败: {e}")

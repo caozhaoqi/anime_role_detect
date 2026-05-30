@@ -9,21 +9,22 @@ import numpy as np
 from pathlib import Path
 
 # 添加项目根目录到Python路径
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from tests.collect_test_data import collect_single_character_data
 from src.core.preprocessing.preprocessing import Preprocessing
 from src.core.feature_extraction.feature_extraction import FeatureExtraction
 from src.core.classification.classification import Classification
 
+
 def verify_pipeline():
     print("=== 开始验证项目功能 ===")
-    
+
     # 1. 定义测试角色
     # 使用比较有特征的角色，例如 Re:Zero 的 Rem 和 Ram
-    characters = ["Rem", "Ram"] 
+    characters = ["Rem", "Ram"]
     base_dir = "tests/temp_verification"
-    
+
     # 清理旧数据
     if os.path.exists(base_dir):
         shutil.rmtree(base_dir)
@@ -38,11 +39,11 @@ def verify_pipeline():
         # 每个角色下载 5 张图片
         # 注意：collect_single_character_data 会尝试从 Pixiv/Danbooru/Konachan 下载，或者生成本地样本
         count = collect_single_character_data(char, 5, output_dir)
-        
+
         if count == 0:
             print(f"警告: 无法下载 {char} 的图片")
             continue
-            
+
         data_dirs[char] = output_dir
         print(f"成功为 {char} 准备了 {count} 张图片")
 
@@ -54,18 +55,22 @@ def verify_pipeline():
     print("\n[步骤 2] 划分数据集...")
     index_images = {}
     test_images = {}
-    
+
     for char, dir_path in data_dirs.items():
-        files = [os.path.join(dir_path, f) for f in os.listdir(dir_path) if f.lower().endswith(('.jpg', '.png', '.jpeg'))]
+        files = [
+            os.path.join(dir_path, f)
+            for f in os.listdir(dir_path)
+            if f.lower().endswith((".jpg", ".png", ".jpeg"))
+        ]
         if len(files) < 2:
             print(f"警告: {char} 的图片数量不足 ({len(files)} 张)，跳过")
             continue
-        
+
         # 使用前 3 张作为底库，剩下的作为测试
         split_idx = min(3, len(files) - 1)
         index_images[char] = files[:split_idx]
         test_images[char] = files[split_idx:]
-        
+
         print(f"角色 {char}: 底库 {len(index_images[char])} 张, 测试 {len(test_images[char])} 张")
 
     if not index_images:
@@ -81,10 +86,10 @@ def verify_pipeline():
     except Exception as e:
         print(f"错误: 模块初始化失败 - {e}")
         return
-    
+
     all_features = []
     all_roles = []
-    
+
     for char, files in index_images.items():
         print(f"正在处理 {char} 的底库图片...")
         for file_path in files:
@@ -93,7 +98,7 @@ def verify_pipeline():
                 normalized_img, _ = preprocessor.process(file_path)
                 # 特征提取
                 feature = extractor.extract_features(normalized_img)
-                
+
                 all_features.append(feature)
                 all_roles.append(char)
             except Exception as e:
@@ -112,7 +117,7 @@ def verify_pipeline():
     print("\n[步骤 4] 验证分类功能...")
     correct = 0
     total = 0
-    
+
     for char, files in test_images.items():
         for file_path in files:
             total += 1
@@ -123,11 +128,11 @@ def verify_pipeline():
                 feature = extractor.extract_features(normalized_img)
                 # 分类
                 predicted_role, similarity = classifier.classify(feature)
-                
+
                 print(f"测试图片: {os.path.basename(file_path)}")
                 print(f"  真实角色: {char}")
                 print(f"  预测角色: {predicted_role} (相似度: {similarity:.4f})")
-                
+
                 if predicted_role == char:
                     correct += 1
                     print("  结果: [正确]")
@@ -135,7 +140,7 @@ def verify_pipeline():
                     print("  结果: [错误]")
             except Exception as e:
                 print(f"  分类图片 {os.path.basename(file_path)} 失败: {e}")
-                
+
     if total > 0:
         print(f"\n=== 验证结果 ===")
         print(f"总测试数: {total}")
@@ -147,6 +152,7 @@ def verify_pipeline():
             print("结论: 系统功能验证未通过 (准确率 <= 50%)，请检查模型或数据质量")
     else:
         print("\n没有进行任何测试")
+
 
 if __name__ == "__main__":
     verify_pipeline()

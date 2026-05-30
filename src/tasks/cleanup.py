@@ -8,6 +8,7 @@
 from src.core.celery_config import app
 import time
 
+
 @app.task(bind=True)
 def cleanup_expired_tasks(self):
     """
@@ -16,13 +17,13 @@ def cleanup_expired_tasks(self):
     try:
         # 获取 Redis 后端
         backend = app.backend
-        
+
         # 获取所有任务键
-        keys = backend.client.keys('celery-task-meta-*')
-        
+        keys = backend.client.keys("celery-task-meta-*")
+
         expired_count = 0
         deleted_count = 0
-        
+
         for key in keys:
             try:
                 # 获取任务元数据
@@ -34,16 +35,13 @@ def cleanup_expired_tasks(self):
                     deleted_count += 1
             except Exception as e:
                 expired_count += 1
-        
+
         return {
-            'status': 'success',
-            'total_keys': len(keys),
-            'deleted_count': deleted_count,
-            'expired_count': expired_count
+            "status": "success",
+            "total_keys": len(keys),
+            "deleted_count": deleted_count,
+            "expired_count": expired_count,
         }
-    
+
     except Exception as e:
-        return {
-            'status': 'error',
-            'error': str(e)
-        }
+        return {"status": "error", "error": str(e)}

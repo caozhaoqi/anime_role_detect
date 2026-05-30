@@ -7,5 +7,5 @@ Anime Role Detect 核心包
 
 from . import store, version, workflow, monitoring, api, cli
 
-__all__ = ['store', 'version', 'workflow', 'monitoring', 'api', 'cli']
-__version__ = '1.0.0'
+__all__ = ["store", "version", "workflow", "monitoring", "api", "cli"]
+__version__ = "1.0.0"

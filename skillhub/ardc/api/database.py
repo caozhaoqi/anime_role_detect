@@ -18,21 +18,18 @@ from ardc.config import settings
 
 logger = get_logger(__name__)
 
+
 def create_db_engine(database_url: str) -> object:
     """创建数据库引擎，根据数据库类型配置不同参数"""
     connect_args = {}
     db_settings = settings.database
-    
+
     # SQLite 特殊配置
     if database_url.startswith("sqlite://"):
         connect_args["check_same_thread"] = False
         # SQLite 不需要连接池（文件锁限制）
-        return create_engine(
-            database_url,
-            connect_args=connect_args,
-            echo=db_settings.echo_sql
-        )
-    
+        return create_engine(database_url, connect_args=connect_args, echo=db_settings.echo_sql)
+
     # PostgreSQL/MySQL 配置连接池
     return create_engine(
         database_url,
@@ -41,29 +38,30 @@ def create_db_engine(database_url: str) -> object:
         pool_timeout=db_settings.pool_timeout,
         pool_recycle=db_settings.pool_recycle,
         pool_pre_ping=True,  # 连接前检查有效性
-        echo=db_settings.echo_sql
+        echo=db_settings.echo_sql,
     )
+
 
 # 创建引擎
 engine = create_db_engine(settings.database.url)
 
 # 创建会话工厂
 SessionLocal = sessionmaker(
-    autocommit=False,
-    autoflush=False,
-    bind=engine,
-    expire_on_commit=False  # 提高性能，避免重复查询
+    autocommit=False, autoflush=False, bind=engine, expire_on_commit=False  # 提高性能，避免重复查询
 )
 
 # 基类
 Base = declarative_base()
 
 logger.info(f"数据库引擎初始化完成: {settings.database.url}")
-logger.info(f"连接池配置: pool_size={settings.database.pool_size}, max_overflow={settings.database.max_overflow}, timeout={settings.database.pool_timeout}s")
+logger.info(
+    f"连接池配置: pool_size={settings.database.pool_size}, max_overflow={settings.database.max_overflow}, timeout={settings.database.pool_timeout}s"
+)
 
 
 class DBUser(Base):
     """用户数据库模型"""
+
     __tablename__ = "users"
 
     id = Column(String, primary_key=True, index=True)
@@ -72,11 +70,16 @@ class DBUser(Base):
     hashed_password = Column(String, nullable=False)
     is_developer = Column(Boolean, default=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    updated_at = Column(
+        DateTime,
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+    )
 
 
 class TokenBlacklist(Base):
     """Token 黑名单模型"""
+
     __tablename__ = "token_blacklist"
 
     id = Column(String, primary_key=True, index=True)

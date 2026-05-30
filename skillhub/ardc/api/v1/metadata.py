@@ -26,7 +26,7 @@ def get_stats():
     if cached_result is not None:
         logger.debug(f"缓存命中: {CacheKeys.STATS}")
         return cached_result
-    
+
     result = index.get_statistics()
     cache.set(CacheKeys.STATS, result, ttl_seconds=300)  # 统计数据缓存5分钟
     return result
@@ -39,14 +39,16 @@ def get_categories():
     if cached_result is not None:
         logger.debug(f"缓存命中: {CacheKeys.CATEGORIES}")
         return cached_result
-    
+
     try:
         categories = index.get_categories()
         if not categories:
             result = {"categories": [], "message": "暂无分类数据"}
         else:
-            result = {"categories": [{"name": name, "count": count} for name, count in categories.items()]}
-        
+            result = {
+                "categories": [{"name": name, "count": count} for name, count in categories.items()]
+            }
+
         cache.set(CacheKeys.CATEGORIES, result, ttl_seconds=600)  # 分类缓存10分钟
         return result
     except Exception as e:

@@ -9,9 +9,10 @@ import argparse
 from time import sleep
 
 # 添加项目根目录到Python路径
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from tests.collect_test_data import collect_smart_images
+
 
 def collect_all_characters(limit, output_dir, api_key=None, user=None):
     """
@@ -34,7 +35,7 @@ def collect_all_characters(limit, output_dir, api_key=None, user=None):
                 {"name": "凯亚", "tag": "kaeya_(genshin_impact)"},
                 {"name": "安柏", "tag": "amber_(genshin_impact)"},
                 {"name": "雷泽", "tag": "razor_(genshin_impact)"},
-            ]
+            ],
         },
         # 鸣潮 (Wuthering Waves)
         {
@@ -50,7 +51,7 @@ def collect_all_characters(limit, output_dir, api_key=None, user=None):
                 {"name": "林", "tag": "lin_(wuthering_waves)"},
                 {"name": "莉拉", "tag": "lyra_(wuthering_waves)"},
                 {"name": "塞斯", "tag": "seth_(wuthering_waves)"},
-            ]
+            ],
         },
         # 绝区零 (Zenless Zone Zero)
         {
@@ -63,7 +64,7 @@ def collect_all_characters(limit, output_dir, api_key=None, user=None):
                 {"name": "诺伊斯", "tag": "noise_(zenless_zone_zero)"},
                 {"name": "雷文", "tag": "raven_(zenless_zone_zero)"},
                 {"name": "杰克", "tag": "jack_(zenless_zone_zero)"},
-            ]
+            ],
         },
         # 崩坏三 (Honkai Impact 3rd)
         {
@@ -75,7 +76,7 @@ def collect_all_characters(limit, output_dir, api_key=None, user=None):
                 {"name": "布洛妮娅", "tag": "bronya_zaychik_(honkai_impact_3rd)"},
                 {"name": "符华", "tag": "fu_hua_(honkai_impact_3rd)"},
                 {"name": "德丽莎", "tag": "theresa_apocalypse_(honkai_impact_3rd)"},
-            ]
+            ],
         },
         # 崩坏星穹铁道 (Honkai: Star Rail)
         {
@@ -87,7 +88,7 @@ def collect_all_characters(limit, output_dir, api_key=None, user=None):
                 {"name": "姬子", "tag": "himeko_(honkai_star_rail)"},
                 {"name": "瓦尔特", "tag": "welt_(honkai_star_rail)"},
                 {"name": "青雀", "tag": "qingque_(honkai_star_rail)"},
-            ]
+            ],
         },
         # 崩坏二 (Guns GirlZ / Honkai Impact)
         {
@@ -97,7 +98,7 @@ def collect_all_characters(limit, output_dir, api_key=None, user=None):
                 {"name": "琪亚娜", "tag": "kiana_kaslana_(honkai_impact)"},
                 {"name": "芽衣", "tag": "raiden_mei_(honkai_impact)"},
                 {"name": "布洛妮娅", "tag": "bronya_zaychik_(honkai_impact)"},
-            ]
+            ],
         },
         # 幻塔 (Tower of Fantasy)
         {
@@ -107,7 +108,7 @@ def collect_all_characters(limit, output_dir, api_key=None, user=None):
                 {"name": "莎莉", "tag": "sally_(tower_of_fantasy)"},
                 {"name": "米娅", "tag": "mia_(tower_of_fantasy)"},
                 {"name": "凛夜", "tag": "lin_(tower_of_fantasy)"},
-            ]
+            ],
         },
         # 明日方舟 (Arknights)
         {
@@ -119,7 +120,7 @@ def collect_all_characters(limit, output_dir, api_key=None, user=None):
                 {"name": "德克萨斯", "tag": "texas_(arknights)"},
                 {"name": "陈", "tag": "ch'en_(arknights)"},
                 {"name": "银灰", "tag": "silver_ash_(arknights)"},
-            ]
+            ],
         },
         # 终末地 (The End Earth)
         {
@@ -128,7 +129,7 @@ def collect_all_characters(limit, output_dir, api_key=None, user=None):
             "characters": [
                 {"name": "艾琳", "tag": "irene_(the_end_earth)"},
                 {"name": "露西亚", "tag": "lucia_(the_end_earth)"},
-            ]
+            ],
         },
         # 我推的孩子 (Oshi no Ko)
         {
@@ -138,7 +139,7 @@ def collect_all_characters(limit, output_dir, api_key=None, user=None):
                 {"name": "星野爱", "tag": "hoshino_ai_(oshi_no_ko)"},
                 {"name": "星野瑠美衣", "tag": "hoshino_ruby_(oshi_no_ko)"},
                 {"name": "星野泉", "tag": "hoshino_aqua_(oshi_no_ko)"},
-            ]
+            ],
         },
         # 间谍过家家 (Spy x Family)
         {
@@ -148,7 +149,7 @@ def collect_all_characters(limit, output_dir, api_key=None, user=None):
                 {"name": "阿尼亚", "tag": "anya_forger_(spy_x_family)"},
                 {"name": "洛伊德", "tag": "loid_forger_(spy_x_family)"},
                 {"name": "约尔", "tag": "yor_forger_(spy_x_family)"},
-            ]
+            ],
         },
         # 蔚蓝档案 (Blue Archive)
         {
@@ -161,7 +162,7 @@ def collect_all_characters(limit, output_dir, api_key=None, user=None):
                 {"name": "宫子", "tag": "miyako_(blue_archive)"},
                 {"name": "日奈", "tag": "hina_(blue_archive)"},
                 {"name": "优花梨", "tag": "yuuka_(blue_archive)"},
-            ]
+            ],
         },
     ]
 
@@ -191,20 +192,20 @@ def collect_all_characters(limit, output_dir, api_key=None, user=None):
         for char_info in characters:
             char_name = char_info["name"]
             char_tag = char_info["tag"]
-            
+
             # 为每个角色创建独立文件夹
             char_output_dir = os.path.join(output_dir, f"{game}_{char_name}")
-            
+
             print(f"\n--- 处理角色: {char_name} (标签: {char_tag}) ---")
             print(f"输出目录: {char_output_dir}")
-            
+
             try:
                 downloaded = collect_smart_images(char_tag, limit, char_output_dir, api_key, user)
                 total_downloaded += downloaded
                 print(f"✓ 完成采集: {downloaded} 张图片")
             except Exception as e:
                 print(f"✗ 采集失败: {e}")
-            
+
             # 礼貌延时
             sleep(3)
 
@@ -217,6 +218,7 @@ def collect_all_characters(limit, output_dir, api_key=None, user=None):
 
     return total_downloaded
 
+
 def main():
     """主函数"""
     parser = argparse.ArgumentParser(description="采集所有二次元角色数据脚本")
@@ -224,15 +226,16 @@ def main():
     parser.add_argument("--output_dir", default="data/all_characters", help="输出目录")
     parser.add_argument("--api_key", help="Danbooru API密钥 (可选)")
     parser.add_argument("--user", help="Danbooru用户名 (可选)")
-    
+
     args = parser.parse_args()
-    
+
     # 确保输出目录存在
     if not os.path.exists(args.output_dir):
         os.makedirs(args.output_dir)
-    
+
     # 执行采集
     collect_all_characters(args.limit, args.output_dir, args.api_key, args.user)
+
 
 if __name__ == "__main__":
     main()

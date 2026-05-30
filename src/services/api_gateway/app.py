@@ -16,13 +16,15 @@ import uvicorn
 import httpx
 
 # 路径配置
-project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..'))
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.."))
 sys.path.insert(0, project_root)
 
 from src.core.config.service_config import get_service_config
+
 config = get_service_config()
 
 from src.core.logging.global_logger import get_logger
+
 logger = get_logger("api_gateway")
 
 # 微服务配置 - 使用配置文件中的端口
@@ -31,26 +33,26 @@ SERVICES = {
         "url": config.MODEL_SERVICE_URL,
         "prefix": "/api/model",
         "name": "模型服务 (Model Service)",
-        "docs_path": "/openapi.json"
+        "docs_path": "/openapi.json",
     },
     "api": {
         "url": config.CORE_API_URL,
         "prefix": "/api",
         "name": "业务API服务 (Core API)",
-        "docs_path": "/api/openapi.json"
+        "docs_path": "/api/openapi.json",
     },
     "multimedia": {
         "url": config.MULTIMEDIA_SERVICE_URL,
         "prefix": "/api",
         "name": "多媒体服务 (Multimedia)",
-        "docs_path": "/openapi.json"
+        "docs_path": "/openapi.json",
     },
     "search": {
         "url": config.SEARCH_SERVICE_URL,
         "prefix": "/api/search",
         "name": "搜索服务 (Search Service)",
-        "docs_path": "/openapi.json"
-    }
+        "docs_path": "/openapi.json",
+    },
 }
 
 app = FastAPI(
@@ -58,7 +60,7 @@ app = FastAPI(
     description="统一API网关 - 聚合微服务入口",
     version="1.0.0",
     docs_url=None,  # 禁用默认文档，使用自定义聚合版
-    redoc_url=None
+    redoc_url=None,
 )
 
 app.add_middleware(
@@ -71,9 +73,11 @@ app.add_middleware(
 
 # 添加响应压缩中间件
 from fastapi.middleware.gzip import GZipMiddleware
+
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 client = None
+
 
 @app.on_event("startup")
 async def startup_event():
@@ -82,6 +86,7 @@ async def startup_event():
     client = httpx.AsyncClient(timeout=60.0, trust_env=False)
     logger.info("API网关服务启动完成")
 
+
 @app.on_event("shutdown")
 async def shutdown_event():
     global client
@@ -89,7 +94,9 @@ async def shutdown_event():
         await client.aclose()
     logger.info("API网关服务已关闭")
 
+
 # --- 文档聚合核心逻辑 ---
+
 
 @app.get("/docs", include_in_schema=False)
 async def custom_swagger_ui_html():
@@ -125,6 +132,7 @@ async def custom_swagger_ui_html():
     """
     return HTMLResponse(content=html_content, media_type="text/html")
 
+
 async def get_and_fix_openapi(service_key: str):
     """
     抓取微服务的 openapi.json 并修正路径前缀
@@ -132,21 +140,25 @@ async def get_and_fix_openapi(service_key: str):
     """
     if service_key not in SERVICES:
         return {"openapi": "3.0.0", "info": {"title": "Error"}, "paths": {}}
-    
+
     svc = SERVICES[service_key]
     docs_path = svc.get("docs_path", "/openapi.json")
-    
+
     try:
         response = await client.get(f"{svc['url']}{docs_path}")
         if response.status_code != 200:
-            return {"openapi": "3.0.0", "info": {"title": f"{svc['name']} (Unavailable)"}, "paths": {}}
-        
+            return {
+                "openapi": "3.0.0",
+                "info": {"title": f"{svc['name']} (Unavailable)"},
+                "paths": {},
+            }
+
         data = response.json()
-        
+
         # 更新服务信息，添加友好名称
         if "info" in data:
             data["info"]["title"] = svc["name"]
-        
+
         # 核心修正：遍历 paths，为所有接口增加网关要求的转发前缀
         prefix = svc["prefix"]
         if "paths" in data:
@@ -172,34 +184,44 @@ async def get_and_fix_openapi(service_key: str):
                 else:
                     # 普通 multimedia 转发逻辑
                     full_path = f"{prefix}{path}".replace("//", "/")
-                
+
                 new_paths[full_path] = methods
             data["paths"] = new_paths
-        
+
         # 指向网关自身
         data["servers"] = [{"url": "/", "description": "API Gateway"}]
         return data
     except Exception as e:
         logger.error(f"无法获取 {svc['name']} 文档: {e}")
-        return {"openapi": "3.0.0", "info": {"title": f"{svc['name']} (Connection Error)"}, "paths": {}}
+        return {
+            "openapi": "3.0.0",
+            "info": {"title": f"{svc['name']} (Connection Error)"},
+            "paths": {},
+        }
+
 
 @app.get("/api/model/openapi.json", include_in_schema=False)
 async def model_openapi():
     return await get_and_fix_openapi("model")
 
+
 @app.get("/api/core/openapi.json", include_in_schema=False)
 async def core_api_openapi():
     return await get_and_fix_openapi("api")
+
 
 @app.get("/api/multimedia/openapi.json", include_in_schema=False)
 async def multimedia_openapi():
     return await get_and_fix_openapi("multimedia")
 
+
 @app.get("/api/search/openapi.json", include_in_schema=False)
 async def search_openapi():
     return await get_and_fix_openapi("search")
 
+
 # --- 原有代理路由逻辑 ---
+
 
 @app.get("/")
 async def root():
@@ -212,19 +234,21 @@ async def root():
             "model_json": "/api/model/openapi.json",
             "core_json": "/api/core/openapi.json",
             "multimedia_json": "/api/multimedia/openapi.json",
-            "search_json": "/api/search/openapi.json"
+            "search_json": "/api/search/openapi.json",
         },
         "services": {
             "model": "模型服务 - 角色识别、特征提取",
             "api": "核心API服务 - 业务逻辑",
             "multimedia": "多媒体服务 - 视频处理",
-            "search": "搜索服务 - 以图搜图"
-        }
+            "search": "搜索服务 - 以图搜图",
+        },
     }
+
 
 @app.get("/api/health")
 async def health_check():
     return {"status": "healthy", "service": "API Gateway"}
+
 
 @app.get("/api/services")
 async def check_services():
@@ -234,20 +258,21 @@ async def check_services():
         try:
             response = await client.get(f"{service_config['url']}/api/health")
             status[service_name] = {
-                "name": service_config['name'],
+                "name": service_config["name"],
                 "status": "healthy" if response.status_code == 200 else "unhealthy",
-                "url": service_config['url'],
-                "prefix": service_config['prefix'],
-                "docs": f"{service_config['prefix']}/openapi.json"
+                "url": service_config["url"],
+                "prefix": service_config["prefix"],
+                "docs": f"{service_config['prefix']}/openapi.json",
             }
         except Exception as e:
             status[service_name] = {
-                "name": service_config['name'],
+                "name": service_config["name"],
                 "status": "unhealthy",
-                "url": service_config['url'],
-                "error": str(e)
+                "url": service_config["url"],
+                "error": str(e),
             }
     return {"services": status, "gateway_status": "running"}
+
 
 @app.api_route("/api/{path:path}", methods=["GET", "POST", "PUT", "DELETE"])
 async def proxy_request(request: Request, path: str):
@@ -257,7 +282,11 @@ async def proxy_request(request: Request, path: str):
     logger.info(f"收到请求: {request.method} /api/{path}")
 
     # 1. 路由分配逻辑
-    if path.startswith("search/image") or path.startswith("search/build-index") or path.startswith("search/stats"):
+    if (
+        path.startswith("search/image")
+        or path.startswith("search/build-index")
+        or path.startswith("search/stats")
+    ):
         service = "search"
         url = f"{config.SEARCH_SERVICE_URL}/api/{path}"
     elif path.startswith("video/"):
@@ -297,10 +326,7 @@ async def proxy_request(request: Request, path: str):
     for attempt in range(max_retries):
         try:
             response = await client.request(
-                method=request.method,
-                url=url,
-                headers=headers,
-                content=body
+                method=request.method, url=url, headers=headers, content=body
             )
 
             try:
@@ -324,8 +350,10 @@ async def proxy_request(request: Request, path: str):
             logger.error(f"代理请求处理失败: {e}\n{traceback.format_exc()}")
             raise HTTPException(status_code=500, detail="内部服务器错误")
 
+
 if __name__ == "__main__":
     import argparse
+
     parser = argparse.ArgumentParser(description="API网关服务")
     parser.add_argument("--host", type=str, default="0.0.0.0")
     parser.add_argument("--port", type=int, default=8080)

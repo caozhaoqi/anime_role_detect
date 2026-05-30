@@ -16,7 +16,7 @@ from src.core.logging.global_logger import get_logger
 
 logger = get_logger("recognition_service")
 
-USE_DATABASE = os.environ.get('USE_DATABASE', 'false').lower() == 'true'
+USE_DATABASE = os.environ.get("USE_DATABASE", "false").lower() == "true"
 _use_database = None
 
 
@@ -28,6 +28,7 @@ def _init_db():
         if _use_database:
             try:
                 from src.core.config.database import init_database, create_tables
+
                 init_database()
                 create_tables()
                 logger.info("数据库存储模式已启用")
@@ -49,12 +50,12 @@ class RecognitionService:
         """从文件加载识别记录"""
         try:
             if os.path.exists(self.records_file):
-                with open(self.records_file, 'r', encoding='utf-8') as f:
+                with open(self.records_file, "r", encoding="utf-8") as f:
                     data = json.load(f)
                     records = []
                     for item in data:
-                        if 'timestamp' in item:
-                            item['timestamp'] = datetime.fromisoformat(item['timestamp'])
+                        if "timestamp" in item:
+                            item["timestamp"] = datetime.fromisoformat(item["timestamp"])
                         records.append(RecognitionRecord(**item))
                     logger.info(f"从文件加载了 {len(records)} 条识别记录")
                     return records
@@ -69,11 +70,11 @@ class RecognitionService:
             data = []
             for record in self.records:
                 record_dict = record.model_dump()
-                if 'timestamp' in record_dict and isinstance(record_dict['timestamp'], datetime):
-                    record_dict['timestamp'] = record_dict['timestamp'].isoformat()
+                if "timestamp" in record_dict and isinstance(record_dict["timestamp"], datetime):
+                    record_dict["timestamp"] = record_dict["timestamp"].isoformat()
                 data.append(record_dict)
 
-            with open(self.records_file, 'w', encoding='utf-8') as f:
+            with open(self.records_file, "w", encoding="utf-8") as f:
                 json.dump(data, f, ensure_ascii=False, indent=2)
             logger.info(f"保存了 {len(self.records)} 条识别记录")
         except Exception as e:
@@ -86,6 +87,7 @@ class RecognitionService:
         if _use_database:
             try:
                 from src.services.database_service import RecognitionRecordDB, get_db_service
+
                 db = get_db_service()
                 db_record = RecognitionRecordDB.create(
                     db=db,
@@ -99,7 +101,7 @@ class RecognitionService:
                     processing_time=record.processing_time,
                     is_multi_role=record.is_multi_role,
                     nsfw_status=record.nsfw_status,
-                    detected_text=record.detected_text
+                    detected_text=record.detected_text,
                 )
                 new_record = RecognitionRecord(
                     id=db_record.id,
@@ -113,7 +115,7 @@ class RecognitionService:
                     processing_time=db_record.processing_time,
                     is_multi_role=db_record.is_multi_role,
                     nsfw_status=db_record.nsfw_status,
-                    detected_text=db_record.detected_text
+                    detected_text=db_record.detected_text,
                 )
                 logger.info(f"数据库创建识别记录: {record_id}")
                 return new_record
@@ -131,7 +133,7 @@ class RecognitionService:
             processing_time=record.processing_time,
             is_multi_role=record.is_multi_role,
             nsfw_status=record.nsfw_status,
-            detected_text=record.detected_text
+            detected_text=record.detected_text,
         )
 
         self.records.append(new_record)
@@ -144,6 +146,7 @@ class RecognitionService:
         if _use_database:
             try:
                 from src.services.database_service import RecognitionRecordDB, get_db_service
+
                 db = get_db_service()
                 db_records = RecognitionRecordDB.get_by_user(db, user_id)
                 return [
@@ -159,8 +162,9 @@ class RecognitionService:
                         processing_time=r.processing_time,
                         is_multi_role=r.is_multi_role,
                         nsfw_status=r.nsfw_status,
-                        detected_text=r.detected_text
-                    ) for r in db_records
+                        detected_text=r.detected_text,
+                    )
+                    for r in db_records
                 ]
             except Exception as e:
                 logger.error(f"数据库获取用户记录失败: {e}")
@@ -174,6 +178,7 @@ class RecognitionService:
         if _use_database:
             try:
                 from src.services.database_service import RecognitionRecordDB, get_db_service
+
                 db = get_db_service()
                 db_record = RecognitionRecordDB.get_by_id(db, record_id)
                 if db_record:
@@ -189,7 +194,7 @@ class RecognitionService:
                         processing_time=db_record.processing_time,
                         is_multi_role=db_record.is_multi_role,
                         nsfw_status=db_record.nsfw_status,
-                        detected_text=db_record.detected_text
+                        detected_text=db_record.detected_text,
                     )
                 return None
             except Exception as e:
@@ -205,6 +210,7 @@ class RecognitionService:
         if _use_database:
             try:
                 from src.services.database_service import RecognitionRecordDB, get_db_service
+
                 db = get_db_service()
                 return RecognitionRecordDB.delete(db, record_id)
             except Exception as e:
@@ -223,6 +229,7 @@ class RecognitionService:
         if _use_database:
             try:
                 from src.services.database_service import RecognitionRecordDB, get_db_service
+
                 db = get_db_service()
                 db_records = RecognitionRecordDB.get_all(db)
                 return [
@@ -238,8 +245,9 @@ class RecognitionService:
                         processing_time=r.processing_time,
                         is_multi_role=r.is_multi_role,
                         nsfw_status=r.nsfw_status,
-                        detected_text=r.detected_text
-                    ) for r in db_records
+                        detected_text=r.detected_text,
+                    )
+                    for r in db_records
                 ]
             except Exception as e:
                 logger.error(f"数据库获取所有记录失败: {e}")

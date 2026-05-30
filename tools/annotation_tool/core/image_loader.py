@@ -5,11 +5,11 @@ from PyQt5.QtGui import QPixmap
 class ImageLoader(QThread):
     finished = pyqtSignal(str, QPixmap)
     error = pyqtSignal(str, str)
-    
+
     def __init__(self, path):
         super().__init__()
         self.path = path
-    
+
     def run(self):
         try:
             pixmap = QPixmap(self.path)

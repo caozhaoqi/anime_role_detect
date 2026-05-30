@@ -11,13 +11,13 @@ from .index import SkillIndex
 from .changelog import ChangelogStore, ChangelogEntry
 
 __all__ = [
-    'SkillMetadata',
-    'VersionInfo',
-    'InstalledSkill',
-    'SkillDependency',
-    'SkillConfigSchema',
-    'SkillRegistry',
-    'SkillIndex',
-    'ChangelogStore',
-    'ChangelogEntry'
+    "SkillMetadata",
+    "VersionInfo",
+    "InstalledSkill",
+    "SkillDependency",
+    "SkillConfigSchema",
+    "SkillRegistry",
+    "SkillIndex",
+    "ChangelogStore",
+    "ChangelogEntry",
 ]

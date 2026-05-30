@@ -50,6 +50,9 @@ export interface Message {
       y2: number;
     };
     confidence: number;
+    decision?: string;
+    is_unknown?: boolean;
+    is_fuzzy?: boolean;
   }>;
   role_info?: any;
   model_name?: string;

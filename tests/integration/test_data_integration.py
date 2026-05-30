@@ -10,63 +10,67 @@ import tempfile
 import shutil
 
 # 添加项目根目录到Python路径
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 
 from src.data_collection.keyword_based_collector import KeywordBasedDataCollector
 from src.core.utils.utils import split_dataset
 
+
 class TestDataIntegration(unittest.TestCase):
     """测试数据集成"""
-    
+
     def setUp(self):
         """设置测试环境"""
         # 创建临时目录
         self.temp_dir = tempfile.mkdtemp()
-        self.collection_dir = os.path.join(self.temp_dir, 'collection')
-        self.preprocessing_dir = os.path.join(self.temp_dir, 'preprocessing')
-        
+        self.collection_dir = os.path.join(self.temp_dir, "collection")
+        self.preprocessing_dir = os.path.join(self.temp_dir, "preprocessing")
+
         # 创建目录
         os.makedirs(self.collection_dir)
-        
+
         # 初始化收集器
         self.collector = KeywordBasedDataCollector(output_dir=self.collection_dir)
-    
+
     def tearDown(self):
         """清理测试环境"""
         shutil.rmtree(self.temp_dir)
-    
+
     def test_data_collection_and_preprocessing(self):
         """测试数据收集和预处理的集成"""
         # 模拟数据收集（实际测试中可以跳过，因为需要网络连接）
         # 这里我们直接创建测试目录结构
-        test_class_dir = os.path.join(self.collection_dir, 'test_class')
+        test_class_dir = os.path.join(self.collection_dir, "test_class")
         os.makedirs(test_class_dir)
-        
+
         # 创建测试图像文件
         for i in range(5):
-            with open(os.path.join(test_class_dir, f'test_{i}.jpg'), 'w') as f:
-                f.write('test')
-        
+            with open(os.path.join(test_class_dir, f"test_{i}.jpg"), "w") as f:
+                f.write("test")
+
         # 测试数据预处理
         output_dir = self.preprocessing_dir
-        split_dataset(self.collection_dir, output_dir, train_ratio=0.8, val_ratio=0.2, test_ratio=0.0)
-        
-        train_dir = os.path.join(output_dir, 'train')
-        val_dir = os.path.join(output_dir, 'val')
-        
+        split_dataset(
+            self.collection_dir, output_dir, train_ratio=0.8, val_ratio=0.2, test_ratio=0.0
+        )
+
+        train_dir = os.path.join(output_dir, "train")
+        val_dir = os.path.join(output_dir, "val")
+
         # 检查输出目录结构
-        train_class_dir = os.path.join(train_dir, 'test_class')
-        val_class_dir = os.path.join(val_dir, 'test_class')
-        
+        train_class_dir = os.path.join(train_dir, "test_class")
+        val_class_dir = os.path.join(val_dir, "test_class")
+
         self.assertTrue(os.path.exists(train_class_dir))
         self.assertTrue(os.path.exists(val_class_dir))
-        
+
         # 检查文件数量
         train_files = os.listdir(train_class_dir)
         val_files = os.listdir(val_class_dir)
-        
-        self.assertEqual(len(train_files), 4)  # 80% of 5
-        self.assertEqual(len(val_files), 1)    # 20% of 5
 
-if __name__ == '__main__':
+        self.assertEqual(len(train_files), 4)  # 80% of 5
+        self.assertEqual(len(val_files), 1)  # 20% of 5
+
+
+if __name__ == "__main__":
     unittest.main()

@@ -13,12 +13,14 @@ sys.path.insert(0, str(project_root))
 from scripts.data_collection.database.database_functions import DatabaseManager
 from spider_image_system.src.run.constants import PINYIN_MAPPING
 
+
 def get_role_name_from_pinyin(pinyin: str) -> str:
     """从拼音获取角色名"""
     for name, py in PINYIN_MAPPING.items():
         if py == pinyin:
             return name
     return pinyin
+
 
 def count_urls_from_files():
     """从img_url目录统计URL数量"""
@@ -31,12 +33,13 @@ def count_urls_from_files():
         pinyin_name = file.stem.replace("_img", "")
         display_name = get_role_name_from_pinyin(pinyin_name)
         try:
-            with open(file, 'r', encoding='utf-8') as f:
+            with open(file, "r", encoding="utf-8") as f:
                 count = len([line for line in f if line.strip()])
             role_counts[display_name] = count
         except Exception:
             pass
     return role_counts
+
 
 def print_distribution(title, counts_dict):
     """打印分布统计"""
@@ -53,24 +56,24 @@ def print_distribution(title, counts_dict):
 
     # 分组统计
     groups = {
-        '🔴 紧急 (<20)': [],
-        '🟠 不足 (20-49)': [],
-        '🟡 较少 (50-99)': [],
-        '🔵 达标 (100-199)': [],
-        '🟢 充足 (>=200)': [],
+        "🔴 紧急 (<20)": [],
+        "🟠 不足 (20-49)": [],
+        "🟡 较少 (50-99)": [],
+        "🔵 达标 (100-199)": [],
+        "🟢 充足 (>=200)": [],
     }
 
     for role, count in counts_dict.items():
         if count < 20:
-            groups['🔴 紧急 (<20)'].append((role, count))
+            groups["🔴 紧急 (<20)"].append((role, count))
         elif count < 50:
-            groups['🟠 不足 (20-49)'].append((role, count))
+            groups["🟠 不足 (20-49)"].append((role, count))
         elif count < 100:
-            groups['🟡 较少 (50-99)'].append((role, count))
+            groups["🟡 较少 (50-99)"].append((role, count))
         elif count < 200:
-            groups['🔵 达标 (100-199)'].append((role, count))
+            groups["🔵 达标 (100-199)"].append((role, count))
         else:
-            groups['🟢 充足 (>=200)'].append((role, count))
+            groups["🟢 充足 (>=200)"].append((role, count))
 
     print(f"\n📊 总体统计:")
     print(f"  角色总数: {total}")
@@ -92,16 +95,17 @@ def print_distribution(title, counts_dict):
 
     return groups
 
+
 print("=" * 80)
 print(f" URL数量分布统计报告 - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 print("=" * 80)
 
 # 1. 从数据库统计
 print("\n📂 数据源1: SQLite数据库")
-db = DatabaseManager(db_type='sqlite')
+db = DatabaseManager(db_type="sqlite")
 if db.connect():
     stats = db.get_collection_statistics()
-    db_counts = {r: c for r, c in stats.get('role_stats', [])}
+    db_counts = {r: c for r, c in stats.get("role_stats", [])}
     db_groups = print_distribution("数据库角色URL分布", db_counts)
     db.close()
 else:

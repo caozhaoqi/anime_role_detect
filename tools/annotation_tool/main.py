@@ -1,4 +1,5 @@
 """动漫角色标注工具 - Web服务入口"""
+
 import sys
 from pathlib import Path
 from fastapi import FastAPI, Request, HTTPException
@@ -9,7 +10,15 @@ import uvicorn
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-from data import load_annotations, save_annotation, delete_annotation, load_roles, save_roles, ANNOTATIONS_DIR, ROLES_FILE
+from data import (
+    load_annotations,
+    save_annotation,
+    delete_annotation,
+    load_roles,
+    save_roles,
+    ANNOTATIONS_DIR,
+    ROLES_FILE,
+)
 from services import DATA_DIR, MODELS_DIR, get_untrainable_dirs
 
 app = FastAPI(title="Anime Role Annotation API")
@@ -79,12 +88,13 @@ async def get_roles():
 @app.post("/api/annotations/{image_path:path}")
 async def create_or_update_annotation(image_path: str, annotation_data: dict):
     from data import AnnotationData
+
     ann = AnnotationData(
         role_ids=annotation_data.get("role_ids", []),
         is_multi_role=annotation_data.get("is_multi_role", False),
         is_nsfw=annotation_data.get("is_nsfw", False),
         notes=annotation_data.get("notes", ""),
-        timestamp=annotation_data.get("timestamp", "")
+        timestamp=annotation_data.get("timestamp", ""),
     )
     save_annotation(image_path, ann)
     annotations[image_path] = ann
@@ -108,7 +118,7 @@ async def get_stats():
         "total": total,
         "annotated": annotated,
         "unannotated": total - annotated,
-        "role_count": role_count
+        "role_count": role_count,
     }
 
 

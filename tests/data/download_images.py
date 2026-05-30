@@ -10,13 +10,13 @@ import logging
 
 # 配置日志
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
-logger = logging.getLogger('download_images')
+logger = logging.getLogger("download_images")
 
 # API地址
 API_URL = "http://localhost:33333/api/v1.2.5.260305/sis/download_all_image/start/"
+
 
 def download_images():
     """调用API下载图片"""
@@ -24,7 +24,7 @@ def download_images():
         logger.info("开始下载图片...")
         # 发送API请求
         response = requests.get(API_URL)
-        
+
         # 检查响应
         if response.status_code == 200:
             result = response.json()
@@ -41,6 +41,7 @@ def download_images():
         logger.error(f"图片下载任务启动出错: {e}")
         return False
 
+
 def main():
     """主函数"""
     # 启动下载任务
@@ -51,6 +52,7 @@ def main():
         logger.info("下载任务正在进行中...")
     else:
         logger.error("图片下载任务启动失败")
+
 
 if __name__ == "__main__":
     main()

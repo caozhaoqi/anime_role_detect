@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-统一应用入口 
+统一应用入口
 
 提供：
 - 服务启动/停止管理
@@ -28,27 +28,29 @@ from src.core.service import get_service_registry
 logger = get_logger("application")
 service_registry = get_service_registry()
 
+
 def initialize():
     """初始化应用"""
     log_info("=" * 60)
     log_info("🎬 动漫角色识别系统 - 初始化")
     log_info("=" * 60)
-    
+
     # 初始化配置
     config = get_config()
     log_info(f"配置加载完成")
-    
+
     # 注册服务
     services = config.get_all_services()
     service_registry.register_services(services)
     log_info(f"已注册服务: {list(services.keys())}")
-    
+
     log_info("初始化完成")
+
 
 def start_services(service_names=None):
     """启动服务"""
     log_info("\n🚀 开始启动服务")
-    
+
     if service_names:
         # 启动指定服务
         for name in service_names:
@@ -57,11 +59,12 @@ def start_services(service_names=None):
     else:
         # 启动所有服务
         service_registry.start_all_services()
-    
+
     log_info("\n📊 服务状态:")
     status = service_registry.get_all_status()
     for name, state in status.items():
         log_info(f"   {name}: {state}")
+
 
 def stop_services(signal_num, frame):
     """停止所有服务（信号处理）"""
@@ -70,6 +73,7 @@ def stop_services(signal_num, frame):
     log_info("✅ 所有服务已停止")
     sys.exit(0)
 
+
 def show_status():
     """显示服务状态"""
     log_info("\n📊 当前服务状态:")
@@ -77,22 +81,23 @@ def show_status():
     for name, state in status.items():
         log_info(f"   {name}: {state}")
 
+
 def main():
     """主函数"""
     parser = argparse.ArgumentParser(description="动漫角色识别系统 - 统一应用入口")
     parser.add_argument("action", choices=["start", "stop", "status"], help="操作类型")
-    parser.add_argument("--services", nargs='+', help="指定服务名称")
+    parser.add_argument("--services", nargs="+", help="指定服务名称")
     parser.add_argument("--core", action="store_true", help="仅启动核心服务")
-    
+
     args = parser.parse_args()
-    
+
     # 注册信号处理
     signal.signal(signal.SIGINT, stop_services)
     signal.signal(signal.SIGTERM, stop_services)
-    
+
     # 初始化
     initialize()
-    
+
     if args.action == "start":
         if args.core:
             # 仅启动核心服务
@@ -104,21 +109,23 @@ def main():
         else:
             # 启动所有服务
             start_services()
-        
+
         # 保持运行
         log_info("\n按 Ctrl+C 停止所有服务...")
         import time
+
         try:
             while True:
                 time.sleep(1)
         except KeyboardInterrupt:
             stop_services(None, None)
-    
+
     elif args.action == "stop":
         service_registry.stop_all_services()
-    
+
     elif args.action == "status":
         show_status()
+
 
 if __name__ == "__main__":
     main()

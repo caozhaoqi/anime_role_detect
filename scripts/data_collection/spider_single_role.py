@@ -10,7 +10,7 @@ import argparse
 import os
 
 API_BASE_URL = "http://localhost:33333/api/v1.2.5.260305/sis"
-URL_DIR = '/Users/caozhaoqi/PycharmProjects/anime_role_detect/data/img_url'
+URL_DIR = "/Users/caozhaoqi/PycharmProjects/anime_role_detect/data/img_url"
 
 
 def get_spider_status():
@@ -28,8 +28,9 @@ def get_spider_status():
 def start_spider(keyword):
     """启动单个关键字爬取"""
     try:
-        response = requests.post(f"{API_BASE_URL}/spider_start/single", 
-                                params={"key_word": keyword})
+        response = requests.post(
+            f"{API_BASE_URL}/spider_start/single", params={"key_word": keyword}
+        )
         if response.status_code == 200:
             result = response.json()
             if result.get("code") == 0:
@@ -54,18 +55,18 @@ def wait_for_completion(timeout=300):
             is_running = data.get("is_running", False)
             current_keyword = data.get("current_keyword", "")
             current_count = data.get("current_count", 0)
-            
+
             if current_keyword:
                 print(f"⏳ 爬取中: {current_keyword} ({current_count} 个URL)", end="\r")
-            
+
             if not is_running and current_keyword:
                 print(f"\n✅ {current_keyword} 爬取完成")
                 return True, current_count
             elif not is_running:
                 return True, 0
-        
+
         time.sleep(3)
-    
+
     print("\n⏰ 超时")
     return False, 0
 
@@ -73,8 +74,7 @@ def wait_for_completion(timeout=300):
 def save_urls_to_file(role_name, keyword):
     """从API获取URL并保存到文件"""
     try:
-        response = requests.get(f"{API_BASE_URL}/spider/result", 
-                                params={"keyword": keyword})
+        response = requests.get(f"{API_BASE_URL}/spider/result", params={"keyword": keyword})
         if response.status_code == 200:
             result = response.json()
             if result.get("code") == 0:
@@ -82,9 +82,9 @@ def save_urls_to_file(role_name, keyword):
                 if urls:
                     os.makedirs(URL_DIR, exist_ok=True)
                     url_file = os.path.join(URL_DIR, f"{role_name}_img.txt")
-                    with open(url_file, 'w', encoding='utf-8') as f:
+                    with open(url_file, "w", encoding="utf-8") as f:
                         for url in urls:
-                            f.write(url + '\n')
+                            f.write(url + "\n")
                     print(f"✅ URL已保存到: {url_file}")
                     print(f"   共 {len(urls)} 个URL")
                     return True
@@ -101,14 +101,14 @@ def save_urls_to_file(role_name, keyword):
 
 
 def main():
-    parser = argparse.ArgumentParser(description='采集单个角色的URL')
-    parser.add_argument('--role', required=True, help='角色英文名')
-    parser.add_argument('--chinese', required=True, help='角色中文名（用于搜索）')
-    
+    parser = argparse.ArgumentParser(description="采集单个角色的URL")
+    parser.add_argument("--role", required=True, help="角色英文名")
+    parser.add_argument("--chinese", required=True, help="角色中文名（用于搜索）")
+
     args = parser.parse_args()
-    
+
     print(f"📡 准备采集: {args.role} ({args.chinese})")
-    
+
     # 启动爬虫
     if start_spider(args.chinese):
         # 等待完成

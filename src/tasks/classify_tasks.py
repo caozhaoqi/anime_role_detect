@@ -14,11 +14,14 @@ from src.core.logging.global_logger import get_logger
 
 logger = get_logger("celery.tasks")
 
+
 class ClassificationError(Exception):
     """分类任务错误"""
+
     pass
 
-@celery_app.task(bind=True, max_retries=3, name='src.tasks.classify_tasks.classify_image_task')
+
+@celery_app.task(bind=True, max_retries=3, name="src.tasks.classify_tasks.classify_image_task")
 def classify_image_task(
     self,
     image_content: bytes,
@@ -28,7 +31,7 @@ def classify_image_task(
     use_model: bool = True,
     use_attributes: bool = True,
     use_deepdanbooru: bool = True,
-    multi_role: bool = False
+    multi_role: bool = False,
 ) -> Dict[str, Any]:
     """
     异步图像分类任务
@@ -52,7 +55,7 @@ def classify_image_task(
 
         from src.services.processor.image_processor import (
             process_single_image,
-            process_multi_role_image
+            process_multi_role_image,
         )
         from fastapi import UploadFile
         from starlette.datastructures import UploadFile as StarletteUploadFile
@@ -83,7 +86,7 @@ def classify_image_task(
                 use_coreml=use_coreml,
                 use_model=use_model,
                 use_attributes=use_attributes,
-                use_deepdanbooru=use_deepdanbooru
+                use_deepdanbooru=use_deepdanbooru,
             )
         else:
             result = process_single_image(
@@ -93,21 +96,18 @@ def classify_image_task(
                 use_coreml=use_coreml,
                 use_model=use_model,
                 use_attributes=use_attributes,
-                use_deepdanbooru=use_deepdanbooru
+                use_deepdanbooru=use_deepdanbooru,
             )
 
         logger.info(f"异步分类任务完成: {image_filename}")
-        return {
-            "status": "success",
-            "result": result,
-            "filename": image_filename
-        }
+        return {"status": "success", "result": result, "filename": image_filename}
 
     except Exception as e:
         logger.error(f"异步分类任务失败: {e}")
         raise self.retry(exc=e, countdown=60)
 
-@celery_app.task(bind=True, max_retries=3, name='src.tasks.classify_tasks.batch_classify_task')
+
+@celery_app.task(bind=True, max_retries=3, name="src.tasks.classify_tasks.batch_classify_task")
 def batch_classify_task(
     self,
     image_contents: list,
@@ -117,7 +117,7 @@ def batch_classify_task(
     use_model: bool = False,
     use_attributes: bool = False,
     use_deepdanbooru: bool = True,
-    max_concurrency: int = 4
+    max_concurrency: int = 4,
 ) -> Dict[str, Any]:
     """
     批量异步图像分类任务
@@ -148,28 +148,26 @@ def batch_classify_task(
                 use_coreml=use_coreml,
                 use_model=use_model,
                 use_attributes=use_attributes,
-                use_deepdanbooru=use_deepdanbooru
+                use_deepdanbooru=use_deepdanbooru,
             )
-            results.append({
-                "index": i,
-                "filename": filename,
-                "task_id": sub_task.id,
-                "status": "pending"
-            })
+            results.append(
+                {"index": i, "filename": filename, "task_id": sub_task.id, "status": "pending"}
+            )
 
         logger.info(f"批量任务已提交: {len(image_filenames)}张图像")
         return {
             "status": "submitted",
             "batch_id": self.request.id,
             "total": len(image_filenames),
-            "tasks": results
+            "tasks": results,
         }
 
     except Exception as e:
         logger.error(f"批量分类任务失败: {e}")
         raise self.retry(exc=e, countdown=60)
 
-@celery_app.task(name='src.tasks.classify_tasks.get_task_status')
+
+@celery_app.task(name="src.tasks.classify_tasks.get_task_status")
 def get_task_status(task_id: str) -> Dict[str, Any]:
     """
     获取任务状态
@@ -181,18 +179,16 @@ def get_task_status(task_id: str) -> Dict[str, Any]:
         Dict containing task status
     """
     from src.tasks.celery_app import celery_app
+
     task = celery_app.AsyncResult(task_id)
 
-    response = {
-        "task_id": task_id,
-        "status": task.state
-    }
+    response = {"task_id": task_id, "status": task.state}
 
-    if task.state == 'SUCCESS':
+    if task.state == "SUCCESS":
         response["result"] = task.result
-    elif task.state == 'FAILURE':
+    elif task.state == "FAILURE":
         response["error"] = str(task.info)
-    elif task.state == 'PENDING':
+    elif task.state == "PENDING":
         pass
     else:
         response["info"] = task.info

@@ -14,10 +14,9 @@ from urllib.parse import urlparse
 
 # 配置日志
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
-logger = logging.getLogger('download_images_from_urls')
+logger = logging.getLogger("download_images_from_urls")
 
 # 数据目录
 DATA_DIR = "data"
@@ -38,7 +37,7 @@ DEFAULT_ROLE_MAPPING = {
     "klee": "可莉",
     "huo3hua1": "火花",
     "nahida": "纳西妲",
-    "ti2bao3": "提宝"
+    "ti2bao3": "提宝",
 }
 
 # 请求头信息
@@ -48,7 +47,7 @@ HEADERS = {
     "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
     "Accept-Encoding": "gzip, deflate, br",
     "Connection": "keep-alive",
-    "Referer": "https://www.google.com/"
+    "Referer": "https://www.google.com/",
 }
 
 # 代理服务器列表（可选）
@@ -65,11 +64,12 @@ MAX_RETRIES = 3
 MIN_DELAY = 0.5
 MAX_DELAY = 2.0
 
+
 def load_character_attributes():
     """加载角色属性配置"""
     config_path = os.path.join("config", "character_attributes.json")
     try:
-        with open(config_path, 'r', encoding='utf-8') as f:
+        with open(config_path, "r", encoding="utf-8") as f:
             return json.load(f)
     except Exception as e:
         logger.warning(f"无法加载角色属性配置: {e}，将使用默认配置")
@@ -78,43 +78,44 @@ def load_character_attributes():
 
 def get_attribute_labels(character_name, attribute_config):
     """获取角色的属性标签
-    
+
     Args:
         character_name: 角色名称
         attribute_config: 属性配置
-    
+
     Returns:
         list: 属性标签列表
     """
     characters = attribute_config.get("characters", {})
     attribute_order = attribute_config.get("attribute_order", [])
     attribute_mappings = attribute_config.get("attribute_mappings", {})
-    
+
     if character_name not in characters:
         logger.warning(f"角色 {character_name} 不在属性配置中")
         return [0] * len(attribute_order)
-    
+
     character_attrs = characters[character_name]
     attribute_labels = []
-    
+
     for attr_name in attribute_order:
         attr_value = character_attrs.get(attr_name, "unknown")
         if isinstance(attr_value, bool):
             attr_value = str(attr_value).lower()
-        
+
         mapping = attribute_mappings.get(attr_name, {})
         label = mapping.get(attr_value, 0)
         attribute_labels.append(label)
-    
+
     return attribute_labels
+
 
 def download_image(url, save_path):
     """下载单个图片
-    
+
     Args:
         url: 图片URL
         save_path: 保存路径
-    
+
     Returns:
         bool: 是否下载成功
     """
@@ -122,21 +123,17 @@ def download_image(url, save_path):
         try:
             # 选择随机代理（如果有）
             proxies = random.choice(PROXIES) if PROXIES else None
-            
+
             # 发送请求
             response = requests.get(
-                url, 
-                headers=HEADERS, 
-                proxies=proxies, 
-                timeout=15, 
-                allow_redirects=True
+                url, headers=HEADERS, proxies=proxies, timeout=15, allow_redirects=True
             )
             response.raise_for_status()
-            
+
             # 保存图片
-            with open(save_path, 'wb') as f:
+            with open(save_path, "wb") as f:
                 f.write(response.content)
-            
+
             logger.debug(f"下载成功: {url} -> {save_path}")
             return True
         except requests.exceptions.RequestException as e:
@@ -149,140 +146,150 @@ def download_image(url, save_path):
                 logger.error(f"下载失败（达到最大重试次数）: {url}, 错误: {e}")
                 return False
 
+
 def process_url_file(file_name, role_name):
     """处理URL文件
-    
+
     Args:
         file_name: URL文件名称
         role_name: 角色名称
     """
     file_path = os.path.join(IMG_URL_DIR, file_name)
     save_dir = os.path.join(DOWNLOADED_DIR, role_name)
-    
+
     # 创建保存目录
     os.makedirs(save_dir, exist_ok=True)
-    
+
     # 加载角色属性配置
     attribute_config = load_character_attributes()
     attribute_labels = get_attribute_labels(role_name, attribute_config)
     attribute_order = attribute_config.get("attribute_order", [])
-    
+
     # 读取URL文件
     try:
-        with open(file_path, 'r', encoding='utf-8') as f:
+        with open(file_path, "r", encoding="utf-8") as f:
             urls = [line.strip() for line in f if line.strip()]
     except Exception as e:
         logger.error(f"读取URL文件失败: {file_path}, 错误: {e}")
         return
-    
+
     logger.info(f"开始下载 {role_name} 的图片，共 {len(urls)} 张")
     logger.info(f"角色属性: {dict(zip(attribute_order, attribute_labels))}")
-    
+
     # 下载图片
     success_count = 0
     fail_count = 0
     skip_count = 0
-    
+
     # 属性注释文件
     annotations = []
-    
+
     for i, url in enumerate(urls, 1):
         # 生成文件名
         parsed_url = urlparse(url)
         file_ext = os.path.splitext(parsed_url.path)[1]
-        
+
         # 过滤SVG格式
         if file_ext.lower() == ".svg":
             logger.info(f"跳过SVG格式图片: {url}")
             skip_count += 1
             continue
-        
+
         if not file_ext:
             file_ext = ".jpg"
         file_name = f"{role_name}_{i}{file_ext}"
         save_path = os.path.join(save_dir, file_name)
-        
+
         # 检查文件是否已存在
         if os.path.exists(save_path):
             logger.info(f"图片已存在，跳过: {file_name}")
             skip_count += 1
             # 添加属性注释
-            annotations.append({
-                "image_path": os.path.join(role_name, file_name),
-                "character": role_name,
-                "attributes": dict(zip(attribute_order, attribute_labels)),
-                "attribute_labels": attribute_labels
-            })
+            annotations.append(
+                {
+                    "image_path": os.path.join(role_name, file_name),
+                    "character": role_name,
+                    "attributes": dict(zip(attribute_order, attribute_labels)),
+                    "attribute_labels": attribute_labels,
+                }
+            )
             continue
-        
+
         # 下载图片
         if download_image(url, save_path):
             success_count += 1
             # 添加属性注释
-            annotations.append({
-                "image_path": os.path.join(role_name, file_name),
-                "character": role_name,
-                "attributes": dict(zip(attribute_order, attribute_labels)),
-                "attribute_labels": attribute_labels
-            })
+            annotations.append(
+                {
+                    "image_path": os.path.join(role_name, file_name),
+                    "character": role_name,
+                    "attributes": dict(zip(attribute_order, attribute_labels)),
+                    "attribute_labels": attribute_labels,
+                }
+            )
         else:
             fail_count += 1
-        
+
         # 避免请求过快，使用随机延迟
         delay = random.uniform(MIN_DELAY, MAX_DELAY)
         time.sleep(delay)
-    
+
     # 保存属性注释文件
     os.makedirs(ATTRIBUTES_DIR, exist_ok=True)
     annotation_file = os.path.join(ATTRIBUTES_DIR, f"{role_name}_annotations.json")
     try:
-        with open(annotation_file, 'w', encoding='utf-8') as f:
+        with open(annotation_file, "w", encoding="utf-8") as f:
             json.dump(annotations, f, indent=2, ensure_ascii=False)
         logger.info(f"属性注释已保存到: {annotation_file}")
     except Exception as e:
         logger.error(f"保存属性注释失败: {e}")
-    
-    logger.info(f"{role_name} 图片下载完成，成功: {success_count}, 失败: {fail_count}, 跳过: {skip_count}")
+
+    logger.info(
+        f"{role_name} 图片下载完成，成功: {success_count}, 失败: {fail_count}, 跳过: {skip_count}"
+    )
+
 
 def get_role_name_from_file(file_name):
     """从文件名中提取角色名称
-    
+
     Args:
         file_name: 文件名
-    
+
     Returns:
         str: 角色名称
     """
     # 提取文件名前缀（去掉_img.txt）
-    prefix = file_name.replace('_img.txt', '')
-    
+    prefix = file_name.replace("_img.txt", "")
+
     # 检查是否在默认映射中
     if prefix in DEFAULT_ROLE_MAPPING:
         return DEFAULT_ROLE_MAPPING[prefix]
-    
+
     # 如果不在默认映射中，直接使用前缀作为角色名称
     return prefix
+
 
 def main():
     """主函数"""
     # 获取所有URL文件
-    existing_files = [f for f in os.listdir(IMG_URL_DIR) if f.endswith('_img.txt')]
-    
+    existing_files = [f for f in os.listdir(IMG_URL_DIR) if f.endswith("_img.txt")]
+
     if not existing_files:
         logger.warning("没有找到URL文件")
         return
-    
+
     logger.info(f"找到 {len(existing_files)} 个URL文件")
-    
+
     # 处理每个URL文件
     for file_name in existing_files:
         # 从文件名中提取角色名称
         role_name = get_role_name_from_file(file_name)
-        
+
         logger.info(f"开始处理 {role_name} 的图片URL文件: {file_name}")
         process_url_file(file_name, role_name)
-    
+
     logger.info("所有图片下载任务完成")
+
 
 if __name__ == "__main__":
     main()

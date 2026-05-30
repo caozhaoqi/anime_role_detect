@@ -7,6 +7,7 @@
 import requests
 import json
 
+
 def test_waifu_api():
     """测试waifu.pics API"""
     print("测试waifu.pics API...")
@@ -23,6 +24,7 @@ def test_waifu_api():
     except Exception as e:
         print(f"错误: {e}")
 
+
 def test_sdvv50():
     """测试sd.vv50.de"""
     print("\n测试sd.vv50.de...")
@@ -33,6 +35,7 @@ def test_sdvv50():
         print(f"响应长度: {len(response.text)} 字符")
     except Exception as e:
         print(f"错误: {e}")
+
 
 if __name__ == "__main__":
     test_waifu_api()

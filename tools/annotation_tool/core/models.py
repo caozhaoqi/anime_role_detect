@@ -18,7 +18,7 @@ class AnnotationData:
             "nsfw_reason": self.nsfw_reason,
             "notes": self.notes,
             "annotator": self.annotator,
-            "timestamp": self.timestamp
+            "timestamp": self.timestamp,
         }
 
     @staticmethod
@@ -51,7 +51,7 @@ class Role:
             "name_cn": self.name_cn,
             "category": self.category,
             "count": self.count,
-            "last_modified": self.last_modified
+            "last_modified": self.last_modified,
         }
 
     @staticmethod

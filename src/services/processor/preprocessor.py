@@ -16,23 +16,23 @@ logger = get_logger("image_processor")
 def preprocess_image(image_source):
     """
     预处理图像
-    
+
     Args:
         image_source: 图像路径或内存缓冲区(BytesIO)
-    
+
     Returns:
         预处理后的图像张量
     """
     # 延迟导入PyTorch
     import torch
-    
+
     try:
         # 获取图像变换
         transform = get_image_transform()
-        
+
         # 加载图像并转换
-        img = Image.open(image_source).convert('RGB')
-        
+        img = Image.open(image_source).convert("RGB")
+
         # 限制图像大小，避免内存占用过高
         max_size = 448  # 模型需要的最小尺寸
         width, height = img.size
@@ -43,10 +43,10 @@ def preprocess_image(image_source):
             new_height = int(height * scale)
             img = img.resize((new_width, new_height), Image.LANCZOS)
             logger.info(f"图像已缩放: {width}x{height} -> {new_width}x{new_height}")
-        
+
         img = transform(img)
         img = img.unsqueeze(0)  # 添加批次维度
-        
+
         return img
     except Exception as e:
         logger.error(f"预处理图像失败: {e}")

@@ -4,7 +4,7 @@ import os
 import sys
 
 # 添加项目根目录到Python路径
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..')))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..")))
 
 from src.core.classification.general_classification import get_classifier
 from src.config.config import DEFAULT_INDEX_PATH
@@ -13,6 +13,7 @@ from src.core.log_fusion.log_recorder import record_classification_log
 
 # 使用全局日志系统
 from src.core.logging.global_logger import get_logger, log_system, log_inference, log_error
+
 logger = get_logger("classification_service")
 
 
@@ -26,9 +27,16 @@ def initialize_system():
     logger.info("分类系统初始化完成")
 
 
-def classify_image(image_path, use_coreml=False, use_model=False, use_deepdanbooru=False, use_attributes=False, model_name=None):
+def classify_image(
+    image_path,
+    use_coreml=False,
+    use_model=False,
+    use_deepdanbooru=False,
+    use_attributes=False,
+    model_name=None,
+):
     """分类图像
-    
+
     Args:
         image_path: 图像路径
         use_coreml: 是否使用 Core ML 模型
@@ -36,22 +44,24 @@ def classify_image(image_path, use_coreml=False, use_model=False, use_deepdanboo
         use_deepdanbooru: 是否使用集成DeepDanbooru的分类方法
         use_attributes: 是否使用属性预测
         model_name: 模型名称
-    
+
     Returns:
         (role, similarity, boxes, mode, attributes, text_detections): 角色名称、相似度、边界框、使用的模式、属性标签、文本检测结果
     """
-    logger.info(f"开始分类图像: {image_path}, use_coreml={use_coreml}, use_model={use_model}, use_deepdanbooru={use_deepdanbooru}, use_attributes={use_attributes}, model_name={model_name}")
-    
+    logger.info(
+        f"开始分类图像: {image_path}, use_coreml={use_coreml}, use_model={use_model}, use_deepdanbooru={use_deepdanbooru}, use_attributes={use_attributes}, model_name={model_name}"
+    )
+
     # 初始化属性结果
     attributes = []
     text_detections = []
-    
+
     if use_coreml and coreml_model is not None:
         # 使用 Core ML 模型
         try:
             logger.info("使用 Core ML 模型进行分类")
             role, similarity, boxes = classify_with_coreml(image_path)
-            mode = 'Core ML模型 (Apple设备)'
+            mode = "Core ML模型 (Apple设备)"
             # 记录分类日志
             record_classification_log(
                 image_path=image_path,
@@ -59,10 +69,12 @@ def classify_image(image_path, use_coreml=False, use_model=False, use_deepdanboo
                 similarity=similarity,
                 feature=[],  # Core ML 模型不提供特征向量
                 boxes=boxes,
-                metadata={'mode': mode, 'use_coreml': True}
+                metadata={"mode": mode, "use_coreml": True},
             )
             # 使用全局日志系统记录推理结果
-            log_inference(f"✅ 图像分类成功: {os.path.basename(image_path)}, 角色: {role}, 相似度: {similarity:.4f}, 模式: {mode}")
+            log_inference(
+                f"✅ 图像分类成功: {os.path.basename(image_path)}, 角色: {role}, 相似度: {similarity:.4f}, 模式: {mode}"
+            )
         except Exception as e:
             logger.error(f"Core ML 分类失败: {e}")
             # 回退到默认模型
@@ -73,7 +85,7 @@ def classify_image(image_path, use_coreml=False, use_model=False, use_deepdanboo
         logger.info("使用集成DeepDanbooru的分类方法")
         classifier = get_classifier(index_path=DEFAULT_INDEX_PATH, model=model_name)
         role, similarity, boxes = classifier.classify_image_with_deepdanbooru(image_path)
-        mode = '集成模型 (CLIP + 专用模型 + DeepDanbooru)'
+        mode = "集成模型 (CLIP + 专用模型 + DeepDanbooru)"
         # 记录分类日志
         record_classification_log(
             image_path=image_path,
@@ -81,22 +93,30 @@ def classify_image(image_path, use_coreml=False, use_model=False, use_deepdanboo
             similarity=similarity,
             feature=[],  # 简化处理，不记录特征向量
             boxes=boxes,
-            metadata={'mode': mode, 'use_deepdanbooru': True}
+            metadata={"mode": mode, "use_deepdanbooru": True},
         )
         # 使用全局日志系统记录推理结果
-        log_inference(f"✅ 图像分类成功: {os.path.basename(image_path)}, 角色: {role}, 相似度: {similarity:.4f}, 模式: {mode}")
+        log_inference(
+            f"✅ 图像分类成功: {os.path.basename(image_path)}, 角色: {role}, 相似度: {similarity:.4f}, 模式: {mode}"
+        )
     else:
         # 使用默认模型
-        logger.info(f"使用默认模型进行分类，use_model={use_model}, use_attributes={use_attributes}, model_name={model_name}")
+        logger.info(
+            f"使用默认模型进行分类，use_model={use_model}, use_attributes={use_attributes}, model_name={model_name}"
+        )
         try:
             # 如果model_name为default且use_model为True，设置model为None，避免加载不存在的模型
-            if model_name == 'default' and use_model:
+            if model_name == "default" and use_model:
                 logger.info("模型名称为default，使用CLIP + FAISS索引进行分类")
                 classifier = get_classifier(index_path=DEFAULT_INDEX_PATH, model=None)
-                role, similarity, boxes, attributes, text_detections = classifier.classify_image(image_path, use_model=False, use_attributes=use_attributes)
+                role, similarity, boxes, attributes, text_detections = classifier.classify_image(
+                    image_path, use_model=False, use_attributes=use_attributes
+                )
             else:
                 classifier = get_classifier(index_path=DEFAULT_INDEX_PATH, model=model_name)
-                role, similarity, boxes, attributes, text_detections = classifier.classify_image(image_path, use_model=use_model, use_attributes=use_attributes)
+                role, similarity, boxes, attributes, text_detections = classifier.classify_image(
+                    image_path, use_model=use_model, use_attributes=use_attributes
+                )
         except ValueError as e:
             if "索引尚未构建或加载" in str(e):
                 logger.warning("索引文件不存在，返回默认结果")
@@ -108,13 +128,13 @@ def classify_image(image_path, use_coreml=False, use_model=False, use_deepdanboo
             else:
                 raise e
         if use_attributes:
-            mode = '属性模型 (带属性预测)'
+            mode = "属性模型 (带属性预测)"
         else:
             # 如果model_name为default且use_model为True，使用CLIP + FAISS索引
-            if model_name == 'default' and use_model:
-                mode = '通用索引 (CLIP)'
+            if model_name == "default" and use_model:
+                mode = "通用索引 (CLIP)"
             else:
-                mode = '专用模型 (EfficientNet)' if use_model else '通用索引 (CLIP)'
+                mode = "专用模型 (EfficientNet)" if use_model else "通用索引 (CLIP)"
         # 记录分类日志
         record_classification_log(
             image_path=image_path,
@@ -122,10 +142,20 @@ def classify_image(image_path, use_coreml=False, use_model=False, use_deepdanboo
             similarity=similarity,
             feature=[],  # 简化处理，不记录特征向量
             boxes=boxes,
-            metadata={'mode': mode, 'use_model': use_model, 'use_attributes': use_attributes, 'attributes': [attr['tag'] for attr in attributes[:5]] if attributes else {}, 'text_detections': [text['text'] for text in text_detections[:5]] if text_detections else {}}
+            metadata={
+                "mode": mode,
+                "use_model": use_model,
+                "use_attributes": use_attributes,
+                "attributes": [attr["tag"] for attr in attributes[:5]] if attributes else {},
+                "text_detections": (
+                    [text["text"] for text in text_detections[:5]] if text_detections else {}
+                ),
+            },
         )
         # 使用全局日志系统记录推理结果
-        log_inference(f"✅ 图像分类成功: {os.path.basename(image_path)}, 角色: {role}, 相似度: {similarity:.4f}, 模式: {mode}, 属性: {len(attributes)}个, 文本: {len(text_detections)}个")
+        log_inference(
+            f"✅ 图像分类成功: {os.path.basename(image_path)}, 角色: {role}, 相似度: {similarity:.4f}, 模式: {mode}, 属性: {len(attributes)}个, 文本: {len(text_detections)}个"
+        )
 
     # 安全检查：处理无穷大或无效值
     if similarity is None or not isinstance(similarity, (int, float)):
@@ -135,16 +165,18 @@ def classify_image(image_path, use_coreml=False, use_model=False, use_deepdanboo
         logger.warning(f"相似度值为无穷大或NaN: {similarity}，设置为 0.0")
         similarity = 0.0
 
-    logger.info(f"分类完成，角色: {role}, 相似度: {similarity:.4f}, 模式: {mode}, 属性: {len(attributes)}个, 文本: {len(text_detections)}个")
+    logger.info(
+        f"分类完成，角色: {role}, 相似度: {similarity:.4f}, 模式: {mode}, 属性: {len(attributes)}个, 文本: {len(text_detections)}个"
+    )
     return role, similarity, boxes, mode, attributes, text_detections
 
 
 def get_image_info(image_path):
     """获取图像信息
-    
+
     Args:
         image_path: 图像路径
-    
+
     Returns:
         (img_width, img_height): 图像宽度和高度
     """

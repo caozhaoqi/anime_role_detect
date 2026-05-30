@@ -1,14 +1,23 @@
 """对话框组件模块"""
+
 import time
 from PyQt5.QtWidgets import (
-    QDialog, QFormLayout, QLineEdit, QComboBox, QTextEdit,
-    QDialogButtonBox, QVBoxLayout, QLabel
+    QDialog,
+    QFormLayout,
+    QLineEdit,
+    QComboBox,
+    QTextEdit,
+    QDialogButtonBox,
+    QVBoxLayout,
+    QLabel,
 )
 from core.models import Role
 from ui.styles import get_style_sheet
 
+
 class AddRoleDialog(QDialog):
     """添加角色对话框"""
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("添加角色")
@@ -29,17 +38,19 @@ class AddRoleDialog(QDialog):
         layout.addRow(buttons)
         self.setLayout(layout)
         self.setStyleSheet(get_style_sheet())
-    
+
     def get_role(self):
         return Role(
             id=f"role_{int(time.time())}",
             name=self.name_edit.text().strip(),
             name_cn=self.name_cn_edit.text().strip(),
-            category=self.category_combo.currentText()
+            category=self.category_combo.currentText(),
         )
+
 
 class BatchImportDialog(QDialog):
     """批量导入角色对话框"""
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("批量导入角色")
@@ -56,21 +67,23 @@ class BatchImportDialog(QDialog):
         layout.addWidget(buttons)
         self.setLayout(layout)
         self.setStyleSheet(get_style_sheet())
-    
+
     def get_roles(self):
         roles = []
-        for line in self.text_edit.toPlainText().strip().split('\n'):
+        for line in self.text_edit.toPlainText().strip().split("\n"):
             if not line.strip():
                 continue
-            parts = [p.strip() for p in line.split(',')]
+            parts = [p.strip() for p in line.split(",")]
             name = parts[0] if len(parts) > 0 else ""
             name_cn = parts[1] if len(parts) > 1 else ""
             category = parts[2] if len(parts) > 2 else "其他"
             if name:
-                roles.append(Role(
-                    id=f"role_{int(time.time())}_{len(roles)}",
-                    name=name,
-                    name_cn=name_cn,
-                    category=category
-                ))
+                roles.append(
+                    Role(
+                        id=f"role_{int(time.time())}_{len(roles)}",
+                        name=name,
+                        name_cn=name_cn,
+                        category=category,
+                    )
+                )
         return roles

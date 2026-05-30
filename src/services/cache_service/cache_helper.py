@@ -25,7 +25,7 @@ def generate_image_hash(content: bytes, model_name: str = "default") -> str:
     """
     hash_obj = hashlib.sha256()
     hash_obj.update(content)
-    hash_obj.update(model_name.encode('utf-8'))
+    hash_obj.update(model_name.encode("utf-8"))
     return hash_obj.hexdigest()
 
 
@@ -58,17 +58,12 @@ def get_classify_cache_key(content: bytes, model_name: str, options: dict = None
     hash_str = generate_image_hash(content, model_name)
     if options:
         options_str = str(sorted(options.items()))
-        hash_str = hashlib.sha256(
-            (hash_str + options_str).encode('utf-8')
-        ).hexdigest()
+        hash_str = hashlib.sha256((hash_str + options_str).encode("utf-8")).hexdigest()
     return get_cache_key(hash_str, "classify:result")
 
 
 async def check_cache_result(
-    cache_manager,
-    content: bytes,
-    model_name: str,
-    options: dict = None
+    cache_manager, content: bytes, model_name: str, options: dict = None
 ) -> Tuple[bool, Optional[dict]]:
     """
     检查缓存是否存在
@@ -107,7 +102,7 @@ async def save_to_cache(
     model_name: str,
     result: dict,
     options: dict = None,
-    ttl: int = 3600
+    ttl: int = 3600,
 ) -> bool:
     """
     保存结果到缓存

@@ -28,27 +28,30 @@ _model_cache: Dict[str, Tuple[Any, Dict]] = {}
 
 class ModelLoadingError(Exception):
     """模型加载异常"""
+
     pass
 
 
-def validate_model_architecture(model: torch.nn.Module, expected_num_classes: int, model_name: str) -> bool:
+def validate_model_architecture(
+    model: torch.nn.Module, expected_num_classes: int, model_name: str
+) -> bool:
     """
     验证模型架构是否正确
-    
+
     Args:
         model: 模型实例
         expected_num_classes: 期望的类别数量
         model_name: 模型名称
-        
+
     Returns:
         bool: 架构是否匹配
-        
+
     Raises:
         ModelLoadingError: 如果架构不匹配
     """
     try:
         # 获取模型的最后一个层
-        if hasattr(model, 'classifier'):
+        if hasattr(model, "classifier"):
             # MobileNet, EfficientNet 等
             if isinstance(model.classifier, nn.Sequential):
                 last_layer = model.classifier[-1]
@@ -59,13 +62,13 @@ def validate_model_architecture(model: torch.nn.Module, expected_num_classes: in
                             f"模型架构不匹配：期望{expected_num_classes}个类别，"
                             f"但模型最后一层输出{actual_num_classes}个类别"
                         )
-        elif hasattr(model, 'fc'):
+        elif hasattr(model, "fc"):
             # ResNet 等
             if isinstance(model.fc, nn.Sequential):
                 last_layer = model.fc[-1]
             else:
                 last_layer = model.fc
-            
+
             if isinstance(last_layer, nn.Linear):
                 actual_num_classes = last_layer.out_features
                 if actual_num_classes != expected_num_classes:
@@ -73,7 +76,7 @@ def validate_model_architecture(model: torch.nn.Module, expected_num_classes: in
                         f"模型架构不匹配：期望{expected_num_classes}个类别，"
                         f"但模型最后一层输出{actual_num_classes}个类别"
                     )
-        
+
         return True
     except ModelLoadingError:
         raise
@@ -85,10 +88,10 @@ def validate_model_architecture(model: torch.nn.Module, expected_num_classes: in
 def get_model_class_to_idx_from_training_config(model_dir: str) -> Optional[Dict[str, int]]:
     """
     从训练配置文件中加载类别映射
-    
+
     Args:
         model_dir: 模型目录
-        
+
     Returns:
         类别映射字典或 None
     """
@@ -96,29 +99,33 @@ def get_model_class_to_idx_from_training_config(model_dir: str) -> Optional[Dict
     training_results_path = os.path.join(model_dir, "training_results.json")
     if os.path.exists(training_results_path):
         try:
-            with open(training_results_path, 'r', encoding='utf-8') as f:
+            with open(training_results_path, "r", encoding="utf-8") as f:
                 training_results = json.load(f)
-                class_to_idx = training_results.get('class_to_idx', {})
+                class_to_idx = training_results.get("class_to_idx", {})
                 if class_to_idx:
-                    logger.info(f"从 training_results.json 加载类别映射：{len(class_to_idx)} 个类别")
+                    logger.info(
+                        f"从 training_results.json 加载类别映射：{len(class_to_idx)} 个类别"
+                    )
                     return class_to_idx
         except Exception as e:
             logger.warning(f"从 training_results.json 加载失败：{e}")
-    
+
     return None
 
 
-def load_trained_model(model_name: str, force_reload: bool = False) -> Optional[Tuple[Any, Dict[str, int]]]:
+def load_trained_model(
+    model_name: str, force_reload: bool = False
+) -> Optional[Tuple[Any, Dict[str, int]]]:
     """
     加载训练好的模型（增强版）
-    
+
     Args:
         model_name: 模型名称
         force_reload: 是否强制重新加载
-        
+
     Returns:
         tuple: (模型，类别映射) 或 None
-        
+
     Raises:
         ModelLoadingError: 如果模型加载失败
     """
@@ -127,62 +134,60 @@ def load_trained_model(model_name: str, force_reload: bool = False) -> Optional[
         if model_name in _model_cache and not force_reload:
             logger.info(f"使用缓存的模型：{model_name}")
             return _model_cache[model_name]
-        
+
         # 处理默认模型
         if model_name == "default":
             model_name = "efficientnet_b0"
-        
+
         # 获取项目根目录
         project_root = Path(__file__).parent.parent.parent.parent
         model_dir = project_root / "models" / model_name
-        
+
         # 优先使用 model_full.pth
         model_path = model_dir / "model_full.pth"
         if not model_path.exists():
             model_path = model_dir / "model_best.pth"
-        
+
         class_map_path = model_dir / "class_to_idx.json"
-        
+
         # 检查模型文件是否存在
         if not model_path.exists():
             error_msg = f"模型文件不存在：{model_path}"
             logger.error(error_msg)
             raise ModelLoadingError(error_msg)
-        
+
         logger.info(f"加载模型：{model_path}")
-        
+
         # 加载模型
         try:
             checkpoint = torch.load(
-                model_path,
-                map_location=torch.device('cpu'),
-                weights_only=False
+                model_path, map_location=torch.device("cpu"), weights_only=False
             )
         except Exception as e:
             error_msg = f"模型文件损坏或格式错误：{e}"
             logger.error(error_msg)
             raise ModelLoadingError(error_msg)
-        
+
         # 加载类别映射（优先级：training_results.json > class_to_idx.json > 模型文件内嵌）
         class_to_idx = {}
-        
+
         # 1. 从 training_results.json 加载（最可靠）
         class_to_idx = get_model_class_to_idx_from_training_config(str(model_dir))
-        
+
         # 2. 从 class_to_idx.json 加载
         if not class_to_idx and class_map_path.exists():
             try:
-                with open(class_map_path, 'r', encoding='utf-8') as f:
+                with open(class_map_path, "r", encoding="utf-8") as f:
                     class_to_idx = json.load(f)
                 logger.info(f"从 class_to_idx.json 加载类别映射：{len(class_to_idx)} 个类别")
             except Exception as e:
                 logger.warning(f"从 class_to_idx.json 加载失败：{e}")
-        
+
         # 3. 从模型文件中加载
-        if not class_to_idx and isinstance(checkpoint, dict) and 'class_to_idx' in checkpoint:
-            class_to_idx = checkpoint['class_to_idx']
+        if not class_to_idx and isinstance(checkpoint, dict) and "class_to_idx" in checkpoint:
+            class_to_idx = checkpoint["class_to_idx"]
             logger.info(f"从模型文件加载类别映射：{len(class_to_idx)} 个类别")
-        
+
         # 4. 如果都失败，抛出错误（不再使用硬编码的 3 个类别）
         if not class_to_idx:
             error_msg = (
@@ -193,10 +198,10 @@ def load_trained_model(model_name: str, force_reload: bool = False) -> Optional[
             )
             logger.error(error_msg)
             raise ModelLoadingError(error_msg)
-        
+
         num_classes = len(class_to_idx)
         logger.info(f"类别数量：{num_classes}")
-        
+
         # 创建或加载模型
         if isinstance(checkpoint, torch.nn.Module):
             # 完整模型文件
@@ -207,30 +212,30 @@ def load_trained_model(model_name: str, force_reload: bool = False) -> Optional[
             # 需要创建模型架构
             logger.info(f"创建模型架构：{model_name}")
             model = create_model_from_name(model_name, num_classes)
-            
+
             # 加载权重
             state_dict = None
-            if 'model_state_dict' in checkpoint:
-                state_dict = checkpoint['model_state_dict']
-            elif 'state_dict' in checkpoint:
-                state_dict = checkpoint['state_dict']
+            if "model_state_dict" in checkpoint:
+                state_dict = checkpoint["model_state_dict"]
+            elif "state_dict" in checkpoint:
+                state_dict = checkpoint["state_dict"]
             else:
                 error_msg = f"模型文件中没有找到权重数据"
                 logger.error(error_msg)
                 raise ModelLoadingError(error_msg)
-            
+
             model.load_state_dict(state_dict, strict=False)
             model.eval()
-        
+
         # 验证模型架构
         validate_model_architecture(model, num_classes, model_name)
-        
+
         # 缓存模型
         _model_cache[model_name] = (model, class_to_idx)
         logger.info(f"成功加载模型：{model_name} ({num_classes}个类别)")
-        
+
         return model, class_to_idx
-        
+
     except ModelLoadingError:
         raise
     except Exception as e:
@@ -242,15 +247,15 @@ def load_trained_model(model_name: str, force_reload: bool = False) -> Optional[
 def create_model_from_name(model_name: str, num_classes: int) -> torch.nn.Module:
     """
     根据模型名称创建模型架构
-    
+
     Args:
         model_name: 模型名称
         num_classes: 类别数量
-        
+
     Returns:
         模型实例
     """
-    if 'resnet18' in model_name:
+    if "resnet18" in model_name:
         model = models.resnet18(pretrained=False)
         model.fc = nn.Sequential(
             nn.Dropout(p=0.2),
@@ -258,9 +263,9 @@ def create_model_from_name(model_name: str, num_classes: int) -> torch.nn.Module
             nn.ReLU(inplace=True),
             nn.BatchNorm1d(512),
             nn.Dropout(p=0.1),
-            nn.Linear(512, num_classes)
+            nn.Linear(512, num_classes),
         )
-    elif 'resnet50' in model_name:
+    elif "resnet50" in model_name:
         model = models.resnet50(pretrained=False)
         model.fc = nn.Sequential(
             nn.Dropout(p=0.2),
@@ -268,9 +273,9 @@ def create_model_from_name(model_name: str, num_classes: int) -> torch.nn.Module
             nn.ReLU(inplace=True),
             nn.BatchNorm1d(512),
             nn.Dropout(p=0.1),
-            nn.Linear(512, num_classes)
+            nn.Linear(512, num_classes),
         )
-    elif 'mobilenet_v2' in model_name:
+    elif "mobilenet_v2" in model_name:
         model = models.mobilenet_v2(pretrained=False)
         model.classifier = nn.Sequential(
             nn.Dropout(p=0.2),
@@ -278,9 +283,9 @@ def create_model_from_name(model_name: str, num_classes: int) -> torch.nn.Module
             nn.ReLU(inplace=True),
             nn.BatchNorm1d(512),
             nn.Dropout(p=0.1),
-            nn.Linear(512, num_classes)
+            nn.Linear(512, num_classes),
         )
-    elif 'efficientnet_b0' in model_name:
+    elif "efficientnet_b0" in model_name:
         model = models.efficientnet_b0(pretrained=False)
         model.classifier = nn.Sequential(
             nn.Dropout(p=0.2),
@@ -288,9 +293,9 @@ def create_model_from_name(model_name: str, num_classes: int) -> torch.nn.Module
             nn.ReLU(inplace=True),
             nn.BatchNorm1d(512),
             nn.Dropout(p=0.1),
-            nn.Linear(512, num_classes)
+            nn.Linear(512, num_classes),
         )
-    elif 'efficientnet_b3' in model_name:
+    elif "efficientnet_b3" in model_name:
         model = models.efficientnet_b3(pretrained=False)
         model.classifier = nn.Sequential(
             nn.Dropout(p=0.3),
@@ -298,7 +303,7 @@ def create_model_from_name(model_name: str, num_classes: int) -> torch.nn.Module
             nn.ReLU(inplace=True),
             nn.BatchNorm1d(768),
             nn.Dropout(p=0.15),
-            nn.Linear(768, num_classes)
+            nn.Linear(768, num_classes),
         )
     else:
         # 默认使用 EfficientNet-B0
@@ -310,9 +315,9 @@ def create_model_from_name(model_name: str, num_classes: int) -> torch.nn.Module
             nn.ReLU(inplace=True),
             nn.BatchNorm1d(512),
             nn.Dropout(p=0.1),
-            nn.Linear(512, num_classes)
+            nn.Linear(512, num_classes),
         )
-    
+
     return model
 
 

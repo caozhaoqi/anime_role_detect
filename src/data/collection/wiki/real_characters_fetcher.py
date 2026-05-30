@@ -16,12 +16,10 @@ import time
 # 配置日志
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.StreamHandler()
-    ]
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    handlers=[logging.StreamHandler()],
 )
-logger = logging.getLogger('real_characters_fetcher')
+logger = logging.getLogger("real_characters_fetcher")
 
 
 class RealCharactersFetcher:
@@ -30,94 +28,89 @@ class RealCharactersFetcher:
         初始化真实角色名称获取器
         """
         self.headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-            'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
-            'Connection': 'keep-alive'
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+            "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+            "Connection": "keep-alive",
         }
-        
+
         # 系列配置
         self.series_config = {
-            'genshin_impact': {
-                'name': '原神',
-                'sources': [
-                    {'type': 'moegirl', 'url': 'https://zh.moegirl.org.cn/原神/角色列表'}
-                ]
+            "genshin_impact": {
+                "name": "原神",
+                "sources": [{"type": "moegirl", "url": "https://zh.moegirl.org.cn/原神/角色列表"}],
             },
-            'honkai_star_rail': {
-                'name': '崩坏 星穹铁道',
-                'sources': [
-                    {'type': 'moegirl', 'url': 'https://zh.moegirl.org.cn/崩坏：星穹铁道/角色列表'}
-                ]
+            "honkai_star_rail": {
+                "name": "崩坏 星穹铁道",
+                "sources": [
+                    {"type": "moegirl", "url": "https://zh.moegirl.org.cn/崩坏：星穹铁道/角色列表"}
+                ],
             },
-            'honkai_impact_3': {
-                'name': '崩坏三',
-                'sources': [
-                    {'type': 'moegirl', 'url': 'https://zh.moegirl.org.cn/崩坏3/角色列表'}
-                ]
+            "honkai_impact_3": {
+                "name": "崩坏三",
+                "sources": [{"type": "moegirl", "url": "https://zh.moegirl.org.cn/崩坏3/角色列表"}],
             },
-            'wuthering_waves': {
-                'name': '鸣潮',
-                'sources': [
-                    {'type': 'moegirl', 'url': 'https://zh.moegirl.org.cn/鸣潮/角色列表'}
-                ]
+            "wuthering_waves": {
+                "name": "鸣潮",
+                "sources": [{"type": "moegirl", "url": "https://zh.moegirl.org.cn/鸣潮/角色列表"}],
             },
-            'arknights_endedge': {
-                'name': '明日方舟 终末地',
-                'sources': [
-                    {'type': 'moegirl', 'url': 'https://zh.moegirl.org.cn/明日方舟：终末地/角色列表'}
-                ]
+            "arknights_endedge": {
+                "name": "明日方舟 终末地",
+                "sources": [
+                    {
+                        "type": "moegirl",
+                        "url": "https://zh.moegirl.org.cn/明日方舟：终末地/角色列表",
+                    }
+                ],
             },
-            'tower_of_fantasy': {
-                'name': '幻塔',
-                'sources': [
-                    {'type': 'moegirl', 'url': 'https://zh.moegirl.org.cn/幻塔/角色列表'}
-                ]
+            "tower_of_fantasy": {
+                "name": "幻塔",
+                "sources": [{"type": "moegirl", "url": "https://zh.moegirl.org.cn/幻塔/角色列表"}],
             },
-            'zenless_zone_zero': {
-                'name': '绝区零',
-                'sources': [
-                    {'type': 'moegirl', 'url': 'https://zh.moegirl.org.cn/绝区零/角色列表'}
-                ]
+            "zenless_zone_zero": {
+                "name": "绝区零",
+                "sources": [
+                    {"type": "moegirl", "url": "https://zh.moegirl.org.cn/绝区零/角色列表"}
+                ],
             },
-            'honkai_academy': {
-                'name': '崩坏学园',
-                'sources': [
-                    {'type': 'moegirl', 'url': 'https://zh.moegirl.org.cn/崩坏学园2/角色列表'}
-                ]
+            "honkai_academy": {
+                "name": "崩坏学园",
+                "sources": [
+                    {"type": "moegirl", "url": "https://zh.moegirl.org.cn/崩坏学园2/角色列表"}
+                ],
             },
-            'oshi_no_ko': {
-                'name': '我推的孩子',
-                'sources': [
-                    {'type': 'moegirl', 'url': 'https://zh.moegirl.org.cn/我推的孩子/角色列表'}
-                ]
+            "oshi_no_ko": {
+                "name": "我推的孩子",
+                "sources": [
+                    {"type": "moegirl", "url": "https://zh.moegirl.org.cn/我推的孩子/角色列表"}
+                ],
             },
-            'spy_x_family': {
-                'name': '间谍过家家',
-                'sources': [
-                    {'type': 'moegirl', 'url': 'https://zh.moegirl.org.cn/间谍过家家/角色列表'}
-                ]
+            "spy_x_family": {
+                "name": "间谍过家家",
+                "sources": [
+                    {"type": "moegirl", "url": "https://zh.moegirl.org.cn/间谍过家家/角色列表"}
+                ],
             },
-            'k_on': {
-                'name': '轻音少女',
-                'sources': [
-                    {'type': 'moegirl', 'url': 'https://zh.moegirl.org.cn/轻音少女/角色列表'}
-                ]
-            }
+            "k_on": {
+                "name": "轻音少女",
+                "sources": [
+                    {"type": "moegirl", "url": "https://zh.moegirl.org.cn/轻音少女/角色列表"}
+                ],
+            },
         }
-        
+
         # 输出目录
-        self.output_dir = 'auto_spider_img/characters'
+        self.output_dir = "auto_spider_img/characters"
         os.makedirs(self.output_dir, exist_ok=True)
-    
+
     def fetch_url(self, url, retries=3):
         """
         带重试的请求函数
-        
+
         Args:
             url: URL地址
             retries: 重试次数
-            
+
         Returns:
             响应对象或None
         """
@@ -131,33 +124,33 @@ class RealCharactersFetcher:
                 logger.error(f"请求异常 {url}: {str(e)}")
             time.sleep(2)
         return None
-    
+
     def fetch_from_moegirl(self, url):
         """
         从萌娘百科获取角色列表
-        
+
         Args:
             url: 萌娘百科角色列表URL
-            
+
         Returns:
             角色列表
         """
         characters = []
-        
+
         response = self.fetch_url(url)
         if not response:
             return characters
-        
+
         try:
-            soup = BeautifulSoup(response.text, 'html.parser')
-            
+            soup = BeautifulSoup(response.text, "html.parser")
+
             # 查找所有可能的角色名称位置
             # 1. 查找表格中的角色名称
-            tables = soup.find_all('table', class_='wikitable')
+            tables = soup.find_all("table", class_="wikitable")
             for table in tables:
-                rows = table.find_all('tr')
+                rows = table.find_all("tr")
                 for row in rows[1:]:  # 跳过表头
-                    cells = row.find_all(['td', 'th'])
+                    cells = row.find_all(["td", "th"])
                     if cells:
                         # 通常第一个单元格是角色名称
                         name_cell = cells[0]
@@ -167,87 +160,114 @@ class RealCharactersFetcher:
                         name = self.clean_character_name(name)
                         if name:
                             characters.append(name)
-            
+
             # 2. 查找h2/h3标题中的角色名称
-            headings = soup.find_all(['h2', 'h3'])
+            headings = soup.find_all(["h2", "h3"])
             for heading in headings:
                 # 查找标题内的链接
-                links = heading.find_all('a')
+                links = heading.find_all("a")
                 for link in links:
                     name = link.get_text(strip=True)
                     name = self.clean_character_name(name)
                     if name:
                         characters.append(name)
-            
+
             # 3. 查找列表中的角色名称
-            lists = soup.find_all(['ul', 'ol'])
+            lists = soup.find_all(["ul", "ol"])
             for lst in lists:
-                items = lst.find_all('li')
+                items = lst.find_all("li")
                 for item in items:
                     name = item.get_text(strip=True)
                     name = self.clean_character_name(name)
                     if name:
                         characters.append(name)
-            
+
             # 去重
             characters = list(set(characters))
             logger.info(f"从萌娘百科获取到 {len(characters)} 个角色")
-            
+
         except Exception as e:
             logger.error(f"解析萌娘百科失败: {str(e)}")
-        
+
         return characters
-    
+
     def clean_character_name(self, name):
         """
         清理角色名称
-        
+
         Args:
             name: 原始角色名称
-            
+
         Returns:
             清理后的角色名称或None
         """
         import re
-        
+
         if not name:
             return None
-        
+
         # 移除括号及其内容
-        name = re.sub(r'\(.*?\)', '', name)
-        name = re.sub(r'（.*?）', '', name)
-        name = re.sub(r'\[.*?\]', '', name)
-        
+        name = re.sub(r"\(.*?\)", "", name)
+        name = re.sub(r"（.*?）", "", name)
+        name = re.sub(r"\[.*?\]", "", name)
+
         # 移除特殊字符
         name = name.strip()
-        
+
         # 过滤无效名称
         if len(name) < 2 or len(name) > 20:
             return None
-        
+
         # 过滤数字和符号
-        if re.match(r'^[\d\W]+$', name):
+        if re.match(r"^[\d\W]+$", name):
             return None
-        
+
         # 过滤常见非角色词汇
         exclude_words = [
-            '列表', '角色', '人物', '配音', 'CV', '声优', '演员', '介绍', '概览',
-            '相关', '制作', '音乐', '首页', '模板', '分类', '编辑', '更多', '查看',
-            '收起', '图鉴', '攻略', '角色列表', '人物列表', '登场角色', '主要角色',
-            '次要角色', '游戏角色', '动漫角色', '虚拟角色', '角色介绍', '角色设定'
+            "列表",
+            "角色",
+            "人物",
+            "配音",
+            "CV",
+            "声优",
+            "演员",
+            "介绍",
+            "概览",
+            "相关",
+            "制作",
+            "音乐",
+            "首页",
+            "模板",
+            "分类",
+            "编辑",
+            "更多",
+            "查看",
+            "收起",
+            "图鉴",
+            "攻略",
+            "角色列表",
+            "人物列表",
+            "登场角色",
+            "主要角色",
+            "次要角色",
+            "游戏角色",
+            "动漫角色",
+            "虚拟角色",
+            "角色介绍",
+            "角色设定",
         ]
         if any(word in name for word in exclude_words):
             return None
-        
+
         return name
-    
+
     def fetch_characters(self, series_key):
         """
         获取指定系列的角色列表
-        
+
         Args:
             series_key: 系列键
-            
+
         Returns:
             角色列表
         """
@@ -255,26 +275,26 @@ class RealCharactersFetcher:
         if not config:
             logger.error(f"系列配置不存在: {series_key}")
             return []
-        
+
         logger.info(f"开始获取 {config['name']} 的角色列表")
         all_characters = []
-        
-        for source in config['sources']:
-            if source['type'] == 'moegirl':
-                characters = self.fetch_from_moegirl(source['url'])
+
+        for source in config["sources"]:
+            if source["type"] == "moegirl":
+                characters = self.fetch_from_moegirl(source["url"])
                 all_characters.extend(characters)
             # 可以添加其他来源类型
-        
+
         # 去重并排序
         all_characters = sorted(list(set(all_characters)))
         logger.info(f"成功获取 {config['name']} 的 {len(all_characters)} 个角色")
-        
+
         return all_characters
-    
+
     def save_characters(self, series_key, characters):
         """
         保存角色列表到文件
-        
+
         Args:
             series_key: 系列键
             characters: 角色列表
@@ -282,15 +302,15 @@ class RealCharactersFetcher:
         config = self.series_config.get(series_key)
         if not config:
             return
-        
+
         filename = f"{self.output_dir}/{config['name']}.txt"
-        
-        with open(filename, 'w', encoding='utf-8') as f:
+
+        with open(filename, "w", encoding="utf-8") as f:
             for character in characters:
                 f.write(f"{character}\n")
-        
+
         logger.info(f"保存角色列表成功: {filename} ({len(characters)} 个角色)")
-    
+
     def process_all_series(self):
         """
         处理所有系列
@@ -298,15 +318,15 @@ class RealCharactersFetcher:
         for series_key, config in self.series_config.items():
             logger.info(f"=== 开始处理系列: {config['name']} ===")
             characters = self.fetch_characters(series_key)
-            
+
             if characters:
                 self.save_characters(series_key, characters)
             else:
                 logger.warning(f"未获取到 {config['name']} 的角色列表，使用现有文件")
-            
+
             # 避免请求过快
             time.sleep(3)
-        
+
         logger.info("所有系列处理完成！")
 
 
@@ -318,5 +338,5 @@ def main():
     fetcher.process_all_series()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

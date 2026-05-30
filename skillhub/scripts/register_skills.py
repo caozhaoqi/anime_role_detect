@@ -15,7 +15,7 @@ SKILLS = [
         "entry_point": "scripts/data_collection/download_images.py",
         "tags": ["数据采集", "图片下载", "爬虫", "批量"],
         "runtime": "python",
-        "dependencies": []
+        "dependencies": [],
     },
     {
         "id": "ardc-spider",
@@ -28,7 +28,7 @@ SKILLS = [
         "entry_point": "scripts/data_collection/spider_single_role.py",
         "tags": ["爬虫", "URL采集", "单角色", "API"],
         "runtime": "python",
-        "dependencies": ["ardc-collector"]
+        "dependencies": ["ardc-collector"],
     },
     {
         "id": "ardc-supplement",
@@ -41,7 +41,7 @@ SKILLS = [
         "entry_point": "scripts/data_collection/supplement_low_count_roles.py",
         "tags": ["数据补充", "增量采集", "智能调度"],
         "runtime": "python",
-        "dependencies": ["ardc-collector", "ardc-spider"]
+        "dependencies": ["ardc-collector", "ardc-spider"],
     },
     {
         "id": "ardc-organizer",
@@ -54,7 +54,7 @@ SKILLS = [
         "entry_point": "scripts/data_collection/organize_final_dataset.py",
         "tags": ["数据集", "组织", "格式统一", "目录同步"],
         "runtime": "python",
-        "dependencies": ["ardc-collector"]
+        "dependencies": ["ardc-collector"],
     },
     # ==================== 数据清洗层技能 ====================
     {
@@ -68,7 +68,7 @@ SKILLS = [
         "entry_point": "scripts/data_cleaning/clean_final_dataset.py",
         "tags": ["数据清洗", "图片处理", "去重", "质量评估"],
         "runtime": "python",
-        "dependencies": ["ardc-organizer"]
+        "dependencies": ["ardc-organizer"],
     },
     {
         "id": "ardc-deduplicator",
@@ -81,7 +81,7 @@ SKILLS = [
         "entry_point": "scripts/data_cleaning/archived/clean_duplicates.py",
         "tags": ["去重", "哈希", "相似度", "图片处理"],
         "runtime": "python",
-        "dependencies": []
+        "dependencies": [],
     },
     {
         "id": "ardc-tagger",
@@ -94,7 +94,7 @@ SKILLS = [
         "entry_point": "scripts/data_cleaning/deepdanbooru_tagger.py",
         "tags": ["标签", "标注", "DeepDanbooru", "内容识别"],
         "runtime": "python",
-        "dependencies": ["ardc-cleaner"]
+        "dependencies": ["ardc-cleaner"],
     },
     {
         "id": "ardc-balance",
@@ -107,7 +107,7 @@ SKILLS = [
         "entry_point": "scripts/data_cleaning/balance_dataset.py",
         "tags": ["数据平衡", "采样", "数据增强", "均衡"],
         "runtime": "python",
-        "dependencies": ["ardc-cleaner"]
+        "dependencies": ["ardc-cleaner"],
     },
     # ==================== AI模型层技能 ====================
     {
@@ -121,7 +121,7 @@ SKILLS = [
         "entry_point": "scripts/model_training/train_loli_optimized.py",
         "tags": ["训练", "AI", "模型", "评估"],
         "runtime": "python",
-        "dependencies": ["ardc-cleaner"]
+        "dependencies": ["ardc-cleaner"],
     },
     {
         "id": "ardc-classifier",
@@ -134,7 +134,7 @@ SKILLS = [
         "entry_point": "scripts/classification/classify_collection_local.py",
         "tags": ["分类", "AI", "深度学习", "识别"],
         "runtime": "python",
-        "dependencies": ["ardc-trainer"]
+        "dependencies": ["ardc-trainer"],
     },
     {
         "id": "ardc-evaluator",
@@ -147,7 +147,7 @@ SKILLS = [
         "entry_point": "scripts/model_evaluation/evaluate_model.py",
         "tags": ["评估", "AI", "基准测试", "准确率"],
         "runtime": "python",
-        "dependencies": ["ardc-classifier"]
+        "dependencies": ["ardc-classifier"],
     },
     {
         "id": "ardc-detector",
@@ -160,7 +160,7 @@ SKILLS = [
         "entry_point": "scripts/detection/run_yunet_detection_optimized.py",
         "tags": ["人脸检测", "YuNet", "关键点", "动漫"],
         "runtime": "python",
-        "dependencies": []
+        "dependencies": [],
     },
     # ==================== 分析报告层技能 ====================
     {
@@ -174,7 +174,7 @@ SKILLS = [
         "entry_point": "scripts/analysis/analyze_feature_quality.py",
         "tags": ["分析", "可视化", "统计", "报告"],
         "runtime": "python",
-        "dependencies": []
+        "dependencies": [],
     },
     {
         "id": "ardc-index",
@@ -187,7 +187,7 @@ SKILLS = [
         "entry_point": "scripts/analysis/build_faiss_index.py",
         "tags": ["索引", "FAISS", "搜索", "向量"],
         "runtime": "python",
-        "dependencies": ["ardc-classifier"]
+        "dependencies": ["ardc-classifier"],
     },
     {
         "id": "ardc-reporter",
@@ -200,7 +200,7 @@ SKILLS = [
         "entry_point": "scripts/analysis/generate_final_report.py",
         "tags": ["报告", "统计", "质量分析", "数据集"],
         "runtime": "python",
-        "dependencies": ["ardc-analyzer"]
+        "dependencies": ["ardc-analyzer"],
     },
     # ==================== API服务层技能 ====================
     {
@@ -214,7 +214,7 @@ SKILLS = [
         "entry_point": "scripts/api/feishu_command_server.py",
         "tags": ["API", "飞书", "机器人", "命令"],
         "runtime": "python",
-        "dependencies": ["ardc-classifier"]
+        "dependencies": ["ardc-classifier"],
     },
     {
         "id": "ardc-skillhub",
@@ -227,7 +227,7 @@ SKILLS = [
         "entry_point": "scripts/skillhub_server.py",
         "tags": ["技能管理", "API", "注册", "服务"],
         "runtime": "python",
-        "dependencies": []
+        "dependencies": [],
     },
     {
         "id": "ardc-cli",
@@ -240,7 +240,7 @@ SKILLS = [
         "entry_point": "scripts/ardc-cli.py",
         "tags": ["CLI", "命令行", "终端", "工具"],
         "runtime": "python",
-        "dependencies": []
+        "dependencies": [],
     },
     {
         "id": "ardc-notifier",
@@ -253,7 +253,7 @@ SKILLS = [
         "entry_point": "scripts/common/notification_utils.py",
         "tags": ["通知", "消息", "推送", "飞书"],
         "runtime": "python",
-        "dependencies": []
+        "dependencies": [],
     },
     {
         "id": "ardc-importer",
@@ -266,16 +266,17 @@ SKILLS = [
         "entry_point": "scripts/data_collection/database/import_all_urls.py",
         "tags": ["导入", "数据同步", "数据库", "批量"],
         "runtime": "python",
-        "dependencies": ["ardc-collector"]
-    }
+        "dependencies": ["ardc-collector"],
+    },
 ]
+
 
 def main():
     base_url = "http://localhost:8000/api/skills"
-    
+
     print("开始注册技能...")
     print("=" * 70)
-    
+
     for skill in SKILLS:
         try:
             response = requests.post(base_url, json=skill)
@@ -289,32 +290,33 @@ def main():
                 print(f"✗ 注册失败: {skill['name']} - {response.text}")
         except Exception as e:
             print(f"✗ 注册异常: {skill['name']} - {str(e)}")
-    
+
     print("=" * 70)
     print("\n注册完成！")
-    
+
     # 获取当前技能列表
     try:
         response = requests.get(base_url)
         if response.status_code == 200:
             data = response.json()
             print(f"\n当前技能总数: {len(data['skills'])}")
-            
+
             # 按分类统计
             by_category = {}
-            for s in data['skills']:
-                cat = s.get('category', 'other')
+            for s in data["skills"]:
+                cat = s.get("category", "other")
                 if cat not in by_category:
                     by_category[cat] = []
                 by_category[cat].append(s)
-            
+
             print("\n技能分类统计:")
             for cat, skills in sorted(by_category.items()):
                 print(f"  {cat}: {len(skills)} 个")
-                for s in sorted(skills, key=lambda x: x['name']):
+                for s in sorted(skills, key=lambda x: x["name"]):
                     print(f"    - {s['name']} ({s['id']}) v{s['version']}")
     except Exception as e:
         print(f"获取技能列表失败: {str(e)}")
+
 
 if __name__ == "__main__":
     main()

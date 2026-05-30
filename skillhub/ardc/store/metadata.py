@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 
 class SkillDependency(BaseModel):
     """技能依赖定义"""
+
     skill_id: str = Field(description="依赖技能ID")
     version: str = Field(default="*", description="版本约束，支持语义化版本")
     optional: bool = Field(default=False, description="是否为可选依赖")
@@ -19,8 +20,9 @@ class SkillDependency(BaseModel):
 
 class SkillConfigSchema(BaseModel):
     """技能配置参数定义"""
+
     name: str = Field(description="配置项名称")
-    type: Literal['string', 'integer', 'float', 'boolean', 'json'] = Field(description="配置类型")
+    type: Literal["string", "integer", "float", "boolean", "json"] = Field(description="配置类型")
     default: Optional[dict] = Field(default=None, description="默认值")
     required: bool = Field(default=False, description="是否必填")
     description: str = Field(default="", description="配置说明")
@@ -28,19 +30,26 @@ class SkillConfigSchema(BaseModel):
 
 class SkillMetadata(BaseModel):
     """技能元数据模型"""
+
     id: str = Field(description="技能唯一标识符")
     name: str = Field(description="技能名称")
     version: str = Field(description="语义化版本号")
     description: str = Field(default="", description="技能描述")
     author: str = Field(description="作者名称或邮箱")
     author_url: Optional[str] = Field(default=None, description="作者主页")
-    category: Literal['collector', 'cleaner', 'classifier', 'trainer', 'search', 'analyzer', 'utility'] = Field(description="技能分类")
+    category: Literal[
+        "collector", "cleaner", "classifier", "trainer", "search", "analyzer", "utility"
+    ] = Field(description="技能分类")
     tags: List[str] = Field(default_factory=list, description="标签列表")
     entry_point: str = Field(description="技能入口文件路径")
-    runtime: Literal['python', 'shell', 'nodejs'] = Field(default="python", description="运行时环境")
+    runtime: Literal["python", "shell", "nodejs"] = Field(
+        default="python", description="运行时环境"
+    )
     dependencies: List[SkillDependency] = Field(default_factory=list, description="依赖列表")
     config_schema: List[SkillConfigSchema] = Field(default_factory=list, description="配置参数定义")
-    status: Literal['development', 'testing', 'stable', 'deprecated'] = Field(default="development", description="技能状态")
+    status: Literal["development", "testing", "stable", "deprecated"] = Field(
+        default="development", description="技能状态"
+    )
     created_at: datetime = Field(default_factory=datetime.now, description="创建时间")
     updated_at: datetime = Field(default_factory=datetime.now, description="更新时间")
     min_platform_version: str = Field(default="1.0.0", description="最低平台版本要求")
@@ -60,13 +69,14 @@ class SkillMetadata(BaseModel):
                 "tags": ["采集", "图片", "动漫"],
                 "entry_point": "scripts/collect_images.py",
                 "dependencies": [{"skill_id": "ardc-client", "version": ">=1.0.0"}],
-                "status": "stable"
+                "status": "stable",
             }
         }
 
 
 class VersionInfo(BaseModel):
     """版本信息"""
+
     version: str = Field(description="版本号")
     metadata: SkillMetadata = Field(description="该版本的元数据")
     release_notes: str = Field(default="", description="版本更新说明")
@@ -76,6 +86,7 @@ class VersionInfo(BaseModel):
 
 class InstalledSkill(BaseModel):
     """已安装技能信息"""
+
     metadata: SkillMetadata = Field(description="技能元数据")
     install_path: str = Field(description="安装路径")
     installed_at: datetime = Field(default_factory=datetime.now, description="安装时间")

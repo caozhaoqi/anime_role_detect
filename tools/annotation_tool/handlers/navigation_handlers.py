@@ -1,4 +1,5 @@
 """导航处理模块 - 负责图片导航和索引管理"""
+
 from PyQt5.QtWidgets import QMessageBox
 
 
@@ -15,7 +16,9 @@ class NavigationHandler:
         if self.main_window.grid_mode > 0:
             grid_configs = {1: 4, 2: 8, 3: 16}
             count = grid_configs.get(self.main_window.grid_mode, 4)
-            current_group_start = self.main_window.current_index - (self.main_window.current_index % count)
+            current_group_start = self.main_window.current_index - (
+                self.main_window.current_index % count
+            )
             prev_group_start = max(0, current_group_start - count)
             self.main_window.current_index = prev_group_start
         else:
@@ -31,7 +34,9 @@ class NavigationHandler:
         if self.main_window.grid_mode > 0:
             grid_configs = {1: 4, 2: 8, 3: 16}
             count = grid_configs.get(self.main_window.grid_mode, 4)
-            current_group_start = self.main_window.current_index - (self.main_window.current_index % count)
+            current_group_start = self.main_window.current_index - (
+                self.main_window.current_index % count
+            )
             next_group_start = current_group_start + count
             if next_group_start < len(self.main_window.images):
                 self.main_window.current_index = next_group_start
@@ -50,9 +55,13 @@ class NavigationHandler:
             if 0 <= idx < len(self.main_window.images):
                 self.main_window.current_index = idx
                 self.main_window.image_handler.show_current_image()
-                self.main_window.log_message(f"跳转到第 {self.main_window.current_index + 1} 张图片")
+                self.main_window.log_message(
+                    f"跳转到第 {self.main_window.current_index + 1} 张图片"
+                )
             else:
-                QMessageBox.warning(self.main_window, "警告", f"序号必须在 1 到 {len(self.main_window.images)} 之间")
+                QMessageBox.warning(
+                    self.main_window, "警告", f"序号必须在 1 到 {len(self.main_window.images)} 之间"
+                )
         except ValueError:
             QMessageBox.warning(self.main_window, "警告", "请输入有效的序号")
 
@@ -60,10 +69,12 @@ class NavigationHandler:
         """跳转到下一张未标注的图片"""
         for i in range(len(self.main_window.images)):
             idx = (self.main_window.current_index + 1 + i) % len(self.main_window.images)
-            if self.main_window.images[idx]['path'] not in self.main_window.annotations:
+            if self.main_window.images[idx]["path"] not in self.main_window.annotations:
                 self.main_window.current_index = idx
                 self.main_window.image_handler.show_current_image()
-                self.main_window.log_message(f"跳转到未标注图片: {self.main_window.images[idx]['filename']}")
+                self.main_window.log_message(
+                    f"跳转到未标注图片: {self.main_window.images[idx]['filename']}"
+                )
                 return
         QMessageBox.information(self.main_window, "提示", "所有图片都已标注！")
 
@@ -72,7 +83,7 @@ class NavigationHandler:
         self.main_window.grid_mode = index
         self.main_window.right_panel.zoom_slider.setEnabled(index == 0)
         self.main_window.right_panel.zoom_value_label.setEnabled(index == 0)
-        if hasattr(self.main_window.right_panel, 'reset_zoom_btn'):
+        if hasattr(self.main_window.right_panel, "reset_zoom_btn"):
             self.main_window.right_panel.reset_zoom_btn.setEnabled(index == 0)
         if self.main_window.images:
             self.main_window.image_handler.show_current_image()
@@ -80,6 +91,7 @@ class NavigationHandler:
     def on_delete_mode_changed(self, state):
         """删除模式改变处理"""
         from PyQt5.QtCore import Qt
+
         self.main_window.delete_mode = state == Qt.Checked
         if self.main_window.delete_mode:
             self.main_window.log_message("删除模式已开启 - 点击图片将直接删除")

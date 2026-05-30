@@ -3,10 +3,10 @@ from .panels import LeftPanel, RightPanel
 from .menu import MainMenuBar, MainToolBar
 
 __all__ = [
-    'ZoomableDragableLabel', 
-    'ClickableLabel',
-    'LeftPanel',
-    'RightPanel',
-    'MainMenuBar',
-    'MainToolBar'
+    "ZoomableDragableLabel",
+    "ClickableLabel",
+    "LeftPanel",
+    "RightPanel",
+    "MainMenuBar",
+    "MainToolBar",
 ]

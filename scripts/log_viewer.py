@@ -19,12 +19,13 @@ sys.path.insert(0, str(project_root.parent))
 from src.core.logging import get_log_info, get_unified_log, tail_unified_log
 from src.core.logging.unified_logger import LOG_DIR
 
+
 def main():
-    parser = argparse.ArgumentParser(description='统一日志查看器')
-    parser.add_argument('--lines', '-n', type=int, default=100, help='显示行数')
-    parser.add_argument('--service', '-s', type=str, help='查看指定服务日志')
-    parser.add_argument('--all', '-a', action='store_true', help='查看所有日志')
-    parser.add_argument('--info', '-i', action='store_true', help='显示日志系统信息')
+    parser = argparse.ArgumentParser(description="统一日志查看器")
+    parser.add_argument("--lines", "-n", type=int, default=100, help="显示行数")
+    parser.add_argument("--service", "-s", type=str, help="查看指定服务日志")
+    parser.add_argument("--all", "-a", action="store_true", help="查看所有日志")
+    parser.add_argument("--info", "-i", action="store_true", help="显示日志系统信息")
     args = parser.parse_args()
 
     print("=" * 70)
@@ -37,7 +38,7 @@ def main():
         print(f"   日志目录: {info['log_dir']}")
         print(f"   统一日志: {info['unified_log']}")
         print("\n   子目录日志文件:")
-        for subdir, files in info['files'].items():
+        for subdir, files in info["files"].items():
             print(f"   [{subdir}]: {len(files)} 个文件")
         return
 
@@ -45,10 +46,10 @@ def main():
         log_file = LOG_DIR / f"{args.service}.log"
         unified_file = LOG_DIR / "unified.log"
         if log_file.exists():
-            lines = log_file.read_text(encoding='utf-8').split('\n')
+            lines = log_file.read_text(encoding="utf-8").split("\n")
             print(f"\n📋 [{args.service}] 日志 (共 {len(lines)} 行，显示最后 {args.lines} 行):")
             print("-" * 70)
-            print('\n'.join(lines[-args.lines:]))
+            print("\n".join(lines[-args.lines :]))
         elif unified_file.exists():
             print(f"\n📋 [{args.service}] 日志未找到，显示统一日志:")
             print(tail_unified_log(args.lines))
@@ -68,6 +69,7 @@ def main():
     print(f"\n📋 统一日志 (最后 {args.lines} 行):")
     print("-" * 70)
     print(tail_unified_log(args.lines))
+
 
 if __name__ == "__main__":
     main()

@@ -18,7 +18,7 @@ SERVICES = {
         "health_path": "/api/health",
         "description": "整合图像搜索和视频识别功能，支持以图搜图和视频实时抽帧识别",
         "enabled": True,
-        "is_core": True
+        "is_core": True,
     },
     "api_service": {
         "name": "主API服务",
@@ -27,9 +27,8 @@ SERVICES = {
         "health_path": "/api/health",
         "description": "主API服务，提供角色识别和综合接口",
         "enabled": True,
-        "is_core": True
+        "is_core": True,
     },
-    
     # ==================== AI模型服务 ====================
     "model_service": {
         "name": "模型服务",
@@ -38,9 +37,8 @@ SERVICES = {
         "health_path": "/api/health",
         "description": "AI模型推理服务，支持角色分类和标签识别",
         "enabled": True,
-        "is_core": False
+        "is_core": False,
     },
-    
     # ==================== API网关 ====================
     "api_gateway": {
         "name": "API网关",
@@ -49,8 +47,8 @@ SERVICES = {
         "health_path": "/api/health",
         "description": "统一API网关，聚合所有后端服务",
         "enabled": True,
-        "is_core": False
-    }
+        "is_core": False,
+    },
 }
 
 # 服务分组
@@ -59,20 +57,24 @@ SERVICE_GROUPS = {
     "ai": ["model_service"],
     "multimedia": ["multimedia_service"],
     "gateway": ["api_gateway"],
-    "all": list(SERVICES.keys())
+    "all": list(SERVICES.keys()),
 }
+
 
 def get_service_by_name(name):
     """根据名称获取服务配置"""
     return SERVICES.get(name)
 
+
 def get_services_by_group(group_name):
     """根据分组获取服务列表"""
     return SERVICE_GROUPS.get(group_name, [])
 
+
 def list_all_services():
     """列出所有服务"""
     return SERVICES.keys()
+
 
 def get_service_port(name):
     """获取服务端口"""

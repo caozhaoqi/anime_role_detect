@@ -14,11 +14,7 @@ class DailyLogHandler(TimedRotatingFileHandler):
 
         log_file = log_dir / base_filename
         super().__init__(
-            str(log_file),
-            when='midnight',
-            interval=1,
-            backupCount=30,
-            encoding='utf-8'
+            str(log_file), when="midnight", interval=1, backupCount=30, encoding="utf-8"
         )
 
         self.suffix = "%Y%m%d.log"
@@ -29,29 +25,26 @@ class ColoredFormatter(logging.Formatter):
     """带颜色的日志格式化器"""
 
     COLORS = {
-        'DEBUG': '\033[36m',
-        'INFO': '\033[32m',
-        'WARNING': '\033[33m',
-        'ERROR': '\033[31m',
-        'CRITICAL': '\033[35m',
+        "DEBUG": "\033[36m",
+        "INFO": "\033[32m",
+        "WARNING": "\033[33m",
+        "ERROR": "\033[31m",
+        "CRITICAL": "\033[35m",
     }
-    RESET = '\033[0m'
+    RESET = "\033[0m"
 
     def format(self, record):
-        if hasattr(sys.stderr, 'isatty') and sys.stderr.isatty():
-            record.levelname = f"{self.COLORS.get(record.levelname, '')}{record.levelname}{self.RESET}"
+        if hasattr(sys.stderr, "isatty") and sys.stderr.isatty():
+            record.levelname = (
+                f"{self.COLORS.get(record.levelname, '')}{record.levelname}{self.RESET}"
+            )
         return super().format(record)
 
 
 _loggers = {}
 
 
-def setup_logger(
-    name="AnnotationTool",
-    log_dir=None,
-    level=logging.INFO,
-    console=True
-):
+def setup_logger(name="AnnotationTool", log_dir=None, level=logging.INFO, console=True):
     """设置日志系统
 
     Args:
@@ -73,8 +66,7 @@ def setup_logger(
     file_handler = DailyLogHandler(log_dir, f"{name.lower()}.log")
     file_handler.setLevel(level)
     file_formatter = logging.Formatter(
-        '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        datefmt='%Y-%m-%d %H:%M:%S'
+        "%(asctime)s - %(name)s - %(levelname)s - %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
     )
     file_handler.setFormatter(file_formatter)
     logger.addHandler(file_handler)
@@ -83,8 +75,7 @@ def setup_logger(
         console_handler = logging.StreamHandler(sys.stdout)
         console_handler.setLevel(level)
         console_formatter = ColoredFormatter(
-            '%(asctime)s - %(levelname)s - %(message)s',
-            datefmt='%H:%M:%S'
+            "%(asctime)s - %(levelname)s - %(message)s", datefmt="%H:%M:%S"
         )
         console_handler.setFormatter(console_formatter)
         logger.addHandler(console_handler)
@@ -100,13 +91,13 @@ def get_logger(name="AnnotationTool"):
     return _loggers[name]
 
 
-def log_operation(msg, level='info'):
+def log_operation(msg, level="info"):
     """快速记录操作的辅助函数"""
     logger = get_logger("Operation")
     getattr(logger, level.lower())(msg)
 
 
-def log_system(msg, level='info'):
+def log_system(msg, level="info"):
     """快速记录系统事件的辅助函数"""
     logger = get_logger("System")
     getattr(logger, level.lower())(msg)

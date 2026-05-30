@@ -18,16 +18,17 @@ logger = get_logger("notification_service")
 
 class NotificationPlatform(Enum):
     """支持的推送平台"""
-    WECOM = "wecom"           # 企业微信
-    FEISHU = "feishu"         # 飞书
-    WXPUSHER = "wxpusher"     # 微信推送
-    DingTalk = "dingtalk"     # 钉钉
+
+    WECOM = "wecom"  # 企业微信
+    FEISHU = "feishu"  # 飞书
+    WXPUSHER = "wxpusher"  # 微信推送
+    DingTalk = "dingtalk"  # 钉钉
 
 
 class NotificationManager:
     """消息通知管理器"""
 
-    _instance: Optional['NotificationManager'] = None
+    _instance: Optional["NotificationManager"] = None
 
     def __new__(cls):
         if cls._instance is None:
@@ -39,24 +40,24 @@ class NotificationManager:
             return
         self._initialized = True
 
-        self.enabled = os.environ.get('NOTIFICATION_ENABLED', 'false').lower() == 'true'
-        self.platform = os.environ.get('NOTIFICATION_PLATFORM', 'wecom').lower()
+        self.enabled = os.environ.get("NOTIFICATION_ENABLED", "false").lower() == "true"
+        self.platform = os.environ.get("NOTIFICATION_PLATFORM", "wecom").lower()
 
-        self.wecom_webhook = os.environ.get('WECOM_WEBHOOK_URL', '')
-        self.wecom_corp_id = os.environ.get('WECOM_CORP_ID', '')
-        self.wecom_agent_id = os.environ.get('WECOM_AGENT_ID', '')
-        self.wecom_secret = os.environ.get('WECOM_SECRET', '')
+        self.wecom_webhook = os.environ.get("WECOM_WEBHOOK_URL", "")
+        self.wecom_corp_id = os.environ.get("WECOM_CORP_ID", "")
+        self.wecom_agent_id = os.environ.get("WECOM_AGENT_ID", "")
+        self.wecom_secret = os.environ.get("WECOM_SECRET", "")
 
-        self.feishu_webhook = os.environ.get('FEISHU_WEBHOOK_URL', '')
-        self.feishu_app_id = os.environ.get('FEISHU_APP_ID', '')
-        self.feishu_app_secret = os.environ.get('FEISHU_APP_SECRET', '')
-        self.feishu_receive_id = os.environ.get('FEISHU_RECEIVE_ID', '')
-        self.feishu_receive_id_type = os.environ.get('FEISHU_RECEIVE_ID_TYPE', 'chat_id')
+        self.feishu_webhook = os.environ.get("FEISHU_WEBHOOK_URL", "")
+        self.feishu_app_id = os.environ.get("FEISHU_APP_ID", "")
+        self.feishu_app_secret = os.environ.get("FEISHU_APP_SECRET", "")
+        self.feishu_receive_id = os.environ.get("FEISHU_RECEIVE_ID", "")
+        self.feishu_receive_id_type = os.environ.get("FEISHU_RECEIVE_ID_TYPE", "chat_id")
 
-        self.wxpusher_token = os.environ.get('WXPUSHER_TOKEN', '')
-        self.wxpusher_uids = os.environ.get('WXPUSHER_UIDS', '').split(',')
+        self.wxpusher_token = os.environ.get("WXPUSHER_TOKEN", "")
+        self.wxpusher_uids = os.environ.get("WXPUSHER_UIDS", "").split(",")
 
-        self.dingtalk_webhook = os.environ.get('DINGTALK_WEBHOOK_URL', '')
+        self.dingtalk_webhook = os.environ.get("DINGTALK_WEBHOOK_URL", "")
 
         self._wecom_access_token = None
         self._wecom_token_expires = 0
@@ -72,10 +73,7 @@ class NotificationManager:
 
         try:
             url = "https://qyapi.weixin.qq.com/cgi-bin/gettoken"
-            params = {
-                "corpid": self.wecom_corp_id,
-                "corpsecret": self.wecom_secret
-            }
+            params = {"corpid": self.wecom_corp_id, "corpsecret": self.wecom_secret}
             response = requests.get(url, params=params, timeout=10)
             result = response.json()
 
@@ -98,10 +96,7 @@ class NotificationManager:
         try:
             url = "https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal"
             headers = {"Content-Type": "application/json"}
-            data = {
-                "app_id": self.feishu_app_id,
-                "app_secret": self.feishu_app_secret
-            }
+            data = {"app_id": self.feishu_app_id, "app_secret": self.feishu_app_secret}
             response = requests.post(url, headers=headers, json=data, timeout=10)
             result = response.json()
 
@@ -128,9 +123,7 @@ class NotificationManager:
                 "touser": "|".join(mentioned_list) if mentioned_list else "@all",
                 "msgtype": "text",
                 "agentid": self.wecom_agent_id,
-                "text": {
-                    "content": content
-                }
+                "text": {"content": content},
             }
 
             response = requests.post(url, json=data, timeout=10)
@@ -158,9 +151,7 @@ class NotificationManager:
                 "touser": "@all",
                 "msgtype": "markdown",
                 "agentid": self.wecom_agent_id,
-                "markdown": {
-                    "content": content
-                }
+                "markdown": {"content": content},
             }
 
             response = requests.post(url, json=data, timeout=10)
@@ -183,25 +174,20 @@ class NotificationManager:
             if self.feishu_webhook:
                 url = self.feishu_webhook
                 headers = {"Content-Type": "application/json"}
-                
+
                 # 飞书机器人webhook格式
-                data = {
-                    "msg_type": "text",
-                    "content": {
-                        "text": content
-                    }
-                }
-                
+                data = {"msg_type": "text", "content": {"text": content}}
+
                 response = requests.post(url, headers=headers, json=data, timeout=10)
                 result = response.json()
-                
+
                 if result.get("code") == 0:
                     logger.info("飞书webhook消息发送成功")
                     return True
                 else:
                     logger.error(f"飞书webhook消息发送失败: {result}")
                     # 如果webhook失败，尝试使用API方式
-            
+
             # API方式
             access_token = self._get_feishu_access_token()
             if not access_token:
@@ -211,7 +197,7 @@ class NotificationManager:
             url = "https://open.feishu.cn/open-apis/im/v1/messages?receive_id_type=chat_id"
             headers = {
                 "Authorization": f"Bearer {access_token}",
-                "Content-Type": "application/json"
+                "Content-Type": "application/json",
             }
 
             # 构建消息内容
@@ -221,16 +207,15 @@ class NotificationManager:
                 data = {
                     "receive_id": self.feishu_receive_id or "oc_xxxxxx",  # 需要有效的chat_id
                     "msg_type": "text",
-                    "content": msg_content
+                    "content": msg_content,
                 }
             else:
                 data = {
                     "receive_id": self.feishu_receive_id or "oc_xxxxxx",
                     "msg_type": "post",
-                    "content": json.dumps({
-                        "title": "训练通知",
-                        "content": [[{"tag": "text", "text": content}]]
-                    })
+                    "content": json.dumps(
+                        {"title": "训练通知", "content": [[{"tag": "text", "text": content}]]}
+                    ),
                 }
 
             response = requests.post(url, headers=headers, json=data, timeout=10)
@@ -256,14 +241,14 @@ class NotificationManager:
             url = "https://open.feishu.cn/open-apis/im/v1/messages"
             headers = {
                 "Authorization": f"Bearer {access_token}",
-                "Content-Type": "application/json"
+                "Content-Type": "application/json",
             }
 
             data = {
                 "receive_id": self.feishu_receive_id or "ou_xxxxxx",
                 "receive_id_type": self.feishu_receive_id_type,
                 "msg_type": "interactive",
-                "content": json.dumps(card_content)
+                "content": json.dumps(card_content),
             }
 
             response = requests.post(url, headers=headers, json=data, timeout=10)
@@ -293,7 +278,7 @@ class NotificationManager:
                 "summary": summary,
                 "contentType": 1,
                 "uids": self.wxpusher_uids if self.wxpusher_uids else [],
-                "verifyPay": False
+                "verifyPay": False,
             }
 
             response = requests.post(url, json=data, timeout=10)
@@ -317,12 +302,7 @@ class NotificationManager:
                 return False
 
             url = self.dingtalk_webhook
-            data = {
-                "msgtype": msg_type,
-                msg_type: {
-                    "content": content
-                }
-            }
+            data = {"msgtype": msg_type, msg_type: {"content": content}}
 
             response = requests.post(url, json=data, timeout=10)
             result = response.json()
@@ -353,12 +333,7 @@ class NotificationManager:
             logger.debug("通知功能未启用，跳过发送")
             return False
 
-        level_emoji = {
-            "info": "ℹ️",
-            "warning": "⚠️",
-            "error": "❌",
-            "success": "✅"
-        }
+        level_emoji = {"info": "ℹ️", "warning": "⚠️", "error": "❌", "success": "✅"}
         emoji = level_emoji.get(level, "ℹ️")
 
         formatted_message = f"{emoji} {message}" if message else f"{emoji} {title}"
@@ -376,11 +351,7 @@ class NotificationManager:
             return False
 
     def send_training_progress(
-        self,
-        stage: str,
-        progress: float,
-        message: str,
-        metrics: Dict[str, Any] = None
+        self, stage: str, progress: float, message: str, metrics: Dict[str, Any] = None
     ) -> bool:
         """
         发送训练进度通知
@@ -418,7 +389,7 @@ class NotificationManager:
         model_name: str,
         metrics: Dict[str, Any],
         model_path: str = None,
-        training_time: float = None
+        training_time: float = None,
     ) -> bool:
         """
         发送训练完成通知
@@ -435,7 +406,11 @@ class NotificationManager:
         if not self.enabled:
             return False
 
-        time_str = f"{training_time / 3600:.1f}小时" if training_time and training_time >= 3600 else f"{training_time / 60:.1f}分钟" if training_time else "未知"
+        time_str = (
+            f"{training_time / 3600:.1f}小时"
+            if training_time and training_time >= 3600
+            else f"{training_time / 60:.1f}分钟" if training_time else "未知"
+        )
 
         content = f"""✅ 模型训练完成
 
@@ -455,11 +430,7 @@ class NotificationManager:
 
         return self.send(content, title=f"训练完成 - {model_name}", level="success")
 
-    def send_training_error(
-        self,
-        stage: str,
-        error_message: str
-    ) -> bool:
+    def send_training_error(self, stage: str, error_message: str) -> bool:
         """
         发送训练错误通知
 
@@ -499,23 +470,19 @@ def send_notification(message: str, title: str = None, level: str = "info") -> b
 
 
 def send_training_progress_notification(
-    stage: str,
-    progress: float,
-    message: str,
-    metrics: Dict[str, Any] = None
+    stage: str, progress: float, message: str, metrics: Dict[str, Any] = None
 ) -> bool:
     """发送训练进度通知（快捷函数）"""
     return get_notification_manager().send_training_progress(stage, progress, message, metrics)
 
 
 def send_training_complete_notification(
-    model_name: str,
-    metrics: Dict[str, Any],
-    model_path: str = None,
-    training_time: float = None
+    model_name: str, metrics: Dict[str, Any], model_path: str = None, training_time: float = None
 ) -> bool:
     """发送训练完成通知（快捷函数）"""
-    return get_notification_manager().send_training_complete(model_name, metrics, model_path, training_time)
+    return get_notification_manager().send_training_complete(
+        model_name, metrics, model_path, training_time
+    )
 
 
 def send_training_error_notification(stage: str, error_message: str) -> bool:
