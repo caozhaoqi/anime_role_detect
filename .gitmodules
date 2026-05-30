@@ -1,3 +1,6 @@
 [submodule "archived/nsfw_model_img"]
 	path = archived/nsfw_model_img
 	url = https://gitee.com/caozhaoqi/nsfw_model_img
+[submodule "archived/spider_image_system"]
+	path = archived/spider_image_system
+	url = https://gitee.com/caozhaoqi/spider_image_system
