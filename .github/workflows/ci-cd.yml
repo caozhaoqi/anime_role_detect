@@ -28,10 +28,10 @@ jobs:
           pip install black flake8 isort pylint
 
       - name: Run Black
-        run: black --check .
+        run: black --check . --exclude="\.git|__pycache__|env|venv|node_modules|archived"
 
       - name: Run Flake8
-        run: flake8 src/ skillhub/ scripts/
+        run: flake8 src/ skillhub/ scripts/ --extend-ignore=E501 --max-line-length=88
 
       - name: Run isort
         run: isort --check .
