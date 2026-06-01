@@ -4,6 +4,7 @@
 角色图片采集脚本 - 使用API接口版本
 基于 loli-role.txt 名单，通过 spider_image_system API 采集图片
 下载到新目录 data/spider_images_v2
+支持飞书通知推送采集进度
 """
 
 import os
@@ -11,15 +12,114 @@ import sys
 import json
 import time
 import requests
+import logging
 from pathlib import Path
+from loguru import logger
 
-# 配置
+sys.path.insert(
+    0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+)
+
+from pypinyin import lazy_pinyin, Style
+
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+CONFIG_PATH = os.path.join(SCRIPT_DIR, "notification_config.json")
+
 ROLE_LIST_PATH = (
     "/Users/caozhaoqi/PycharmProjects/anime_role_detect/archived/auto_spider_img/loli-role.txt"
 )
 OUTPUT_BASE_DIR = "/Users/caozhaoqi/PycharmProjects/anime_role_detect/data/spider_images_v2"
 API_BASE_URL = "http://localhost:33333/api/v1.2.5.260305/sis"
 TIMEOUT = 30
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+logger = logging.getLogger(__name__)
+
+NOTIFICATION_AVAILABLE = False
+notification_manager = None
+
+
+def init_notification():
+    """初始化通知服务"""
+    global NOTIFICATION_AVAILABLE, notification_manager
+    try:
+        from src.services.notification_service import get_notification_manager
+
+        notification_manager = get_notification_manager()
+        NOTIFICATION_AVAILABLE = True
+        logger.info("通知服务初始化成功")
+        return True
+    except ImportError as e:
+        logger.warning(f"通知服务未找到: {e}")
+        return False
+
+
+def send_notification(message, title=None, level="info"):
+    """发送飞书通知"""
+    if not NOTIFICATION_AVAILABLE or not notification_manager:
+        logger.debug(f"通知不可用: {message}")
+        return False
+    try:
+        return notification_manager.send(message, title, level)
+    except Exception as e:
+        logger.warning(f"发送通知失败: {e}")
+        return False
+
+
+def send_progress(role, status, idx, total, message=""):
+    """发送采集进度通知"""
+    status_emoji = {"running": "🔄", "completed": "✅", "error": "❌", "skipped": "⏭️", "starting": "🚀"}
+    status_text = {
+        "running": "采集中",
+        "completed": "采集完成",
+        "error": "采集失败",
+        "skipped": "已跳过",
+        "starting": "开始采集",
+    }
+
+    emoji = status_emoji.get(status, "📦")
+    text = status_text.get(status, "未知状态")
+
+    title = f"{emoji} 角色图片采集进度"
+    content = f"**角色**: {role['cn']} ({role['anime']})\n"
+    content += f"**状态**: {text}\n"
+    content += f"**进度**: [{idx}/{total}]\n"
+    content += f"**时间**: {time.strftime('%Y-%m-%d %H:%M:%S')}\n"
+    if message:
+        content += f"**消息**: {message}"
+
+    level = "success" if status == "completed" else "error" if status == "error" else "info"
+    return send_notification(content, title, level)
+
+
+def send_summary(success_count, failed_count, total, success_roles, failed_roles):
+    """发送采集完成汇总通知"""
+    title = "📊 角色图片采集完成"
+    content = f"""**采集任务完成**
+
+**统计信息**:
+- 总角色数: {total}
+- ✅ 成功: {success_count} 个
+- ❌ 失败: {failed_count} 个
+
+**成功采集的角色**:
+"""
+    for role in success_roles[:10]:
+        content += f"- {role}\n"
+    if len(success_roles) > 10:
+        content += f"... 还有 {len(success_roles) - 10} 个\n"
+
+    if failed_roles:
+        content += f"\n**失败的角色** ({len(failed_roles)} 个):\n"
+        for role in failed_roles[:5]:
+            content += f"- {role}\n"
+        if len(failed_roles) > 5:
+            content += f"... 还有 {len(failed_roles) - 5} 个\n"
+
+    content += f"\n**时间**: {time.strftime('%Y-%m-%d %H:%M:%S')}"
+    content += f"\n**保存位置**: {OUTPUT_BASE_DIR}"
+
+    return send_notification(content, title, level="success")
 
 
 def load_role_list(file_path):
@@ -125,11 +225,22 @@ def main():
     print("🚀 角色图片采集脚本 - API接口版本")
     print("=" * 60)
 
+    # 初始化通知服务
+    init_notification()
+
+    # 发送开始通知
+    send_notification(
+        f"🚀 角色图片采集任务已启动\n时间: {time.strftime('%Y-%m-%d %H:%M:%S')}",
+        "采集任务开始",
+        level="info",
+    )
+
     # 检查API服务是否运行
     print(f"\n🔌 检查API服务: {API_BASE_URL}")
     status = get_spider_status()
     if not status:
         print(f"❌ 无法连接到API服务，请确保服务运行在 {API_BASE_URL}")
+        send_notification(f"❌ 无法连接到API服务: {API_BASE_URL}", "采集任务失败", level="error")
         return
     print(f"✅ API服务已连接")
 
@@ -156,6 +267,9 @@ def main():
         print(f"   日文名: {role['jp']}")
         print("-" * 60)
 
+        # 发送开始采集通知
+        send_progress(role, "starting", idx, len(roles))
+
         try:
             success = collect_role_images(role)
 
@@ -163,13 +277,19 @@ def main():
                 success_roles.append(f"{role['cn']} ({role['anime']})")
                 total_collected += 1
                 print(f"\n✅ 采集成功")
+                # 发送成功通知
+                send_progress(role, "completed", idx, len(roles))
             else:
                 failed_roles.append(role["cn"])
                 print(f"\n❌ 采集失败")
+                # 发送失败通知
+                send_progress(role, "error", idx, len(roles), "采集失败")
 
         except Exception as e:
             print(f"\n❌ 处理角色 {role['cn']} 时出错: {e}")
             failed_roles.append(role["cn"])
+            # 发送错误通知
+            send_progress(role, "error", idx, len(roles), str(e))
 
         # 每个角色采集后停止爬虫
         stop_spider()
@@ -177,6 +297,9 @@ def main():
 
         # 避免请求过快
         time.sleep(2)
+
+    # 发送汇总通知
+    send_summary(total_collected, len(failed_roles), len(roles), success_roles, failed_roles)
 
     # 输出统计
     print("\n" + "=" * 60)
