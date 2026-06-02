@@ -1620,3 +1620,8 @@ try:
     logger.info("ONNX 推理路由加载成功")
 except Exception as e:
     logger.error(f"导入 ONNX 推理路由失败: {e}")
+
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="127.0.0.1", port=8001)

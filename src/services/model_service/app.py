@@ -183,19 +183,78 @@ tagger = None  # 标签生成器实例
 
 # 初始化模型
 async def init_models():
-    """初始化模型"""
+    """初始化模型并预热"""
     global preprocessor, feature_extractor, tagger
 
     try:
-        # 只初始化预处理器，其他组件在第一次请求时初始化
+        # 1. 初始化预处理器
         logger.info("初始化预处理器...")
         preprocessor = Preprocessing()
         logger.info("预处理器初始化完成")
 
-        # 其他模型在需要时自动初始化
-        logger.info("模型服务启动完成，其他模型将在第一次请求时自动初始化")
+        # 2. 预热模型（在后台异步执行，不阻塞启动）
+        asyncio.create_task(warmup_models())
+        
+        logger.info("模型服务启动完成，模型预热任务已启动")
     except Exception as e:
         logger.error(f"模型初始化失败: {e}")
+
+
+async def warmup_models():
+    """
+    模型预热 - 使用虚拟数据进行推理，加载模型到内存
+    这样在用户请求时响应更快
+    """
+    global feature_extractor, tagger
+    
+    try:
+        logger.info("开始模型预热...")
+        start_time = time.time()
+        
+        # 确保torch已导入
+        if "torch" not in globals():
+            import_torch()
+        
+        import torch
+        from PIL import Image
+        import io
+        
+        # 创建虚拟图像数据（224x224 RGB）
+        dummy_image = Image.new('RGB', (224, 224), color=(128, 128, 128))
+        
+        # 预热特征提取器
+        logger.info("预热特征提取器...")
+        if feature_extractor is None:
+            async with model_init_lock:
+                if feature_extractor is None:
+                    feature_extractor = FeatureExtraction()
+        
+        # 执行一次虚拟推理
+        try:
+            processed = preprocessor.preprocess(dummy_image)
+            if processed is not None:
+                _ = feature_extractor.extract(processed)
+                logger.info("特征提取器预热完成")
+        except Exception as e:
+            logger.warning(f"特征提取器预热失败: {e}")
+        
+        # 预热标签生成器
+        logger.info("预热标签生成器...")
+        if tagger is None:
+            try:
+                tagger = WDViTV3Tagger()
+                # 执行一次虚拟推理
+                _ = tagger.predict(dummy_image)
+                logger.info("标签生成器预热完成")
+            except Exception as e:
+                logger.warning(f"标签生成器预热失败: {e}")
+        
+        elapsed = time.time() - start_time
+        logger.info(f"模型预热完成，耗时: {elapsed:.2f}秒")
+        
+    except Exception as e:
+        logger.error(f"模型预热失败: {e}")
+        # 预热失败不影响服务启动，只是首次请求会慢一些
 
 
 # 根路径，重定向到文档

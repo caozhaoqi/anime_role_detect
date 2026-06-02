@@ -1,68 +1,191 @@
 #!/bin/bash
-# 使用 supervisord 管理所有服务的启动脚本
+set -e
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SUPERVISORD_CONF="${SCRIPT_DIR}/supervisord.conf"
+# 定义路径
+PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+SUPERVISOR_CONF="$PROJECT_DIR/supervisord.conf"
+LOG_DIR="$PROJECT_DIR/logs"
+RUN_DIR="$PROJECT_DIR/run"
+PID_FILE="$RUN_DIR/supervisord.pid"
 
+# 颜色输出
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
+info() {
+    echo -e "${GREEN}[INFO]${NC} $1"
+}
+
+warn() {
+    echo -e "${YELLOW}[WARN]${NC} $1"
+}
+
+error() {
+    echo -e "${RED}[ERROR]${NC} $1"
+}
+
+# 创建日志目录
+create_log_dir() {
+    info "创建日志目录..."
+    if [ ! -d "$LOG_DIR" ]; then
+        mkdir -p "$LOG_DIR"
+    fi
+}
+
+# 创建 PID 目录
+create_run_dir() {
+    info "创建运行目录..."
+    if [ ! -d "$RUN_DIR" ]; then
+        mkdir -p "$RUN_DIR"
+    fi
+}
+
+# 启动服务
 start_services() {
-    echo "🚀 启动所有服务..."
-
+    info "启动所有服务..."
+    
+    # 创建必要目录
+    create_log_dir
+    create_run_dir
+    
     # 检查 supervisord 是否已安装
     if ! command -v supervisord &> /dev/null; then
-        echo "❌ supervisord 未安装，请运行: pip install supervisord"
+        error "supervisord 未安装，请先安装: pip install supervisor"
         exit 1
     fi
-
-    # 启动 supervisord
-    supervisord -c "$SUPERVISORD_CONF"
-    echo "✅ supervisord 已启动"
-
-    # 等待服务启动
-    sleep 5
-
-    # 显示服务状态
-    supervisorctl -c "$SUPERVISORD_CONF" status
-}
-
-stop_services() {
-    echo "🛑 停止所有服务..."
-    supervisorctl -c "$SUPERVISORD_CONF" shutdown
-    echo "✅ 所有服务已停止"
-}
-
-restart_services() {
-    echo "🔄 重启所有服务..."
-    supervisorctl -c "$SUPERVISORD_CONF" restart all
-}
-
-status_services() {
-    echo "📊 服务状态:"
-    supervisorctl -c "$SUPERVISORD_CONF" status
-}
-
-tail_logs() {
-    echo "📝 查看服务日志 (Ctrl+C 退出):"
-    tail -f /tmp/model-service.log
-}
-
-case "$1" in
-    start)
-        start_services
-        ;;
-    stop)
-        stop_services
-        ;;
-    restart)
-        restart_services
-        ;;
-    status)
-        status_services
-        ;;
-    logs)
-        tail_logs
-        ;;
-    *)
-        echo "用法: $0 {start|stop|restart|status|logs}"
+    
+    # 检查配置文件
+    if [ ! -f "$SUPERVISOR_CONF" ]; then
+        error "配置文件不存在: $SUPERVISOR_CONF"
         exit 1
-        ;;
-esac
+    fi
+    
+    # 检查是否已有实例运行
+    if [ -f "$PID_FILE" ]; then
+        pid=$(cat "$PID_FILE")
+        if kill -0 "$pid" 2>/dev/null; then
+            warn "检测到 supervisord 已在运行 (PID: $pid)"
+            info "重启服务..."
+            supervisorctl -c "$SUPERVISOR_CONF" restart all
+            return
+        fi
+    fi
+    
+    # 启动 supervisord
+    info "启动 supervisord..."
+    cd "$PROJECT_DIR"
+    supervisord -c "$SUPERVISOR_CONF"
+    
+    info "等待服务启动..."
+    sleep 8
+    
+    # 检查服务状态
+    supervisorctl -c "$SUPERVISOR_CONF" status
+    
+    info "服务启动完成！"
+    info "Supervisor 管理界面: http://localhost:9001 (用户名: admin, 密码: admin)"
+    info "前端: http://localhost:3000"
+}
+
+# 停止服务
+stop_services() {
+    info "停止所有服务..."
+    
+    if [ ! -f "$PID_FILE" ]; then
+        warn "PID 文件不存在，可能服务未运行"
+        return
+    fi
+    
+    pid=$(cat "$PID_FILE")
+    if ! kill -0 "$pid" 2>/dev/null; then
+        warn "supervisord 进程不存在"
+        return
+    fi
+    
+    supervisorctl -c "$SUPERVISOR_CONF" stop all
+    supervisorctl -c "$SUPERVISOR_CONF" shutdown
+    
+    info "服务已停止"
+}
+
+# 重启服务
+restart_services() {
+    info "重启所有服务..."
+    stop_services
+    sleep 2
+    start_services
+}
+
+# 查看服务状态
+status_services() {
+    info "查看服务状态..."
+    supervisorctl -c "$SUPERVISOR_CONF" status
+}
+
+# 查看日志
+view_logs() {
+    if [ -z "$1" ]; then
+        info "查看所有服务日志..."
+        tail -f "$LOG_DIR"/*.log
+    else
+        info "查看 $1 服务日志..."
+        if [ -f "$LOG_DIR/$1.log" ]; then
+            tail -f "$LOG_DIR/$1.log"
+        elif [ -f "$LOG_DIR/$1.err.log" ]; then
+            tail -f "$LOG_DIR/$1.err.log"
+        else
+            error "日志文件不存在: $1.log"
+        fi
+    fi
+}
+
+# 帮助信息
+show_help() {
+    echo "使用方法: $0 <command>"
+    echo ""
+    echo "命令列表:"
+    echo "  start     - 启动所有服务"
+    echo "  stop      - 停止所有服务"
+    echo "  restart   - 重启所有服务"
+    echo "  status    - 查看服务状态"
+    echo "  logs [服务名] - 查看日志（可选服务名: model-service, api-service, frontend 等）"
+    echo "  help      - 显示帮助信息"
+    echo ""
+    echo "示例:"
+    echo "  $0 start"
+    echo "  $0 status"
+    echo "  $0 logs model-service"
+}
+
+# 主函数
+main() {
+    case "$1" in
+        start)
+            start_services
+            ;;
+        stop)
+            stop_services
+            ;;
+        restart)
+            restart_services
+            ;;
+        status)
+            status_services
+            ;;
+        logs)
+            view_logs "$2"
+            ;;
+        help|--help|-h)
+            show_help
+            ;;
+        *)
+            error "未知命令: $1"
+            show_help
+            exit 1
+            ;;
+    esac
+}
+
+main "$@"

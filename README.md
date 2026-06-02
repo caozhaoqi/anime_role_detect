@@ -11,13 +11,19 @@ An AI-powered image recognition system designed to identify characters from game
 ## ✨ Features
 
 - **Multi-format Recognition**: Supports images and videos
-- **Multi-role Detection**: Identify multiple characters in single image
+- **Multi-role Detection**: Identify multiple characters in single image (YOLOv8/v10 integration)
 - **High Accuracy**: Powered by MobileNetV2, EfficientNet-B0/B3, ResNet50
 - **DeepDanbooru Integration**: Enhanced tagging capabilities
 - **Attribute Prediction**: Hair color, eye color, clothing attributes
 - **RESTful API**: Batch processing support
 - **Log Fusion**: Build new models from classification logs
 - **Layered Architecture**: Distributed deployment ready
+- **Model Warm-up**: Reduced first-request latency
+- **Request Debouncing/Throttling**: Prevent duplicate submissions
+- **Image Compression**: Optimized upload bandwidth
+- **Redis Cache**: Reduce redundant computations
+- **Feishu Notifications**: Real-time progress updates
+- **Token Auto-refresh**: Seamless authentication
 
 ## 🚀 Quick Start
 
@@ -25,6 +31,7 @@ An AI-powered image recognition system designed to identify characters from game
 - Python 3.9+
 - 16GB+ RAM (required for model loading)
 - NVIDIA GPU (recommended for inference speed)
+- Redis Server (for caching)
 
 ### Installation
 
@@ -41,14 +48,18 @@ source .venv/bin/activate
 pip install -r requirements-base.txt
 pip install -r requirements-ml.txt  # For model training/inference
 pip install -r requirements-dev.txt  # For development
+pip install supervisor  # For process management
 
 # Configure environment
 cp .env.example .env
 # Edit .env with your configuration
 
-# Start services
-python3 src/application.py start --core
-python3 src/application.py start --services gateway
+# Start Redis (required for caching)
+redis-server &
+
+# Start all services using supervisord
+chmod +x src/run/run_with_supervisor.sh
+./src/run/run_with_supervisor.sh start
 ```
 
 ### Docker Deployment
@@ -57,9 +68,21 @@ python3 src/application.py start --services gateway
 docker-compose up --build -d
 ```
 
-### API Gateway (Main Entry)
-- **Gateway**: `http://localhost:8080`
-- **API Docs**: `http://localhost:8080/docs`
+### Service Access
+
+| Service | URL | Port |
+|---------|-----|------|
+| Frontend | http://localhost:3000 | 3000 |
+| API Gateway | http://localhost:8080 | 8080 |
+| Model Service | http://localhost:8000 | 8000 |
+| API Service | http://localhost:8001 | 8001 |
+| Multimedia Service | http://localhost:8002 | 8002 |
+| Search Service | http://localhost:8003 | 8003 |
+| Supervisor Dashboard | http://localhost:9001 | 9001 |
+
+### API Documentation
+- **Swagger Docs**: `http://localhost:8080/docs`
+- **Redoc Docs**: `http://localhost:8080/redoc`
 
 ## 📁 Project Structure
 
@@ -70,14 +93,19 @@ anime_role_detect/
 │   ├── services/           # Microservices
 │   │   ├── api_gateway/    # API Gateway (port 8080)
 │   │   ├── model_service/  # Model Service (port 8000)
-│   │   └── multimedia/     # Multimedia Service (port 8002)
+│   │   ├── multimedia_service/  # Multimedia Service (port 8002)
+│   │   ├── search_service/ # Search Service (port 8003)
+│   │   ├── cache_service/  # Redis Cache Service
+│   │   └── video_service/  # Video Recognition Service
 │   ├── core/               # Core functionality
-│   └── frontend/           # Frontend (Next.js)
+│   ├── frontend/           # Frontend (Next.js)
+│   └── run/                # Service management scripts
 ├── models/                 # Model weights
 ├── tests/                  # Test suites
 ├── docs/                   # Documentation
 ├── skillhub/               # Skill Hub module
-├── scripts/                # Utility scripts
+├── scripts/                # Utility scripts (spider, data collection)
+├── supervisord.conf        # Process manager configuration
 ├── requirements-base.txt   # Base dependencies
 ├── requirements-ml.txt     # ML dependencies
 ├── requirements-dev.txt    # Development dependencies
@@ -90,15 +118,29 @@ anime_role_detect/
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/api/classify` | POST | Image classification |
-| `/api/classify/multi-role` | POST | Multi-character detection |
+| `/api/classify/multi-role` | POST | Multi-character detection (YOLO) |
 | `/api/search/image` | POST | Reverse image search |
 | `/api/video/recognize` | POST | Video recognition |
 | `/api/health` | GET | Health check |
 | `/api/services` | GET | Service status |
+| `/api/auth/login` | POST | User login |
+| `/api/auth/refresh` | POST | Refresh token |
+
+## 🔧 Configuration
+
+### Environment Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `REDIS_URL` | Redis connection URL | redis://localhost:6379 |
+| `JWT_SECRET` | JWT secret key | (required) |
+| `JWT_EXPIRE_MINUTES` | Token expiration | 1440 (24h) |
+| `MAX_IMAGE_SIZE` | Max upload size (MB) | 10 |
+| `DEVICE` | Compute device (cpu/cuda/mps) | auto |
 
 ## 📊 Model Performance
 
-### Latest Benchmark Results (May 2026)
+### Latest Benchmark Results (June 2026)
 
 **Test Dataset**: 1,480 images across 74 character classes
 
@@ -109,6 +151,7 @@ anime_role_detect/
 | Top-5 Accuracy | **96.89%** |
 | Inference Speed | **85.74 FPS** |
 | Latency per Image | **11.66ms** |
+| First Request Latency | **< 500ms** (with warm-up) |
 
 ### Model Comparison
 
@@ -120,6 +163,16 @@ anime_role_detect/
 | ResNet50 | 94.80% | 257 |
 
 **Current Production Model**: `efficientnet_b3_loli_optimized_v2_20260529_133654`
+
+## 🔒 Security
+
+- JWT authentication with secret key rotation
+- Password hashing with bcrypt/sha256
+- Rate limiting to prevent abuse
+- Input validation and sanitization
+- HttpOnly Cookie storage
+- Content Security Policy (CSP) for XSS protection
+- Automatic token refresh mechanism
 
 ## 📚 Documentation
 
@@ -136,21 +189,14 @@ We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for deta
 - Code style guidelines
 - Pull request process
 
-## 🔒 Security
-
-- JWT authentication with secret key rotation
-- Password hashing with bcrypt/sha256
-- Rate limiting to prevent abuse
-- Input validation and sanitization
-
 ## 📄 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ---
 
-**Version**: v2.0 | **Last Updated**: May 2026 | **Maintainer**: ARD Team
+**Version**: v2.1 | **Last Updated**: June 2026 | **Maintainer**: ARD Team
 
 ---
 
-**Topics**: anime, character-recognition, image-classification, deep-learning, python-api, computer-vision
+**Topics**: anime, character-recognition, image-classification, deep-learning, python-api, computer-vision, yolov8, nextjs

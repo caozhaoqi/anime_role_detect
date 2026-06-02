@@ -11,13 +11,19 @@
 ## ✨ 核心功能
 
 - **多格式识别**: 支持图片和视频
-- **多角色检测**: 识别单张图片中的多个角色
+- **多角色检测**: 识别单张图片中的多个角色（集成YOLOv8/v10）
 - **高准确率**: 基于 MobileNetV2、EfficientNet-B0/B3、ResNet50
 - **DeepDanbooru集成**: 增强标签生成能力
 - **属性预测**: 发色、瞳色、服装等属性
 - **RESTful API**: 支持批量处理
 - **日志融合**: 从分类日志构建新模型
 - **分层架构**: 支持分布式部署
+- **模型预热**: 减少首次请求延迟
+- **请求防抖/节流**: 防止重复提交
+- **图片压缩上传**: 优化带宽占用
+- **Redis缓存**: 减少重复计算
+- **飞书通知**: 实时进度同步
+- **Token自动刷新**: 无缝认证体验
 
 ## 🚀 快速开始
 
@@ -25,6 +31,7 @@
 - Python 3.9+
 - 16GB+ 内存（模型加载必需）
 - NVIDIA GPU（推荐用于推理加速）
+- Redis 服务器（用于缓存）
 
 ### 安装
 
@@ -41,14 +48,18 @@ source .venv/bin/activate
 pip install -r requirements-base.txt
 pip install -r requirements-ml.txt   # 用于模型训练/推理
 pip install -r requirements-dev.txt  # 用于开发
+pip install supervisor               # 用于进程管理
 
 # 配置环境变量
 cp .env.example .env
 # 编辑 .env 文件配置
 
-# 启动服务
-python3 src/application.py start --core
-python3 src/application.py start --services gateway
+# 启动 Redis（缓存必需）
+redis-server &
+
+# 使用 supervisord 启动所有服务
+chmod +x src/run/run_with_supervisor.sh
+./src/run/run_with_supervisor.sh start
 ```
 
 ### Docker 部署
@@ -57,9 +68,21 @@ python3 src/application.py start --services gateway
 docker-compose up --build -d
 ```
 
-### API 网关（主入口）
-- **网关**: `http://localhost:8080`
-- **API 文档**: `http://localhost:8080/docs`
+### 服务访问
+
+| 服务 | URL | 端口 |
+|------|-----|------|
+| 前端 | http://localhost:3000 | 3000 |
+| API 网关 | http://localhost:8080 | 8080 |
+| 模型服务 | http://localhost:8000 | 8000 |
+| API 服务 | http://localhost:8001 | 8001 |
+| 多媒体服务 | http://localhost:8002 | 8002 |
+| 搜索服务 | http://localhost:8003 | 8003 |
+| Supervisor 管理面板 | http://localhost:9001 | 9001 |
+
+### API 文档
+- **Swagger 文档**: `http://localhost:8080/docs`
+- **Redoc 文档**: `http://localhost:8080/redoc`
 
 ## 📁 项目结构
 
@@ -70,14 +93,19 @@ anime_role_detect/
 │   ├── services/           # 微服务
 │   │   ├── api_gateway/    # API网关（端口8080）
 │   │   ├── model_service/  # 模型服务（端口8000）
-│   │   └── multimedia/     # 多媒体服务（端口8002）
+│   │   ├── multimedia_service/  # 多媒体服务（端口8002）
+│   │   ├── search_service/ # 搜索服务（端口8003）
+│   │   ├── cache_service/  # Redis缓存服务
+│   │   └── video_service/  # 视频识别服务
 │   ├── core/               # 核心功能
-│   └── frontend/           # 前端（Next.js）
+│   ├── frontend/           # 前端（Next.js）
+│   └── run/                # 服务管理脚本
 ├── models/                 # 模型权重
 ├── tests/                  # 测试套件
 ├── docs/                   # 文档
 ├── skillhub/               # 技能仓库模块
-├── scripts/                # 工具脚本
+├── scripts/                # 工具脚本（爬虫、数据采集）
+├── supervisord.conf        # 进程管理器配置
 ├── requirements-base.txt   # 基础依赖
 ├── requirements-ml.txt     # ML依赖
 ├── requirements-dev.txt    # 开发依赖
@@ -90,15 +118,29 @@ anime_role_detect/
 | 接口 | 方法 | 描述 |
 |------|------|------|
 | `/api/classify` | POST | 图片分类 |
-| `/api/classify/multi-role` | POST | 多角色检测 |
+| `/api/classify/multi-role` | POST | 多角色检测（YOLO） |
 | `/api/search/image` | POST | 图片搜索 |
 | `/api/video/recognize` | POST | 视频识别 |
 | `/api/health` | GET | 健康检查 |
 | `/api/services` | GET | 服务状态 |
+| `/api/auth/login` | POST | 用户登录 |
+| `/api/auth/refresh` | POST | 刷新Token |
+
+## 🔧 配置
+
+### 环境变量
+
+| 变量 | 描述 | 默认值 |
+|------|------|--------|
+| `REDIS_URL` | Redis连接地址 | redis://localhost:6379 |
+| `JWT_SECRET` | JWT密钥 | (必需) |
+| `JWT_EXPIRE_MINUTES` | Token过期时间（分钟） | 1440（24小时） |
+| `MAX_IMAGE_SIZE` | 最大上传大小（MB） | 10 |
+| `DEVICE` | 计算设备（cpu/cuda/mps） | auto |
 
 ## 📊 模型性能
 
-### 最新基准测试结果（2026年5月）
+### 最新基准测试结果（2026年6月）
 
 **测试数据集**: 1,480 张图片，覆盖74个角色类别
 
@@ -109,6 +151,7 @@ anime_role_detect/
 | Top-5 准确率 | **96.89%** |
 | 推理速度 | **85.74 FPS** |
 | 单图耗时 | **11.66ms** |
+| 首次请求延迟 | **< 500ms**（带预热） |
 
 ### 模型对比
 
@@ -120,6 +163,16 @@ anime_role_detect/
 | ResNet50 | 94.80% | 257 |
 
 **当前生产模型**: `efficientnet_b3_loli_optimized_v2_20260529_133654`
+
+## 🔒 安全
+
+- JWT 认证与密钥轮换
+- bcrypt/sha256 密码哈希
+- 请求速率限制
+- 输入验证与清理
+- HttpOnly Cookie 存储
+- Content Security Policy (CSP) 防护XSS
+- Token自动刷新机制
 
 ## 📚 文档
 
@@ -136,21 +189,14 @@ anime_role_detect/
 - 代码风格规范
 - Pull Request 流程
 
-## 🔒 安全
-
-- JWT 认证与密钥轮换
-- bcrypt/sha256 密码哈希
-- 请求速率限制
-- 输入验证与清理
-
 ## 📄 许可证
 
 本项目采用 MIT 许可证 - 详见 [LICENSE](LICENSE) 文件。
 
 ---
 
-**版本**: v2.0 | **最后更新**: 2026年5月 | **维护者**: ARD Team
+**版本**: v2.1 | **最后更新**: 2026年6月 | **维护者**: ARD Team
 
 ---
 
-**关键词**: anime, character-recognition, image-classification, deep-learning, python-api, computer-vision
+**关键词**: anime, character-recognition, image-classification, deep-learning, python-api, computer-vision, yolov8, nextjs

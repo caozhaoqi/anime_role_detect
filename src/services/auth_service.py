@@ -2,6 +2,7 @@ import os
 import jwt
 import time
 import secrets
+import bcrypt
 from typing import Optional, Dict, Any
 from datetime import datetime, timedelta
 
@@ -32,10 +33,11 @@ class AuthService:
         self.ACCESS_TOKEN_EXPIRE_MINUTES = int(os.environ.get("ACCESS_TOKEN_EXPIRE_MINUTES", "30"))
         self.REFRESH_TOKEN_EXPIRE_DAYS = int(os.environ.get("REFRESH_TOKEN_EXPIRE_DAYS", "7"))
 
-        # 模拟用户数据库
+        # 模拟用户数据库 - 使用bcrypt哈希密码
+        # 密码格式: bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
         self.users = {
-            "admin": {"password": "admin123", "role": "admin"},  # 实际应用中应该使用哈希密码
-            "user": {"password": "user123", "role": "user"},
+            "admin": {"password_hash": "$2b$12$5phsxyRHlgaiNgNVcASLDeIKKTXoNBu75i80AHZMHSd4MHqSEjSa.", "role": "admin"},
+            "user": {"password_hash": "$2b$12$lMMjwwvZ8a3KNfwlk62Ioe6J5L8gluKVWGukxjtqtUyGpf90A.X4W", "role": "user"},
         }
 
         logger.info("认证服务初始化完成")
@@ -115,13 +117,26 @@ class AuthService:
             return None
 
     def authenticate_user(self, username: str, password: str) -> Optional[Dict[str, Any]]:
-        """验证用户"""
+        """验证用户 - 使用bcrypt哈希验证"""
         user = self.users.get(username)
         if not user:
             return None
-        if user.get("password") != password:
+        
+        password_hash = user.get("password_hash")
+        if not password_hash:
+            # 兼容旧的明文密码存储（仅用于迁移期）
+            if user.get("password") == password:
+                return user
             return None
-        return user
+        
+        # 使用bcrypt验证密码
+        try:
+            if bcrypt.checkpw(password.encode('utf-8'), password_hash.encode('utf-8')):
+                return user
+        except Exception as e:
+            logger.error(f"密码验证失败: {e}")
+        
+        return None
 
     def get_user_role(self, username: str) -> Optional[str]:
         """获取用户角色"""

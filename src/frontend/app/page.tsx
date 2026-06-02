@@ -12,6 +12,9 @@ import VideoPanel from './components/VideoPanel';
 import Header from './components/Header';
 import TabSwitcher from './components/TabSwitcher';
 import ChatPanel from './components/ChatPanel';
+import { useDebounce, useThrottle, useLock } from './hooks/useDebounce';
+import { compressImage, compressImages, formatFileSize } from './utils/imageCompression';
+import ErrorBoundary, { useGlobalErrorHandler } from './components/ErrorBoundary';
 
 export default function AnimeRoleDetect() {
   const [authState, setAuthState] = useState<AuthState>({
@@ -20,9 +23,11 @@ export default function AnimeRoleDetect() {
     accessToken: null,
     refreshToken: null
   });
-  const [isLoginLoading, setIsLoginLoading] = useState(false);
+  
   const [loginError, setLoginError] = useState<string | null>(null);
   const [showSessionExpired, setShowSessionExpired] = useState(false);
+  const [isLoginLoading, setIsLoginLoading] = useState(false);
+  const refreshPromiseRef = useRef<Promise<string> | null>(null);
   
   const [showHistory, setShowHistory] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState<any>(null);
@@ -57,9 +62,62 @@ export default function AnimeRoleDetect() {
   const [activePanel, setActivePanel] = useState<'classify' | 'search' | 'video'>('classify');
   
   const isMountedRef = useRef(false);
+  
+  // 防抖相关 refs
+  const lastRequestTimeRef = useRef<number>(0);
+  const requestLockRef = useRef<boolean>(false);
+  const REQUEST_DEBOUNCE_MS = 1000; // 1秒内禁止重复请求
 
   useEffect(() => {
     isMountedRef.current = true;
+
+    // Token自动刷新函数
+    const refreshAccessToken = async (): Promise<string> => {
+      // 防止重复刷新
+      if (refreshPromiseRef.current) {
+        return refreshPromiseRef.current;
+      }
+
+      const refreshToken = authState.refreshToken || localStorage.getItem('refreshToken');
+      
+      if (!refreshToken) {
+        throw new Error('No refresh token available');
+      }
+
+      refreshPromiseRef.current = new Promise(async (resolve, reject) => {
+        try {
+          const formData = new FormData();
+          formData.append('refresh_token', refreshToken);
+          
+          const response = await axios.post('/api/auth/refresh', formData);
+          
+          if (response.data.success) {
+            const newAccessToken = response.data.data.access_token;
+            const newRefreshToken = response.data.data.refresh_token;
+            
+            // 更新状态
+            setAuthState(prev => ({
+              ...prev,
+              accessToken: newAccessToken,
+              refreshToken: newRefreshToken
+            }));
+            
+            localStorage.setItem('accessToken', newAccessToken);
+            localStorage.setItem('refreshToken', newRefreshToken);
+            
+            resolve(newAccessToken);
+          } else {
+            reject(new Error('Refresh token expired'));
+          }
+        } catch (error) {
+          reject(error);
+        } finally {
+          refreshPromiseRef.current = null;
+        }
+      });
+
+      return refreshPromiseRef.current;
+    };
 
     // 设置Axios请求拦截器处理认证缺失
     const requestInterceptor = axios.interceptors.request.use(
@@ -67,7 +125,8 @@ export default function AnimeRoleDetect() {
         // 检查是否需要认证的请求（排除登录相关接口）
         const requiresAuth = !config.url?.includes('/api/login') && 
                            !config.url?.includes('/api/register') &&
-                           !config.url?.includes('/api/health');
+                           !config.url?.includes('/api/health') &&
+                           !config.url?.includes('/api/auth/refresh');
         
         if (requiresAuth && !config.headers?.Authorization) {
           console.warn('⚠️ Authorization头为空，请先登录');
@@ -95,25 +154,39 @@ export default function AnimeRoleDetect() {
       }
     );
 
-    // 设置Axios响应拦截器处理认证过期
+    // 设置Axios响应拦截器处理认证过期（带自动刷新）
     const responseInterceptor = axios.interceptors.response.use(
       (response) => response,
-      (error) => {
-        if (error.response && error.response.status === 401) {
-          // 清除认证状态
-          setAuthState({
-            isAuthenticated: false,
-            user: null,
-            accessToken: null,
-            refreshToken: null
-          });
-          localStorage.removeItem('accessToken');
-          localStorage.removeItem('refreshToken');
-          localStorage.removeItem('currentUser');
+      async (error) => {
+        const originalRequest = error.config;
+        
+        // 处理401错误，尝试自动刷新Token
+        if (error.response && error.response.status === 401 && !originalRequest._retry) {
+          originalRequest._retry = true;
           
-          // 显示会话过期提示
-          setShowSessionExpired(true);
-          setTimeout(() => setShowSessionExpired(false), 5000);
+          try {
+            const newAccessToken = await refreshAccessToken();
+            
+            // 更新请求头并重试
+            originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
+            return axios(originalRequest);
+          } catch (refreshError) {
+            // 刷新失败，清除认证状态
+            console.error('Token刷新失败:', refreshError);
+            setAuthState({
+              isAuthenticated: false,
+              user: null,
+              accessToken: null,
+              refreshToken: null
+            });
+            localStorage.removeItem('accessToken');
+            localStorage.removeItem('refreshToken');
+            localStorage.removeItem('currentUser');
+            
+            // 显示会话过期提示
+            setShowSessionExpired(true);
+            setTimeout(() => setShowSessionExpired(false), 5000);
+          }
         }
         return Promise.reject(error);
       }
@@ -123,7 +196,10 @@ export default function AnimeRoleDetect() {
       axios.interceptors.request.eject(requestInterceptor);
       axios.interceptors.response.eject(responseInterceptor);
     };
-  }, []);
+  }, [authState.refreshToken]);
+
+  // 全局错误处理
+  useGlobalErrorHandler();
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -299,38 +375,135 @@ export default function AnimeRoleDetect() {
     ]);
   };
 
-  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (isBatchUpload) {
       const files = e.target.files;
       if (files && files.length > 0) {
-        const newFiles = Array.from(files);
-        setSelectedImages(newFiles);
+        // 显示压缩提示
+        const totalSize = Array.from(files).reduce((sum, f) => sum + f.size, 0);
+        const compressingMsg: Message = {
+          id: `batch_compress_${Date.now()}`,
+          role: "assistant",
+          content: `正在压缩 ${files.length} 张图片 (共 ${formatFileSize(totalSize)})...`,
+          timestamp: Date.now(),
+        };
+        setMessages(prev => [...prev, compressingMsg]);
         
-        const previews: string[] = [];
-        newFiles.forEach(file => {
-          const reader = new FileReader();
-          reader.onloadend = () => {
-            if (isMountedRef.current) {
-              previews.push(reader.result as string);
-              if (previews.length === newFiles.length) {
-                setImagePreviews(previews);
+        try {
+          // 批量压缩图片
+          const compressedFiles = await compressImages(Array.from(files), {
+            maxWidth: 1920,
+            maxHeight: 1920,
+            quality: 0.85,
+            maxSizeMB: 5,
+          });
+          
+          // 移除压缩提示
+          setMessages(prev => prev.filter(msg => msg.id !== compressingMsg.id));
+          
+          // 显示压缩结果
+          const compressedTotalSize = compressedFiles.reduce((sum, f) => sum + f.size, 0);
+          if (compressedTotalSize < totalSize) {
+            const resultMsg: Message = {
+              id: `batch_compressed_${Date.now()}`,
+              role: "assistant",
+              content: `批量压缩完成: ${formatFileSize(totalSize)} → ${formatFileSize(compressedTotalSize)} (${((compressedTotalSize / totalSize) * 100).toFixed(1)}%)`,
+              timestamp: Date.now(),
+            };
+            setMessages(prev => [...prev, resultMsg]);
+          }
+          
+          setSelectedImages(compressedFiles);
+          
+          const previews: string[] = [];
+          compressedFiles.forEach(file => {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+              if (isMountedRef.current) {
+                previews.push(reader.result as string);
+                if (previews.length === compressedFiles.length) {
+                  setImagePreviews(previews);
+                }
               }
-            }
-          };
-          reader.readAsDataURL(file);
-        });
+            };
+            reader.readAsDataURL(file);
+          });
+        } catch (error) {
+          console.error('批量压缩失败:', error);
+          // 压缩失败时使用原图
+          const newFiles = Array.from(files);
+          setSelectedImages(newFiles);
+          
+          const previews: string[] = [];
+          newFiles.forEach(file => {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+              if (isMountedRef.current) {
+                previews.push(reader.result as string);
+                if (previews.length === newFiles.length) {
+                  setImagePreviews(previews);
+                }
+              }
+            };
+            reader.readAsDataURL(file);
+          });
+        }
       }
     } else {
       const file = e.target.files?.[0];
       if (file) {
-        setSelectedImage(file);
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          if (isMountedRef.current) {
-            setImagePreview(reader.result as string);
+        try {
+          // 显示压缩提示
+          const compressingMsg: Message = {
+            id: `compress_${Date.now()}`,
+            role: "assistant",
+            content: `正在压缩图片 ${file.name} (${formatFileSize(file.size)})...`,
+            timestamp: Date.now(),
+          };
+          setMessages(prev => [...prev, compressingMsg]);
+          
+          // 压缩图片
+          const compressedFile = await compressImage(file, {
+            maxWidth: 1920,
+            maxHeight: 1920,
+            quality: 0.85,
+            maxSizeMB: 5,
+          });
+          
+          // 移除压缩提示
+          setMessages(prev => prev.filter(msg => msg.id !== compressingMsg.id));
+          
+          // 显示压缩结果
+          if (compressedFile.size < file.size) {
+            const resultMsg: Message = {
+              id: `compressed_${Date.now()}`,
+              role: "assistant",
+              content: `图片已压缩: ${formatFileSize(file.size)} → ${formatFileSize(compressedFile.size)}`,
+              timestamp: Date.now(),
+            };
+            setMessages(prev => [...prev, resultMsg]);
           }
-        };
-        reader.readAsDataURL(file);
+          
+          setSelectedImage(compressedFile);
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            if (isMountedRef.current) {
+              setImagePreview(reader.result as string);
+            }
+          };
+          reader.readAsDataURL(compressedFile);
+        } catch (error) {
+          console.error('图片压缩失败:', error);
+          // 压缩失败时使用原图
+          setSelectedImage(file);
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            if (isMountedRef.current) {
+              setImagePreview(reader.result as string);
+            }
+          };
+          reader.readAsDataURL(file);
+        }
       }
     }
   };
@@ -376,20 +549,64 @@ export default function AnimeRoleDetect() {
     }
   };
 
-  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+  const handleDrop = async (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     setDragCounter(0);
     setIsDragging(false);
     const file = e.dataTransfer.files?.[0];
     if (file && file.type.startsWith('image/')) {
-      setSelectedImage(file);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        if (isMountedRef.current) {
-          setImagePreview(reader.result as string);
+      try {
+        // 显示压缩提示
+        const processingMessage: Message = {
+          id: `compressing_${Date.now()}`,
+          role: "assistant",
+          content: `正在压缩图片 ${file.name} (${formatFileSize(file.size)})...`,
+          timestamp: Date.now(),
+        };
+        setMessages(prev => [...prev, processingMessage]);
+        
+        // 压缩图片
+        const compressedFile = await compressImage(file, {
+          maxWidth: 1920,
+          maxHeight: 1920,
+          quality: 0.85,
+          maxSizeMB: 5,
+        });
+        
+        // 移除压缩提示
+        setMessages(prev => prev.filter(msg => msg.id !== processingMessage.id));
+        
+        // 显示压缩结果
+        if (compressedFile.size < file.size) {
+          const compressMsg: Message = {
+            id: `compressed_${Date.now()}`,
+            role: "assistant",
+            content: `图片已压缩: ${formatFileSize(file.size)} → ${formatFileSize(compressedFile.size)}`,
+            timestamp: Date.now(),
+          };
+          setMessages(prev => [...prev, compressMsg]);
         }
-      };
-      reader.readAsDataURL(file);
+        
+        setSelectedImage(compressedFile);
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          if (isMountedRef.current) {
+            setImagePreview(reader.result as string);
+          }
+        };
+        reader.readAsDataURL(compressedFile);
+      } catch (error) {
+        console.error('图片压缩失败:', error);
+        // 压缩失败时使用原图
+        setSelectedImage(file);
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          if (isMountedRef.current) {
+            setImagePreview(reader.result as string);
+          }
+        };
+        reader.readAsDataURL(file);
+      }
     }
   };
 
@@ -415,9 +632,26 @@ export default function AnimeRoleDetect() {
   }, []);
 
   const handleSend = useCallback(async () => {
+    // 防抖检查：1秒内禁止重复请求
+    const now = Date.now();
+    if (now - lastRequestTimeRef.current < REQUEST_DEBOUNCE_MS) {
+      console.log('请求过于频繁，请稍后再试');
+      return;
+    }
+    
+    // 锁定检查：防止重复提交
+    if (requestLockRef.current) {
+      console.log('已有请求正在处理中');
+      return;
+    }
+    
     if ((!inputText.trim() && !selectedImage && selectedImages.length === 0) || isProcessing) {
       return;
     }
+    
+    // 设置锁定和记录请求时间
+    requestLockRef.current = true;
+    lastRequestTimeRef.current = now;
 
     setInputText("");
 
@@ -526,6 +760,7 @@ export default function AnimeRoleDetect() {
       } finally {
         setIsProcessing(false);
         clearBatchImages();
+        requestLockRef.current = false; // 释放锁定
       }
     } else if (selectedImage) {
       const userMessage: Message = {
@@ -707,6 +942,7 @@ export default function AnimeRoleDetect() {
       } finally {
         setIsProcessing(false);
         removeImage();
+        requestLockRef.current = false; // 释放锁定
       }
     }
   }, [inputText, selectedImage, imagePreview, selectedImages, imagePreviews, isBatchUpload, isProcessing, removeImage, clearBatchImages, useCoreML, selectedModel, useAttributes, multiRole, authState]);
