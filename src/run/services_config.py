@@ -32,7 +32,7 @@ SERVICES = {
     # ==================== AI模型服务 ====================
     "model_service": {
         "name": "模型服务",
-        "script": "services/model_service/app_simple.py",
+        "script": "services/model_service/app.py",
         "port": 8000,
         "health_path": "/api/health",
         "description": "AI模型推理服务，支持角色分类和标签识别",

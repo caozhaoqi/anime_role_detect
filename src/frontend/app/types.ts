@@ -1,3 +1,23 @@
+export interface YoloDetection {
+  id: number;
+  role: string;
+  role_cn?: string;
+  role_jp?: string;
+  role_anime?: string;
+  confidence: number;
+  person_confidence: number;
+  bbox: number[];
+  class_id: number;
+}
+
+export interface YoloDetectionResponse {
+  roles: YoloDetection[];
+  count: number;
+  image_size: [number, number];
+  detector: string;
+  model: string;
+}
+
 export interface Message {
   id: string;
   role: "user" | "assistant";

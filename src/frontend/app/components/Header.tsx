@@ -16,6 +16,7 @@ interface HeaderProps {
   useCoreML: boolean;
   useAttributes: boolean;
   multiRole: boolean;
+  useYolo: boolean;
   isBatchUpload: boolean;
   onShowHistoryChange: (value: boolean) => void;
   onShowConfigChange: (value: boolean) => void;
@@ -25,6 +26,7 @@ interface HeaderProps {
   onCoreMLChange: (value: boolean) => void;
   onAttributesChange: (value: boolean) => void;
   onMultiRoleChange: (value: boolean) => void;
+  onYoloChange: (value: boolean) => void;
   onBatchUploadChange: (value: boolean) => void;
 }
 
@@ -40,6 +42,7 @@ export default function Header({
   useCoreML,
   useAttributes,
   multiRole,
+  useYolo,
   isBatchUpload,
   onShowHistoryChange,
   onShowConfigChange,
@@ -49,6 +52,7 @@ export default function Header({
   onCoreMLChange,
   onAttributesChange,
   onMultiRoleChange,
+  onYoloChange,
   onBatchUploadChange,
 }: HeaderProps) {
   const [internalBatchUpload, setInternalBatchUpload] = useState(isBatchUpload);
@@ -173,6 +177,18 @@ export default function Header({
                 className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${multiRole ? 'bg-blue-600' : 'bg-gray-300'}`}
               >
                 <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${multiRole ? 'translate-x-6' : 'translate-x-1'}`} />
+              </button>
+            </div>
+          )}
+
+          {config.features.enableYoloSwitch && (
+            <div className="flex items-center space-x-2">
+              <label className="text-sm font-medium" title="使用 YOLOv8 进行精确人体框选 + 角色识别">YOLO:</label>
+              <button
+                onClick={() => onYoloChange(!useYolo)}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${useYolo ? 'bg-green-600' : 'bg-gray-300'}`}
+              >
+                <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${useYolo ? 'translate-x-6' : 'translate-x-1'}`} />
               </button>
             </div>
           )}

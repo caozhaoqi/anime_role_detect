@@ -13,6 +13,7 @@ interface FeaturesConfig {
   enableCoremlSwitch: boolean;
   enableAttributesSwitch: boolean;
   enableMultiRoleSwitch: boolean;
+  enableYoloSwitch: boolean;
   enableHistoryPanel: boolean;
   enableDragDrop: boolean;
   enableCopyDownload: boolean;
@@ -109,6 +110,7 @@ class ConfigManager {
         enableCoremlSwitch: true,
         enableAttributesSwitch: true,
         enableMultiRoleSwitch: true,
+        enableYoloSwitch: true,
         enableHistoryPanel: true,
         enableDragDrop: true,
         enableCopyDownload: true,

@@ -51,6 +51,7 @@ export default function AnimeRoleDetect() {
   const [useCoreML, setUseCoreML] = useState(false);
   const [useAttributes, setUseAttributes] = useState(true);
   const [multiRole, setMultiRole] = useState(false);
+  const [useYolo, setUseYolo] = useState(false);
   const [showConfig, setShowConfig] = useState(false);
   const [config, setConfig] = useState(ConfigManager.getConfig());
   const [activePanel, setActivePanel] = useState<'classify' | 'search' | 'video'>('classify');
@@ -60,8 +61,42 @@ export default function AnimeRoleDetect() {
   useEffect(() => {
     isMountedRef.current = true;
 
-    // 设置Axios拦截器处理认证过期
-    const interceptor = axios.interceptors.response.use(
+    // 设置Axios请求拦截器处理认证缺失
+    const requestInterceptor = axios.interceptors.request.use(
+      (config) => {
+        // 检查是否需要认证的请求（排除登录相关接口）
+        const requiresAuth = !config.url?.includes('/api/login') && 
+                           !config.url?.includes('/api/register') &&
+                           !config.url?.includes('/api/health');
+        
+        if (requiresAuth && !config.headers?.Authorization) {
+          console.warn('⚠️ Authorization头为空，请先登录');
+          // 清除认证状态
+          setAuthState({
+            isAuthenticated: false,
+            user: null,
+            accessToken: null,
+            refreshToken: null
+          });
+          localStorage.removeItem('accessToken');
+          localStorage.removeItem('refreshToken');
+          localStorage.removeItem('currentUser');
+          
+          // 显示登录过期提示
+          setShowSessionExpired(true);
+          setTimeout(() => setShowSessionExpired(false), 5000);
+          
+          return Promise.reject(new Error('Authorization header is missing'));
+        }
+        return config;
+      },
+      (error) => {
+        return Promise.reject(error);
+      }
+    );
+
+    // 设置Axios响应拦截器处理认证过期
+    const responseInterceptor = axios.interceptors.response.use(
       (response) => response,
       (error) => {
         if (error.response && error.response.status === 401) {
@@ -85,7 +120,8 @@ export default function AnimeRoleDetect() {
     );
 
     return () => {
-      axios.interceptors.response.eject(interceptor);
+      axios.interceptors.request.eject(requestInterceptor);
+      axios.interceptors.response.eject(responseInterceptor);
     };
   }, []);
 
@@ -106,15 +142,6 @@ export default function AnimeRoleDetect() {
     const savedRefreshToken = localStorage.getItem('refreshToken');
     const savedUser = localStorage.getItem('currentUser');
     
-    if (savedAccessToken && savedRefreshToken && savedUser) {
-      setAuthState({
-        isAuthenticated: true,
-        user: JSON.parse(savedUser),
-        accessToken: savedAccessToken,
-        refreshToken: savedRefreshToken
-      });
-    }
-
     const platform = navigator.platform.toLowerCase();
     const isMac = platform.includes('mac') || platform.includes('darwin');
     setIsMacPlatform(isMac);
@@ -122,9 +149,43 @@ export default function AnimeRoleDetect() {
       setUseCoreML(true);
     }
 
-    if (savedAccessToken && appConfig.features.enableModelSelection) {
-      fetchAvailableModels();
-    }
+    // 验证 token 有效性
+    const validateAndSetAuth = async () => {
+      if (savedAccessToken && savedRefreshToken && savedUser) {
+        try {
+          // 发送验证请求检查 token 是否有效
+          const response = await axios.get('/api/health', {
+            headers: { Authorization: `Bearer ${savedAccessToken}` }
+          });
+          
+          if (response.status === 200) {
+            // token 有效，设置认证状态
+            setAuthState({
+              isAuthenticated: true,
+              user: JSON.parse(savedUser),
+              accessToken: savedAccessToken,
+              refreshToken: savedRefreshToken
+            });
+          }
+        } catch (error) {
+          // token 无效或过期，清除本地存储
+          console.warn('Token 验证失败，已过期或无效');
+          localStorage.removeItem('accessToken');
+          localStorage.removeItem('refreshToken');
+          localStorage.removeItem('currentUser');
+          // 保持未认证状态，显示登录组件
+          setAuthState({
+            isAuthenticated: false,
+            user: null,
+            accessToken: null,
+            refreshToken: null
+          });
+        }
+      }
+      // 如果没有保存的 token，保持初始未认证状态
+    };
+
+    validateAndSetAuth();
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -142,7 +203,21 @@ export default function AnimeRoleDetect() {
 
   const fetchAvailableModels = async () => {
     try {
-      const headers = authState.accessToken ? { Authorization: `Bearer ${authState.accessToken}` } : {};
+      if (!authState.accessToken) {
+        console.warn('⚠️ 未登录状态，无法获取模型列表，请先登录');
+        // 显示登录提示
+        if (!authState.isAuthenticated) {
+          setMessages(prev => [...prev, {
+            id: Date.now().toString(),
+            role: "assistant",
+            content: "请先登录以获取完整的模型列表和功能",
+            timestamp: Date.now(),
+          }]);
+        }
+        return;
+      }
+      
+      const headers = { Authorization: `Bearer ${authState.accessToken}` };
       const response = await axios.get('/api/models', { headers });
       if (response.data.success) {
         const models = response.data.models || [];
@@ -152,6 +227,16 @@ export default function AnimeRoleDetect() {
       console.error('获取模型列表失败:', error);
     }
   };
+
+  // 当认证状态变化时获取模型列表
+  useEffect(() => {
+    if (authState.isAuthenticated && authState.accessToken) {
+      const appConfig = ConfigManager.getConfig();
+      if (appConfig.features.enableModelSelection) {
+        fetchAvailableModels();
+      }
+    }
+  }, [authState.isAuthenticated, authState.accessToken]);
 
   const handleLogin = async (username: string, password: string) => {
     setIsLoginLoading(true);
@@ -478,7 +563,12 @@ export default function AnimeRoleDetect() {
         formData.append('threshold', '0.4');
         formData.append('cache_bypass', Date.now().toString());
 
-        const endpoint = multiRole ? '/api/classify/multi-role' : '/api/classify';
+        let endpoint = '/api/classify';
+        if (useYolo) {
+          endpoint = '/api/classify/yolo-detect';
+        } else if (multiRole) {
+          endpoint = '/api/classify/multi-role';
+        }
         const headers: any = {};
         if (authState.accessToken) {
           headers['Authorization'] = `Bearer ${authState.accessToken}`;
@@ -488,8 +578,38 @@ export default function AnimeRoleDetect() {
         const data = response.data;
 
         let assistantMessage: Message;
-        
-        if (multiRole) {
+
+        if (useYolo) {
+          const roles = data.data?.roles || [];
+          const count = data.data?.count || 0;
+          const detector = data.data?.detector || 'YOLOv8';
+
+          assistantMessage = {
+            id: Date.now().toString(),
+            role: "assistant",
+            content: `YOLOv8 多目标检测完成！检测到 ${count} 个角色 (${detector})`,
+            multi_roles: roles.map((role: any, index: number) => ({
+              id: role.id || index + 1,
+              role: role.role || "未知角色",
+              role_cn: role.role_cn || "",
+              role_jp: role.role_jp || "",
+              role_anime: role.role_anime || "",
+              similarity: role.confidence || 0,
+              confidence: role.confidence || 0,
+              box: role.bbox ? { x1: role.bbox[0], y1: role.bbox[1], x2: role.bbox[2], y2: role.bbox[3] } : {},
+              attributes: [],
+              decision: "",
+              is_unknown: false,
+              is_fuzzy: false
+            })),
+            tags: [],
+            text_detections: [],
+            summary: `YOLOv8 检测到 ${count} 个角色`,
+            thoughts: ["正在分析图片...", "YOLOv8 人体检测...", "角色分类...", "检测完成！"],
+            isThinkingFinished: true,
+            timestamp: Date.now(),
+          };
+        } else if (multiRole) {
           const roles = data.data.roles || [];
           const count = data.data.count || 0;
 
@@ -704,6 +824,7 @@ export default function AnimeRoleDetect() {
             useCoreML={useCoreML}
             useAttributes={useAttributes}
             multiRole={multiRole}
+            useYolo={useYolo}
             isBatchUpload={isBatchUpload}
             onShowHistoryChange={setShowHistory}
             onShowConfigChange={setShowConfig}
@@ -713,6 +834,7 @@ export default function AnimeRoleDetect() {
             onCoreMLChange={setUseCoreML}
             onAttributesChange={setUseAttributes}
             onMultiRoleChange={setMultiRole}
+            onYoloChange={setUseYolo}
             onBatchUploadChange={handleBatchUploadChange}
           />
 

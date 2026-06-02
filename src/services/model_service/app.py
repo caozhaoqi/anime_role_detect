@@ -5,23 +5,21 @@
 """
 import os
 import sys
+import platform
 
-# 解决macOS上的Mutex锁失败问题
-os.environ["OBJC_DISABLE_INITIALIZE_FORK_SAFETY"] = "YES"
+IS_MACOS = platform.system() == "Darwin"
 
-# 设置环境变量，避免锁竞争问题和OpenMP冲突
-os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
-os.environ["MPS_HIGH_WATERMARK_RATIO"] = "0.0"
-os.environ["PYTORCH_MPS_HIGH_WATERMARK_RATIO"] = "0.0"
-os.environ["OMP_NUM_THREADS"] = "1"
-os.environ["MKL_NUM_THREADS"] = "1"
-os.environ["OPENBLAS_NUM_THREADS"] = "1"
-os.environ["VECLIB_MAXIMUM_THREADS"] = "1"
-os.environ["NUMEXPR_NUM_THREADS"] = "1"
-os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
-
-# 延迟导入torch
-import sys
+if IS_MACOS:
+    os.environ["OBJC_DISABLE_INITIALIZE_FORK_SAFETY"] = "YES"
+    os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
+    os.environ["MPS_HIGH_WATERMARK_RATIO"] = "0.0"
+    os.environ["PYTORCH_MPS_HIGH_WATERMARK_RATIO"] = "0.0"
+    os.environ["OMP_NUM_THREADS"] = "1"
+    os.environ["MKL_NUM_THREADS"] = "1"
+    os.environ["OPENBLAS_NUM_THREADS"] = "1"
+    os.environ["VECLIB_MAXIMUM_THREADS"] = "1"
+    os.environ["NUMEXPR_NUM_THREADS"] = "1"
+    os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 
 import time
 from datetime import datetime
@@ -31,16 +29,24 @@ from fastapi import FastAPI, UploadFile, File, HTTPException, Form
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 
-# 添加项目根目录到Python路径
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.."))
 sys.path.insert(0, project_root)
-print(f"添加到Python路径: {project_root}")
-print(f"当前工作目录: {os.getcwd()}")
-print(f"Python路径: {sys.path}")
 
-# 添加项目根目录到Python路径（备用方案）
-if project_root not in sys.path:
-    sys.path.insert(0, project_root)
+def get_optimal_device():
+    """自动选择最佳计算设备"""
+    if IS_MACOS:
+        return "cpu"
+    try:
+        import torch
+        if torch.cuda.is_available():
+            return "cuda"
+        elif torch.backends.mps.is_available() and not IS_MACOS:
+            return "mps"
+        return "cpu"
+    except ImportError:
+        return "cpu"
+
+OPTIMAL_DEVICE = get_optimal_device()
 
 # 注册 HEIF/HEIC 图像解码器
 try:
@@ -216,6 +222,7 @@ async def predict_image(
     use_attributes: bool = Form(True),
     multilabel: bool = Form(False),
     threshold: float = Form(0.4),
+    use_cache: bool = Form(True),
 ):
     """
     预测图像
@@ -226,23 +233,32 @@ async def predict_image(
         use_attributes: 是否使用属性
         multilabel: 是否返回多标签结果
         threshold: 分类阈值
+        use_cache: 是否使用缓存
 
     Returns:
         预测结果
     """
     global preprocessor, feature_extractor, tagger
 
+    from src.services.cache_service.redis_cache import get_redis_cache
+
+    redis_cache = get_redis_cache()
+    image_hash = None
     temp_path = None
 
     try:
-        # 安全导入torch，避免锁竞争问题
         if "torch" not in globals():
             import_torch()
 
-        # 读取文件内容
         content = await file.read()
 
-        # 直接从内存创建PIL图像，避免临时文件I/O
+        if use_cache and redis_cache.available:
+            image_hash = redis_cache.compute_image_hash(content)
+            cached_result = redis_cache.get_image_result(image_hash)
+            if cached_result:
+                logger.info(f"缓存命中，返回结果: role={cached_result.get('role')}")
+                return cached_result
+
         from PIL import Image
         import io
 
@@ -396,6 +412,10 @@ async def predict_image(
             "feature": feature.tolist() if hasattr(feature, "tolist") else feature,
         }
         logger.info(f"返回结果: {result}")
+
+        if use_cache and redis_cache.available:
+            redis_cache.set_image_result(image_hash, result)
+            logger.info(f"结果已缓存，hash: {image_hash[:8]}...")
 
         return result
     except HTTPException:
@@ -610,6 +630,107 @@ async def detect_multiple_characters(file: UploadFile = File(...), max_character
         raise HTTPException(status_code=500, detail=f"多角色检测失败: {e}")
     finally:
         # 清理临时文件
+        if temp_path and os.path.exists(temp_path):
+            try:
+                os.remove(temp_path)
+            except Exception as e:
+                logger.error(f"删除临时文件失败: {e}")
+
+
+# YOLOv8 多目标检测 API
+@app.post("/api/model/detect-yolo")
+async def detect_with_yolo(
+    file: UploadFile = File(...),
+    yolo_model: str = Form("yolov8n.pt"),
+    person_conf_threshold: float = Form(0.5),
+    max_detections: int = Form(10),
+):
+    """
+    使用 YOLOv8 进行多目标检测 + 角色识别
+
+    Args:
+        file: 上传的图像文件
+        yolo_model: YOLOv8 模型名称 (yolov8n.pt, yolov8s.pt, yolov8m.pt 等)
+        person_conf_threshold: 人体检测置信度阈值
+        max_detections: 最大检测数量
+
+    Returns:
+        检测到的角色列表，包含边界框和置信度
+    """
+    from src.core.detection.multi_target_detector import MultiTargetDetector
+
+    temp_path = None
+
+    try:
+        # 读取文件
+        content = await file.read()
+        temp_path = f"temp_yolo_{int(time.time())}_{file.filename}"
+
+        # 保存临时文件
+        with open(temp_path, "wb") as f:
+            f.write(content)
+
+        # 确定设备
+        device = OPTIMAL_DEVICE
+        logger.info(f"YOLOv8 多目标检测，使用设备: {device}")
+
+        # 初始化检测器（延迟加载避免启动阻塞）
+        if not hasattr(detect_with_yolo, "_detector") or detect_with_yolo._detector is None:
+            logger.info("初始化 YOLOv8 多目标检测器...")
+            detect_with_yolo._detector = MultiTargetDetector(
+                yolo_model=yolo_model,
+                device=device,
+            )
+            logger.info("YOLOv8 检测器初始化完成")
+
+        detector = detect_with_yolo._detector
+
+        # 加载图像
+        from PIL import Image
+        image = Image.open(temp_path).convert("RGB")
+
+        # 执行检测
+        logger.info("开始 YOLOv8 人体检测 + 角色识别...")
+        results = detector.detect_and_classify(image, person_conf_threshold=person_conf_threshold)
+
+        # 构建响应
+        response_results = []
+        for i, detection in enumerate(results.get("detections", [])[:max_detections]):
+            role_pred = detection.get("role_prediction", {})
+            role_name = role_pred.get("role", "unknown")
+            role_conf = role_pred.get("confidence", 0.0)
+
+            role_full_info = get_role_info(role_name)
+
+            response_results.append({
+                "id": i + 1,
+                "role": role_name,
+                "role_cn": role_full_info.get("cn", role_name),
+                "role_jp": role_full_info.get("jp", ""),
+                "role_anime": role_full_info.get("anime", ""),
+                "confidence": float(role_conf),
+                "person_confidence": float(detection.get("person_confidence", 0.0)),
+                "bbox": detection.get("bbox", []),
+                "class_id": role_pred.get("class_id", -1),
+            })
+
+        logger.info(f"YOLOv8 检测完成，返回 {len(response_results)} 个结果")
+
+        return {
+            "roles": response_results,
+            "count": len(response_results),
+            "image_size": results.get("image_size", []),
+            "detector": "YOLOv8 + EfficientNet",
+            "model": yolo_model,
+        }
+
+    except Exception as e:
+        logger.error(f"YOLOv8 多目标检测失败: {e}")
+        import traceback
+        logger.error(f"异常堆栈: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"YOLOv8 检测失败: {e}")
+
+    finally:
         if temp_path and os.path.exists(temp_path):
             try:
                 os.remove(temp_path)

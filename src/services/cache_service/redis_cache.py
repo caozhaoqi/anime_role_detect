@@ -7,6 +7,7 @@ Redis缓存服务
 
 import os
 import json
+import hashlib
 import redis
 from typing import Optional, Any
 from src.core.logging.global_logger import get_logger
@@ -30,7 +31,6 @@ class RedisCache:
                 db=int(os.environ.get("REDIS_DB", 0)),
                 decode_responses=True,
             )
-            # 测试连接
             self.redis_client.ping()
             self.available = True
             logger.info("Redis连接成功")
@@ -38,6 +38,47 @@ class RedisCache:
             logger.error(f"Redis连接失败: {e}")
             self.redis_client = None
             self.available = False
+
+    @staticmethod
+    def compute_image_hash(image_data: bytes) -> str:
+        """
+        计算图像内容的MD5哈希
+
+        Args:
+            image_data: 图像字节数据
+
+        Returns:
+            MD5哈希字符串
+        """
+        return hashlib.md5(image_data).hexdigest()
+
+    def get_image_result(self, image_hash: str) -> Optional[dict]:
+        """
+        获取图像分类结果缓存
+
+        Args:
+            image_hash: 图像哈希
+
+        Returns:
+            缓存的分类结果或None
+        """
+        key = f"classify:result:{image_hash}"
+        return self.get(key)
+
+    def set_image_result(self, image_hash: str, result: dict, ttl: int = 3600) -> bool:
+        """
+        缓存图像分类结果
+
+        Args:
+            image_hash: 图像哈希
+            result: 分类结果
+            ttl: 过期时间（秒），默认1小时
+
+        Returns:
+            是否成功
+        """
+        key = f"classify:result:{image_hash}"
+        return self.set(key, result, ttl)
 
     def get(self, key: str) -> Optional[Any]:
         """
