@@ -132,3 +132,7 @@ src/frontend/node_modules/
 src/frontend/.next/
 
 dump.rdb
+huggingface_cache/
+coreml_models/
+
+role_index_final.faiss

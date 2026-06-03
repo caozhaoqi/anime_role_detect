@@ -233,7 +233,7 @@ async def warmup_models():
         try:
             processed = preprocessor.preprocess(dummy_image)
             if processed is not None:
-                _ = feature_extractor.extract(processed)
+                _ = feature_extractor.extract_features(processed)
                 logger.info("特征提取器预热完成")
         except Exception as e:
             logger.warning(f"特征提取器预热失败: {e}")
@@ -244,7 +244,7 @@ async def warmup_models():
             try:
                 tagger = WDViTV3Tagger()
                 # 执行一次虚拟推理
-                _ = tagger.predict(dummy_image)
+                _ = tagger.generate_tags(dummy_image)
                 logger.info("标签生成器预热完成")
             except Exception as e:
                 logger.warning(f"标签生成器预热失败: {e}")

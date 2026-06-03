@@ -30,6 +30,14 @@ class Classification:
 
         # 如果提供了索引路径，加载索引
         if index_path:
+            self._try_load_index(index_path)
+        else:
+            # 尝试从默认路径加载索引
+            self._try_load_default_index()
+
+    def _try_load_index(self, index_path):
+        """尝试加载索引文件"""
+        try:
             # 检查是否是绝对路径
             if os.path.isabs(index_path):
                 # 如果是绝对路径，直接使用
@@ -75,7 +83,43 @@ class Classification:
                 logger.info(f"加载索引: {faiss_path_with_ext}")
                 self.load_index(faiss_path_with_ext)
             else:
-                logger.error(f"索引文件或映射文件不存在")
+                logger.warning(f"索引文件或映射文件不存在，将创建空索引")
+                self._create_empty_index()
+                
+        except Exception as e:
+            logger.error(f"加载索引失败: {e}")
+            logger.info("创建空索引作为降级方案")
+            self._create_empty_index()
+
+    def _try_load_default_index(self):
+        """尝试从默认路径加载索引"""
+        current_file = os.path.abspath(__file__)
+        project_root = os.path.dirname(os.path.dirname(os.path.dirname(current_file)))
+        project_root = os.path.dirname(project_root)
+        
+        # 尝试多个默认路径
+        default_paths = [
+            os.path.join(project_root, "data", "index", "faiss_index.faiss"),
+            os.path.join(project_root, "models", "faiss_index.faiss"),
+            os.path.join(project_root, "faiss_index.faiss"),
+        ]
+        
+        for faiss_path in default_paths:
+            if os.path.exists(faiss_path):
+                logger.info(f"找到默认索引: {faiss_path}")
+                self.load_index(faiss_path)
+                return
+        
+        logger.info("未找到默认索引，创建空索引")
+        self._create_empty_index()
+
+    def _create_empty_index(self):
+        """创建空索引作为降级方案"""
+        # 创建一个空的Flat索引，维度为512（CLIP特征维度）
+        dim = 512
+        self.index = faiss.IndexFlatIP(dim)
+        self.role_mapping = []
+        logger.info(f"创建空索引完成，维度: {dim}")
 
     def build_index(self, features, role_names):
         """构建向量索引"""
@@ -193,6 +237,14 @@ class Classification:
         if self.index is None:
             logger.error("索引尚未构建")
             raise ValueError("索引尚未构建")
+
+        # 检查索引是否为空
+        if self.index.ntotal == 0:
+            logger.info("索引为空，返回unknown")
+            if multilabel:
+                return []
+            else:
+                return ("unknown", 0.0)
 
         # 使用指定的阈值或默认阈值
         current_threshold = threshold if threshold is not None else self.threshold

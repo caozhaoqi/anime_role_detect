@@ -1,25 +1,29 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-增强的认证中间件 - 修复安全漏洞
+增强的认证中间件 - 支持数据库用户验证和高级安全功能
 
-修复的问题：
+功能特性：
 1. 启用核心 API 端点的认证
 2. 使用环境变量强制要求生产密钥
 3. 移除明文密码
-4. 添加速率限制
+4. 添加速率限制（线程安全）
+5. 数据库用户状态验证
+6. 用户锁定机制支持
+7. 会话管理
 """
 
 import os
 import time
 import threading
+from datetime import datetime, timedelta
 from fastapi import Request, HTTPException, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from typing import Optional, Dict
+from typing import Optional, Dict, Any
 from collections import defaultdict
 
 from src.core.logging.global_logger import get_logger
-from src.services.auth_service import verify_token
+from src.services.auth_service import verify_token, get_user, get_auth_service, AuthService
 
 logger = get_logger("auth_middleware")
 
@@ -37,6 +41,11 @@ _request_counts: Dict[str, list] = defaultdict(list)
 _last_cleanup_time = time.time()
 # 保护字典访问的锁
 _counts_lock = threading.Lock()
+
+# 会话状态追踪（内存中，可选持久化到数据库）
+_sessions: Dict[str, Dict[str, Any]] = {}
+_sessions_lock = threading.Lock()
+SESSION_TIMEOUT_SECONDS = int(os.environ.get("SESSION_TIMEOUT_SECONDS", "1800"))
 
 
 def _cleanup_expired_entries():
@@ -76,6 +85,25 @@ def _cleanup_expired_entries():
             logger.info(f"速率限制清理完成：当前追踪 {len(_request_counts)} 个 IP")
 
 
+def _cleanup_expired_sessions():
+    """
+    清理过期的会话，防止内存泄漏
+    """
+    current_time = time.time()
+
+    with _sessions_lock:
+        expired_tokens = [
+            token for token, session in _sessions.items()
+            if session.get("last_access") and current_time - session["last_access"] > SESSION_TIMEOUT_SECONDS
+        ]
+
+        for token in expired_tokens:
+            del _sessions[token]
+
+        if expired_tokens:
+            logger.info(f"会话清理完成：移除 {len(expired_tokens)} 个过期会话")
+
+
 def check_rate_limit(client_ip: str) -> bool:
     """
     检查客户端 IP 的速率限制
@@ -110,12 +138,83 @@ def check_rate_limit(client_ip: str) -> bool:
         return True
 
 
+def _update_session(token: str, user_info: dict):
+    """
+    更新会话状态
+
+    Args:
+        token: 令牌
+        user_info: 用户信息
+    """
+    current_time = time.time()
+
+    with _sessions_lock:
+        _sessions[token] = {
+            "user_id": user_info.get("sub") or user_info.get("user_id"),
+            "role": user_info.get("role"),
+            "last_access": current_time,
+            "created_at": _sessions.get(token, {}).get("created_at", current_time),
+        }
+
+        # 清理过期会话
+        _cleanup_expired_sessions()
+
+
+def _get_session(token: str) -> Optional[Dict[str, Any]]:
+    """
+    获取会话信息
+
+    Args:
+        token: 令牌
+
+    Returns:
+        Optional[Dict[str, Any]]: 会话信息，如果不存在或过期返回 None
+    """
+    current_time = time.time()
+
+    with _sessions_lock:
+        session = _sessions.get(token)
+        if session:
+            # 检查会话是否过期
+            if session.get("last_access") and current_time - session["last_access"] > SESSION_TIMEOUT_SECONDS:
+                del _sessions[token]
+                return None
+            return session
+    return None
+
+
 async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)) -> dict:
-    """获取当前用户"""
+    """获取当前用户 - 从令牌中提取并验证"""
     token = credentials.credentials
     payload = verify_token(token)
     if not payload:
         raise HTTPException(status_code=401, detail="无效的认证凭据")
+
+    # 从数据库验证用户状态
+    username = payload.get("sub")
+    if username:
+        user_info = get_user(username)
+        if user_info:
+            if not user_info.get("is_active", True):
+                raise HTTPException(status_code=401, detail="用户已被禁用")
+
+            # 检查用户是否被锁定
+            locked_until = user_info.get("locked_until")
+            if locked_until:
+                try:
+                    locked_datetime = datetime.fromisoformat(locked_until.replace("Z", "+00:00"))
+                    if locked_datetime > datetime.utcnow():
+                        remaining = (locked_datetime - datetime.utcnow()).total_seconds() // 60
+                        raise HTTPException(
+                            status_code=401,
+                            detail=f"账户已被锁定，请等待 {remaining} 分钟后重试"
+                        )
+                except Exception:
+                    pass
+
+    # 更新会话状态
+    _update_session(token, payload)
+
     return payload
 
 
@@ -131,14 +230,34 @@ async def get_current_admin(current_user: dict = Depends(get_current_user)) -> d
     return current_user
 
 
+async def get_current_user_with_role(required_role: str):
+    """
+    获取具有特定角色的用户
+
+    Args:
+        required_role: 要求的角色
+
+    Returns:
+        Callable: 依赖函数
+    """
+    async def dependency(current_user: dict = Depends(get_current_user)) -> dict:
+        if current_user.get("role") != required_role:
+            raise HTTPException(status_code=403, detail="权限不足")
+        return current_user
+    return dependency
+
+
 async def auth_middleware(request: Request, call_next):
     """
     增强的认证中间件
 
-    修复：
+    修复和功能：
     1. 核心分类 API 需要认证
-    2. 添加速率限制
+    2. 添加速率限制（线程安全）
     3. 强制使用生产密钥
+    4. 数据库用户状态验证
+    5. 用户锁定机制支持
+    6. 会话管理
     """
     # 排除不需要认证的路径（只保留文档和健康检查）
     exempt_paths = [
@@ -166,6 +285,8 @@ async def auth_middleware(request: Request, call_next):
         "/api/classify/multi-role",
         "/api/model",
         "/api/predict",
+        "/api/users",
+        "/api/admin",
     ]
 
     # 检查路径
@@ -187,9 +308,10 @@ async def auth_middleware(request: Request, call_next):
 
     # 强制检查速率限制（对所有请求）
     if not check_rate_limit(client_ip):
-        logger.warning(f"速率限制触发：IP={client_ip}")
+        logger.warning(f"速率限制触发：IP={client_ip}, Path={path}")
         raise HTTPException(
-            status_code=429, detail=f"请求过于频繁，请等待{RATE_LIMIT_WINDOW_SECONDS}秒后重试"
+            status_code=429,
+            detail=f"请求过于频繁，请等待{RATE_LIMIT_WINDOW_SECONDS}秒后重试"
         )
 
     # 如果是受保护的路径，强制要求认证
@@ -214,12 +336,41 @@ async def auth_middleware(request: Request, call_next):
         # 验证令牌
         payload = verify_token(token)
         if not payload:
-            logger.warning(f"无效的认证令牌：IP={client_ip}")
+            logger.warning(f"无效的认证令牌：IP={client_ip}, Path={path}")
             raise HTTPException(status_code=401, detail="无效的认证凭据")
+
+        # 从数据库验证用户状态
+        username = payload.get("sub")
+        if username:
+            user_info = get_user(username)
+            if user_info:
+                # 检查用户是否活跃
+                if not user_info.get("is_active", True):
+                    logger.warning(f"用户已被禁用：{username}, IP={client_ip}")
+                    raise HTTPException(status_code=401, detail="用户已被禁用")
+
+                # 检查用户是否被锁定
+                locked_until = user_info.get("locked_until")
+                if locked_until:
+                    try:
+                        locked_datetime = datetime.fromisoformat(locked_until.replace("Z", "+00:00"))
+                        if locked_datetime > datetime.utcnow():
+                            remaining = (locked_datetime - datetime.utcnow()).total_seconds() // 60
+                            logger.warning(f"用户账户被锁定：{username}, IP={client_ip}")
+                            raise HTTPException(
+                                status_code=401,
+                                detail=f"账户已被锁定，请等待 {remaining} 分钟后重试"
+                            )
+                    except Exception as e:
+                        logger.error(f"解析锁定时间失败：{e}")
+
+        # 更新会话状态
+        _update_session(token, payload)
 
         # 将用户信息添加到请求状态
         request.state.user = payload
         request.state.user_id = payload.get("sub") or payload.get("user_id")
+        request.state.token = token
 
     # 处理请求
     try:
@@ -230,3 +381,48 @@ async def auth_middleware(request: Request, call_next):
     except Exception as e:
         logger.error(f"中间件处理失败：{e}")
         raise
+
+
+def get_session_info(token: str) -> Optional[Dict[str, Any]]:
+    """
+    获取会话信息
+
+    Args:
+        token: 令牌
+
+    Returns:
+        Optional[Dict[str, Any]]: 会话信息
+    """
+    return _get_session(token)
+
+
+def invalidate_session(token: str) -> bool:
+    """
+    使会话失效（登出）
+
+    Args:
+        token: 令牌
+
+    Returns:
+        bool: 是否成功失效
+    """
+    with _sessions_lock:
+        if token in _sessions:
+            del _sessions[token]
+            logger.info(f"会话已失效：{token[:20]}...")
+            return True
+    return False
+
+
+def get_active_session_count() -> int:
+    """
+    获取当前活跃会话数
+
+    Returns:
+        int: 活跃会话数
+    """
+    # 先清理过期会话
+    _cleanup_expired_sessions()
+
+    with _sessions_lock:
+        return len(_sessions)

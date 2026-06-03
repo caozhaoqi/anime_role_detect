@@ -2,80 +2,104 @@
 # -*- coding: utf-8 -*-
 """
 WD Vit Tagger v3 模型集成
+支持多平台加速方案：
+- macOS (Apple Silicon): CoreML (ANE加速，避开PyTorch MPS锁竞争问题)
+- Linux/Windows: PyTorch (CUDA/MPS/CPU自动选择)
 """
 
 import os
+import sys
 import argparse
-from PIL import Image
 import json
+import gc
+from PIL import Image
 from tqdm import tqdm
 import requests
+import multiprocessing
+import platform
 
-# 禁用MPS，避免锁竞争问题
-import os
-
-os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
-os.environ["MPS_HIGH_WATERMARK_RATIO"] = "0.0"
-os.environ["PYTORCH_MPS_HIGH_WATERMARK_RATIO"] = "0.0"
+# ==================== 【第一步：环境与多线程限制】 ====================
+# 禁用多线程环境下的 OpenMP 锁争抢（针对 macOS M系列芯片优化）
 os.environ["OMP_NUM_THREADS"] = "1"
 os.environ["MKL_NUM_THREADS"] = "1"
 os.environ["OPENBLAS_NUM_THREADS"] = "1"
 os.environ["VECLIB_MAXIMUM_THREADS"] = "1"
 os.environ["NUMEXPR_NUM_THREADS"] = "1"
-os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 os.environ["OBJC_DISABLE_INITIALIZE_FORK_SAFETY"] = "YES"
 
-# 导入torch并禁用MPS
-import torch
-
-torch.backends.mps.is_available = lambda: False
-torch.backends.mps.is_built = lambda: False
-
-# 设置单线程模式
-torch.set_num_threads(1)
-
-# 延迟导入transformers模块
-AutoProcessor = None
-AutoModelForImageClassification = None
-CLIPProcessor = None
-CLIPModel = None
+# 强制将 macOS 多进程启动方式修改为 'spawn'
+try:
+    multiprocessing.set_start_method('spawn', force=True)
+except RuntimeError:
+    pass
 
 # 设置Hugging Face缓存目录为项目目录
 os.environ["HF_HOME"] = os.path.join(
     os.path.dirname(__file__), "..", "..", "..", "huggingface_cache"
 )
 
+# ==================== 【第二步：平台检测与加速方案选择】 ====================
+# macOS (Apple Silicon) 使用 CoreML，其他平台使用 PyTorch
+USE_COREML = platform.system() == "Darwin"
+
+# 只有非 macOS 平台才需要导入 torch 并封锁 MPS
+if not USE_COREML:
+    # 核心注入 - 彻底封死 MPS 探测（非 macOS 平台备用）
+    torch = None
+    try:
+        import torch
+        if hasattr(torch, "backends") and hasattr(torch.backends, "mps"):
+            torch.backends.mps.is_available = lambda: False
+            torch.backends.mps.is_built = lambda: False
+            torch.set_num_threads(1)
+            print("[SAFE_BOOT] 已成功在 Python 运行时对 PyTorch MPS 接口实施安全封锁（已 Mock）")
+    except Exception as e:
+        print(f"[SAFE_BOOT] MPS 封锁注入失败(非致命): {e}")
+
+# macOS 平台下导入 CoreML 相关模块
+if USE_COREML:
+    try:
+        from src.core.tagging.coreml_wd_vit_v3_tagger import CoreMLWDVitV3Tagger
+        print("[SAFE_BOOT] macOS 环境检测到，将使用 CoreML 加速")
+    except ImportError as e:
+        print(f"[SAFE_BOOT] CoreML 导入失败，回退到 CPU 模式: {e}")
+        USE_COREML = False
+
 from src.core.logging.global_logger import get_logger
 
 logger = get_logger("wd_vit_v3_tagger")
 
-
-# 动态导入函数
-def import_torch_modules():
-    global torch, AutoProcessor, AutoModelForImageClassification, CLIPProcessor, CLIPModel
-
-    # 导入模块
-    from transformers import (
-        AutoProcessor,
-        AutoModelForImageClassification,
-        CLIPProcessor,
-        CLIPModel,
-    )
+# 延迟导入 transformers 相关模块（非 macOS 平台使用）
+AutoProcessor = None
+AutoModelForImageClassification = None
+CLIPProcessor = None
+CLIPModel = None
 
 
 class WDViTV3Tagger:
-    """WD Vit Tagger v3 标签生成器"""
+    """WD Vit Tagger v3 标签生成器
+    支持多平台加速方案：
+    - macOS (Apple Silicon): CoreML (ANE加速)
+    - Linux/Windows: PyTorch (CUDA/MPS/CPU自动选择)
+    """
 
     # 全局Core ML标签生成器实例缓存
     _coreml_tagger = None
 
     def __init__(self, device=None):
-        # 禁用Core ML模式，避免锁竞争问题
-        self.coreml_mode = False
-
-        # 不使用torch，直接设置设备为CPU
-        self.device = "cpu"
+        # 先初始化logger
         self.logger = get_logger("wd_vit_v3_tagger")
+        
+        # macOS环境下默认使用CoreML
+        if USE_COREML:
+            self.coreml_mode = True
+            self.device = "coreml"
+            self.logger.info("macOS环境检测到，使用CoreML加速")
+        else:
+            self.coreml_mode = False
+            # 选择设备（优先使用GPU）
+            self._select_device(device)
+        
         self.logger.info(f"WD Vit Tagger 使用设备: {self.device}")
         self.wd_model = None
         self.wd_processor = None
@@ -84,7 +108,12 @@ class WDViTV3Tagger:
         self.id2label = {}
         self.num_id2label = {}
 
-        self.logger.info("WD Vit Tagger 模块初始化完成，使用扩展标签列表")
+        # 初始化标签列表
+        if USE_COREML:
+            self.logger.info("WD Vit Tagger 模块初始化完成，将使用CoreML模型")
+        else:
+            self.logger.info("WD Vit Tagger 模块初始化完成，使用扩展标签列表")
+        
         self.tags = [
             # 角色数量
             "1girl",
@@ -299,26 +328,70 @@ class WDViTV3Tagger:
             "natural",
         ]
 
+    def _select_device(self, device=None):
+        """自动选择最佳设备
+        
+        Args:
+            device: 手动指定设备（None表示自动选择）
+        """
+        import platform
+        
+        # macOS环境下MPS存在锁竞争问题，默认使用CPU
+        # 用户可以通过device参数手动指定'mps'来尝试使用MPS加速
+        if device is not None:
+            self.device = device
+            if device == "mps" and platform.system() == "Darwin":
+                self.logger.info("手动指定使用MPS设备（macOS环境下可能存在锁竞争风险）")
+            return
+        
+        # 自动选择最佳设备
+        if platform.system() == "Darwin":
+            self.device = "cpu"
+            self.logger.info("macOS环境下默认使用CPU（MPS存在锁竞争问题，可通过device='mps'手动启用）")
+            return
+        
+        # 非macOS平台自动选择最佳设备
+        try:
+            import torch
+            if torch.backends.mps.is_available():
+                self.device = "mps"
+                self.logger.info("MPS设备可用，将使用MPS加速")
+            elif torch.cuda.is_available():
+                self.device = "cuda"
+                self.logger.info("CUDA设备可用，将使用CUDA加速")
+            else:
+                self.device = "cpu"
+                self.logger.info("未检测到GPU设备，使用CPU")
+        except ImportError:
+            # 如果torch不可用，默认为CPU
+            self.device = "cpu"
+            self.logger.info("PyTorch不可用，使用CPU")
+
     def load_model(self, model_name="SmilingWolf/wd-vit-tagger-v3"):
         """加载WD Vit Tagger v3模型
 
         Args:
-            model_name: 模型名称
+            model_name: 模型名称（仅非macOS平台使用）
 
         Returns:
             bool: 模型加载是否成功
         """
-        import platform
-        import os
-
-        # 检查是否是 macOS 环境
-        if platform.system() == "Darwin":
-            self.logger.info("检测到 macOS 环境，跳过 PyTorch 模型加载，使用默认标签")
-            return False
-
+        # macOS环境下使用CoreML模型
+        if USE_COREML:
+            return self._load_coreml_model()
+        
+        # 非macOS平台使用PyTorch模型
         try:
-            import_torch_modules()
-            global torch, AutoProcessor, AutoModelForImageClassification
+            global AutoProcessor, AutoModelForImageClassification
+
+            # 安全导入 transformers
+            from transformers import (
+                AutoProcessor,
+                AutoModelForImageClassification,
+                CLIPProcessor,
+                CLIPModel,
+            )
+            print("[SAFE_BOOT] transformers 库安全导入成功")
 
             self.logger.info(f"加载WD Vit Tagger v3模型: {model_name}")
             self.logger.info(f"使用设备: {self.device}")
@@ -341,8 +414,48 @@ class WDViTV3Tagger:
             return True
         except Exception as e:
             self.logger.error(f"加载模型失败: {e}")
+            # 如果是MPS设备加载失败，尝试回退到CPU
+            if self.device == "mps":
+                self.logger.info("MPS设备加载失败，尝试回退到CPU")
+                self.device = "cpu"
+                return self.load_model(model_name)
             # 加载失败时使用简单标签生成方法
             self.logger.info("加载模型失败，使用简单标签生成方法")
+            return False
+
+    def _load_coreml_model(self):
+        """加载CoreML模型（macOS专用）
+
+        Returns:
+            bool: 模型加载是否成功
+        """
+        try:
+            # 检查CoreML标签生成器是否已初始化
+            if self.__class__._coreml_tagger is None:
+                # 构建CoreML模型路径（相对于项目根目录）
+                coreml_model_path = os.path.join(
+                    os.path.dirname(__file__), "..", "..", "..", "coreml_models", "wd_tagger.mlpackage"
+                )
+                coreml_labels_path = os.path.join(
+                    os.path.dirname(__file__), "..", "..", "..", "coreml_models", "wd_tagger_labels.json"
+                )
+                
+                self.logger.info(f"加载CoreML模型: {coreml_model_path}")
+                
+                # 创建CoreML标签生成器实例
+                self.__class__._coreml_tagger = CoreMLWDVitV3Tagger(
+                    model_path=coreml_model_path,
+                    labels_path=coreml_labels_path
+                )
+                self.logger.info("CoreML模型加载成功")
+            else:
+                self.logger.info("CoreML模型已缓存，复用现有实例")
+            
+            return True
+        except Exception as e:
+            self.logger.error(f"加载CoreML模型失败: {e}")
+            # 回退到简单标签列表
+            self.logger.info("CoreML加载失败，回退到简单标签列表")
             return False
 
     def _filter_tags(self, tags):
@@ -559,8 +672,26 @@ class WDViTV3Tagger:
                 # 其他类型，尝试直接使用
                 self.logger.debug(f"使用传入的对象，类型: {type(image)}")
 
-            # 检查是否加载了模型
-            if self.wd_model is not None and self.wd_processor is not None:
+            # 检查是否加载了CoreML模型（macOS专用）
+            if USE_COREML and self.__class__._coreml_tagger is not None:
+                # 使用CoreML模型生成标签
+                self.logger.debug("使用CoreML模型生成标签")
+                
+                # 确保图像是RGB格式
+                if not isinstance(image, Image.Image):
+                    image = Image.open(image).convert("RGB")
+                
+                # 使用CoreML标签生成器
+                tags = self.__class__._coreml_tagger.generate_tags(image, threshold)
+                
+                # 过滤标签
+                filtered_tags = self._filter_tags(tags)
+                # 打印前10个标签
+                self.logger.info(
+                    f"CoreML模型 前10个标签: {[t['tag'] for t in filtered_tags[:10]]}"
+                )
+            # 检查是否加载了PyTorch模型
+            elif self.wd_model is not None and self.wd_processor is not None:
                 # 使用PyTorch模型生成标签
                 self.logger.debug("使用PyTorch模型生成标签")
 

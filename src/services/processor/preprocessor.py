@@ -9,16 +9,18 @@
 from PIL import Image
 from src.core.logging.global_logger import get_logger
 from src.services.cache_service import get_image_transform
+from .image_loader import load_image_with_cache
 
 logger = get_logger("image_processor")
 
 
-def preprocess_image(image_source):
+def preprocess_image(image_source, use_cache=True):
     """
     预处理图像
 
     Args:
         image_source: 图像路径或内存缓冲区(BytesIO)
+        use_cache: 是否使用图像缓存
 
     Returns:
         预处理后的图像张量
@@ -30,8 +32,16 @@ def preprocess_image(image_source):
         # 获取图像变换
         transform = get_image_transform()
 
-        # 加载图像并转换
-        img = Image.open(image_source).convert("RGB")
+        # 根据输入类型选择加载方式
+        if isinstance(image_source, str):
+            # 如果是文件路径，使用优化的图像加载器
+            img = load_image_with_cache(image_source, use_cache=use_cache)
+        elif hasattr(image_source, 'read'):
+            # 如果是文件对象或BytesIO
+            img = Image.open(image_source).convert("RGB")
+        else:
+            # 假设已经是PIL图像
+            img = image_source.convert("RGB")
 
         # 限制图像大小，避免内存占用过高
         max_size = 448  # 模型需要的最小尺寸

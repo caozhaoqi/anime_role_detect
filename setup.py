@@ -5,7 +5,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="ardc",
-    version="1.0.0",
+    version="1.1.0",
     description="Anime Role Detect - Skill Repository System",
     author="ARD Team",
     packages=find_packages(),

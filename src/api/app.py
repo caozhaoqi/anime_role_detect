@@ -74,7 +74,7 @@ from src.services.auth_service import (
     create_refresh_token,
     verify_token,
 )
-from src.middleware.auth import auth_middleware, get_current_user, get_current_admin
+from src.middleware.auth_enhanced import auth_middleware, get_current_user, get_current_admin
 
 # 导入认证中间件
 try:
