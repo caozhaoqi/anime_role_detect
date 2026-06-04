@@ -1,7 +1,13 @@
 version: '3.8'
 
+networks:
+  backend:
+    driver: bridge
+    internal: true
+  frontend:
+    driver: bridge
+
 services:
-  # Redis缓存服务
   redis:
     image: redis:7-alpine
     container_name: anime-redis
@@ -9,34 +15,54 @@ services:
       - "6379:6379"
     volumes:
       - redis-data:/data
+    networks:
+      - backend
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "0.5"
+        reservations:
+          memory: 256M
+          cpus: "0.25"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
-      interval: 30s
-      timeout: 10s
+      interval: 10s
+      timeout: 5s
       retries: 3
+      start_period: 10s
 
-  # MySQL数据库服务
   mysql:
     image: mysql:8.0
     container_name: anime-mysql
     ports:
       - "3306:3306"
     environment:
-      MYSQL_ROOT_PASSWORD: root
-      MYSQL_DATABASE: anime_role_detect
-      MYSQL_USER: anime_user
-      MYSQL_PASSWORD: anime_pass
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-anime_role_detect}
+      MYSQL_USER: ${MYSQL_USER:-anime_user}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-anime_pass}
     volumes:
       - mysql-data:/var/lib/mysql
+    networks:
+      - backend
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: "1.0"
+        reservations:
+          memory: 1G
+          cpus: "0.5"
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
-      interval: 30s
-      timeout: 10s
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "${MYSQL_USER:-anime_user}", "-p${MYSQL_PASSWORD:-anime_pass}"]
+      interval: 10s
+      timeout: 5s
       retries: 3
+      start_period: 30s
 
-  # RabbitMQ消息队列
   rabbitmq:
     image: rabbitmq:3-management-alpine
     container_name: anime-rabbitmq
@@ -44,18 +70,28 @@ services:
       - "5672:5672"
       - "15672:15672"
     environment:
-      RABBITMQ_DEFAULT_USER: admin
-      RABBITMQ_DEFAULT_PASS: admin
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-admin}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-admin}
     volumes:
       - rabbitmq-data:/var/lib/rabbitmq
+    networks:
+      - backend
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "0.5"
+        reservations:
+          memory: 512M
+          cpus: "0.25"
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "ping"]
-      interval: 30s
-      timeout: 10s
+      interval: 10s
+      timeout: 5s
       retries: 3
+      start_period: 20s
 
-  # 模型服务
   model-service:
     build:
       context: .
@@ -69,22 +105,33 @@ services:
       - KERAS_HOME=/app/cache/keras
       - REDIS_HOST=redis
       - RABBITMQ_HOST=rabbitmq
+      - LOG_LEVEL=INFO
     volumes:
       - model-cache:/app/cache
       - ./models:/app/models
+    networks:
+      - backend
     depends_on:
       redis:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 8G
+          cpus: "2.0"
+        reservations:
+          memory: 4G
+          cpus: "1.0"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
-      interval: 30s
-      timeout: 10s
+      interval: 10s
+      timeout: 5s
       retries: 3
+      start_period: 60s
 
-  # API服务
   api-service:
     build:
       context: .
@@ -100,11 +147,14 @@ services:
       - MODEL_SERVICE_HOST=model-service
       - RABBITMQ_HOST=rabbitmq
       - DB_HOST=mysql
-      - DB_USER=anime_user
-      - DB_PASSWORD=anime_pass
-      - DB_NAME=anime_role_detect
+      - DB_USER=${MYSQL_USER:-anime_user}
+      - DB_PASSWORD=${MYSQL_PASSWORD:-anime_pass}
+      - DB_NAME=${MYSQL_DATABASE:-anime_role_detect}
+      - LOG_LEVEL=INFO
     volumes:
       - api-cache:/app/cache
+    networks:
+      - backend
     depends_on:
       redis:
         condition: service_healthy
@@ -113,13 +163,21 @@ services:
       model-service:
         condition: service_healthy
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: "1.0"
+        reservations:
+          memory: 1G
+          cpus: "0.5"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
-      interval: 30s
-      timeout: 10s
+      interval: 10s
+      timeout: 5s
       retries: 3
+      start_period: 30s
 
-  # 多媒体服务
   multimedia-service:
     build:
       context: .
@@ -129,16 +187,26 @@ services:
       - PYTHONUNBUFFERED=1
       - REDIS_HOST=redis
       - RABBITMQ_HOST=rabbitmq
+      - LOG_LEVEL=INFO
     volumes:
       - multimedia-data:/app/data
+    networks:
+      - backend
     depends_on:
       redis:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "0.5"
+        reservations:
+          memory: 512M
+          cpus: "0.25"
 
-  # 搜索服务
   search-service:
     build:
       context: .
@@ -148,14 +216,24 @@ services:
       - PYTHONUNBUFFERED=1
       - REDIS_HOST=redis
       - RABBITMQ_HOST=rabbitmq
+      - LOG_LEVEL=INFO
+    networks:
+      - backend
     depends_on:
       redis:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "0.5"
+        reservations:
+          memory: 512M
+          cpus: "0.25"
 
-  # 搜索Worker
   search-worker:
     build:
       context: .
@@ -166,17 +244,27 @@ services:
       - HF_HOME=/app/cache/huggingface
       - REDIS_HOST=redis
       - RABBITMQ_HOST=rabbitmq
+      - LOG_LEVEL=INFO
     volumes:
       - worker-cache:/app/cache
+    networks:
+      - backend
     depends_on:
       redis:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+          cpus: "1.0"
+        reservations:
+          memory: 2G
+          cpus: "0.5"
     command: ["python", "src/services/search_service/search_worker.py"]
 
-  # API网关
   api-gateway:
     build:
       context: .
@@ -188,19 +276,31 @@ services:
       - PYTHONUNBUFFERED=1
       - REDIS_HOST=redis
       - API_SERVICE_HOST=api-service
+      - LOG_LEVEL=INFO
+    networks:
+      - backend
+      - frontend
     depends_on:
       redis:
         condition: service_healthy
       api-service:
         condition: service_healthy
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "0.5"
+        reservations:
+          memory: 512M
+          cpus: "0.25"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
-      interval: 30s
-      timeout: 10s
+      interval: 10s
+      timeout: 5s
       retries: 3
+      start_period: 30s
 
-  # 监控仪表板
   monitor-dashboard:
     build:
       context: .
@@ -211,12 +311,22 @@ services:
     environment:
       - PYTHONUNBUFFERED=1
       - REDIS_HOST=redis
+      - LOG_LEVEL=INFO
+    networks:
+      - frontend
     depends_on:
       redis:
         condition: service_healthy
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "0.25"
+        reservations:
+          memory: 256M
+          cpus: "0.1"
 
-  # 前端服务
   frontend:
     build:
       context: .
@@ -227,21 +337,39 @@ services:
     environment:
       - NODE_ENV=production
       - API_URL=http://localhost:8080
+    networks:
+      - frontend
     depends_on:
       api-gateway:
         condition: service_healthy
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "0.5"
+        reservations:
+          memory: 512M
+          cpus: "0.25"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000"]
-      interval: 30s
-      timeout: 10s
+      interval: 10s
+      timeout: 5s
       retries: 3
+      start_period: 45s
 
 volumes:
   redis-data:
+    driver: local
   mysql-data:
+    driver: local
   rabbitmq-data:
+    driver: local
   model-cache:
+    driver: local
   api-cache:
+    driver: local
   multimedia-data:
+    driver: local
   worker-cache:
+    driver: local
