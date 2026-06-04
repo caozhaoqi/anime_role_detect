@@ -123,7 +123,8 @@ export default function AnimeRoleDetect() {
     const requestInterceptor = axios.interceptors.request.use(
       (config) => {
         // 检查是否需要认证的请求（排除登录相关接口）
-        const requiresAuth = !config.url?.includes('/api/login') && 
+        const requiresAuth = !config.url?.includes('/api/auth/login') && 
+                           !config.url?.includes('/api/login') &&
                            !config.url?.includes('/api/register') &&
                            !config.url?.includes('/api/health') &&
                            !config.url?.includes('/api/auth/refresh');

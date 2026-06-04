@@ -56,15 +56,15 @@ class AuthService:
             self.use_database = False
             # 模拟用户数据库 - 使用bcrypt哈希密码
             self.users = {
-                "admin": {"password_hash": "$2b$12$5phsxyRHlgaiNgNVcASLDeIKKTXoNBu75i80AHZMHSd4MHqSEjSa.", "role": "admin"},
-                "user": {"password_hash": "$2b$12$lMMjwwvZ8a3KNfwlk62Ioe6J5L8gluKVWGukxjtqtUyGpf90A.X4W", "role": "user"},
+                "admin": {"password_hash": "$2b$12$xIhfuDcWIOIqZdTP1Op.AuTHi.4Q2Zr5HzK1u39v/eeVw5Vajigxe", "role": "admin"},
+                "user": {"password_hash": "$2b$12$DyPXaWRGjeW5pxKEqO1bhe//Q4jjqox1xvmTgFEH4TgDjtOCJpYOa", "role": "user"},
             }
 
     def _ensure_default_users(self):
         """确保默认用户存在"""
         default_users = [
-            {"username": "admin", "password": "admin", "role": "admin", "is_superuser": True},
-            {"username": "user", "password": "user", "role": "user", "is_superuser": False},
+            {"username": "admin", "password": "admin123", "role": "admin", "is_superuser": True},
+            {"username": "user", "password": "user123", "role": "user", "is_superuser": False},
         ]
 
         db = next(get_db())

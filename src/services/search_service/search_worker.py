@@ -43,8 +43,12 @@ image_paths = []
 def load_clip_model_with_mps():
     """使用MPS加速加载CLIP模型"""
     print("[Worker] 尝试使用MPS加载CLIP模型...")
+    print(f"[Worker] Python路径: {sys.executable}")
+    print(f"[Worker] PYTHONPATH: {os.environ.get('PYTHONPATH', '未设置')}")
+    print(f"[Worker] 当前目录: {os.getcwd()}")
     try:
         import torch
+        print("[Worker] ✅ torch 导入成功")
         import clip
 
         # 检查MPS可用性

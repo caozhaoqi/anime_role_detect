@@ -163,7 +163,14 @@ class ConfigManager {
 
   private async loadConfig(): Promise<void> {
     try {
-      const response = await fetch('/api/config');
+      let url = '/api/config';
+      // 在 SSR 环境中需要使用完整 URL
+      if (typeof window === 'undefined') {
+        const host = process.env.HOST || 'localhost';
+        const port = process.env.PORT || '3000';
+        url = `http://${host}:${port}/api/config`;
+      }
+      const response = await fetch(url);
       if (response.ok) {
         const config = await response.json();
         this.config = { ...this.config, ...config };
