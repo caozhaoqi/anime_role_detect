@@ -1013,10 +1013,7 @@ async def login(
         dict: 登录结果，包含访问令牌和刷新令牌
     """
     try:
-        # 初始化认证服务
-        init_auth_service()
-
-        # 验证用户
+        # 验证用户（认证服务已在启动时初始化）
         user = authenticate_user(username, password)
         if not user:
             return {"success": False, "message": "用户名或密码错误"}
@@ -1620,6 +1617,17 @@ try:
     logger.info("ONNX 推理路由加载成功")
 except Exception as e:
     logger.error(f"导入 ONNX 推理路由失败: {e}")
+
+
+# 启动事件 - 初始化认证服务
+@app.on_event("startup")
+async def startup_event():
+    """启动事件 - 初始化认证服务"""
+    try:
+        init_auth_service()
+        logger.info("认证服务初始化完成")
+    except Exception as e:
+        logger.error(f"认证服务初始化失败: {e}")
 
 
 if __name__ == "__main__":

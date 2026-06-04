@@ -136,3 +136,4 @@ huggingface_cache/
 coreml_models/
 
 role_index_final.faiss
+run/supervisord.conf

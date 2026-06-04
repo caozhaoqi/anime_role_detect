@@ -1,0 +1,247 @@
+version: '3.8'
+
+services:
+  # Redis缓存服务
+  redis:
+    image: redis:7-alpine
+    container_name: anime-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # MySQL数据库服务
+  mysql:
+    image: mysql:8.0
+    container_name: anime-mysql
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: anime_role_detect
+      MYSQL_USER: anime_user
+      MYSQL_PASSWORD: anime_pass
+    volumes:
+      - mysql-data:/var/lib/mysql
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # RabbitMQ消息队列
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: anime-rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: admin
+      RABBITMQ_DEFAULT_PASS: admin
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # 模型服务
+  model-service:
+    build:
+      context: .
+      dockerfile: Dockerfile.model
+    container_name: anime-model-service
+    ports:
+      - "8000:8000"
+    environment:
+      - PYTHONUNBUFFERED=1
+      - HF_HOME=/app/cache/huggingface
+      - KERAS_HOME=/app/cache/keras
+      - REDIS_HOST=redis
+      - RABBITMQ_HOST=rabbitmq
+    volumes:
+      - model-cache:/app/cache
+      - ./models:/app/models
+    depends_on:
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # API服务
+  api-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: anime-api-service
+    ports:
+      - "8001:8000"
+    environment:
+      - PYTHONUNBUFFERED=1
+      - HF_HOME=/app/cache/huggingface
+      - KERAS_HOME=/app/cache/keras
+      - REDIS_HOST=redis
+      - MODEL_SERVICE_HOST=model-service
+      - RABBITMQ_HOST=rabbitmq
+      - DB_HOST=mysql
+      - DB_USER=anime_user
+      - DB_PASSWORD=anime_pass
+      - DB_NAME=anime_role_detect
+    volumes:
+      - api-cache:/app/cache
+    depends_on:
+      redis:
+        condition: service_healthy
+      mysql:
+        condition: service_healthy
+      model-service:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # 多媒体服务
+  multimedia-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: anime-multimedia-service
+    environment:
+      - PYTHONUNBUFFERED=1
+      - REDIS_HOST=redis
+      - RABBITMQ_HOST=rabbitmq
+    volumes:
+      - multimedia-data:/app/data
+    depends_on:
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # 搜索服务
+  search-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: anime-search-service
+    environment:
+      - PYTHONUNBUFFERED=1
+      - REDIS_HOST=redis
+      - RABBITMQ_HOST=rabbitmq
+    depends_on:
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # 搜索Worker
+  search-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.model
+    container_name: anime-search-worker
+    environment:
+      - PYTHONUNBUFFERED=1
+      - HF_HOME=/app/cache/huggingface
+      - REDIS_HOST=redis
+      - RABBITMQ_HOST=rabbitmq
+    volumes:
+      - worker-cache:/app/cache
+    depends_on:
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+    command: ["python", "src/services/search_service/search_worker.py"]
+
+  # API网关
+  api-gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: anime-api-gateway
+    ports:
+      - "8080:8000"
+    environment:
+      - PYTHONUNBUFFERED=1
+      - REDIS_HOST=redis
+      - API_SERVICE_HOST=api-service
+    depends_on:
+      redis:
+        condition: service_healthy
+      api-service:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # 监控仪表板
+  monitor-dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: anime-monitor-dashboard
+    ports:
+      - "8888:8000"
+    environment:
+      - PYTHONUNBUFFERED=1
+      - REDIS_HOST=redis
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # 前端服务
+  frontend:
+    build:
+      context: .
+      dockerfile: deployment/Dockerfile.frontend
+    container_name: anime-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - API_URL=http://localhost:8080
+    depends_on:
+      api-gateway:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  redis-data:
+  mysql-data:
+  rabbitmq-data:
+  model-cache:
+  api-cache:
+  multimedia-data:
+  worker-cache:

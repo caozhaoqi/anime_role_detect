@@ -3,8 +3,6 @@
 ![GitHub Actions](https://img.shields.io/github/actions/workflow/status/ard-team/anime_role_detect/ci-cd.yml?branch=main)
 ![Python Version](https://img.shields.io/badge/python-3.9%2B-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
-![Code Coverage](https://img.shields.io/codecov/c/github/ard-team/anime_role_detect)
-![Last Commit](https://img.shields.io/github/last-commit/ard-team/anime_role_detect)
 
 An AI-powered image recognition system designed to identify characters from games and anime.
 
@@ -32,6 +30,7 @@ An AI-powered image recognition system designed to identify characters from game
 - 16GB+ RAM (required for model loading)
 - NVIDIA GPU (recommended for inference speed)
 - Redis Server (for caching)
+- Docker & Docker Compose (for containerized deployment)
 
 ### Installation
 
@@ -53,19 +52,38 @@ pip install supervisor  # For process management
 # Configure environment
 cp .env.example .env
 # Edit .env with your configuration
+```
 
+### Running with Supervisor (Recommended)
+
+```bash
 # Start Redis (required for caching)
 redis-server &
 
 # Start all services using supervisord
-chmod +x src/run/run_with_supervisor.sh
-./src/run/run_with_supervisor.sh start
+supervisord -c supervisord.conf
+
+# Check service status
+supervisorctl status
+
+# Stop all services
+supervisorctl stop all
 ```
 
 ### Docker Deployment
 
 ```bash
+# Build and start all services
 docker-compose up --build -d
+
+# Check container status
+docker-compose ps
+
+# View logs
+docker-compose logs -f <service_name>
+
+# Stop services
+docker-compose down
 ```
 
 ### Service Access
@@ -83,6 +101,10 @@ docker-compose up --build -d
 ### API Documentation
 - **Swagger Docs**: `http://localhost:8080/docs`
 - **Redoc Docs**: `http://localhost:8080/redoc`
+
+### Default Credentials
+- **Username**: `admin` / `user`
+- **Password**: `admin123` / `user123`
 
 ## 📁 Project Structure
 
@@ -105,7 +127,11 @@ anime_role_detect/
 ├── docs/                   # Documentation
 ├── skillhub/               # Skill Hub module
 ├── scripts/                # Utility scripts (spider, data collection)
+├── deployment/             # Kubernetes deployment files
 ├── supervisord.conf        # Process manager configuration
+├── docker-compose.yml      # Docker Compose configuration
+├── Dockerfile              # Backend Dockerfile
+├── Dockerfile.model        # Model Service Dockerfile
 ├── requirements-base.txt   # Base dependencies
 ├── requirements-ml.txt     # ML dependencies
 ├── requirements-dev.txt    # Development dependencies
@@ -138,6 +164,16 @@ anime_role_detect/
 | `MAX_IMAGE_SIZE` | Max upload size (MB) | 10 |
 | `DEVICE` | Compute device (cpu/cuda/mps) | auto |
 
+### Docker Configuration
+
+The project includes comprehensive Docker support:
+
+- **docker-compose.yml**: Multi-service orchestration with Redis, MySQL, RabbitMQ, and all application services
+- **Dockerfile**: Multi-stage build for backend services
+- **Dockerfile.model**: Optimized model service image
+- **deployment/Dockerfile.frontend**: Frontend Next.js deployment with Nginx
+- **docker_manager.py**: Helper script for Docker operations
+
 ## 📊 Model Performance
 
 ### Latest Benchmark Results (June 2026)
@@ -152,6 +188,7 @@ anime_role_detect/
 | Inference Speed | **85.74 FPS** |
 | Latency per Image | **11.66ms** |
 | First Request Latency | **< 500ms** (with warm-up) |
+| Login API Response | **< 220ms** |
 
 ### Model Comparison
 
@@ -174,13 +211,30 @@ anime_role_detect/
 - Content Security Policy (CSP) for XSS protection
 - Automatic token refresh mechanism
 
+## 🧪 Testing
+
+### Automated Testing
+
+```bash
+# Run unit tests
+python -m pytest tests/ -v
+
+# Run integration tests
+python -m pytest tests/integration/ -v
+
+# Run performance tests
+python performance_test.py
+```
+
+
 ## 📚 Documentation
 
 For detailed documentation:
 - `docs/technical_guide.md` - Technical specifications
-- `docs/deployment/` - Deployment guides
+- `docs/deployment/` - Deployment guides (Kubernetes, Ubuntu)
 - `docs/training/` - Model training guides
 - `skillhub/docs/` - Skill Hub documentation
+- `docs/blog/` - Technical blog posts
 
 ## 🤝 Contributing
 
@@ -195,8 +249,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-**Version**: v2.1 | **Last Updated**: June 2026 | **Maintainer**: ARD Team
+**Version**: v2.2 | **Last Updated**: June 2026 | **Maintainer**: ARD Team
 
 ---
 
-**Topics**: anime, character-recognition, image-classification, deep-learning, python-api, computer-vision, yolov8, nextjs
+**Topics**: anime, character-recognition, image-classification, deep-learning, python-api, computer-vision, yolov8, nextjs, docker, microservices

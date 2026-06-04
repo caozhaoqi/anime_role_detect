@@ -1,56 +1,70 @@
-# Stage 1: Builder stage
+# Stage 1: Builder stage for installing dependencies
 FROM python:3.9-slim AS builder
 
 WORKDIR /app
 
-# 安装构建基础依赖（用于编译某些 python 库）
+# Install system dependencies for building
 RUN apt-get update && apt-get install -y \
     build-essential \
     git \
+    gcc \
+    g++ \
+    cmake \
+    libopenblas-dev \
+    liblapack-dev \
     && rm -rf /var/lib/apt/lists/*
 
+# Copy requirements files
 COPY requirements.txt .
+COPY requirements-base.txt .
+COPY requirements-ml.txt .
 
-# 建议：在 requirements.txt 中将 opencv-python 改为 opencv-python-headless
-RUN pip install --no-cache-dir --target=/app/deps -r requirements.txt
+# Combine all requirements
+RUN cat requirements.txt requirements-base.txt requirements-ml.txt > /tmp/all_requirements.txt
 
-# Stage 2: Runtime stage
+# Install dependencies to a separate directory for later copying
+RUN pip install --no-cache-dir --target=/app/deps -r /tmp/all_requirements.txt
+
+# Stage 2: Runtime stage with minimal dependencies
 FROM python:3.9-slim AS runtime
 
 WORKDIR /app
 
-# 【关键修改】：只安装 OpenCV 运行必须的系统级基础支撑库
-# 不要在 apt 中安装 python3-opencv，因为它会引入大量无用的 GUI 依赖
+# Install only runtime system dependencies
 RUN apt-get update && apt-get install -y \
     libgl1 \
     libglib2.0-0 \
     libsm6 \
     libxrender1 \
     libxext6 \
+    libopenblas0 \
+    libgomp1 \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 
-# 拷贝依赖
+# Copy installed dependencies from builder stage
 COPY --from=builder /app/deps /usr/local/lib/python3.9/site-packages
 
-# 拷贝源码
+# Copy source files
 COPY src/ ./src/
 COPY scripts/ ./scripts/
-COPY tests ./tests
+COPY models/ ./models/
 
-# 环境变量设置（脱敏处理）
+# Set environment variables
 ENV PYTHONUNBUFFERED=1 \
+    PYTHONPATH=/app \
     HF_HOME=/app/cache/huggingface \
     KERAS_HOME=/app/cache/keras \
     REDIS_HOST=redis \
     MODEL_SERVICE_HOST=model-service \
-    RABBITMQ_HOST=rabbitmq
+    RABBITMQ_HOST=rabbitmq \
+    DB_HOST=mysql
 
-# 创建运行所需目录（解决之前提到的 logs 找不到的问题）
-RUN mkdir -p /app/cache/huggingface /app/cache/keras /app/logs /app/temp
+# Create necessary directories
+RUN mkdir -p /app/cache/huggingface /app/cache/keras /app/logs /app/temp /app/data
 
-# 暴露端口
+# Expose port
 EXPOSE 8000
 
-# 启动服务
+# Default command - can be overridden per service
 CMD ["uvicorn", "src.api.app:app", "--host", "0.0.0.0", "--port", "8000"]
