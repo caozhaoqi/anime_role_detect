@@ -1,2 +1,4 @@
 """主动学习模块"""
-__all__ = []
+from .confidence_filter import ConfidenceFilter, SampleReviewer, IncrementalTrainer
+
+__all__ = ["ConfidenceFilter", "SampleReviewer", "IncrementalTrainer"]

@@ -1,2 +1,4 @@
 """自动标注模块"""
-__all__ = []
+from .yolo_detector import YOLODetector
+
+__all__ = ["YOLODetector"]

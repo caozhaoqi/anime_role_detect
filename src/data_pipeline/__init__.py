@@ -8,11 +8,26 @@ Data Pipeline Module
 __version__ = "1.0.0"
 __author__ = "ARD Team"
 
+# 数据库模块
 from .database.init_db import init_database, Character, Sample, CollectionTask
+
+# 采集模块
+from .collector.deduplication import CLIPDeduplicator
+
+# 标注模块
+from .annotator.yolo_detector import YOLODetector
+
+# 主动学习模块
+from .active_learning.confidence_filter import ConfidenceFilter, SampleReviewer, IncrementalTrainer
 
 __all__ = [
     "init_database",
     "Character",
     "Sample",
-    "CollectionTask"
+    "CollectionTask",
+    "CLIPDeduplicator",
+    "YOLODetector",
+    "ConfidenceFilter",
+    "SampleReviewer",
+    "IncrementalTrainer"
 ]

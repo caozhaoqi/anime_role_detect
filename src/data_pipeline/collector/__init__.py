@@ -1,2 +1,4 @@
 """数据采集模块"""
-__all__ = []
+from .deduplication import CLIPDeduplicator
+
+__all__ = ["CLIPDeduplicator"]
