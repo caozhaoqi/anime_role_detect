@@ -21,15 +21,15 @@ except ImportError:
 class YOLODetector:
     """YOLO角色检测器"""
     
-    def __init__(self, model_path: str = "yolov8n.pt", device: Optional[str] = None):
+    def __init__(self, model_path: str = "yolov8n.pt"):
         """
         初始化YOLO检测器
         
         Args:
             model_path: YOLO模型路径或名称
-            device: 运行设备，None表示自动选择
         """
-        self.device = device if device else ("cuda" if "cuda" in str(YOLO(device="cuda").device) else "cpu")
+        import torch
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
         
         print(f"📥 正在加载YOLO模型: {model_path}")
         self.model = YOLO(model_path)
