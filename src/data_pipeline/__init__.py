@@ -20,6 +20,9 @@ from .annotator.yolo_detector import YOLODetector
 # 主动学习模块
 from .active_learning.confidence_filter import ConfidenceFilter, SampleReviewer, IncrementalTrainer
 
+# 流水线主类
+from .pipeline import DataPipeline
+
 __all__ = [
     "init_database",
     "Character",
@@ -29,5 +32,6 @@ __all__ = [
     "YOLODetector",
     "ConfidenceFilter",
     "SampleReviewer",
-    "IncrementalTrainer"
+    "IncrementalTrainer",
+    "DataPipeline"
 ]
