@@ -9,6 +9,8 @@ import os
 import sys
 import json
 import time
+import hashlib
+import shutil
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 from datetime import datetime
@@ -18,6 +20,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import threading
 
 import numpy as np
+from PIL import Image
 from tqdm import tqdm
 
 # 添加项目路径
@@ -112,6 +115,7 @@ class PipelineReport:
     overall_keep_rate: float = 0
     
     # 各阶段统计
+    preprocessing_stats: dict = field(default_factory=dict)
     dedup_removed: int = 0
     consistency_removed: int = 0
     cluster_removed: int = 0
@@ -129,6 +133,7 @@ class CleaningPipeline:
     数据清洗流水线
     
     流程：
+    0. 预处理 - 过滤损坏图片和完全重复图片（MD5哈希）
     1. CLIP去重 - 去除重复/高度相似图片
     2. 角色一致性过滤 - 过滤与角色标注不一致的图片
     3. HDBSCAN聚类过滤 - 去除角色内异常点
@@ -214,6 +219,145 @@ class CleaningPipeline:
         for ext in ["*.jpg", "*.jpeg", "*.png", "*.webp"]:
             images.extend([str(p) for p in char_dir.glob(ext)])
         return sorted(images)
+    
+    def _compute_file_hash(self, filepath: Path) -> Optional[str]:
+        """计算文件MD5哈希"""
+        try:
+            hash_md5 = hashlib.md5()
+            with open(filepath, "rb") as f:
+                for chunk in iter(lambda: f.read(4096), b""):
+                    hash_md5.update(chunk)
+            return hash_md5.hexdigest()
+        except Exception:
+            return None
+    
+    def _is_valid_image(self, filepath: Path) -> Tuple[bool, str]:
+        """
+        检查图片是否有效
+        
+        Returns:
+            (是否有效, 原因)
+        """
+        try:
+            # 检查文件大小
+            filesize = os.path.getsize(filepath)
+            if filesize < 1024:
+                return False, f"文件太小 ({filesize} bytes)"
+            
+            # 尝试打开并验证
+            with Image.open(filepath) as img:
+                img.verify()
+            
+            # 重新打开检查尺寸和模式
+            with Image.open(filepath) as img:
+                width, height = img.size
+                if width < 50 or height < 50:
+                    return False, f"尺寸太小 ({width}x{height})"
+                if img.mode not in ['RGB', 'RGBA', 'L', 'RGBX']:
+                    return False, f"不支持的模式: {img.mode}"
+            
+            return True, "OK"
+        except Exception as e:
+            return False, str(e)
+    
+    def preprocess(self) -> dict:
+        """
+        预处理：过滤损坏图片和完全重复图片
+        
+        在进入CLIP特征提取前，先用简单方法过滤无效图片，
+        大幅减少后续处理时间和CLIP调用次数
+        
+        Returns:
+            预处理统计信息
+        """
+        logger.info("="*60)
+        logger.info("步骤1: 预处理（过滤损坏和重复图片）")
+        logger.info("="*60)
+        
+        # 创建临时预处理目录
+        preprocessed_dir = self.output_dir / "_preprocessed"
+        preprocessed_dir.mkdir(parents=True, exist_ok=True)
+        
+        stats = {
+            "total_scanned": 0,
+            "valid": 0,
+            "corrupt": 0,
+            "duplicate": 0,
+            "by_character": {}
+        }
+        
+        # 全局哈希缓存（跨角色去重）
+        global_hash_cache = set()
+        # 角色级哈希缓存
+        char_hash_cache = set()
+        
+        char_dirs = sorted([d for d in self.input_dir.iterdir() if d.is_dir()])
+        
+        for char_dir in tqdm(char_dirs, desc="预处理角色"):
+            char_name = char_dir.name
+            out_char_dir = preprocessed_dir / char_name
+            out_char_dir.mkdir(exist_ok=True)
+            
+            char_stats = {"scanned": 0, "valid": 0, "corrupt": 0, "duplicate": 0}
+            char_hash_cache.clear()
+            
+            for img_file in char_dir.iterdir():
+                if img_file.suffix.lower() not in ['.jpg', '.jpeg', '.png', '.webp', '.gif']:
+                    continue
+                
+                char_stats["scanned"] += 1
+                stats["total_scanned"] += 1
+                
+                # 检查图片有效性
+                is_ok, reason = self._is_valid_image(img_file)
+                if not is_ok:
+                    char_stats["corrupt"] += 1
+                    stats["corrupt"] += 1
+                    logger.debug(f"  损坏: {char_name}/{img_file.name} - {reason}")
+                    continue
+                
+                # 检查完全重复（MD5哈希）
+                file_hash = self._compute_file_hash(img_file)
+                if file_hash is None:
+                    char_stats["corrupt"] += 1
+                    stats["corrupt"] += 1
+                    continue
+                
+                # 跨角色去重
+                if file_hash in global_hash_cache:
+                    char_stats["duplicate"] += 1
+                    stats["duplicate"] += 1
+                    logger.debug(f"  跨角色重复: {char_name}/{img_file.name}")
+                    continue
+                
+                # 角色内去重
+                if file_hash in char_hash_cache:
+                    char_stats["duplicate"] += 1
+                    stats["duplicate"] += 1
+                    logger.debug(f"  角色内重复: {char_name}/{img_file.name}")
+                    continue
+                
+                # 保留图片
+                global_hash_cache.add(file_hash)
+                char_hash_cache.add(file_hash)
+                shutil.copy(img_file, out_char_dir / img_file.name)
+                char_stats["valid"] += 1
+                stats["valid"] += 1
+            
+            stats["by_character"][char_name] = char_stats
+            if char_stats["corrupt"] > 0 or char_stats["duplicate"] > 0:
+                logger.info(f"  {char_name}: 有效 {char_stats['valid']}/{char_stats['scanned']}, "
+                          f"损坏 {char_stats['corrupt']}, 重复 {char_stats['duplicate']}")
+        
+        # 打印汇总
+        logger.info(f"\n预处理完成:")
+        logger.info(f"  扫描总数: {stats['total_scanned']}")
+        logger.info(f"  有效保留: {stats['valid']}")
+        logger.info(f"  移除损坏: {stats['corrupt']}")
+        logger.info(f"  移除重复: {stats['duplicate']}")
+        logger.info(f"  保留率: {stats['valid']/stats['total_scanned']*100:.1f}%")
+        
+        return stats
     
     def clean_character(self, char_dir: Path) -> CharacterCleaningResult:
         """
@@ -420,10 +564,13 @@ class CleaningPipeline:
         
         return result
     
-    def run(self) -> PipelineReport:
+    def run(self, skip_preprocess: bool = False) -> PipelineReport:
         """
         运行清洗流水线
         
+        Args:
+            skip_preprocess: 是否跳过预处理步骤（已预处理过的数据可跳过）
+            
         Returns:
             流水线报告
         """
@@ -440,6 +587,22 @@ class CleaningPipeline:
         logger.info(f"输入目录: {self.input_dir}")
         logger.info(f"输出目录: {self.output_dir}")
         logger.info(f"配置: {json.dumps(asdict(self.config), indent=2)}")
+        
+        # 保存原始输入目录
+        original_input_dir = self.input_dir
+        
+        # 步骤1: 预处理（可选）
+        preprocessed_dir = self.output_dir / "_preprocessed"
+        if skip_preprocess and preprocessed_dir.exists():
+            logger.info("跳过预处理（已存在预处理数据）")
+            self.input_dir = preprocessed_dir
+        else:
+            # 运行预处理
+            preprocess_stats = self.preprocess()
+            report.preprocessing_stats = preprocess_stats
+            
+            # 将输入目录切换到预处理后的目录
+            self.input_dir = preprocessed_dir
         
         # 获取所有角色目录
         char_dirs = sorted([d for d in self.input_dir.iterdir() if d.is_dir()])
