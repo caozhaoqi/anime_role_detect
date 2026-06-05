@@ -2,10 +2,18 @@
 YOLO自动标注系统
 YOLO-based Automatic Annotation System
 """
+# 必须在导入任何其他模块之前设置环境变量
 import os
 import sys
+import platform
 from pathlib import Path
 from typing import List, Dict, Tuple, Optional
+
+# Mac平台禁用CUDA，避免mutex错误
+if platform.system() == "Darwin":
+    os.environ["CUDA_VISIBLE_DEVICES"] = ""
+    os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
+    os.environ["FORCE_CPU"] = "1"
 
 import cv2
 import numpy as np
@@ -29,7 +37,11 @@ class YOLODetector:
             model_path: YOLO模型路径或名称
         """
         import torch
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        # Mac平台优先使用MPS，否则使用CPU
+        if platform.system() == "Darwin":
+            self.device = "mps" if torch.backends.mps.is_available() else "cpu"
+        else:
+            self.device = "cuda" if torch.cuda.is_available() else "cpu"
         
         print(f"📥 正在加载YOLO模型: {model_path}")
         self.model = YOLO(model_path)

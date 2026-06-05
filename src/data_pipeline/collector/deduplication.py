@@ -2,10 +2,18 @@
 CLIP去重系统
 CLIP-based Deduplication System
 """
+# 必须在导入任何其他模块之前设置环境变量
 import os
 import sys
+import platform
 from pathlib import Path
 from typing import List, Tuple, Dict, Optional
+
+# Mac平台禁用CUDA，避免mutex错误
+if platform.system() == "Darwin":
+    os.environ["CUDA_VISIBLE_DEVICES"] = ""
+    os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
+    os.environ["FORCE_CPU"] = "1"
 
 import numpy as np
 import torch
@@ -23,9 +31,16 @@ class CLIPDeduplicator:
         
         Args:
             model_name: CLIP模型名称，如"ViT-B/32"、"ViT-L/14"
-            device: 运行设备，None表示自动选择cuda或cpu
+            device: 运行设备，None表示自动选择
         """
-        self.device = device if device else ("cuda" if torch.cuda.is_available() else "cpu")
+        if device is not None:
+            self.device = device
+        elif platform.system() == "Darwin":
+            # Mac平台优先使用MPS，否则使用CPU
+            self.device = "mps" if torch.backends.mps.is_available() else "cpu"
+        else:
+            self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        
         self.model_name = model_name
         
         # 加载CLIP模型

@@ -2,11 +2,19 @@
 数据流水线主类
 Data Pipeline Main Class
 """
+# 必须在导入任何其他模块之前设置环境变量
 import os
 import sys
+import platform
 from pathlib import Path
 from typing import List, Dict, Optional, Tuple
 from datetime import datetime
+
+# Mac平台禁用CUDA，避免mutex错误
+if platform.system() == "Darwin":
+    os.environ["CUDA_VISIBLE_DEVICES"] = ""
+    os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
+    os.environ["FORCE_CPU"] = "1"
 
 # 添加项目路径
 project_root = Path(__file__).parent.parent.parent
@@ -18,6 +26,13 @@ from src.data_pipeline.active_learning.confidence_filter import (
     ConfidenceFilter,
     SampleReviewer,
     IncrementalTrainer
+)
+from src.data_pipeline.cleaner import (
+    AnimeClassifier,
+    QualityFilter,
+    AIDetector,
+    CharacterCropper,
+    MultiTagger
 )
 from src.data_pipeline.database.init_db import (
     init_database,
@@ -48,6 +63,13 @@ class DataPipeline:
         self.confidence_filter = ConfidenceFilter(threshold=0.7)
         self.reviewer = SampleReviewer(review_dir="data/review_batches")
         self.trainer = IncrementalTrainer(model_dir="data/models", data_dir="data/training")
+        
+        # 初始化数据清洗模块
+        self.anime_classifier = AnimeClassifier()
+        self.quality_filter = QualityFilter()
+        self.ai_detector = AIDetector()
+        self.character_cropper = CharacterCropper()
+        self.multi_tagger = MultiTagger()
 
         # 统计信息
         self.stats = {
@@ -56,12 +78,84 @@ class DataPipeline:
             'total_samples': 0,
             'imported_samples': 0,
             'deduplicated_samples': 0,
+            'cleaned_samples': 0,
             'annotated_samples': 0,
             'difficult_samples': 0,
             'errors': []
         }
 
         print("✅ 数据流水线初始化完成")
+
+    def clean_samples(self, min_confidence: float = 0.5) -> int:
+        """
+        数据清洗：过滤低质量、非动漫和AI生成的图片
+
+        Args:
+            min_confidence: 动漫分类最低置信度
+
+        Returns:
+            清洗后的样本数量
+        """
+        print(f"\n🧹 开始数据清洗...")
+
+        # 获取待清洗的样本（已去重但未清洗）
+        samples = self.session.query(Sample).filter(
+            Sample.status == 'deduplicated'
+        ).all()
+
+        if not samples:
+            print("⚠️ 没有待清洗的样本")
+            return 0
+
+        cleaned_count = 0
+        filtered_count = 0
+
+        # 初始化清洗模块
+        self.anime_classifier.initialize()
+        self.ai_detector.initialize()
+        self.multi_tagger.initialize()
+
+        for sample in samples:
+            # 1. 质量过滤
+            quality_ok, quality_info = self.quality_filter.filter(sample.image_path)
+            if not quality_ok:
+                sample.status = 'filtered_quality'
+                filtered_count += 1
+                continue
+
+            # 2. 动漫分类
+            anime_prob, anime_result = self.anime_classifier.classify(sample.image_path)
+            if anime_result != 'anime' or anime_prob < min_confidence:
+                sample.status = 'filtered_non_anime'
+                filtered_count += 1
+                continue
+
+            # 3. AI检测（可选：保留或过滤AI生成图片）
+            ai_prob, ai_result = self.ai_detector.detect(sample.image_path)
+            sample.is_ai_generated = (ai_result == 'ai-generated')
+            sample.anime_confidence = anime_prob
+            sample.ai_confidence = ai_prob
+
+            # 4. 生成标签
+            tags = self.multi_tagger.generate_comprehensive_tags(sample.image_path)
+            sample.attributes = tags.get('by_category', {})
+
+            # 标记为已清洗
+            sample.status = 'cleaned'
+            cleaned_count += 1
+
+            # 每100条提交一次
+            if cleaned_count % 100 == 0:
+                self.session.commit()
+                print(f"   已清洗 {cleaned_count} 个样本...")
+
+        # 提交剩余数据
+        self.session.commit()
+
+        print(f"✅ 清洗完成！保留: {cleaned_count} 个，过滤: {filtered_count} 个")
+
+        self.stats['cleaned_samples'] = cleaned_count
+        return cleaned_count
 
     def import_samples(self, data_dir: str = "data/final_dataset") -> int:
         """
@@ -189,8 +283,8 @@ class DataPipeline:
         """
         print(f"\n📝 开始自动标注...")
 
-        # 获取待标注的样本
-        query = self.session.query(Sample).filter(Sample.status == 'deduplicated')
+        # 获取待标注的样本（已清洗的样本）
+        query = self.session.query(Sample).filter(Sample.status == 'cleaned')
         if limit:
             query = query.limit(limit)
 
@@ -363,17 +457,20 @@ class DataPipeline:
             # 2. 去重
             self.deduplicate_samples()
 
-            # 3. 自动标注
+            # 3. 数据清洗
+            self.clean_samples()
+
+            # 4. 自动标注
             self.annotate_samples()
 
-            # 4. 筛选困难样本
+            # 5. 筛选困难样本
             difficult_samples = self.filter_difficult_samples(batch_size=20)
 
-            # 5. 创建审核批次
+            # 6. 创建审核批次
             if difficult_samples:
                 self.create_review_batch(difficult_samples)
 
-            # 6. 自动审核（可选）
+            # 7. 自动审核（可选）
             if auto_review and difficult_samples:
                 print("\n⚠️ 自动审核功能待实现")
 
@@ -408,6 +505,7 @@ class DataPipeline:
         print(f"总样本数: {self.stats['total_samples']}")
         print(f"导入样本: {self.stats['imported_samples']}")
         print(f"去重后样本: {self.stats['deduplicated_samples']}")
+        print(f"清洗后样本: {self.stats['cleaned_samples']}")
         print(f"标注样本: {self.stats['annotated_samples']}")
         print(f"困难样本: {self.stats['difficult_samples']}")
 
