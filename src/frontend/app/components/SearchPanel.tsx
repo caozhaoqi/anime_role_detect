@@ -7,7 +7,7 @@ import axios from "axios";
 interface SearchResult {
   role: string;
   similarity: number;
-  image_path?: string;
+  image?: string;
 }
 
 interface SearchPanelProps {

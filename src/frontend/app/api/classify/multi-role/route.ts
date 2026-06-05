@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
       cacheBypass: cacheBypass
     });
 
-    const backendUrl = 'http://127.0.0.1:8080/api/classify/multi-role';
+    const backendUrl = 'http://127.0.0.1:8001/api/classify/multi-role';
     console.log('准备转发请求到后端API:', backendUrl);
     const backendFormData = new FormData();
     backendFormData.append('file', file);

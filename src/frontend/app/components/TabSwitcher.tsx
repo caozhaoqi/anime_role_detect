@@ -1,18 +1,18 @@
 "use client";
 
-import { ImageIcon, Search, Video } from "lucide-react";
+import { ImageIcon, Search, Video, Sparkles } from "lucide-react";
 
 interface TabSwitcherProps {
   darkMode: boolean;
-  activePanel: 'classify' | 'search' | 'video';
-  onPanelChange: (panel: 'classify' | 'search' | 'video') => void;
+  activePanel: 'classify' | 'search' | 'video' | 'cleaning';
+  onPanelChange: (panel: 'classify' | 'search' | 'video' | 'cleaning') => void;
 }
 
-type TabColor = 'blue' | 'purple' | 'green';
+type TabColor = 'blue' | 'purple' | 'green' | 'orange';
 
 interface Tab {
-  id: 'classify' | 'search' | 'video';
-  icon: typeof ImageIcon | typeof Search | typeof Video;
+  id: 'classify' | 'search' | 'video' | 'cleaning';
+  icon: typeof ImageIcon | typeof Search | typeof Video | typeof Sparkles;
   label: string;
   color: TabColor;
 }
@@ -22,6 +22,7 @@ export default function TabSwitcher({ darkMode, activePanel, onPanelChange }: Ta
     { id: 'classify', icon: ImageIcon, label: '角色识别', color: 'blue' },
     { id: 'search', icon: Search, label: '以图搜图', color: 'purple' },
     { id: 'video', icon: Video, label: '视频识别', color: 'green' },
+    { id: 'cleaning', icon: Sparkles, label: '数据清洗', color: 'orange' },
   ];
 
   const getColorClasses = (color: TabColor, isActive: boolean) => {
@@ -36,6 +37,10 @@ export default function TabSwitcher({ darkMode, activePanel, onPanelChange }: Ta
       },
       green: {
         active: darkMode ? 'text-green-400 border-green-400' : 'text-green-600 border-green-600',
+        inactive: darkMode ? 'text-gray-400' : 'text-gray-500',
+      },
+      orange: {
+        active: darkMode ? 'text-orange-400 border-orange-400' : 'text-orange-600 border-orange-600',
         inactive: darkMode ? 'text-gray-400' : 'text-gray-500',
       },
     };

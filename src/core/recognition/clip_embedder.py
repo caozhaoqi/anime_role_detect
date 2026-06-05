@@ -297,6 +297,44 @@ class CLIPEmbedder:
         except Exception as e:
             logger.error(f"提取文本特征失败: {e}")
             return None
+    
+    def embed_texts(self, texts: List[str]) -> Optional[np.ndarray]:
+        """
+        批量提取文本特征
+
+        Args:
+            texts: 文本列表
+
+        Returns:
+            文本特征矩阵 (len(texts), embedding_dim)
+        """
+        if not self._initialized:
+            self.initialize()
+        
+        if not texts:
+            return None
+        
+        try:
+            if self._model_type == "hf":
+                import torch
+                inputs = self._processor(text=texts, return_tensors="pt", padding=True).to(self.device)
+                with torch.no_grad():
+                    features = self._model.get_text_features(**inputs)
+            else:
+                import torch
+                tokens = self._tokenize(texts).to(self.device)
+                with torch.no_grad():
+                    features = self._model.encode_text(tokens)
+            
+            embeddings = features.cpu().numpy()
+            # 归一化
+            norms = np.linalg.norm(embeddings, axis=1, keepdims=True)
+            embeddings = embeddings / (norms + 1e-8)
+            return embeddings.astype(np.float32)
+        
+        except Exception as e:
+            logger.error(f"批量提取文本特征失败: {e}")
+            return None
 
     def is_initialized(self) -> bool:
         """检查是否已初始化"""

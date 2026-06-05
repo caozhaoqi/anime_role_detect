@@ -12,6 +12,7 @@ import VideoPanel from './components/VideoPanel';
 import Header from './components/Header';
 import TabSwitcher from './components/TabSwitcher';
 import ChatPanel from './components/ChatPanel';
+import CleaningPanel from './components/CleaningPanel';
 import { useDebounce, useThrottle, useLock } from './hooks/useDebounce';
 import { compressImage, compressImages, formatFileSize } from './utils/imageCompression';
 import ErrorBoundary, { useGlobalErrorHandler } from './components/ErrorBoundary';
@@ -59,7 +60,7 @@ export default function AnimeRoleDetect() {
   const [useYolo, setUseYolo] = useState(false);
   const [showConfig, setShowConfig] = useState(false);
   const [config, setConfig] = useState(ConfigManager.getConfig());
-  const [activePanel, setActivePanel] = useState<'classify' | 'search' | 'video'>('classify');
+  const [activePanel, setActivePanel] = useState<'classify' | 'search' | 'video' | 'cleaning'>('classify');
   
   const isMountedRef = useRef(false);
   
@@ -1108,8 +1109,10 @@ export default function AnimeRoleDetect() {
                     />
                   ) : activePanel === 'search' ? (
                     <SearchPanel darkMode={darkMode} accessToken={authState.accessToken ?? undefined} />
-                  ) : (
+                  ) : activePanel === 'video' ? (
                     <VideoPanel darkMode={darkMode} accessToken={authState.accessToken ?? undefined} />
+                  ) : (
+                    <CleaningPanel darkMode={darkMode} accessToken={authState.accessToken ?? undefined} />
                   )}
                 </div>
               </div>

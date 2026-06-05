@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 });
     }
 
-    const backendUrl = 'http://127.0.0.1:8080/api/video/recognize';
+    const backendUrl = 'http://127.0.0.1:8001/api/video/recognize';
     console.log('准备转发请求到后端API:', backendUrl);
 
     const backendFormData = new FormData();
