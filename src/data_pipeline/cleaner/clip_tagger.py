@@ -6,15 +6,19 @@ CLIP标签生成器 - 使用CLIP模型生成图片标签
 
 import os
 import sys
+import platform
 from pathlib import Path
 from typing import List, Dict, Tuple
 
 project_root = Path(__file__).parent.parent.parent.parent
 sys.path.insert(0, str(project_root))
 
-import torch
-import torch.nn.functional as F
-from transformers import CLIPProcessor, CLIPModel
+# Mac平台禁用CUDA，避免mutex错误
+if platform.system() == "Darwin":
+    os.environ["CUDA_VISIBLE_DEVICES"] = ""
+    os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
+    os.environ["FORCE_CPU"] = "1"
+
 from PIL import Image
 import logging
 
@@ -90,19 +94,21 @@ class CLIPTagger:
             return device
         
         # 检查平台
-        import platform
         system = platform.system()
         
-        # Mac平台不支持CUDA，只支持MPS或CPU
+        # Mac平台直接使用CPU，避免任何CUDA/MPS初始化问题
         if system == "Darwin":
-            if torch.backends.mps.is_available():
-                return "mps"
-            else:
-                return "cpu"
-        # Linux/Windows可以使用CUDA
-        elif torch.cuda.is_available():
-            return "cuda"
-        else:
+            return "cpu"
+        
+        # 检查是否已禁用CUDA
+        if os.environ.get("CUDA_VISIBLE_DEVICES", "") == "":
+            return "cpu"
+        
+        # 其他平台尝试使用CUDA（延迟检测）
+        try:
+            import torch
+            return "cuda" if torch.cuda.is_available() else "cpu"
+        except:
             return "cpu"
     
     def initialize(self):
@@ -113,6 +119,10 @@ class CLIPTagger:
         logger.info(f"📥 正在加载CLIP标签模型...")
         
         try:
+            import torch
+            import torch.nn.functional as F
+            from transformers import CLIPProcessor, CLIPModel
+            
             self.processor = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32")
             self.model = CLIPModel.from_pretrained("openai/clip-vit-base-patch32")
             self.model = self.model.to(self.device)
@@ -138,6 +148,9 @@ class CLIPTagger:
         """
         if not self._initialized:
             self.initialize()
+        
+        import torch
+        import torch.nn.functional as F
         
         tags = []
         

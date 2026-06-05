@@ -36,10 +36,17 @@ class CLIPDeduplicator:
         if device is not None:
             self.device = device
         elif platform.system() == "Darwin":
-            # Mac平台优先使用MPS，否则使用CPU
-            self.device = "mps" if torch.backends.mps.is_available() else "cpu"
+            # Mac平台直接使用CPU，避免任何CUDA/MPS初始化问题
+            self.device = "cpu"
+        elif os.environ.get("CUDA_VISIBLE_DEVICES", "") == "":
+            # 如果CUDA已被禁用，使用CPU
+            self.device = "cpu"
         else:
-            self.device = "cuda" if torch.cuda.is_available() else "cpu"
+            # 其他平台检查CUDA
+            try:
+                self.device = "cuda" if torch.cuda.is_available() else "cpu"
+            except:
+                self.device = "cpu"
         
         self.model_name = model_name
         

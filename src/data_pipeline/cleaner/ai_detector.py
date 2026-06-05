@@ -6,15 +6,19 @@ AI检测器 - 检测图片是否为AI生成
 
 import os
 import sys
+import platform
 from pathlib import Path
 from typing import Tuple, Dict
 
 project_root = Path(__file__).parent.parent.parent.parent
 sys.path.insert(0, str(project_root))
 
-import torch
-import torch.nn.functional as F
-from transformers import AutoProcessor, AutoModelForImageClassification
+# Mac平台禁用CUDA，避免mutex错误
+if platform.system() == "Darwin":
+    os.environ["CUDA_VISIBLE_DEVICES"] = ""
+    os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
+    os.environ["FORCE_CPU"] = "1"
+
 from PIL import Image
 import logging
 
@@ -46,19 +50,21 @@ class AIDetector:
             return device
         
         # 检查平台
-        import platform
         system = platform.system()
         
-        # Mac平台不支持CUDA，只支持MPS或CPU
+        # Mac平台直接使用CPU，避免任何CUDA/MPS初始化问题
         if system == "Darwin":
-            if torch.backends.mps.is_available():
-                return "mps"
-            else:
-                return "cpu"
-        # Linux/Windows可以使用CUDA
-        elif torch.cuda.is_available():
-            return "cuda"
-        else:
+            return "cpu"
+        
+        # 检查是否已禁用CUDA
+        if os.environ.get("CUDA_VISIBLE_DEVICES", "") == "":
+            return "cpu"
+        
+        # 其他平台尝试使用CUDA（延迟检测）
+        try:
+            import torch
+            return "cuda" if torch.cuda.is_available() else "cpu"
+        except:
             return "cpu"
     
     def initialize(self):
@@ -69,6 +75,8 @@ class AIDetector:
         logger.info(f"📥 正在加载AI检测模型...")
         
         try:
+            from transformers import AutoProcessor, AutoModelForImageClassification
+            
             # 使用HuggingFace上的AI检测模型
             self.processor = AutoProcessor.from_pretrained("Salesforce/xgen-mm-phi3-mini-instruct")
             self.model = AutoModelForImageClassification.from_pretrained(
@@ -102,6 +110,9 @@ class AIDetector:
             return self._simple_detect(image_path)
         
         try:
+            import torch
+            import torch.nn.functional as F
+            
             image = Image.open(image_path).convert("RGB")
             inputs = self.processor(images=image, return_tensors="pt").to(self.device)
             

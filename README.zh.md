@@ -1,6 +1,6 @@
 # 角色分类系统
 
-![GitHub Actions](https://img.shields.io/github/actions/workflow/status/ard-team/anime_role_detect/ci-cd.yml?branch=main)
+![GitHub Actions](https://img.shields.io/github/actions/workflow/status/ard-team/anime_role_detect/docker-image.yml?branch=main)
 ![Python 版本](https://img.shields.io/badge/python-3.9%2B-blue)
 ![许可证](https://img.shields.io/badge/license-MIT-green)
 

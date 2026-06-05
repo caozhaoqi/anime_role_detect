@@ -6,9 +6,25 @@ Data Pipeline Main Class
 import os
 import sys
 import platform
+import logging
 from pathlib import Path
 from typing import List, Dict, Optional, Tuple
 from datetime import datetime
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import threading
+from functools import wraps
+import time
+
+# 配置日志
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('data_pipeline.log', encoding='utf-8'),
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger(__name__)
 
 # Mac平台禁用CUDA，避免mutex错误
 if platform.system() == "Darwin":
@@ -57,19 +73,17 @@ class DataPipeline:
         self.engine, self.Session = init_database()
         self.session = self.Session()
 
-        # 初始化各个模块
-        self.deduplicator = CLIPDeduplicator(model_name="ViT-B/32")
-        self.detector = YOLODetector(model_path="yolov8n.pt")
-        self.confidence_filter = ConfidenceFilter(threshold=0.7)
-        self.reviewer = SampleReviewer(review_dir="data/review_batches")
-        self.trainer = IncrementalTrainer(model_dir="data/models", data_dir="data/training")
-        
-        # 初始化数据清洗模块
-        self.anime_classifier = AnimeClassifier()
-        self.quality_filter = QualityFilter()
-        self.ai_detector = AIDetector()
-        self.character_cropper = CharacterCropper()
-        self.multi_tagger = MultiTagger()
+        # 延迟初始化各个模块（只在需要时加载）
+        self._deduplicator = None
+        self._detector = None
+        self._confidence_filter = None
+        self._reviewer = None
+        self._trainer = None
+        self._anime_classifier = None
+        self._quality_filter = None
+        self._ai_detector = None
+        self._character_cropper = None
+        self._multi_tagger = None
 
         # 统计信息
         self.stats = {
@@ -84,14 +98,172 @@ class DataPipeline:
             'errors': []
         }
 
+        # 性能监控
+        self.performance_metrics = {}
+
+        logger.info("✅ 数据流水线初始化完成")
         print("✅ 数据流水线初始化完成")
 
-    def clean_samples(self, min_confidence: float = 0.5) -> int:
+    def retry_on_error(self, max_retries=3, delay=1.0, exceptions=(Exception,)):
+        """
+        重试装饰器
+
+        Args:
+            max_retries: 最大重试次数
+            delay: 重试间隔（秒）
+            exceptions: 需要重试的异常类型
+        """
+        def decorator(func):
+            @wraps(func)
+            def wrapper(*args, **kwargs):
+                last_exception = None
+                for attempt in range(max_retries):
+                    try:
+                        return func(*args, **kwargs)
+                    except exceptions as e:
+                        last_exception = e
+                        logger.warning(f"{func.__name__} 第 {attempt + 1} 次尝试失败: {e}")
+                        if attempt < max_retries - 1:
+                            time.sleep(delay * (attempt + 1))  # 指数退避
+                logger.error(f"{func.__name__} 在 {max_retries} 次尝试后失败: {last_exception}")
+                raise last_exception
+            return wrapper
+        return decorator
+
+    def monitor_performance(self, func_name: str):
+        """性能监控装饰器"""
+        def decorator(func):
+            @wraps(func)
+            def wrapper(*args, **kwargs):
+                start_time = time.time()
+                try:
+                    result = func(*args, **kwargs)
+                    elapsed = time.time() - start_time
+                    self.performance_metrics[func_name] = {
+                        'elapsed_time': elapsed,
+                        'status': 'success',
+                        'timestamp': datetime.now()
+                    }
+                    logger.info(f"{func_name} 完成，耗时: {elapsed:.2f}秒")
+                    return result
+                except Exception as e:
+                    elapsed = time.time() - start_time
+                    self.performance_metrics[func_name] = {
+                        'elapsed_time': elapsed,
+                        'status': 'failed',
+                        'error': str(e),
+                        'timestamp': datetime.now()
+                    }
+                    logger.error(f"{func_name} 失败，耗时: {elapsed:.2f}秒，错误: {e}")
+                    raise
+            return wrapper
+        return decorator
+
+    @property
+    def deduplicator(self):
+        if self._deduplicator is None:
+            self._deduplicator = CLIPDeduplicator(model_name="ViT-B/32")
+        return self._deduplicator
+
+    @property
+    def detector(self):
+        if self._detector is None:
+            self._detector = YOLODetector(model_path="yolov8n.pt")
+        return self._detector
+
+    @property
+    def confidence_filter(self):
+        if self._confidence_filter is None:
+            self._confidence_filter = ConfidenceFilter(threshold=0.7)
+        return self._confidence_filter
+
+    @property
+    def reviewer(self):
+        if self._reviewer is None:
+            self._reviewer = SampleReviewer(review_dir="data/review_batches")
+        return self._reviewer
+
+    @property
+    def trainer(self):
+        if self._trainer is None:
+            self._trainer = IncrementalTrainer(model_dir="data/models", data_dir="data/training")
+        return self._trainer
+
+    @property
+    def anime_classifier(self):
+        if self._anime_classifier is None:
+            self._anime_classifier = AnimeClassifier()
+        return self._anime_classifier
+
+    @property
+    def quality_filter(self):
+        if self._quality_filter is None:
+            self._quality_filter = QualityFilter()
+        return self._quality_filter
+
+    @property
+    def ai_detector(self):
+        if self._ai_detector is None:
+            self._ai_detector = AIDetector()
+        return self._ai_detector
+
+    @property
+    def character_cropper(self):
+        if self._character_cropper is None:
+            self._character_cropper = CharacterCropper()
+        return self._character_cropper
+
+    @property
+    def multi_tagger(self):
+        if self._multi_tagger is None:
+            self._multi_tagger = MultiTagger()
+        return self._multi_tagger
+
+    def _process_single_sample(self, sample, min_confidence: float = 0.5) -> Tuple[str, int]:
+        """
+        处理单个样本（用于并行处理）
+
+        Returns:
+            (status, sample_id)
+        """
+        try:
+            # 1. 质量过滤
+            quality_ok, quality_info = self.quality_filter.filter(sample.image_path)
+            if not quality_ok:
+                return 'filtered_quality', sample.id
+
+            # 2. 动漫分类
+            anime_prob, anime_result = self.anime_classifier.classify(sample.image_path)
+            if anime_result != 'anime' or anime_prob < min_confidence:
+                return 'filtered_non_anime', sample.id
+
+            # 3. AI检测
+            ai_prob, ai_result = self.ai_detector.detect(sample.image_path)
+
+            # 4. 生成标签
+            tags = self.multi_tagger.generate_comprehensive_tags(sample.image_path)
+
+            # 使用线程锁保护数据库操作
+            with threading.Lock():
+                sample.is_ai_generated = (ai_result == 'ai-generated')
+                sample.anime_confidence = anime_prob
+                sample.ai_confidence = ai_prob
+                sample.attributes = tags.get('by_category', {})
+                sample.status = 'cleaned'
+
+            return 'cleaned', sample.id
+
+        except Exception as e:
+            self.stats['errors'].append(f"样本 {sample.id} 处理失败: {e}")
+            return 'error', sample.id
+
+    def clean_samples(self, min_confidence: float = 0.5, max_workers: int = 4) -> int:
         """
         数据清洗：过滤低质量、非动漫和AI生成的图片
 
         Args:
             min_confidence: 动漫分类最低置信度
+            max_workers: 并行处理线程数
 
         Returns:
             清洗后的样本数量
@@ -115,39 +287,28 @@ class DataPipeline:
         self.ai_detector.initialize()
         self.multi_tagger.initialize()
 
-        for sample in samples:
-            # 1. 质量过滤
-            quality_ok, quality_info = self.quality_filter.filter(sample.image_path)
-            if not quality_ok:
-                sample.status = 'filtered_quality'
-                filtered_count += 1
-                continue
+        # 使用线程池并行处理
+        print(f"   使用 {max_workers} 个线程并行处理...")
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            # 提交所有任务
+            future_to_sample = {
+                executor.submit(self._process_single_sample, sample, min_confidence): sample
+                for sample in samples
+            }
 
-            # 2. 动漫分类
-            anime_prob, anime_result = self.anime_classifier.classify(sample.image_path)
-            if anime_result != 'anime' or anime_prob < min_confidence:
-                sample.status = 'filtered_non_anime'
-                filtered_count += 1
-                continue
+            # 处理结果
+            for future in as_completed(future_to_sample):
+                status, sample_id = future.result()
 
-            # 3. AI检测（可选：保留或过滤AI生成图片）
-            ai_prob, ai_result = self.ai_detector.detect(sample.image_path)
-            sample.is_ai_generated = (ai_result == 'ai-generated')
-            sample.anime_confidence = anime_prob
-            sample.ai_confidence = ai_prob
+                if status == 'cleaned':
+                    cleaned_count += 1
+                elif status.startswith('filtered'):
+                    filtered_count += 1
 
-            # 4. 生成标签
-            tags = self.multi_tagger.generate_comprehensive_tags(sample.image_path)
-            sample.attributes = tags.get('by_category', {})
-
-            # 标记为已清洗
-            sample.status = 'cleaned'
-            cleaned_count += 1
-
-            # 每100条提交一次
-            if cleaned_count % 100 == 0:
-                self.session.commit()
-                print(f"   已清洗 {cleaned_count} 个样本...")
+                # 每100条提交一次
+                if (cleaned_count + filtered_count) % 100 == 0:
+                    self.session.commit()
+                    print(f"   已处理 {cleaned_count + filtered_count} 个样本...")
 
         # 提交剩余数据
         self.session.commit()
@@ -270,13 +431,44 @@ class DataPipeline:
         self.stats['deduplicated_samples'] = len(retained)
         return len(retained), removed_count
 
-    def annotate_samples(self, conf_threshold: float = 0.5, limit: int = None) -> int:
+    def _annotate_single_sample(self, sample, conf_threshold: float = 0.5) -> Tuple[str, int, Optional[Dict]]:
+        """
+        标注单个样本（用于并行处理）
+
+        Returns:
+            (status, sample_id, detection_result)
+        """
+        try:
+            # 检查是否已标注
+            existing = self.session.query(Annotation).filter_by(sample_id=sample.id).first()
+            if existing:
+                return 'skipped', sample.id, None
+
+            # 执行检测
+            detections = self.detector.detect(sample.image_path, conf_threshold=conf_threshold)
+
+            if detections:
+                # 使用置信度最高的检测结果
+                best_detection = max(detections, key=lambda x: x['confidence'])
+                return 'annotated', sample.id, {
+                    'detections': detections,
+                    'best': best_detection
+                }
+            else:
+                return 'no_detection', sample.id, None
+
+        except Exception as e:
+            self.stats['errors'].append(f"标注样本 {sample.id} 失败: {e}")
+            return 'error', sample.id, None
+
+    def annotate_samples(self, conf_threshold: float = 0.5, limit: int = None, max_workers: int = 4) -> int:
         """
         自动标注样本
 
         Args:
             conf_threshold: 置信度阈值
             limit: 处理数量限制
+            max_workers: 并行处理线程数
 
         Returns:
             标注的样本数量
@@ -294,45 +486,51 @@ class DataPipeline:
         annotated_count = 0
         skipped_count = 0
 
-        for sample in samples:
-            # 检查是否已标注
-            existing_annotation = self.session.query(Annotation).filter_by(sample_id=sample.id).first()
-            if existing_annotation:
-                skipped_count += 1
-                continue
+        # 使用线程池并行处理
+        print(f"   使用 {max_workers} 个线程并行处理...")
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            # 提交所有任务
+            future_to_sample = {
+                executor.submit(self._annotate_single_sample, sample, conf_threshold): sample
+                for sample in samples
+            }
 
-            # 执行检测
-            detections = self.detector.detect(sample.image_path, conf_threshold=conf_threshold)
+            # 处理结果
+            for future in as_completed(future_to_sample):
+                status, sample_id, result = future.result()
 
-            if detections:
-                # 使用置信度最高的检测结果
-                best_detection = max(detections, key=lambda x: x['confidence'])
+                if status == 'annotated' and result:
+                    # 更新数据库
+                    sample = self.session.query(Sample).get(sample_id)
+                    if sample:
+                        # 创建标注记录
+                        annotation = Annotation(
+                            sample_id=sample.id,
+                            annotator='auto',
+                            bbox=result['best']['bbox'],
+                            confidence=result['best']['confidence'],
+                            is_verified=False
+                        )
+                        self.session.add(annotation)
 
-                # 创建标注记录
-                annotation = Annotation(
-                    sample_id=sample.id,
-                    annotator='auto',
-                    bbox=best_detection['bbox'],
-                    confidence=best_detection['confidence'],
-                    is_verified=False
-                )
-                self.session.add(annotation)
+                        # 更新样本信息
+                        sample.person_count = len(result['detections'])
+                        sample.confidence = result['best']['confidence']
+                        sample.status = 'annotated'
 
-                # 更新样本信息
-                sample.person_count = len(detections)
-                sample.confidence = best_detection['confidence']
-                sample.status = 'annotated'
+                        annotated_count += 1
+                elif status == 'skipped':
+                    skipped_count += 1
+                elif status == 'no_detection':
+                    sample = self.session.query(Sample).get(sample_id)
+                    if sample:
+                        sample.status = 'no_detection'
+                    skipped_count += 1
 
-                annotated_count += 1
-            else:
-                # 未检测到目标
-                sample.status = 'no_detection'
-                skipped_count += 1
-
-            # 每50条提交一次
-            if annotated_count % 50 == 0 and annotated_count > 0:
-                self.session.commit()
-                print(f"   已标注 {annotated_count} 个样本...")
+                # 每50条提交一次
+                if (annotated_count + skipped_count) % 50 == 0:
+                    self.session.commit()
+                    print(f"   已处理 {annotated_count + skipped_count} 个样本...")
 
         # 提交剩余数据
         self.session.commit()

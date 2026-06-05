@@ -4,20 +4,11 @@
 Pipeline控制页面（异步执行）
 """
 
-# 必须在导入任何其他模块之前设置环境变量
-import os
-import platform
-
-# Mac平台禁用CUDA，避免mutex错误
-if platform.system() == "Darwin":
-    os.environ["CUDA_VISIBLE_DEVICES"] = ""
-    os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
-    os.environ["FORCE_CPU"] = "1"
-
 import streamlit as st
 import threading
 import time
-from src.data_pipeline.webui.utils import get_pipeline_module, get_db_stats_optimized
+import subprocess
+from src.data_pipeline.webui.utils import get_db_stats_optimized
 
 
 # 全局状态
@@ -26,8 +17,8 @@ pipeline_progress = 0
 pipeline_log = []
 
 
-def run_pipeline_async():
-    """异步运行Pipeline"""
+def run_pipeline_script():
+    """运行Pipeline脚本（子进程方式，避免CUDA问题）"""
     global pipeline_status, pipeline_progress, pipeline_log
     
     try:
@@ -35,37 +26,30 @@ def run_pipeline_async():
         pipeline_progress = 0
         pipeline_log = ["开始执行数据流水线..."]
         
-        # 确保Pipeline模块已加载
-        if not get_pipeline_module():
-            pipeline_log.append("❌ Pipeline模块加载失败")
+        # 使用子进程运行Pipeline脚本
+        process = subprocess.Popen(
+            ["python3", "-m", "src.data_pipeline.pipeline"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            cwd="/Users/caozhaoqi/PycharmProjects/anime_role_detect"
+        )
+        
+        # 读取输出
+        for line in process.stdout:
+            pipeline_log.append(line.strip())
+            if len(pipeline_log) > 100:
+                pipeline_log = pipeline_log[-100:]
+        
+        process.wait()
+        
+        if process.returncode == 0:
+            pipeline_progress = 100
+            pipeline_log.append(f"[{time.strftime('%H:%M:%S')}] 🏁 数据流水线执行完成！")
+            pipeline_status = "completed"
+        else:
+            pipeline_log.append(f"[{time.strftime('%H:%M:%S')}] ❌ 执行失败，返回码: {process.returncode}")
             pipeline_status = "error"
-            return
-        
-        # 从utils模块获取DataPipeline类
-        from src.data_pipeline.webui.utils import DataPipeline
-        pipeline = DataPipeline()
-        
-        steps = [
-            ("导入样本", pipeline.import_samples),
-            ("去重处理", pipeline.deduplicate),
-            ("数据清洗", pipeline.clean),
-            ("自动标注", pipeline.annotate),
-            ("困难样本筛选", pipeline.filter_difficult_samples)
-        ]
-        
-        for i, (step_name, step_func) in enumerate(steps):
-            pipeline_log.append(f"[{time.strftime('%H:%M:%S')}] {step_name}...")
-            pipeline_progress = int((i + 1) / len(steps) * 30)
-            
-            try:
-                step_func()
-                pipeline_log.append(f"[{time.strftime('%H:%M:%S')}] ✅ {step_name}完成")
-            except Exception as e:
-                pipeline_log.append(f"[{time.strftime('%H:%M:%S')}] ❌ {step_name}失败: {e}")
-        
-        pipeline_progress = 100
-        pipeline_log.append(f"[{time.strftime('%H:%M:%S')}] 🏁 数据流水线执行完成！")
-        pipeline_status = "completed"
         
     except Exception as e:
         pipeline_log.append(f"[{time.strftime('%H:%M:%S')}] 💥 执行出错: {e}")
@@ -97,7 +81,7 @@ def display_pipeline():
         
         if pipeline_status != "running":
             if st.button("🚀 运行完整Pipeline"):
-                threading.Thread(target=run_pipeline_async, daemon=True).start()
+                threading.Thread(target=run_pipeline_script, daemon=True).start()
         
         if st.button("🔄 刷新状态"):
             st.rerun()

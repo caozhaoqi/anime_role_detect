@@ -36,12 +36,19 @@ class YOLODetector:
         Args:
             model_path: YOLO模型路径或名称
         """
-        import torch
-        # Mac平台优先使用MPS，否则使用CPU
+        # Mac平台直接使用CPU，避免任何CUDA/MPS初始化问题
         if platform.system() == "Darwin":
-            self.device = "mps" if torch.backends.mps.is_available() else "cpu"
+            self.device = "cpu"
+        elif os.environ.get("CUDA_VISIBLE_DEVICES", "") == "":
+            # 如果CUDA已被禁用，使用CPU
+            self.device = "cpu"
         else:
-            self.device = "cuda" if torch.cuda.is_available() else "cpu"
+            # 其他平台检查CUDA
+            try:
+                import torch
+                self.device = "cuda" if torch.cuda.is_available() else "cpu"
+            except:
+                self.device = "cpu"
         
         print(f"📥 正在加载YOLO模型: {model_path}")
         self.model = YOLO(model_path)
