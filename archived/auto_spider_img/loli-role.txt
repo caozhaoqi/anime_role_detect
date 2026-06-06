@@ -2,7 +2,6 @@
 普拉娜 蔚蓝档案 Plana プラナ
 砂狼白子 蔚蓝档案 Shiroko シロコ
 纳西妲 原神 Nahida ナヒダ
-缇宝 崩坏星穹铁道 Princess プリンセス
 可莉 原神 Klee クレー
 迪奥娜 原神 Diona ディオナ
 瑶瑶 原神 Yaoyao ヤオヤオ
@@ -76,3 +75,58 @@
 圣园未花 蔚蓝档案 Mika Misono 聖園ミカ
 小鸟游星野 蔚蓝档案 Hoshino Tendou 小鳥遊ホシノ
 薄荷 异环 Hayiri ハヤヒリ
+伊吹 蔚蓝档案 Ibuki イブキ
+白洲梓 蔚蓝档案 Azusa Shirasu 白洲アズサ
+久田泉奈 蔚蓝档案 Izuna Kuda イズナ
+阿慈谷日富美 蔚蓝档案 Hifumi Ajitani 阿慈谷ヒフミ
+天见和香 蔚蓝档案 Nodoka Amami 天見ノドカ
+
+虎克 崩坏星穹铁道 Hook フック
+云璃 崩坏星穹铁道 Yunli 雲璃
+缇宝 崩坏星穹铁道 Tribbie トリビー
+
+格蕾修 崩坏3 Griseo グレーシュ
+萝莎莉娅 崩坏3 Rozaliya ロザリア
+莉莉娅 崩坏3 Liliya リリア
+
+芙兰朵露 东方Project Flandre Scarlet フランドール・スカーレット
+蕾米莉亚 东方Project Remilia Scarlet レミリア・スカーレット
+琪露诺 东方Project Cirno チルノ
+
+巴麻美 魔法少女小圆 Mami Tomoe 巴マミ
+美树沙耶香 魔法少女小圆 Sayaka Miki 美樹さやか
+
+碧翠丝 Re:从零开始的异世界生活 Beatrice ベアトリス
+
+伊露露 小林家的龙女仆 Ilulu イルル
+
+八九寺真宵 物语系列 Mayoi Hachikuji 八九寺真宵
+
+克洛伊 Fate/kaleid liner Prisma Illya Chloe von Einzbern クロエ・フォン・アインツベルン
+美游 Fate/kaleid liner Prisma Illya Miyu Edelfelt 美遊・エーデルフェルト
+
+
+可琳·威克斯 绝区零 Corin Wickes コリン・ウィックス
+珂蕾妲 绝区零 Koleda Belobog コレーダ・ベロボーグ
+
+香风心爱 请问您今天要来点兔子吗 Cocoa Hoto 保登心愛
+条河麻耶 请问您今天要来点兔子吗 Maya Joga 条河麻耶
+奈津惠 请问您今天要来点兔子吗 Megu Natsu 芳文系角色
+
+矢泽妮可 Love Live! Nico Yazawa 矢澤にこ
+
+阿库娅 为美好的世界献上祝福 Aqua アクア
+惠惠 为美好的世界献上祝福 Megumin めぐみん
+悠悠 为美好的世界献上祝福 Yunyun ゆんゆん
+
+托尔 小林家的龙女仆 Tohru トール
+
+安洁莉卡 公主连接 Angelica アンジェリカ
+优妮 公主连接 Yuni ユニ
+镜华 公主连接 Kyouka キョウカ
+
+莲华 悠哉日常大王 Renge Miyauchi 宮内れんげ
+
+宫水三叶 你的名字 Mitsuha Miyamizu 宮水三葉
+
+西宫硝子 声之形 Shoko Nishimiya 西宮硝子
