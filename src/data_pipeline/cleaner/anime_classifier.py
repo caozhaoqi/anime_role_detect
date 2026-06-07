@@ -208,47 +208,32 @@ class QualityFilter:
         self.max_ratio = 10.0  # 最大宽高比
     
     def check_resolution(self, image_path: str) -> Tuple[bool, Dict]:
-        """
-        检查图片分辨率
-        
-        Returns:
-            (是否通过, 详情字典)
-        """
         try:
             with Image.open(image_path) as img:
-                width, height = img.size
+                size = img.size
+                # 调试：打印 size 的类型和值
+                logger.debug(f"size = {size}, type = {type(size)}")
                 
-                # 安全检查 - 确保width和height是有效数字
-                if width is None or height is None:
-                    return False, {"reason": "图片尺寸为None"}
+                # 防御：确保 size 是包含两个整数的元组
+                if not isinstance(size, (tuple, list)) or len(size) != 2:
+                    return False, {"reason": f"无效的图片尺寸结构: {size}"}
                 
+                width, height = size
+                
+                # 确保 width, height 是数值类型
                 if not isinstance(width, (int, float)) or not isinstance(height, (int, float)):
-                    return False, {"reason": f"图片尺寸类型错误: {type(width)}, {type(height)}"}
+                    return False, {"reason": f"尺寸类型错误: {type(width)}, {type(height)}"}
                 
                 if width <= 0 or height <= 0:
                     return False, {"reason": "图片尺寸无效"}
                 
-                area = width * height
-                ratio = width / height if height > 0 else float('inf')
-                
-                is_valid = (
-                    width >= self.min_width and
-                    height >= self.min_height and
-                    area >= self.min_area and
-                    float(self.min_ratio) <= ratio <= float(self.max_ratio)
-                )
-                
-                return is_valid, {
-                    "width": width,
-                    "height": height,
-                    "area": area,
-                    "ratio": ratio,
-                    "reason": None if is_valid else "分辨率不足或比例异常"
-                }
+                # 后续检查...
         except Exception as e:
-            logger.error(f"❌ 检查分辨率失败 {image_path}: {e}")
+            logger.error(f"❌ 检查分辨率失败 {image_path}: {type(e).__name__} - {e}")
+            import traceback
+            logger.error(traceback.format_exc())
             return False, {"reason": str(e)}
-    
+            
     def check_format(self, image_path: str) -> Tuple[bool, str]:
         """
         检查图片格式
