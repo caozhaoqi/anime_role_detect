@@ -345,6 +345,10 @@ class DataPipeline:
 
             character_name = character_dir.name
 
+            # 从目录名提取角色名（如 koharu_(blue_archive) -> koharu）
+            if '_(' in character_name:
+                character_name = character_name.rsplit('_(' , 1)[0]
+
             # 查找对应的角色
             character = self.session.query(Character).filter_by(name=character_name).first()
             if not character:

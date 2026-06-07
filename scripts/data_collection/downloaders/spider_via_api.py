@@ -64,15 +64,15 @@ except ImportError as e:
 API_BASE_URL = "http://localhost:33333/api/v1.2.5.260305"
 WS_BASE_URL = "ws://localhost:33333/api/v1.2.5.260305"
 ROLE_LIST_FILE = (
-    "/Users/caozhaoqi/PycharmProjects/anime_role_detect/archived/auto_spider_img/loli-role.txt"
+    "/Users/caozhaoqi/PycharmProjects/anime_role_detect/archived/auto_spider_img/loli-role-new.txt"
 )
 URL_DIR = (
     "/Users/caozhaoqi/PycharmProjects/anime_role_detect/archived/spider_image_system/data/img_url"
 )
 
 # 爬取配置
-MAX_URLS_PER_ROLE = 300  # 每个角色最多采集300个URL（避免资源浪费）
-MIN_URLS_PER_ROLE = 150  # 每个角色至少采集150个URL
+MAX_URLS_PER_ROLE = 200  # 每个角色最多采集200个URL（加快采集速度）
+MIN_URLS_PER_ROLE = 100  # 每个角色至少采集100个URL
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
@@ -470,9 +470,9 @@ def spider_via_api():
         if success:
             logger.info(f"✓ 成功启动爬虫: {role}")
 
-            # 等待爬取完成（最多等待5分钟）
+            # 等待爬取完成（最多等待3分钟）
             logger.info(f"  等待爬取完成...")
-            wait_for_spider_completion(300)
+            wait_for_spider_completion(180)
 
             # 检查采集结果
             final_count = check_url_count(role)
@@ -502,8 +502,8 @@ def spider_via_api():
             # 发送失败通知
             send_spider_progress(role, "error", 0, MAX_URLS_PER_ROLE, f"启动爬虫失败: {msg}")
 
-        # 间隔60秒再爬取下一个
-        time.sleep(60)
+        # 间隔30秒再爬取下一个（加快采集速度）
+        time.sleep(30)
 
     # 关闭WebSocket连接
     if ws:
