@@ -137,3 +137,5 @@ coreml_models/
 
 role_index_final.faiss
 run/supervisord.conf
+
+clip_cache/

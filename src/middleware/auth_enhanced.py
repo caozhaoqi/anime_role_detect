@@ -271,6 +271,7 @@ async def auth_middleware(request: Request, call_next):
         "/api/feedback",
         "/api/config",
         "/api/history",
+        "/api/cleaning",
         # ONNX 推理 API（如果有独立的认证）
         "/api/v1/onnx",
         # Swagger UI

@@ -10,11 +10,60 @@ from src.core.classification.general_classification import get_classifier
 from src.config.config import DEFAULT_INDEX_PATH
 from src.services.coreml_model import coreml_model, classify_with_coreml
 from src.core.log_fusion.log_recorder import record_classification_log
+from src.services.clip_faiss_adapter import get_clip_faiss_classifier
 
 # 使用全局日志系统
 from src.core.logging.global_logger import get_logger, log_system, log_inference, log_error
 
 logger = get_logger("classification_service")
+
+
+def classify_image_with_clip_faiss(image_path: str) -> tuple:
+    """使用CLIP+Faiss进行角色识别
+
+    Args:
+        image_path: 图像路径
+
+    Returns:
+        (role, similarity, boxes, mode, attributes, text_detections)
+    """
+    logger.info(f"使用CLIP+Faiss进行角色识别: {image_path}")
+
+    clip_classifier = get_clip_faiss_classifier()
+
+    if not clip_classifier.is_available():
+        # 尝试初始化
+        success = clip_classifier.initialize()
+        if not success:
+            logger.warning("CLIP+Faiss分类器不可用，返回默认结果")
+            return "未知角色", 0.0, [], "CLIP+Faiss (不可用)", [], []
+
+    try:
+        result = clip_classifier.classify(image_path, top_k=5)
+
+        role = result.get("role", "未知角色")
+        similarity = result.get("similarity", 0.0)
+        mode = result.get("mode", "CLIP+Faiss")
+
+        # 记录分类日志
+        record_classification_log(
+            image_path=image_path,
+            role=role,
+            similarity=similarity,
+            feature=[],
+            boxes=[],
+            metadata={"mode": mode, "candidates": result.get("candidates", [])[:3]},
+        )
+
+        log_inference(
+            f"✅ CLIP+Faiss识别成功: {os.path.basename(image_path)}, 角色: {role}, 相似度: {similarity:.4f}, 模式: {mode}"
+        )
+
+        return role, similarity, [], mode, [], []
+
+    except Exception as e:
+        logger.error(f"CLIP+Faiss识别失败: {e}")
+        return "未知角色", 0.0, [], "CLIP+Faiss (错误)", [], []
 
 
 def initialize_system():
@@ -34,6 +83,7 @@ def classify_image(
     use_deepdanbooru=False,
     use_attributes=False,
     model_name=None,
+    use_clip_faiss=False,
 ):
     """分类图像
 
@@ -44,17 +94,24 @@ def classify_image(
         use_deepdanbooru: 是否使用集成DeepDanbooru的分类方法
         use_attributes: 是否使用属性预测
         model_name: 模型名称
+        use_clip_faiss: 是否使用CLIP+Faiss检索
 
     Returns:
         (role, similarity, boxes, mode, attributes, text_detections): 角色名称、相似度、边界框、使用的模式、属性标签、文本检测结果
     """
     logger.info(
-        f"开始分类图像: {image_path}, use_coreml={use_coreml}, use_model={use_model}, use_deepdanbooru={use_deepdanbooru}, use_attributes={use_attributes}, model_name={model_name}"
+        f"开始分类图像: {image_path}, use_coreml={use_coreml}, use_model={use_model}, use_deepdanbooru={use_deepdanbooru}, use_attributes={use_attributes}, model_name={model_name}, use_clip_faiss={use_clip_faiss}"
     )
 
     # 初始化属性结果
     attributes = []
     text_detections = []
+
+    if use_clip_faiss:
+        # 使用CLIP+Faiss进行角色识别（优先）
+        role, similarity, boxes, mode, attributes, text_detections = classify_image_with_clip_faiss(image_path)
+        # 直接返回，不继续其他分支
+        return role, similarity, boxes, mode, attributes, text_detections
 
     if use_coreml and coreml_model is not None:
         # 使用 Core ML 模型

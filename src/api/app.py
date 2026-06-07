@@ -1618,6 +1618,30 @@ try:
 except Exception as e:
     logger.error(f"导入 ONNX 推理路由失败: {e}")
 
+# 导入数据采集路由
+try:
+    from src.api.routes.collector import router as collector_router
+
+    app.include_router(collector_router, prefix="/api/collector")
+    logger.info("数据采集路由加载成功")
+except Exception as e:
+    logger.error(f"导入数据采集路由失败: {e}")
+
+# 导入异步推理路由
+try:
+    from src.api.routes.async_inference import router as async_router
+    app.include_router(async_router)
+    
+    # 导入清洗路由
+    try:
+        from src.api.routes.cleaning_routes import router as cleaning_router
+        app.include_router(cleaning_router)
+    except Exception as e:
+        logger.error(f"导入清洗路由失败: {e}")
+    logger.info("异步推理路由加载成功")
+except Exception as e:
+    logger.error(f"导入异步推理路由失败: {e}")
+
 
 # 启动事件 - 初始化认证服务
 @app.on_event("startup")

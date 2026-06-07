@@ -56,8 +56,8 @@ logger = logging.getLogger(__name__)
 
 # 全局配置
 GLOBAL_CONFIG = {
-    "download_dir": "../../data/role_images",
-    "url_dir": os.path.expanduser("~/anime_role_urls_multi"),
+    "download_dir": "../../data/pixiv",
+    "url_dir": "/Users/caozhaoqi/PycharmProjects/anime_role_detect/archived/spider_image_system/data/img_url",
     "max_workers": 5,
     "timeout": 30,  # 增加超时时间到30秒
     "delay": 0.5,
@@ -506,7 +506,7 @@ def main():
     start_time = time.time()
 
     parser = argparse.ArgumentParser(description="批量下载图片脚本")
-    parser.add_argument("--config", default="batch_config.json", help="配置文件路径")
+    # parser.add_argument("--config", default="batch_config.json", help="配置文件路径")
     parser.add_argument("--batch", type=int, help="指定批次ID")
     parser.add_argument("--role", help="指定角色名称")
 
@@ -517,15 +517,15 @@ def main():
     print("=" * 60)
 
     try:
-        # 加载配置
-        config = load_config(args.config)
-        if not config:
-            send_training_error_notification(stage="数据采集", error_message="配置文件加载失败")
-            return
+        # # 加载配置
+        # config = load_config(args.config)
+        # if not config:
+        #     send_training_error_notification(stage="数据采集", error_message="配置文件加载失败")
+        #     return
 
         # 更新全局配置
-        if "global_settings" in config:
-            GLOBAL_CONFIG.update(config["global_settings"])
+        # if "global_settings" in config:
+        #     GLOBAL_CONFIG.update(config["global_settings"])
 
         # 确保下载目录存在
         os.makedirs(GLOBAL_CONFIG["download_dir"], exist_ok=True)
@@ -533,10 +533,10 @@ def main():
         # 处理指定批次
         if args.batch:
             batch_config = None
-            for batch in config["batch_plan"]:
-                if batch["batch_id"] == args.batch:
-                    batch_config = batch
-                    break
+            # for batch in config["batch_plan"]:
+            #     if batch["batch_id"] == args.batch:
+            #         batch_config = batch
+            #         break
 
             if not batch_config:
                 logger.error(f"批次 {args.batch} 不存在")
@@ -548,21 +548,21 @@ def main():
             process_batch(batch_config)
 
         # 处理指定角色
-        elif args.role:
-            found = False
-            for batch in config["batch_plan"]:
-                for role in batch["roles"]:
-                    if role["name"] == args.role:
-                        send_notification(f"📥 开始下载角色: {args.role}", level="info")
-                        role_name, success, fail = process_role(role, batch)
-                        send_notification(
-                            f"✅ 角色 {role_name} 下载完成\n成功: {success} 张, 失败: {fail} 张",
-                            level="success" if success > 0 else "info",
-                        )
-                        found = True
-                        break
-                if found:
-                    break
+        # elif args.role:
+        #     found = False
+        #     for batch in config["batch_plan"]:
+        #         for role in batch["roles"]:
+        #             if role["name"] == args.role:
+        #                 send_notification(f"📥 开始下载角色: {args.role}", level="info")
+        #                 role_name, success, fail = process_role(role, batch)
+        #                 send_notification(
+        #                     f"✅ 角色 {role_name} 下载完成\n成功: {success} 张, 失败: {fail} 张",
+        #                     level="success" if success > 0 else "info",
+        #                 )
+        #                 found = True
+        #                 break
+        #         if found:
+        #             break
 
             if not found:
                 logger.error(f"角色 {args.role} 不存在于配置中")

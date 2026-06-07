@@ -22,7 +22,7 @@ from download_utils import (
 from database_utils import ImageDatabase
 
 # 配置
-URL_DIR = "/Users/caozhaoqi/PycharmProjects/anime_role_detect/spider_image_system/data/img_url"
+URL_DIR = "/Users/caozhaoqi/PycharmProjects/anime_role_detect/archived/spider_image_system/data/img_url"
 OUTPUT_DIR = "/Users/caozhaoqi/PycharmProjects/anime_role_detect/data/organized_images"
 DB_PATH = "/Users/caozhaoqi/PycharmProjects/anime_role_detect/data/role_images.db"
 
