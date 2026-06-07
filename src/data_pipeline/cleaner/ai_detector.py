@@ -13,11 +13,8 @@ from typing import Tuple, Dict
 project_root = Path(__file__).parent.parent.parent.parent
 sys.path.insert(0, str(project_root))
 
-# Mac平台禁用CUDA，避免mutex错误
-if platform.system() == "Darwin":
-    os.environ["CUDA_VISIBLE_DEVICES"] = ""
-    os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
-    os.environ["FORCE_CPU"] = "1"
+# Mac平台不强制禁用CUDA，允许MPS加速
+# 注意：Mac没有NVIDIA GPU，所以CUDA不会影响MPS
 
 from PIL import Image
 import logging
@@ -52,8 +49,14 @@ class AIDetector:
         # 检查平台
         system = platform.system()
         
-        # Mac平台直接使用CPU，避免任何CUDA/MPS初始化问题
+        # Mac平台尝试使用MPS加速
         if system == "Darwin":
+            try:
+                import torch
+                if torch.backends.mps.is_available():
+                    return "mps"
+            except:
+                pass
             return "cpu"
         
         # 检查是否已禁用CUDA
@@ -63,7 +66,11 @@ class AIDetector:
         # 其他平台尝试使用CUDA（延迟检测）
         try:
             import torch
-            return "cuda" if torch.cuda.is_available() else "cpu"
+            if torch.cuda.is_available():
+                return "cuda"
+            elif torch.backends.mps.is_available():
+                return "mps"
+            return "cpu"
         except:
             return "cpu"
     
@@ -78,11 +85,26 @@ class AIDetector:
             from transformers import AutoProcessor, AutoModelForImageClassification
             
             # 使用HuggingFace上的AI检测模型
-            self.processor = AutoProcessor.from_pretrained("Salesforce/xgen-mm-phi3-mini-instruct")
+            # Salesforce/xgen-mm-phi3-mini-instruct-r-v1 需要trust_remote_code
+            self.processor = AutoProcessor.from_pretrained(
+                "Salesforce/xgen-mm-phi3-mini-instruct-r-v1",
+                trust_remote_code=True
+            )
             self.model = AutoModelForImageClassification.from_pretrained(
                 "MoritzLaurer/AI-image-detector"
             )
-            self.model = self.model.to(self.device)
+            
+            # 尝试移动到MPS设备，如果失败则使用CPU
+            if self.device == "mps":
+                try:
+                    self.model = self.model.to(self.device)
+                except Exception as e:
+                    logger.warning(f"⚠️ MPS设备不支持，自动切换到CPU: {e}")
+                    self.device = "cpu"
+                    self.model = self.model.to("cpu")
+            else:
+                self.model = self.model.to(self.device)
+            
             self.model.eval()
             self._initialized = True
             logger.info(f"✅ AI检测模型加载完成，运行设备: {self.device}")

@@ -219,43 +219,40 @@ class DataPipeline:
             self._multi_tagger = MultiTagger()
         return self._multi_tagger
 
-    def _process_single_sample(self, sample, min_confidence: float = 0.5) -> Tuple[str, int]:
+    def _process_single_sample(self, sample_id: int, image_path: str, min_confidence: float = 0.5) -> Tuple[str, int, Dict]:
         """
-        处理单个样本（用于并行处理）
+        处理单个样本（用于并行处理） - 不使用数据库会话
 
         Returns:
-            (status, sample_id)
+            (status, sample_id, result_dict)
         """
         try:
             # 1. 质量过滤
-            quality_ok, quality_info = self.quality_filter.filter(sample.image_path)
+            quality_ok, quality_info = self.quality_filter.filter(image_path)
             if not quality_ok:
-                return 'filtered_quality', sample.id
+                return 'filtered_quality', sample_id, {}
 
             # 2. 动漫分类
-            anime_prob, anime_result = self.anime_classifier.classify(sample.image_path)
+            anime_prob, anime_result = self.anime_classifier.classify(image_path)
             if anime_result != 'anime' or anime_prob < min_confidence:
-                return 'filtered_non_anime', sample.id
+                return 'filtered_non_anime', sample_id, {}
 
             # 3. AI检测
-            ai_prob, ai_result = self.ai_detector.detect(sample.image_path)
+            ai_prob, ai_result = self.ai_detector.detect(image_path)
 
             # 4. 生成标签
-            tags = self.multi_tagger.generate_comprehensive_tags(sample.image_path)
+            tags = self.multi_tagger.generate_comprehensive_tags(image_path)
 
-            # 使用线程锁保护数据库操作
-            with threading.Lock():
-                sample.is_ai_generated = (ai_result == 'ai-generated')
-                sample.anime_confidence = anime_prob
-                sample.ai_confidence = ai_prob
-                sample.attributes = tags.get('by_category', {})
-                sample.status = 'cleaned'
-
-            return 'cleaned', sample.id
+            return 'cleaned', sample_id, {
+                'is_ai_generated': (ai_result == 'ai-generated'),
+                'anime_confidence': anime_prob,
+                'ai_confidence': ai_prob,
+                'attributes': tags.get('by_category', {})
+            }
 
         except Exception as e:
-            self.stats['errors'].append(f"样本 {sample.id} 处理失败: {e}")
-            return 'error', sample.id
+            self.stats['errors'].append(f"样本 {sample_id} 处理失败: {e}")
+            return 'error', sample_id, {}
 
     def clean_samples(self, min_confidence: float = 0.5, max_workers: int = 4) -> int:
         """
@@ -287,28 +284,44 @@ class DataPipeline:
         self.ai_detector.initialize()
         self.multi_tagger.initialize()
 
-        # 使用线程池并行处理
+        # 使用线程池并行处理 - 只传sample_id和image_path，不传session对象
         print(f"   使用 {max_workers} 个线程并行处理...")
+        results = []
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             # 提交所有任务
             future_to_sample = {
-                executor.submit(self._process_single_sample, sample, min_confidence): sample
+                executor.submit(self._process_single_sample, sample.id, sample.image_path, min_confidence): sample.id
                 for sample in samples
             }
 
-            # 处理结果
+            # 收集结果
             for future in as_completed(future_to_sample):
-                status, sample_id = future.result()
+                results.append(future.result())
+                
+                if len(results) % 100 == 0:
+                    print(f"   已处理 {len(results)} 个样本...")
 
-                if status == 'cleaned':
-                    cleaned_count += 1
-                elif status.startswith('filtered'):
-                    filtered_count += 1
-
-                # 每100条提交一次
-                if (cleaned_count + filtered_count) % 100 == 0:
-                    self.session.commit()
-                    print(f"   已处理 {cleaned_count + filtered_count} 个样本...")
+        # 在主线程统一更新数据库（避免多线程会话问题）
+        print(f"\n📝 更新数据库...")
+        for status, sample_id, result_dict in results:
+            sample = self.session.query(Sample).get(sample_id)
+            if not sample:
+                continue
+                
+            if status == 'cleaned':
+                sample.is_ai_generated = result_dict.get('is_ai_generated', False)
+                sample.anime_confidence = result_dict.get('anime_confidence', 0.0)
+                sample.ai_confidence = result_dict.get('ai_confidence', 0.0)
+                sample.attributes = result_dict.get('attributes', {})
+                sample.status = 'cleaned'
+                cleaned_count += 1
+            elif status.startswith('filtered'):
+                sample.status = status
+                filtered_count += 1
+            
+            # 每100条提交一次
+            if (cleaned_count + filtered_count) % 100 == 0:
+                self.session.commit()
 
         # 提交剩余数据
         self.session.commit()
@@ -435,35 +448,30 @@ class DataPipeline:
         self.stats['deduplicated_samples'] = len(retained)
         return len(retained), removed_count
 
-    def _annotate_single_sample(self, sample, conf_threshold: float = 0.5) -> Tuple[str, int, Optional[Dict]]:
+    def _annotate_single_sample(self, sample_id: int, image_path: str, conf_threshold: float = 0.5) -> Tuple[str, int, Optional[Dict]]:
         """
-        标注单个样本（用于并行处理）
+        标注单个样本（用于并行处理） - 不使用数据库会话
 
         Returns:
             (status, sample_id, detection_result)
         """
         try:
-            # 检查是否已标注
-            existing = self.session.query(Annotation).filter_by(sample_id=sample.id).first()
-            if existing:
-                return 'skipped', sample.id, None
-
             # 执行检测
-            detections = self.detector.detect(sample.image_path, conf_threshold=conf_threshold)
+            detections = self.detector.detect(image_path, conf_threshold=conf_threshold)
 
             if detections:
                 # 使用置信度最高的检测结果
                 best_detection = max(detections, key=lambda x: x['confidence'])
-                return 'annotated', sample.id, {
+                return 'annotated', sample_id, {
                     'detections': detections,
                     'best': best_detection
                 }
             else:
-                return 'no_detection', sample.id, None
+                return 'no_detection', sample_id, None
 
         except Exception as e:
-            self.stats['errors'].append(f"标注样本 {sample.id} 失败: {e}")
-            return 'error', sample.id, None
+            self.stats['errors'].append(f"标注样本 {sample_id} 失败: {e}")
+            return 'error', sample_id, None
 
     def annotate_samples(self, conf_threshold: float = 0.5, limit: int = None, max_workers: int = 4) -> int:
         """
@@ -487,59 +495,71 @@ class DataPipeline:
         samples = query.all()
         print(f"📋 找到 {len(samples)} 个待标注样本")
 
+        # 先过滤已标注的样本
+        existing_sample_ids = {
+            a.sample_id for a in self.session.query(Annotation.sample_id).all()
+        }
+        unannotated_samples = [s for s in samples if s.id not in existing_sample_ids]
+        print(f"   跳过已标注 {len(samples) - len(unannotated_samples)} 个")
+
         annotated_count = 0
         skipped_count = 0
+        no_detection_count = 0
 
-        # 使用线程池并行处理
+        # 使用线程池并行处理 - 只传sample_id和image_path
         print(f"   使用 {max_workers} 个线程并行处理...")
+        results = []
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             # 提交所有任务
             future_to_sample = {
-                executor.submit(self._annotate_single_sample, sample, conf_threshold): sample
-                for sample in samples
+                executor.submit(self._annotate_single_sample, sample.id, sample.image_path, conf_threshold): sample.id
+                for sample in unannotated_samples
             }
 
-            # 处理结果
+            # 收集结果
             for future in as_completed(future_to_sample):
-                status, sample_id, result = future.result()
+                results.append(future.result())
+                
+                if len(results) % 50 == 0:
+                    print(f"   已处理 {len(results)} 个样本...")
 
-                if status == 'annotated' and result:
-                    # 更新数据库
-                    sample = self.session.query(Sample).get(sample_id)
-                    if sample:
-                        # 创建标注记录
-                        annotation = Annotation(
-                            sample_id=sample.id,
-                            annotator='auto',
-                            bbox=result['best']['bbox'],
-                            confidence=result['best']['confidence'],
-                            is_verified=False
-                        )
-                        self.session.add(annotation)
+        # 在主线程统一更新数据库
+        print(f"\n📝 更新数据库...")
+        for status, sample_id, result in results:
+            sample = self.session.query(Sample).get(sample_id)
+            if not sample:
+                continue
+                
+            if status == 'annotated' and result:
+                # 创建标注记录
+                annotation = Annotation(
+                    sample_id=sample.id,
+                    annotator='auto',
+                    bbox=result['best']['bbox'],
+                    confidence=result['best']['confidence'],
+                    is_verified=False
+                )
+                self.session.add(annotation)
 
-                        # 更新样本信息
-                        sample.person_count = len(result['detections'])
-                        sample.confidence = result['best']['confidence']
-                        sample.status = 'annotated'
-
-                        annotated_count += 1
-                elif status == 'skipped':
-                    skipped_count += 1
-                elif status == 'no_detection':
-                    sample = self.session.query(Sample).get(sample_id)
-                    if sample:
-                        sample.status = 'no_detection'
-                    skipped_count += 1
-
-                # 每50条提交一次
-                if (annotated_count + skipped_count) % 50 == 0:
-                    self.session.commit()
-                    print(f"   已处理 {annotated_count + skipped_count} 个样本...")
+                # 更新样本信息
+                sample.person_count = len(result['detections'])
+                sample.confidence = result['best']['confidence']
+                sample.status = 'annotated'
+                annotated_count += 1
+            elif status == 'no_detection':
+                sample.status = 'no_detection'
+                no_detection_count += 1
+            elif status == 'skipped':
+                skipped_count += 1
+            
+            # 每50条提交一次
+            if (annotated_count + no_detection_count + skipped_count) % 50 == 0:
+                self.session.commit()
 
         # 提交剩余数据
         self.session.commit()
 
-        print(f"✅ 标注完成！已标注: {annotated_count} 个，跳过: {skipped_count} 个")
+        print(f"✅ 标注完成！已标注: {annotated_count} 个，未检测到: {no_detection_count} 个")
 
         self.stats['annotated_samples'] = annotated_count
         return annotated_count

@@ -9,11 +9,10 @@ import platform
 from pathlib import Path
 from typing import List, Dict, Tuple, Optional
 
-# Mac平台禁用CUDA，避免mutex错误
+# Mac平台禁用CUDA，但允许MPS加速
 if platform.system() == "Darwin":
     os.environ["CUDA_VISIBLE_DEVICES"] = ""
     os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
-    os.environ["FORCE_CPU"] = "1"
 
 import cv2
 import numpy as np
@@ -36,9 +35,16 @@ class YOLODetector:
         Args:
             model_path: YOLO模型路径或名称
         """
-        # Mac平台直接使用CPU，避免任何CUDA/MPS初始化问题
+        # Mac平台尝试使用MPS加速
         if platform.system() == "Darwin":
-            self.device = "cpu"
+            try:
+                import torch
+                if torch.backends.mps.is_available():
+                    self.device = "mps"
+                else:
+                    self.device = "cpu"
+            except:
+                self.device = "cpu"
         elif os.environ.get("CUDA_VISIBLE_DEVICES", "") == "":
             # 如果CUDA已被禁用，使用CPU
             self.device = "cpu"
