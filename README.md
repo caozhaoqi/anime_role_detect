@@ -1,6 +1,5 @@
 # Character Classification System
 
-![GitHub Actions](https://img.shields.io/github/actions/workflow/status/ard-team/anime_role_detect/docker-image.yml?branch=main)
 ![Python Version](https://img.shields.io/badge/python-3.9%2B-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 

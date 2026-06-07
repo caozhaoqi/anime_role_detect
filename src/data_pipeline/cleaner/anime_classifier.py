@@ -13,11 +13,7 @@ from typing import Tuple, Dict
 project_root = Path(__file__).parent.parent.parent.parent
 sys.path.insert(0, str(project_root))
 
-# Mac平台禁用CUDA，避免mutex错误
-if platform.system() == "Darwin":
-    os.environ["CUDA_VISIBLE_DEVICES"] = ""
-    os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
-    os.environ["FORCE_CPU"] = "1"
+# Mac平台允许MPS加速
 
 from PIL import Image
 import logging
@@ -72,18 +68,28 @@ class AnimeClassifier:
         # 检查平台
         system = platform.system()
         
-        # Mac平台直接使用CPU，避免任何CUDA/MPS初始化问题
+        # Mac平台尝试使用MPS加速
         if system == "Darwin":
+            try:
+                import torch
+                if torch.backends.mps.is_available():
+                    return "mps"
+            except:
+                pass
             return "cpu"
         
         # 检查是否已禁用CUDA
         if os.environ.get("CUDA_VISIBLE_DEVICES", "") == "":
             return "cpu"
         
-        # 其他平台尝试使用CUDA（延迟检测）
+        # 其他平台尝试使用CUDA或MPS
         try:
             import torch
-            return "cuda" if torch.cuda.is_available() else "cpu"
+            if torch.cuda.is_available():
+                return "cuda"
+            elif torch.backends.mps.is_available():
+                return "mps"
+            return "cpu"
         except:
             return "cpu"
     
@@ -99,7 +105,18 @@ class AnimeClassifier:
             
             self.processor = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32")
             self.model = CLIPModel.from_pretrained("openai/clip-vit-base-patch32")
-            self.model = self.model.to(self.device)
+            
+            # 尝试移动到MPS设备，如果失败则使用CPU
+            if self.device == "mps":
+                try:
+                    self.model = self.model.to(self.device)
+                except Exception as e:
+                    logger.warning(f"⚠️ MPS设备不支持，自动切换到CPU: {e}")
+                    self.device = "cpu"
+                    self.model = self.model.to("cpu")
+            else:
+                self.model = self.model.to(self.device)
+            
             self.model.eval()
             self._initialized = True
             logger.info(f"✅ CLIP模型加载完成，运行设备: {self.device}")
@@ -191,36 +208,32 @@ class QualityFilter:
         self.max_ratio = 10.0  # 最大宽高比
     
     def check_resolution(self, image_path: str) -> Tuple[bool, Dict]:
-        """
-        检查图片分辨率
-        
-        Returns:
-            (是否通过, 详情字典)
-        """
         try:
             with Image.open(image_path) as img:
-                width, height = img.size
-                area = width * height
-                ratio = width / height if height > 0 else float('inf')
+                size = img.size
+                # 调试：打印 size 的类型和值
+                logger.debug(f"size = {size}, type = {type(size)}")
                 
-                is_valid = (
-                    width >= self.min_width and
-                    height >= self.min_height and
-                    area >= self.min_area and
-                    self.min_ratio <= ratio <= self.max_ratio
-                )
+                # 防御：确保 size 是包含两个整数的元组
+                if not isinstance(size, (tuple, list)) or len(size) != 2:
+                    return False, {"reason": f"无效的图片尺寸结构: {size}"}
                 
-                return is_valid, {
-                    "width": width,
-                    "height": height,
-                    "area": area,
-                    "ratio": ratio,
-                    "reason": None if is_valid else "分辨率不足或比例异常"
-                }
+                width, height = size
+                
+                # 确保 width, height 是数值类型
+                if not isinstance(width, (int, float)) or not isinstance(height, (int, float)):
+                    return False, {"reason": f"尺寸类型错误: {type(width)}, {type(height)}"}
+                
+                if width <= 0 or height <= 0:
+                    return False, {"reason": "图片尺寸无效"}
+                
+                # 后续检查...
         except Exception as e:
-            logger.error(f"❌ 检查分辨率失败 {image_path}: {e}")
+            logger.error(f"❌ 检查分辨率失败 {image_path}: {type(e).__name__} - {e}")
+            import traceback
+            logger.error(traceback.format_exc())
             return False, {"reason": str(e)}
-    
+            
     def check_format(self, image_path: str) -> Tuple[bool, str]:
         """
         检查图片格式
