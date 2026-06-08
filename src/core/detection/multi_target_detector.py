@@ -115,11 +115,24 @@ class MultiTargetDetector:
 
         for result in yolo_results:
             boxes = result.boxes
+            if boxes is None or len(boxes) == 0:
+                continue
 
             for box in boxes:
+                # 安全检查
+                if box.cls is None or len(box.cls) == 0:
+                    continue
+                if box.conf is None or len(box.conf) == 0:
+                    continue
+                if box.xyxy is None or len(box.xyxy) == 0:
+                    continue
+                    
                 # 获取类别 ID 和置信度
-                cls_id = int(box.cls[0])
-                conf = float(box.conf[0])
+                try:
+                    cls_id = int(box.cls[0])
+                    conf = float(box.conf[0])
+                except (TypeError, IndexError):
+                    continue
 
                 # 只处理人体 (COCO person class = 0)
                 if cls_id != 0:
@@ -129,8 +142,11 @@ class MultiTargetDetector:
                     continue
 
                 # 获取边界框坐标
-                x1, y1, x2, y2 = box.xyxy[0].cpu().numpy()
-                bbox = [float(x1), float(y1), float(x2), float(y2)]
+                try:
+                    x1, y1, x2, y2 = box.xyxy[0].cpu().numpy()
+                    bbox = [float(x1), float(y1), float(x2), float(y2)]
+                except (TypeError, IndexError):
+                    continue
 
                 # 裁剪人体区域
                 cropped = image.crop(bbox)

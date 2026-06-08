@@ -1,4 +1,3 @@
-import os
 import asyncio
 from typing import Dict, List, Optional, Any, Tuple
 
@@ -7,6 +6,7 @@ from src.services.processor.model_processor import (
     process_with_local_model,
     process_with_model_service,
 )
+from src.utils.timeout_utils import get_timeout, TimeoutException
 
 logger = get_logger("multi_model_service")
 
@@ -56,30 +56,50 @@ class MultiModelService:
             tasks = []
             for model_name, config in self.model_configs.items():
                 if config["type"] == "local":
-                    task = process_with_local_model(file, content, model_name)
+                    # 为本地模型添加超时
+                    task = asyncio.wait_for(
+                        process_with_local_model(file, content, model_name),
+                        timeout=get_timeout("model_inference")
+                    )
                 else:
-                    task = process_with_model_service(file, content, model_name, multi_role)
+                    # 为远程模型服务添加超时
+                    task = asyncio.wait_for(
+                        process_with_model_service(file, content, model_name, multi_role),
+                        timeout=get_timeout("model_service")
+                    )
                 tasks.append((model_name, config["weight"], task))
 
-            # 等待所有任务完成
-            results = []
-            for model_name, weight, task in tasks:
-                try:
-                    result = await task
-                    results.append((model_name, weight, result))
+            # 等待所有任务完成，设置总超时时间
+            total_timeout = get_timeout("model_inference") * len(tasks)
+            try:
+                results = await asyncio.wait_for(
+                    asyncio.gather(*[task for _, _, task in tasks], return_exceptions=True),
+                    timeout=total_timeout
+                )
+            except asyncio.TimeoutError:
+                logger.error(f"多模型处理总超时（{total_timeout}秒）")
+                return {"error": "模型处理超时"}
+
+            # 处理结果
+            processed_results = []
+            for (model_name, weight, _), result in zip(tasks, results):
+                if isinstance(result, Exception):
+                    logger.error(f"模型 {model_name} 处理失败: {result}")
+                    if isinstance(result, TimeoutException):
+                        logger.warning(f"模型 {model_name} 处理超时")
+                else:
+                    processed_results.append((model_name, weight, result))
                     logger.info(f"模型 {model_name} 处理完成")
-                except Exception as e:
-                    logger.error(f"模型 {model_name} 处理失败: {e}")
 
             # 融合结果
-            if not results:
+            if not processed_results:
                 logger.error("所有模型处理失败")
                 return {"error": "所有模型处理失败"}
 
             if multi_role:
-                fused_result = self._fuse_multi_role_results(results)
+                fused_result = self._fuse_multi_role_results(processed_results)
             else:
-                fused_result = self._fuse_single_role_results(results)
+                fused_result = self._fuse_single_role_results(processed_results)
 
             return fused_result
         except Exception as e:

@@ -318,18 +318,35 @@ class EnhancedMultiRoleDetector:
 
                 for result in yolo_results:
                     boxes = result.boxes
+                    if boxes is None or len(boxes) == 0:
+                        continue
 
                     for box in boxes:
-                        cls_id = int(box.cls[0])
+                        # 安全检查
+                        if box.cls is None or len(box.cls) == 0:
+                            continue
+                        if box.conf is None or len(box.conf) == 0:
+                            continue
+                        if box.xyxy is None or len(box.xyxy) == 0:
+                            continue
+                            
+                        try:
+                            cls_id = int(box.cls[0])
+                            conf = float(box.conf[0])
+                        except (TypeError, IndexError):
+                            continue
+                            
                         if cls_id != 0:
                             continue
 
-                        conf = float(box.conf[0])
                         if conf < person_conf_threshold:
                             continue
 
-                        x1, y1, x2, y2 = box.xyxy[0].cpu().numpy()
-                        bbox = [float(x1), float(y1), float(x2), float(y2)]
+                        try:
+                            x1, y1, x2, y2 = box.xyxy[0].cpu().numpy()
+                            bbox = [float(x1), float(y1), float(x2), float(y2)]
+                        except (TypeError, IndexError):
+                            continue
 
                         cropped = image.crop(bbox)
 

@@ -32,12 +32,8 @@ async def monitoring_middleware(request: Request, call_next):
     ACTIVE_REQUESTS.inc()
 
     try:
-        # 记录请求大小
-        if hasattr(request, "body"):
-            body = await request.body()
-            REQUEST_SIZE.observe(len(body))
-
         # 处理请求
+        # 注意：不读取 request.body()，避免干扰文件上传
         response = await call_next(request)
 
         # 记录响应大小

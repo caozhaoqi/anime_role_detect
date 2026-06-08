@@ -36,7 +36,7 @@ def init_database():
     if USE_SQLITE:
         engine = create_engine(
             DATABASE_URL.replace("+aiosqlite", ""),
-            connect_args={"check_same_thread": False},
+            connect_args={"check_same_thread": False, "timeout": 30},
             poolclass=StaticPool,
             echo=False,
         )

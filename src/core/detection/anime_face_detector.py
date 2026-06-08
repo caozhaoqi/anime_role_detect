@@ -138,17 +138,26 @@ class AnimeFaceDetector:
         detections = []
         for result in results:
             boxes = result.boxes
-            if boxes is None:
+            if boxes is None or len(boxes) == 0:
                 continue
             
             for box in boxes:
+                # 安全检查
+                if box.conf is None or len(box.conf) == 0:
+                    continue
+                if box.xyxy is None or len(box.xyxy) == 0:
+                    continue
+                    
                 confidence = float(box.conf[0])
                 
                 if confidence < self.conf_threshold:
                     continue
                 
                 # 获取边界框
-                x1, y1, x2, y2 = map(float, box.xyxy[0])
+                try:
+                    x1, y1, x2, y2 = map(float, box.xyxy[0])
+                except (TypeError, IndexError):
+                    continue
                 
                 detection = {
                     "bbox": [x1, y1, x2, y2],
@@ -158,8 +167,11 @@ class AnimeFaceDetector:
                 
                 # 获取关键点（如果有）
                 if hasattr(result, 'keypoints') and result.keypoints is not None:
-                    keypoints = result.keypoints.xy[0].cpu().numpy()
-                    detection["keypoints"] = keypoints.tolist()
+                    try:
+                        keypoints = result.keypoints.xy[0].cpu().numpy()
+                        detection["keypoints"] = keypoints.tolist()
+                    except:
+                        pass
                 
                 detections.append(detection)
         

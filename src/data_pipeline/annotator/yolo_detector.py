@@ -90,13 +90,28 @@ class YOLODetector:
             )
             
             for result in detections:
+                # 检查 boxes 是否存在
+                if result.boxes is None or len(result.boxes) == 0:
+                    continue
+                    
                 for box in result.boxes:
-                    # 获取边界框坐标
-                    x1, y1, x2, y2 = box.xyxy[0].tolist()
+                    # 安全获取边界框坐标
+                    if box.xyxy is None or len(box.xyxy) == 0:
+                        continue
+                    try:
+                        x1, y1, x2, y2 = box.xyxy[0].tolist()
+                    except (TypeError, IndexError):
+                        continue
                     
                     # 获取置信度和类别
-                    confidence = float(box.conf[0])
-                    class_id = int(box.cls[0])
+                    if box.conf is None or len(box.conf) == 0:
+                        continue
+                    try:
+                        confidence = float(box.conf[0])
+                        class_id = int(box.cls[0])
+                    except (TypeError, IndexError):
+                        continue
+                        
                     class_name = result.names.get(class_id, str(class_id))
                     
                     results.append({
