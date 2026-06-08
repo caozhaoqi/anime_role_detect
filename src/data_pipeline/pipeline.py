@@ -296,14 +296,24 @@ class DataPipeline:
 
             # 收集结果
             for future in as_completed(future_to_sample):
-                results.append(future.result())
+                try:
+                    result = future.result()
+                    if result is not None and isinstance(result, tuple) and len(result) == 3:
+                        results.append(result)
+                except Exception as e:
+                    sample_id = future_to_sample.get(future)
+                    self.stats['errors'].append(f"收集结果失败 (样本 {sample_id}): {e}")
                 
                 if len(results) % 100 == 0:
                     print(f"   已处理 {len(results)} 个样本...")
 
         # 在主线程统一更新数据库（避免多线程会话问题）
         print(f"\n📝 更新数据库...")
-        for status, sample_id, result_dict in results:
+        for item in results:
+            # 安全解包
+            if not isinstance(item, tuple) or len(item) != 3:
+                continue
+            status, sample_id, result_dict = item
             sample = self.session.query(Sample).get(sample_id)
             if not sample:
                 continue
@@ -518,14 +528,24 @@ class DataPipeline:
 
             # 收集结果
             for future in as_completed(future_to_sample):
-                results.append(future.result())
+                try:
+                    result = future.result()
+                    if result is not None and isinstance(result, tuple) and len(result) == 3:
+                        results.append(result)
+                except Exception as e:
+                    sample_id = future_to_sample.get(future)
+                    self.stats['errors'].append(f"收集标注结果失败 (样本 {sample_id}): {e}")
                 
                 if len(results) % 50 == 0:
                     print(f"   已处理 {len(results)} 个样本...")
 
         # 在主线程统一更新数据库
         print(f"\n📝 更新数据库...")
-        for status, sample_id, result in results:
+        for item in results:
+            # 安全解包
+            if not isinstance(item, tuple) or len(item) != 3:
+                continue
+            status, sample_id, result = item
             sample = self.session.query(Sample).get(sample_id)
             if not sample:
                 continue

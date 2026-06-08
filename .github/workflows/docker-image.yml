@@ -1,32 +1,56 @@
-name: Simple CI Demo
+name: Build and Test
 
-# 触发条件：当代码推送到 main 分支时执行
 on:
   push:
+    branches: [ main ]
+  pull_request:
     branches: [ main ]
 
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
       # 1. 下载仓库代码
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # 2. 安装 Python 环境
+      # 2. 设置Python环境
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.9'
 
-      # 3. 执行一个简单的命令
-      - name: Hello World
-        run: |
-          echo "开始运行 CI 流程..."
-          python --version
-          echo "环境检查完毕！"
+      # 3. 缓存依赖
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/pip
+            .venv
+          key: ${{ runner.os }}-python-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-python-
 
-      # 4. 尝试构建 Docker 镜像（仅本地构建，不推送）
+      # 4. 安装依赖
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install virtualenv
+          python -m virtualenv .venv
+          source .venv/bin/activate
+          pip install -r requirements.txt --quiet
+          echo "依赖安装完成"
+
+      # 5. 运行基本测试
+      - name: Run tests
+        run: |
+          source .venv/bin/activate
+          python -c "print('测试环境正常')"
+          python scripts/data_processing/test_nsfw_fix.py
+          echo "测试完成"
+
+      # 6. Docker构建（仅验证构建，不推送）
       - name: Build Docker Image
-        run: docker build . -t my-demo-app:latest
+        run: |
+          docker build . -t anime-role-detect:latest
+          echo "Docker镜像构建成功"

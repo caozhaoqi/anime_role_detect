@@ -227,7 +227,22 @@ class QualityFilter:
                 if width <= 0 or height <= 0:
                     return False, {"reason": "图片尺寸无效"}
                 
-                # 后续检查...
+                # 检查分辨率是否太小
+                if width < self.min_width or height < self.min_height:
+                    return False, {"reason": f"图片太小: {width}x{height} < {self.min_width}x{self.min_height}"}
+                
+                # 检查宽高比是否合理
+                ratio = width / height if height > 0 else 0
+                if ratio < self.min_ratio or ratio > self.max_ratio:
+                    return False, {"reason": f"宽高比不合理: {ratio:.2f}"}
+                
+                # 检查像素面积
+                area = width * height
+                if area < self.min_area:
+                    return False, {"reason": f"像素面积太小: {area} < {self.min_area}"}
+                
+                return True, {"width": width, "height": height, "ratio": ratio}
+                
         except Exception as e:
             logger.error(f"❌ 检查分辨率失败 {image_path}: {type(e).__name__} - {e}")
             import traceback
