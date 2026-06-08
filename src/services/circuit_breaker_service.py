@@ -166,7 +166,7 @@ class CircuitBreakerService:
     def execute_with_fallback(
         self, name: str, func: Callable, fallback: Callable, *args, **kwargs
     ) -> Any:
-        """执行函数，失败时使用降级策略"""
+        """执行函数，失败时使用降级策略（同步版本）"""
         circuit_breaker = self.get_circuit_breaker(name)
 
         try:
@@ -174,6 +174,18 @@ class CircuitBreakerService:
         except Exception as e:
             logger.warning(f"执行 {name} 失败，使用降级策略: {e}")
             return fallback(*args, **kwargs)
+
+    async def execute_with_fallback_async(
+        self, name: str, func: Callable, fallback: Callable, *args, **kwargs
+    ) -> Any:
+        """执行异步函数，失败时使用降级策略（异步版本）"""
+        circuit_breaker = self.get_circuit_breaker(name)
+
+        try:
+            return await circuit_breaker.execute(func, *args, **kwargs)
+        except Exception as e:
+            logger.warning(f"执行 {name} 失败，使用降级策略: {e}")
+            return await fallback(*args, **kwargs)
 
     def get_all_stats(self) -> Dict[str, Dict[str, Any]]:
         """获取所有熔断器的统计信息"""
@@ -207,8 +219,15 @@ def get_circuit_breaker(name: str, **kwargs) -> CircuitBreaker:
 
 
 def execute_with_fallback(name: str, func: Callable, fallback: Callable, *args, **kwargs) -> Any:
-    """执行函数，失败时使用降级策略"""
+    """执行函数，失败时使用降级策略（同步版本）"""
     return get_circuit_breaker_service().execute_with_fallback(
+        name, func, fallback, *args, **kwargs
+    )
+
+
+async def execute_with_fallback_async(name: str, func: Callable, fallback: Callable, *args, **kwargs) -> Any:
+    """执行异步函数，失败时使用降级策略（异步版本）"""
+    return await get_circuit_breaker_service().execute_with_fallback_async(
         name, func, fallback, *args, **kwargs
     )
 

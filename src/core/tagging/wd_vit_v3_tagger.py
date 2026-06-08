@@ -27,11 +27,9 @@ os.environ["VECLIB_MAXIMUM_THREADS"] = "1"
 os.environ["NUMEXPR_NUM_THREADS"] = "1"
 os.environ["OBJC_DISABLE_INITIALIZE_FORK_SAFETY"] = "YES"
 
-# 强制将 macOS 多进程启动方式修改为 'spawn'
-try:
-    multiprocessing.set_start_method('spawn', force=True)
-except RuntimeError:
-    pass
+# macOS 平台下导入 CoreML 相关模块（提前到这里，避免多进程设置导致死锁）
+# 注意：由于 coremltools 和 scikit-learn 版本不兼容会导致锁阻塞，暂时禁用 CoreML
+USE_COREML = False  # platform.system() == "Darwin"
 
 # 设置Hugging Face缓存目录为项目目录
 os.environ["HF_HOME"] = os.path.join(
@@ -40,8 +38,6 @@ os.environ["HF_HOME"] = os.path.join(
 
 # ==================== 【第二步：平台检测与加速方案选择】 ====================
 # macOS (Apple Silicon) 使用 CoreML，其他平台使用 PyTorch
-USE_COREML = platform.system() == "Darwin"
-
 # 只有非 macOS 平台才需要导入 torch 并封锁 MPS
 if not USE_COREML:
     # 核心注入 - 彻底封死 MPS 探测（非 macOS 平台备用）
@@ -442,12 +438,47 @@ class WDViTV3Tagger:
                 
                 self.logger.info(f"加载CoreML模型: {coreml_model_path}")
                 
-                # 创建CoreML标签生成器实例
-                self.__class__._coreml_tagger = CoreMLWDVitV3Tagger(
-                    model_path=coreml_model_path,
-                    labels_path=coreml_labels_path
-                )
-                self.logger.info("CoreML模型加载成功")
+                # 使用超时机制加载CoreML模型，避免长时间阻塞
+                import threading
+                import time
+                
+                result = {"success": False, "tagger": None, "error": None}
+                
+                def load_model_thread():
+                    try:
+                        tagger = CoreMLWDVitV3Tagger(
+                            model_path=coreml_model_path,
+                            labels_path=coreml_labels_path
+                        )
+                        result["tagger"] = tagger
+                        result["success"] = True
+                    except Exception as e:
+                        result["error"] = e
+                        self.logger.error(f"CoreML模型加载线程失败: {e}")
+                
+                # 创建并启动加载线程
+                thread = threading.Thread(target=load_model_thread, daemon=True)
+                thread.start()
+                
+                # 设置最大等待时间（30秒）
+                max_wait_time = 30
+                wait_interval = 0.1
+                elapsed_time = 0
+                
+                while thread.is_alive() and elapsed_time < max_wait_time:
+                    time.sleep(wait_interval)
+                    elapsed_time += wait_interval
+                
+                if thread.is_alive():
+                    self.logger.error("CoreML模型加载超时，将回退到简单标签生成方法")
+                    return False
+                
+                if result["success"] and result["tagger"]:
+                    self.__class__._coreml_tagger = result["tagger"]
+                    self.logger.info("CoreML模型加载成功")
+                elif result["error"]:
+                    self.logger.error(f"CoreML模型加载失败: {result['error']}")
+                    return False
             else:
                 self.logger.info("CoreML模型已缓存，复用现有实例")
             

@@ -19,7 +19,7 @@ from src.services.processor.model_loader import (
     get_role_predictor,
 )
 from src.services.nsfw_detector import detect_nsfw
-from src.services.circuit_breaker_service import execute_with_fallback
+from src.services.circuit_breaker_service import execute_with_fallback_async
 from .preprocessor import preprocess_image
 from .model_loader import load_trained_model
 from .feature_processor import process_image_features
@@ -268,7 +268,7 @@ async def process_with_model_service(file, content, model_name, multi_role=False
     """
     try:
         # 使用熔断器调用模型服务
-        result = await execute_with_fallback(
+        result = await execute_with_fallback_async(
             name=f"model_service_{'multi' if multi_role else 'single'}",
             func=_call_model_service,
             fallback=_model_service_fallback,

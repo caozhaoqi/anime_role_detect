@@ -83,7 +83,9 @@ export default function VideoPanel({ darkMode, accessToken }: VideoPanelProps) {
       const response = await axios.post("/api/video/recognize", formData, { headers });
       
       if (response.data.success) {
-        setResults(response.data.results || []);
+        // 兼容两种返回格式
+        const results = response.data.data?.results || response.data.results || [];
+        setResults(results);
       }
     } catch (error) {
       console.error("视频识别失败:", error);

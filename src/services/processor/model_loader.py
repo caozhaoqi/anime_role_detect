@@ -382,19 +382,84 @@ def get_keypoint_detector():
         return None
 
 
+# 全局标签器缓存
+_tagger_instance = None
+_tagger_lock = None
+
 def get_tagger():
     """
-    获取标签器
+    获取标签器（带缓存和超时机制）
 
     Returns:
         callable: 标签器函数
     """
+    global _tagger_instance, _tagger_lock
+    
+    # 如果标签器已缓存，直接返回
+    if _tagger_instance is not None:
+        return _tagger_instance.generate_tags
+    
+    # 初始化锁
+    if _tagger_lock is None:
+        import threading
+        _tagger_lock = threading.Lock()
+    
     try:
-        from src.core.tagging.wd_vit_v3_tagger import WDViTV3Tagger
+        # 使用锁确保线程安全
+        with _tagger_lock:
+            # 双重检查，避免重复创建
+            if _tagger_instance is not None:
+                return _tagger_instance.generate_tags
+                
+            from src.core.tagging.wd_vit_v3_tagger import WDViTV3Tagger
+            import threading
+            import time
 
-        tagger = WDViTV3Tagger()
-        tagger.load_model()
-        return tagger.generate_tags
+            logger.info("开始加载标签器...")
+            start_time = time.time()
+            
+            # 使用超时机制加载标签器
+            result = {"success": False, "tagger": None, "error": None}
+            
+            def load_tagger_thread():
+                try:
+                    tagger = WDViTV3Tagger()
+                    success = tagger.load_model()
+                    if success:
+                        result["tagger"] = tagger
+                        result["success"] = True
+                    else:
+                        result["error"] = "模型加载失败"
+                except Exception as e:
+                    result["error"] = e
+                    logger.error(f"标签器加载线程失败: {e}")
+            
+            # 创建并启动加载线程
+            thread = threading.Thread(target=load_tagger_thread, daemon=True)
+            thread.start()
+            
+            # 设置最大等待时间（30秒）
+            max_wait_time = 30
+            wait_interval = 0.1
+            elapsed_time = 0
+            
+            while thread.is_alive() and elapsed_time < max_wait_time:
+                time.sleep(wait_interval)
+                elapsed_time += wait_interval
+            
+            if thread.is_alive():
+                logger.error("标签器加载超时，将返回None")
+                return None
+            
+            if result["success"] and result["tagger"]:
+                _tagger_instance = result["tagger"]
+                load_time = time.time() - start_time
+                logger.info(f"标签器加载成功，耗时: {load_time:.2f}秒")
+                return _tagger_instance.generate_tags
+            elif result["error"]:
+                logger.error(f"标签器加载失败: {result['error']}")
+                return None
+                
     except Exception as e:
         logger.error(f"获取标签器失败：{e}")
         return None

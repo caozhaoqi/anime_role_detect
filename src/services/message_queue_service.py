@@ -31,6 +31,7 @@ class MessageQueueService:
         self.queue = None
         self.callback_queue = None
         self.futures = {}
+        self.connected = False
 
         # 配置
         self.RABBITMQ_HOST = os.environ.get("RABBITMQ_HOST", "localhost")
@@ -42,11 +43,14 @@ class MessageQueueService:
         self.QUEUE_NAME = os.environ.get("QUEUE_NAME", "anime_role_detect")
         self.EXCHANGE_NAME = os.environ.get("EXCHANGE_NAME", "anime_role_detect_exchange")
 
-        # 初始化连接
-        self._init_connection()
+        # 不在这里初始化连接，改为延迟初始化
+        logger.info("消息队列服务创建（延迟初始化）")
 
     async def _init_connection(self):
         """初始化连接"""
+        if self.connected:
+            return
+
         try:
             # 创建连接
             self.connection = await aio_pika.connect_robust(
@@ -55,6 +59,7 @@ class MessageQueueService:
                 login=self.RABBITMQ_USER,
                 password=self.RABBITMQ_PASSWORD,
                 virtualhost=self.RABBITMQ_VHOST,
+                timeout=5,  # 添加超时
             )
 
             # 创建通道
@@ -75,7 +80,10 @@ class MessageQueueService:
             # 消费回调队列
             await self.callback_queue.consume(self._on_response)
 
+            self.connected = True
             logger.info(f"消息队列连接成功: {self.RABBITMQ_HOST}:{self.RABBITMQ_PORT}")
+        except asyncio.TimeoutError:
+            logger.warning(f"消息队列连接超时（{self.RABBITMQ_HOST}:{self.RABBITMQ_PORT}），将使用同步处理")
         except Exception as e:
             logger.warning(f"消息队列连接失败，将使用同步处理: {e}")
 

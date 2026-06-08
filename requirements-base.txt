@@ -7,6 +7,7 @@
 fastapi==0.115.0
 uvicorn==0.31.1
 starlette==0.37.2
+flask==2.3.3  # 用于链路追踪仪表板
 
 # 数据验证
 pydantic==2.9.2

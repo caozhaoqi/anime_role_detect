@@ -66,6 +66,14 @@ try:
 except Exception as e:
     logger.error(f"导入监控中间件失败: {e}")
 
+# 导入链路追踪中间件
+try:
+    from src.middleware.tracing import TracingMiddleware, inject_trace_headers
+
+    app.add_middleware(TracingMiddleware)
+except Exception as e:
+    logger.error(f"导入链路追踪中间件失败: {e}")
+
 # 导入认证服务
 from src.services.auth_service import (
     init_auth_service,
@@ -179,27 +187,6 @@ async def classify_image(
     try:
         # 记录开始时间
         start_time = time.time()
-
-        # 初始化缓存管理器
-        init_cache_manager()
-
-        # 初始化监控服务
-        init_monitoring_service()
-
-        # 初始化消息队列服务
-        init_message_queue_service()
-
-        # 初始化熔断器服务
-        init_circuit_breaker_service()
-
-        # 初始化模型版本管理服务
-        init_model_version_service()
-
-        # 初始化多模型服务
-        init_multi_model_service()
-
-        # 加载模型
-        load_models()
 
         # 处理图像
         if multi_role:
@@ -1638,20 +1625,59 @@ try:
         app.include_router(cleaning_router)
     except Exception as e:
         logger.error(f"导入清洗路由失败: {e}")
+    
+    # 导入链路追踪路由
+    try:
+        from src.api.routes.tracing import router as tracing_router
+        app.include_router(tracing_router)
+        logger.info("链路追踪路由加载成功")
+    except Exception as e:
+        logger.error(f"导入链路追踪路由失败: {e}")
+    
     logger.info("异步推理路由加载成功")
 except Exception as e:
     logger.error(f"导入异步推理路由失败: {e}")
 
+# 导入视频识别路由
+try:
+    from src.api.routes.video_routes import router as video_router
+    app.include_router(video_router)
+    logger.info("视频识别路由加载成功")
+except Exception as e:
+    logger.error(f"导入视频识别路由失败: {e}")
 
-# 启动事件 - 初始化认证服务
+
+# 启动事件 - 初始化所有服务
 @app.on_event("startup")
 async def startup_event():
-    """启动事件 - 初始化认证服务"""
+    """启动事件 - 初始化所有服务"""
     try:
         init_auth_service()
         logger.info("认证服务初始化完成")
+        
+        init_cache_manager()
+        logger.info("缓存管理器初始化完成")
+        
+        init_monitoring_service()
+        logger.info("监控服务初始化完成")
+        
+        init_message_queue_service()
+        logger.info("消息队列服务初始化完成")
+        
+        init_circuit_breaker_service()
+        logger.info("熔断器服务初始化完成")
+        
+        init_model_version_service()
+        logger.info("模型版本服务初始化完成")
+        
+        init_multi_model_service()
+        logger.info("多模型服务初始化完成")
+        
+        load_models()
+        logger.info("模型加载完成")
+        
     except Exception as e:
-        logger.error(f"认证服务初始化失败: {e}")
+        logger.error(f"服务初始化失败: {e}")
 
 
 if __name__ == "__main__":

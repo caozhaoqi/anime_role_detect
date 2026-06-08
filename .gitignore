@@ -141,3 +141,5 @@ run/supervisord.conf
 clip_cache/
 
 .trae/rules/CLAUDE.md
+
+docs/todo.md

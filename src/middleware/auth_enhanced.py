@@ -259,6 +259,9 @@ async def auth_middleware(request: Request, call_next):
     5. 用户锁定机制支持
     6. 会话管理
     """
+    # 内部服务IP白名单（内部服务调用不需要认证）
+    internal_ips = os.environ.get("INTERNAL_IPS", "127.0.0.1,localhost,::1").split(",")
+    
     # 排除不需要认证的路径（只保留文档和健康检查）
     exempt_paths = [
         "/api/docs",
@@ -277,6 +280,8 @@ async def auth_middleware(request: Request, call_next):
         # Swagger UI
         "/docs",
         "/redoc",
+        # 内部服务调用路径
+        "/api/internal/",
     ]
 
     # 需要认证的敏感路径（包括分类 API）
@@ -297,6 +302,11 @@ async def auth_middleware(request: Request, call_next):
     # 检查是否需要认证
     need_auth = True
 
+    # 检查是否是内部服务调用（内部IP白名单）
+    if client_ip in internal_ips:
+        logger.debug(f"内部服务调用跳过认证: IP={client_ip}, Path={path}")
+        need_auth = False
+    
     # 检查是否在排除路径中
     for exempt_path in exempt_paths:
         if path == exempt_path or path.startswith(exempt_path + "/"):
@@ -315,7 +325,17 @@ async def auth_middleware(request: Request, call_next):
             detail=f"请求过于频繁，请等待{RATE_LIMIT_WINDOW_SECONDS}秒后重试"
         )
 
-    # 如果是受保护的路径，强制要求认证
+    # 如果已经跳过认证（内部IP或豁免路径），直接处理请求
+    if not need_auth:
+        try:
+            response = await call_next(request)
+            return response
+        except Exception as e:
+            logger.error(f"请求处理失败：{e}")
+            raise
+
+    # 对于需要认证的路径，检查令牌
+    # 检查是否是受保护的路径（需要强制认证）
     is_protected = any(
         path == protected_path or path.startswith(protected_path + "/")
         for protected_path in protected_paths

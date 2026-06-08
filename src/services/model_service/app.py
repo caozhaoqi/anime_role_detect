@@ -81,9 +81,8 @@ from src.core.config.service_config import get_service_config
 
 config = get_service_config()
 
-# 初始化日志
-import_core_modules()
-logger = get_logger("model_service")
+# 延迟初始化日志和核心模块，避免模块级别导入导致死锁
+logger = None
 
 # 添加线程锁和异步锁
 import threading
@@ -268,6 +267,11 @@ async def root():
 @app.on_event("startup")
 async def startup_event():
     """启动事件"""
+    global logger
+    # 延迟初始化核心模块和日志记录器，避免模块级别导入导致死锁
+    import_core_modules()
+    logger = get_logger("model_service")
+    
     logger.info("启动模型服务")
     await init_models()
     logger.info("模型服务启动完成")

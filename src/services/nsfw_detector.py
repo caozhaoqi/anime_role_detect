@@ -167,6 +167,17 @@ def detect_nsfw_with_tf_serving(image_source):
     try:
         logger.info(f"使用 TensorFlow Serving 进行NSFW检测: {TF_SERVING_URL}")
 
+        # 快速检查服务是否可用（超时5秒）
+        import socket
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(2)
+        result = sock.connect_ex(('localhost', 8501))
+        sock.close()
+        
+        if result != 0:
+            logger.warning("TensorFlow Serving 服务未运行，跳过此检测方法")
+            return None
+
         # 预处理图像
         from PIL import Image
         import numpy as np
@@ -189,8 +200,8 @@ def detect_nsfw_with_tf_serving(image_source):
         # 构建请求数据
         request_data = {"instances": img_array.tolist()}
 
-        # 发送请求
-        response = requests.post(TF_SERVING_URL, json=request_data, timeout=30)
+        # 发送请求（超时10秒）
+        response = requests.post(TF_SERVING_URL, json=request_data, timeout=10)
 
         if response.status_code == 200:
             result = response.json()
@@ -288,12 +299,13 @@ def detect_nsfw(image_source):
         local_result = detect_nsfw_with_local_model(image_source)
         if local_result is not None:
             return local_result
-        logger.info("本地模型不可用，尝试TensorFlow Serving")
+        # logger.info("本地模型不可用，尝试TensorFlow Serving")
 
-        # 尝试使用 TensorFlow Serving 进行检测
-        tf_result = detect_nsfw_with_tf_serving(image_source)
-        if tf_result is not None:
-            return tf_result
+        # 禁用TensorFlow Serving检测
+        # # 尝试使用 TensorFlow Serving 进行检测
+        # tf_result = detect_nsfw_with_tf_serving(image_source)
+        # if tf_result is not None:
+        #     return tf_result
 
         # 所有方法都失败时，使用基于规则的检测
         logger.warning("所有检测方法都失败，使用基于规则的NSFW检测")
