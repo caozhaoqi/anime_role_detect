@@ -24,6 +24,7 @@ if IS_MACOS:
 import time
 from datetime import datetime
 from typing import Dict, Any, Optional, List
+from concurrent.futures import ThreadPoolExecutor
 
 from fastapi import FastAPI, UploadFile, File, HTTPException, Form
 from fastapi.middleware.cors import CORSMiddleware
@@ -174,10 +175,187 @@ async def health_check():
     return {"status": "healthy", "service": "Model Service"}
 
 
+class EfficientNetClassifier:
+    """EfficientNet直接分类器，不依赖Faiss索引"""
+
+    _instance = None
+    _model = None
+    _class_to_idx = None
+    _idx_to_class = None
+    _transform = None
+
+    @classmethod
+    def get_instance(cls):
+        if cls._instance is None:
+            cls._instance = cls()
+        return cls._instance
+
+    def __init__(self):
+        import torch
+        import torchvision
+        from torchvision import transforms
+        import json
+
+        if EfficientNetClassifier._model is not None:
+            self.model = EfficientNetClassifier._model
+            self.idx_to_class = EfficientNetClassifier._idx_to_class
+            self.transform = EfficientNetClassifier._transform
+            return
+
+        model_dir = os.path.join(
+            project_root, "models", "efficientnet_b3_loli_optimized_v2_20260529_133654"
+        )
+        model_full_path = os.path.join(model_dir, "model_full.pth")
+
+        if not os.path.exists(model_full_path):
+            logger.warning(f"EfficientNet模型不存在: {model_full_path}")
+            self.model = None
+            return
+
+        logger.info(f"加载EfficientNet分类模型: {model_full_path}")
+
+        torch.serialization.add_safe_globals(
+            [torchvision.models.efficientnet.EfficientNet]
+        )
+        model = torch.load(model_full_path, map_location="cpu", weights_only=False)
+        model.eval()
+
+        # 加载类别映射
+        training_results_path = os.path.join(model_dir, "training_results.json")
+        with open(training_results_path, "r", encoding="utf-8") as f:
+            training_results = json.load(f)
+        class_names = training_results.get("class_names", [])
+        class_to_idx = {name: idx for idx, name in enumerate(class_names)}
+        idx_to_class = {v: k for k, v in class_to_idx.items()}
+
+        # 创建预处理transform
+        transform = transforms.Compose([
+            transforms.Resize((224, 224)),
+            transforms.ToTensor(),
+            transforms.Normalize(
+                mean=[0.485, 0.456, 0.406],
+                std=[0.229, 0.224, 0.225]
+            )
+        ])
+
+        # 缓存到类级别
+        EfficientNetClassifier._model = model
+        EfficientNetClassifier._idx_to_class = idx_to_class
+        EfficientNetClassifier._transform = transform
+
+        self.model = model
+        self.idx_to_class = idx_to_class
+        self.transform = transform
+
+        logger.info(f"EfficientNet分类器加载完成，类别数: {len(class_to_idx)}")
+
+    def classify(self, image):
+        """直接使用EfficientNet模型分类
+
+        Args:
+            image: PIL Image
+
+        Returns:
+            (role_name, confidence)
+        """
+        import torch
+
+        if self.model is None:
+            return "unknown", 0.0
+
+        try:
+            input_tensor = self.transform(image).unsqueeze(0)
+            with torch.no_grad():
+                outputs = self.model(input_tensor)
+                probabilities = torch.nn.functional.softmax(outputs, dim=1)
+                max_prob, predicted_idx = torch.max(probabilities, 1)
+
+            role = self.idx_to_class.get(predicted_idx.item(), "unknown")
+            confidence = max_prob.item()
+            return role, confidence
+        except Exception as e:
+            logger.error(f"EfficientNet分类失败: {e}")
+            return "unknown", 0.0
+
+    def classify_with_features(self, image):
+        """分类并提取1536维特征向量
+
+        Args:
+            image: PIL Image
+
+        Returns:
+            (role_name, confidence, feature_512d)
+        """
+        import torch
+        import numpy as np
+
+        if self.model is None:
+            return "unknown", 0.0, np.zeros(512, dtype=np.float32)
+
+        try:
+            input_tensor = self.transform(image).unsqueeze(0)
+
+            # Hook for features
+            features = []
+            def hook_fn(module, input, output):
+                features.append(output)
+            handle = self.model.avgpool.register_forward_hook(hook_fn)
+
+            with torch.no_grad():
+                outputs = self.model(input_tensor)
+                probabilities = torch.nn.functional.softmax(outputs, dim=1)
+                max_prob, predicted_idx = torch.max(probabilities, 1)
+
+            handle.remove()
+
+            role = self.idx_to_class.get(predicted_idx.item(), "unknown")
+            confidence = max_prob.item()
+
+            # 投影1536维特征到512维
+            if features:
+                feat_1536 = features[0].squeeze()
+                # 简单截断+归一化（与FeatureExtraction中投影一致）
+                # 使用Xavier初始化的投影矩阵（与FeatureExtraction一致）
+                if not hasattr(self, '_projection'):
+                    projection = torch.nn.Linear(1536, 512, bias=False)
+                    torch.nn.init.xavier_normal_(projection.weight)
+                    self._projection = projection
+                with torch.no_grad():
+                    feat_512 = self._projection(feat_1536)
+                    norm = feat_512.norm()
+                    if norm > 0:
+                        feat_512 = feat_512 / norm
+                feature = feat_512.numpy().astype(np.float32)
+            else:
+                feature = np.zeros(512, dtype=np.float32)
+
+            return role, confidence, feature
+        except Exception as e:
+            logger.error(f"EfficientNet分类+特征提取失败: {e}")
+            return "unknown", 0.0, np.zeros(512, dtype=np.float32)
+
+
 # 全局变量
 preprocessor = None  # 预处理器实例
 feature_extractor = None  # 特征提取器实例
 tagger = None  # 标签生成器实例
+_efficientnet_classifier = None  # EfficientNet直接分类器
+
+
+async def _async_load_tagger_model(tagger_instance):
+    """异步后台加载标签生成模型，不阻塞事件循环"""
+    try:
+        loop = asyncio.get_running_loop()
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            model_loaded = await loop.run_in_executor(
+                executor, tagger_instance.load_model
+            )
+            if model_loaded:
+                logger.info("标签生成模型异步加载成功")
+            else:
+                logger.warning("标签生成模型异步加载失败，将继续使用默认标签")
+    except Exception as e:
+        logger.error(f"标签生成模型异步加载异常: {e}")
 
 
 # 初始化模型
@@ -203,6 +381,7 @@ async def warmup_models():
     """
     模型预热 - 使用虚拟数据进行推理，加载模型到内存
     这样在用户请求时响应更快
+    所有阻塞操作在独立线程中执行，避免阻塞事件循环
     """
     global feature_extractor, tagger
     
@@ -210,39 +389,41 @@ async def warmup_models():
         logger.info("开始模型预热...")
         start_time = time.time()
         
-        # 确保torch已导入
-        if "torch" not in globals():
-            import_torch()
-        
-        import torch
-        from PIL import Image
-        import io
-        
         # 创建虚拟图像数据（224x224 RGB）
+        from PIL import Image
         dummy_image = Image.new('RGB', (224, 224), color=(128, 128, 128))
         
-        # 预热特征提取器
+        # 预热特征提取器（在独立线程中执行）
         logger.info("预热特征提取器...")
         if feature_extractor is None:
             async with model_init_lock:
                 if feature_extractor is None:
-                    feature_extractor = FeatureExtraction()
+                    loop = asyncio.get_running_loop()
+                    with ThreadPoolExecutor(max_workers=1) as executor:
+                        feature_extractor = await loop.run_in_executor(
+                            executor, FeatureExtraction
+                        )
+                        logger.info(f"特征提取器预热初始化完成，使用设备: {feature_extractor.device}")
         
-        # 执行一次虚拟推理
+        # 执行一次虚拟推理（在独立线程中执行）
         try:
             processed = preprocessor.preprocess(dummy_image)
             if processed is not None:
-                _ = feature_extractor.extract_features(processed)
+                loop = asyncio.get_running_loop()
+                with ThreadPoolExecutor(max_workers=1) as executor:
+                    await loop.run_in_executor(
+                        executor, feature_extractor.extract_features, processed
+                    )
                 logger.info("特征提取器预热完成")
         except Exception as e:
             logger.warning(f"特征提取器预热失败: {e}")
         
-        # 预热标签生成器
+        # 预热标签生成器（初始化快，直接执行即可）
         logger.info("预热标签生成器...")
         if tagger is None:
             try:
                 tagger = WDViTV3Tagger()
-                # 执行一次虚拟推理
+                # 执行一次虚拟推理（简单标签，很快）
                 _ = tagger.generate_tags(dummy_image)
                 logger.info("标签生成器预热完成")
             except Exception as e:
@@ -351,14 +532,87 @@ async def predict_image(
         keypoints = None
         logger.info("关键点检测已暂时禁用")
 
-        # [4] 特征提取 → 生成512维特征向量
-        logger.info("开始特征提取...")
+        # [4] 特征提取 → 优先使用EfficientNet直接分类+特征提取
+        logger.info("开始特征提取+分类...")
+        global _efficientnet_classifier
+
+        # 使用EfficientNet直接分类（比Faiss更准确）
+        if _efficientnet_classifier is None:
+            try:
+                loop = asyncio.get_running_loop()
+                with ThreadPoolExecutor(max_workers=1) as executor:
+                    _efficientnet_classifier = await loop.run_in_executor(
+                        executor, EfficientNetClassifier.get_instance
+                    )
+            except Exception as e:
+                logger.error(f"EfficientNet分类器初始化失败: {e}")
+
+        if _efficientnet_classifier is not None and _efficientnet_classifier.model is not None:
+            # 直接使用EfficientNet分类，同时提取特征
+            direct_role, direct_confidence, feature = _efficientnet_classifier.classify_with_features(image)
+            logger.info(f"EfficientNet直接分类结果: role={direct_role}, confidence={direct_confidence:.4f}")
+
+            # 如果直接分类置信度足够高，直接使用
+            if direct_confidence >= 0.3:
+                role = direct_role
+                similarity = direct_confidence
+                logger.info(f"使用EfficientNet直接分类: role={role}, similarity={similarity:.4f}")
+                # 跳过Faiss分类，直接到结果返回
+                # 但仍需生成标签
+                # [5] 标签生成
+                logger.info("开始标签生成...")
+                attributes = []
+                if use_attributes:
+                    if tagger is None:
+                        async with model_init_lock:
+                            if tagger is None:
+                                logger.info("初始化标签生成器...")
+                                try:
+                                    tagger = WDViTV3Tagger()
+                                    logger.info(f"标签生成器初始化完成，使用设备: {tagger.device}")
+                                    asyncio.create_task(_async_load_tagger_model(tagger))
+                                except Exception as e:
+                                    logger.error(f"标签生成器初始化失败: {e}")
+                                    tagger = None
+                    if tagger:
+                        try:
+                            attributes = tagger.generate_tags(processed_image)
+                        except Exception as e:
+                            logger.error(f"标签生成失败: {e}")
+                logger.info("标签生成完成")
+
+                # 直接跳到结果返回
+                logger.info(f"EfficientNet分类+特征提取完成，跳过Faiss搜索")
+                role_full_info = get_role_info(role)
+                result = {
+                    "role": role,
+                    "role_cn": role_full_info.get("cn", role),
+                    "role_jp": role_full_info.get("jp", ""),
+                    "role_anime": role_full_info.get("anime", ""),
+                    "similarity": float(similarity),
+                    "attributes": attributes,
+                    "keypoints": keypoints,
+                    "feature": feature.tolist() if hasattr(feature, "tolist") else feature,
+                }
+                logger.info(f"返回结果: role={role}, similarity={similarity:.4f}")
+
+                if use_cache and redis_cache.available:
+                    redis_cache.set_image_result(image_hash, result)
+
+                return result
+
+        # 降级路径：EfficientNet置信度低或不可用时，使用FeatureExtraction+Faiss
+        logger.info("EfficientNet置信度不足，降级到Faiss搜索...")
         if feature_extractor is None:
             async with model_init_lock:
                 if feature_extractor is None:
                     logger.info("初始化特征提取器...")
                     try:
-                        feature_extractor = FeatureExtraction()
+                        loop = asyncio.get_running_loop()
+                        with ThreadPoolExecutor(max_workers=1) as executor:
+                            feature_extractor = await loop.run_in_executor(
+                                executor, FeatureExtraction
+                            )
                         logger.info(f"特征提取器初始化完成，使用设备: {feature_extractor.device}")
                     except Exception as e:
                         logger.error(f"特征提取器初始化失败: {e}")
@@ -378,13 +632,10 @@ async def predict_image(
                         try:
                             tagger = WDViTV3Tagger()
                             logger.info(f"标签生成器初始化完成，使用设备: {tagger.device}")
-                            # 加载标签生成模型
-                            logger.info("加载标签生成模型...")
-                            model_loaded = tagger.load_model()
-                            if model_loaded:
-                                logger.info("标签生成模型加载成功")
-                            else:
-                                logger.warning("标签生成模型加载失败，将使用默认标签")
+                            # 异步后台加载模型，避免阻塞事件循环
+                            # 当前请求先用默认标签，模型加载完成后后续请求自动使用
+                            logger.info("后台异步加载标签生成模型...")
+                            asyncio.create_task(_async_load_tagger_model(tagger))
                         except Exception as e:
                             logger.error(f"标签生成器初始化失败: {e}")
                             tagger = None

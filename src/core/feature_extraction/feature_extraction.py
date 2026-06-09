@@ -29,6 +29,11 @@ except ImportError:
     logger.warning("跨平台诊断工具不可用")
     DIAGNOSTICS_AVAILABLE = False
 
+# 默认 EfficientNet 模型路径
+EFFICIENTNET_MODEL_DIR = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))),
+    "models", "efficientnet_b3_loli_optimized_v2_20260529_133654"
+)
 
 # 动态导入函数
 def import_torch_modules():
@@ -49,8 +54,12 @@ class FeatureExtraction:
     _model_name = None
     _coreml_extractor = None
     _use_fp16 = True
+    # EfficientNet 模型缓存（跨实例共享）
+    _efficientnet_model = None
+    _efficientnet_projection = None
+    _efficientnet_transform = None
 
-    def __init__(self, model_name="openai/clip-vit-base-patch32", quantize=True, use_coreml=False, use_fp16=True, use_clip=False):
+    def __init__(self, model_name="openai/clip-vit-base-patch32", quantize=True, use_coreml=False, use_fp16=True, use_clip=False, use_efficientnet=None):
         """初始化特征提取模块
 
         Args:
@@ -59,6 +68,7 @@ class FeatureExtraction:
             use_coreml: 是否使用Core ML模式
             use_fp16: 是否使用FP16半精度推理
             use_clip: 是否使用CLIP模型（默认False，使用简单特征提取）
+            use_efficientnet: 是否使用EfficientNet模型（默认自动检测）
         """
         # 禁用Core ML模式，避免锁竞争问题
         use_coreml = False
@@ -70,19 +80,39 @@ class FeatureExtraction:
         self._use_fp16 = use_fp16 and not use_coreml
         self._use_clip = use_clip
 
+        # 自动检测是否使用 EfficientNet
+        if use_efficientnet is None:
+            # macOS 上 CLIP 不可用，自动使用 EfficientNet
+            import platform
+            use_efficientnet = platform.system() == "Darwin"
+        self._use_efficientnet = use_efficientnet
+
         # 初始化模型实例为None
         self.model = None
         self.processor = None
+        self.efficientnet_model = None
+        self.efficientnet_projection = None
+        self.efficientnet_transform = None
 
         # 自动选择最佳设备（仅在需要时导入torch）
         self.device = self._select_device()
-        
-        # 仅在需要时加载模型
-        if self._use_clip:
+
+        # 加载模型
+        if self._use_efficientnet:
+            self._load_efficientnet_model()
+        elif self._use_clip:
             self._load_model()
-        
+
+        # 确定模式描述
+        if self._use_efficientnet and self.efficientnet_model is not None:
+            mode = "EfficientNet"
+        elif self.model is not None and self.processor is not None:
+            mode = "CLIP"
+        else:
+            mode = "Simple"
+
         logger.info(f"特征提取模块使用设备: {self.device}")
-        logger.info(f"特征提取模块初始化完成，模式: {'CLIP' if self._use_clip else 'Simple'}, FP16: {self._use_fp16}")
+        logger.info(f"特征提取模块初始化完成，模式: {mode}, FP16: {self._use_fp16}")
     
     def _select_device(self):
         """选择最佳计算设备（延迟导入torch）"""
@@ -105,37 +135,133 @@ class FeatureExtraction:
             return "cpu"
 
     def _load_model(self):
-        """延迟加载模型"""
+        """延迟加载CLIP模型"""
         try:
             # 导入transformers模块
             import_torch_modules()
-            
+
             global CLIPProcessor, CLIPModel
-            
+
             # 加载处理器和模型
             self.processor = CLIPProcessor.from_pretrained(self.model_name)
             self.model = CLIPModel.from_pretrained(self.model_name)
-            
+
             # 将模型移动到指定设备
             self.model = self.model.to(self.device)
-            
+
             # 启用FP16半精度推理
             if self._use_fp16 and (self.device == "cuda" or self.device == "mps"):
                 self.model = self.model.half()
                 logger.info("已启用FP16半精度推理")
-            
+
             # 设置模型为评估模式
             self.model.eval()
-            
+
             # 模型预热
             self._warmup_model()
-            
+
             logger.info(f"成功加载CLIP模型: {self.model_name}")
-            
+
         except Exception as e:
             logger.warning(f"加载CLIP模型失败，将使用简单特征提取方法: {e}")
             self.processor = None
             self.model = None
+
+    def _load_efficientnet_model(self):
+        """加载EfficientNet-B3模型作为特征提取骨干"""
+        import torch
+        import torchvision
+
+        try:
+            # 使用类级别缓存
+            if FeatureExtraction._efficientnet_model is not None:
+                self.efficientnet_model = FeatureExtraction._efficientnet_model
+                self.efficientnet_projection = FeatureExtraction._efficientnet_projection
+                self.efficientnet_transform = FeatureExtraction._efficientnet_transform
+                logger.info("使用缓存的EfficientNet模型")
+                return
+
+            # 查找模型文件
+            model_full_path = os.path.join(EFFICIENTNET_MODEL_DIR, "model_full.pth")
+            if not os.path.exists(model_full_path):
+                logger.warning(f"EfficientNet模型文件不存在: {model_full_path}，回退到简单方法")
+                return
+
+            logger.info(f"加载EfficientNet-B3模型: {model_full_path}")
+
+            # 允许加载 EfficientNet 类
+            torch.serialization.add_safe_globals(
+                [torchvision.models.efficientnet.EfficientNet]
+            )
+
+            # 加载模型
+            model = torch.load(model_full_path, map_location="cpu", weights_only=False)
+            model.eval()
+
+            # 创建特征提取hook
+            self._efficientnet_features = []
+            def hook_fn(module, input, output):
+                self._efficientnet_features.append(output)
+
+            # 注册hook到avgpool层，获取1536维特征
+            if hasattr(model, 'avgpool'):
+                model.avgpool.register_forward_hook(hook_fn)
+            else:
+                logger.warning("EfficientNet模型没有avgpool层，回退到简单方法")
+                return
+
+            # 创建线性投影层 1536 → 512，使用Xavier初始化
+            projection = torch.nn.Linear(1536, 512, bias=False)
+            torch.nn.init.xavier_normal_(projection.weight)
+            projection.eval()
+
+            # 创建图像预处理transform
+            from torchvision import transforms
+            transform = transforms.Compose([
+                transforms.Resize((224, 224)),
+                transforms.ToTensor(),
+                transforms.Normalize(
+                    mean=[0.485, 0.456, 0.406],
+                    std=[0.229, 0.224, 0.225]
+                )
+            ])
+
+            # 缓存到类级别
+            FeatureExtraction._efficientnet_model = model
+            FeatureExtraction._efficientnet_projection = projection
+            FeatureExtraction._efficientnet_transform = transform
+
+            self.efficientnet_model = model
+            self.efficientnet_projection = projection
+            self.efficientnet_transform = transform
+
+            # 预热模型
+            self._warmup_efficientnet()
+
+            logger.info("EfficientNet-B3特征提取模型加载完成，输出维度: 512")
+
+        except Exception as e:
+            logger.error(f"加载EfficientNet模型失败: {e}")
+            self.efficientnet_model = None
+            self.efficientnet_projection = None
+            self.efficientnet_transform = None
+
+    def _warmup_efficientnet(self):
+        """预热EfficientNet模型"""
+        import torch
+        try:
+            dummy_img = Image.new('RGB', (224, 224), color=(128, 128, 128))
+            dummy_tensor = self.efficientnet_transform(dummy_img).unsqueeze(0)
+            with torch.no_grad():
+                _ = self.efficientnet_model(dummy_tensor)
+                if self._efficientnet_features:
+                    feat = self._efficientnet_features[-1].squeeze()
+                    projected = self.efficientnet_projection(feat)
+                    projected = projected / projected.norm()
+            self._efficientnet_features.clear()
+            logger.debug("EfficientNet模型预热完成")
+        except Exception as e:
+            logger.debug(f"EfficientNet模型预热失败: {e}")
 
     def _warmup_model(self):
         """模型预热，提高首次推理速度"""
@@ -183,16 +309,27 @@ class FeatureExtraction:
                 # 如果在GPU上，先移到CPU
                 if img.device.type != "cpu":
                     img = img.cpu()
+                # 分离计算图（避免 requires_grad=True 时 .numpy() 失败）
+                if img.requires_grad:
+                    img = img.detach()
                 # 转换为numpy数组
                 img_array = img.numpy()
                 # 如果形状是 (C, H, W)，转换为 (H, W, C)
                 if img_array.ndim == 3 and img_array.shape[0] in [1, 3]:
                     img_array = img_array.transpose(1, 2, 0)
-                # 转换为PIL Image
+                    # 反归一化（ImageNet 标准化），将值恢复到 [0,1] 范围
+                    std = [0.229, 0.224, 0.225]
+                    mean = [0.485, 0.456, 0.406]
+                    img_array = img_array * std + mean
+                # 裁剪到合法范围并转换为 PIL Image
+                img_array = np.clip(img_array, 0, 1)
                 img = Image.fromarray((img_array * 255).astype("uint8"))
 
-            # 如果模型已加载，使用CLIP模型进行特征提取
-            if self.model is not None and self.processor is not None:
+            # 优先使用EfficientNet（macOS上的主要方法）
+            if self.efficientnet_model is not None and self.efficientnet_projection is not None:
+                return self._extract_features_efficientnet(img)
+            # 如果CLIP模型已加载，使用CLIP
+            elif self.model is not None and self.processor is not None:
                 return self._extract_features_clip(img)
             else:
                 # 回退到简单特征提取方法
@@ -204,6 +341,46 @@ class FeatureExtraction:
             import numpy as np
 
             return np.random.rand(512).astype(np.float32)
+
+    def _extract_features_efficientnet(self, img):
+        """使用EfficientNet-B3模型提取特征"""
+        import torch
+
+        try:
+            # 预处理图像
+            input_tensor = self.efficientnet_transform(img).unsqueeze(0)
+
+            # 清空hook缓存
+            self._efficientnet_features = []
+
+            # 推理
+            with torch.no_grad():
+                _ = self.efficientnet_model(input_tensor)
+
+            # 获取1536维特征
+            if not self._efficientnet_features:
+                logger.warning("EfficientNet hook未捕获到特征，回退到简单方法")
+                return self._extract_features_simple(img)
+
+            feat = self._efficientnet_features[-1].squeeze()  # [1536]
+
+            # 投影到512维
+            with torch.no_grad():
+                projected = self.efficientnet_projection(feat)  # [512]
+
+            # L2归一化
+            norm = projected.norm()
+            if norm > 0:
+                projected = projected / norm
+
+            features = projected.numpy().astype(np.float32)
+
+            logger.debug(f"EfficientNet特征提取完成，特征形状: {features.shape}")
+            return features
+
+        except Exception as e:
+            logger.warning(f"EfficientNet特征提取失败，回退到简单方法: {e}")
+            return self._extract_features_simple(img)
 
     def _extract_features_clip(self, img):
         """使用CLIP模型提取特征"""
@@ -404,7 +581,7 @@ if __name__ == "__main__":
     extractor = FeatureExtraction()
 
     # 测试图像路径（需要根据实际情况修改）
-    test_image = "test.jpg"
+    test_image = "/Users/caozhaoqi/PycharmProjects/anime_role_detect/data/final_dataset/aerial_(arknights)/37185069_p0_master1200.jpg"
 
     try:
         # 加载图像

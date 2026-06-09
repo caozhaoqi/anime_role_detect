@@ -30,6 +30,8 @@ class RedisCache:
                 port=int(os.environ.get("REDIS_PORT", 6379)),
                 db=int(os.environ.get("REDIS_DB", 0)),
                 decode_responses=True,
+                socket_connect_timeout=2,
+                socket_timeout=2
             )
             self.redis_client.ping()
             self.available = True

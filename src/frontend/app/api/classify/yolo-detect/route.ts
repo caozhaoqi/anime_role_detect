@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
       maxDetections,
     });
 
-    const backendUrl = 'http://127.0.0.1:8001/api/model/detect-yolo';
+    const backendUrl = 'http://127.0.0.1:8080/api/model/detect-yolo';
     console.log('转发请求到后端API:', backendUrl);
 
     const backendFormData = new FormData();
