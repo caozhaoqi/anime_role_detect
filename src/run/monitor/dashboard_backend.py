@@ -13,10 +13,12 @@ import requests
 from datetime import datetime
 from typing import Dict, List
 
-# 添加项目根目录到Python路径
-project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-if project_root not in sys.path:
-    sys.path.insert(0, project_root)
+# 添加 src/ 和 src/run/ 到Python路径
+_current_dir = os.path.dirname(os.path.abspath(__file__))         # .../src/run/monitor/
+_src_dir = os.path.dirname(os.path.dirname(_current_dir))         # .../src/
+_run_dir = os.path.dirname(_current_dir)                           # .../src/run/
+sys.path.insert(0, _src_dir)
+sys.path.insert(0, _run_dir)
 
 from services_config import SERVICES
 
@@ -28,7 +30,7 @@ def get_trace_storage_service():
     """延迟获取追踪存储服务"""
     global _trace_storage_service
     if _trace_storage_service is None:
-        from src.services.trace_storage_service import get_trace_storage_service as get_service
+        from src.services.support.trace_storage_service import get_trace_storage_service as get_service
         _trace_storage_service = get_service()
     return _trace_storage_service
 

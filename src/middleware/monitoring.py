@@ -3,7 +3,7 @@ from fastapi import Request, Response
 from prometheus_client import Gauge, Summary
 
 from src.core.logging.global_logger import get_logger
-from src.services.monitoring_service import get_monitoring_service
+from src.services.support.monitoring_service import get_monitoring_service
 
 logger = get_logger("monitoring_middleware")
 
@@ -76,7 +76,7 @@ async def monitoring_middleware(request: Request, call_next):
 
 def get_service_monitor():
     """获取服务监控信息"""
-    from src.services.monitoring_service import get_monitoring_service
+    from src.services.support.monitoring_service import get_monitoring_service
     from src.services.cache_service import get_cache_stats
 
     monitoring = get_monitoring_service()

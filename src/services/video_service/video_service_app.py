@@ -34,7 +34,9 @@ def init_search_service():
     global search_service
     if search_service is None:
         search_service = SimpleImageSearchService()
-        search_service.load_index()
+        # SimpleImageSearchService 使用懒加载，首次调用 search() 时自动初始化
+        # 这里预初始化以加速首次请求
+        search_service._ensure_initialized()
     return search_service
 
 

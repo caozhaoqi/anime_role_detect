@@ -9,12 +9,28 @@ import sys
 import io
 import cv2
 import time
+import threading
 from fastapi import FastAPI, UploadFile, File, HTTPException, Query
 from PIL import Image
 import uvicorn
 
-# 设置环境变量
+# ==================== macOS OpenMP 冲突修复 ====================
+# 在导入任何第三方库之前设置环境变量
+# 1. 允许重复加载 OpenMP 运行时（避免初始化报错）
+os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
+
+# 2. 限制 OpenMP/MKL 线程数，防止多运行时争抢 CPU
+os.environ["OMP_NUM_THREADS"] = "1"
+os.environ["MKL_NUM_THREADS"] = "1"
+os.environ["OPENBLAS_NUM_THREADS"] = "1"
+os.environ["NUMEXPR_NUM_THREADS"] = "1"
+
+# 3. macOS fork 安全
 os.environ["OBJC_DISABLE_INITIALIZE_FORK_SAFETY"] = "YES"
+
+# 4. PyTorch MPS fallback
+os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
+# ============================================================
 
 # 添加项目根目录到Python路径
 project_root = os.path.dirname(
@@ -24,17 +40,32 @@ sys.path.insert(0, project_root)
 
 # 延迟导入
 from src.services.search_service.simple_search_service import SimpleImageSearchService
-
+from loguru import logger
 # 延迟初始化搜索服务
 search_service = None
+
+# 线程锁 - 保护模型推理（双重保护：环境变量 + 锁）
+inference_lock = threading.Lock()
 
 
 def init_search_service():
     """延迟初始化搜索服务"""
     global search_service
     if search_service is None:
+        # 限制 PyTorch 线程数（防止 OpenMP 冲突）
+        try:
+            import torch
+            torch.set_num_threads(1)
+            torch.set_num_interop_threads(1)
+        except ImportError:
+            logger.warning("PyTorch is not installed, cannot limit torch threads.")
+            pass
+        
         search_service = SimpleImageSearchService()
-        search_service.load_index()
+        # SimpleImageSearchService 使用懒加载，首次调用 search() 时自动初始化
+        # 这里预初始化以加速首次请求
+        search_service._ensure_initialized()
+        logger.info("Search service initialized.")
     return search_service
 
 
@@ -79,8 +110,9 @@ async def search_image(file: UploadFile = File(...), top_k: int = Query(10, ge=1
         contents = await file.read()
         image = Image.open(io.BytesIO(contents))
 
-        # 搜索相似图像
-        results = service.search(image, top_k=top_k)
+        # 搜索相似图像（使用线程锁保护，防止macOS段错误）
+        with inference_lock:
+            results = service.search(image, top_k=top_k)
 
         # 处理结果
         response_results = []
@@ -255,14 +287,15 @@ async def recognize_video(
                 frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                 image = Image.fromarray(frame_rgb)
 
-                # 搜索相似图像
-                results = service.search(image, top_k=top_k)
+                # 搜索相似图像（使用线程锁保护，防止macOS段错误）
+                with inference_lock:
+                    results = service.search(image, top_k=top_k)
 
                 # 过滤置信度
                 matched_roles = []
-                for path, similarity in results:
+                for role, similarity in results:
                     if similarity >= confidence_threshold:
-                        role = os.path.basename(os.path.dirname(path))
+                        # search() 已经返回角色名，不需要从路径提取
                         matched_roles.append(
                             {"role": role, "similarity": round(float(similarity), 4)}
                         )

@@ -4,13 +4,13 @@ import os
 import sys
 
 # 添加项目根目录到Python路径
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..")))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "..")))
 
 from src.core.classification.general_classification import get_classifier
 from src.config.config import DEFAULT_INDEX_PATH
 from src.services.coreml_model import coreml_model, classify_with_coreml
 from src.core.log_fusion.log_recorder import record_classification_log
-from src.services.clip_faiss_adapter import get_clip_faiss_classifier
+from src.services.model.clip_faiss_adapter import get_clip_faiss_classifier
 
 # 使用全局日志系统
 from src.core.logging.global_logger import get_logger, log_system, log_inference, log_error

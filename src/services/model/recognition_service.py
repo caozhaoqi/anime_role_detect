@@ -86,7 +86,7 @@ class RecognitionService:
 
         if _use_database:
             try:
-                from src.services.database_service import RecognitionRecordDB, get_db_service
+                from src.services.support.database_service import RecognitionRecordDB, get_db_service
 
                 db = get_db_service()
                 db_record = RecognitionRecordDB.create(
@@ -145,7 +145,7 @@ class RecognitionService:
         """根据用户ID获取识别记录"""
         if _use_database:
             try:
-                from src.services.database_service import RecognitionRecordDB, get_db_service
+                from src.services.support.database_service import RecognitionRecordDB, get_db_service
 
                 db = get_db_service()
                 db_records = RecognitionRecordDB.get_by_user(db, user_id)
@@ -177,7 +177,7 @@ class RecognitionService:
         """根据记录ID获取识别记录"""
         if _use_database:
             try:
-                from src.services.database_service import RecognitionRecordDB, get_db_service
+                from src.services.support.database_service import RecognitionRecordDB, get_db_service
 
                 db = get_db_service()
                 db_record = RecognitionRecordDB.get_by_id(db, record_id)
@@ -209,7 +209,7 @@ class RecognitionService:
         """删除识别记录"""
         if _use_database:
             try:
-                from src.services.database_service import RecognitionRecordDB, get_db_service
+                from src.services.support.database_service import RecognitionRecordDB, get_db_service
 
                 db = get_db_service()
                 return RecognitionRecordDB.delete(db, record_id)
@@ -228,7 +228,7 @@ class RecognitionService:
         """获取所有识别记录"""
         if _use_database:
             try:
-                from src.services.database_service import RecognitionRecordDB, get_db_service
+                from src.services.support.database_service import RecognitionRecordDB, get_db_service
 
                 db = get_db_service()
                 db_records = RecognitionRecordDB.get_all(db)

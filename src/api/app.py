@@ -75,7 +75,7 @@ except Exception as e:
     logger.error(f"导入链路追踪中间件失败: {e}")
 
 # 导入认证服务
-from src.services.auth_service import (
+from src.services.support.auth_service import (
     init_auth_service,
     authenticate_user,
     create_access_token,
@@ -110,20 +110,20 @@ except Exception as e:
 from src.services.cache_service import init_cache_manager, get_cache_stats
 
 # 导入监控服务
-from src.services.monitoring_service import (
+from src.services.support.monitoring_service import (
     init_monitoring_service,
     get_monitoring_service,
     monitor_request,
 )
 
 # 导入消息队列服务
-from src.services.message_queue_service import init_message_queue_service, send_message
+from src.services.messaging.message_queue_service import init_message_queue_service, send_message
 
 # 导入熔断器服务
-from src.services.circuit_breaker_service import init_circuit_breaker_service, execute_with_fallback
+from src.services.support.circuit_breaker_service import init_circuit_breaker_service, execute_with_fallback
 
 # 导入模型版本管理服务
-from src.services.model_version_service import (
+from src.services.model.model_version_service import (
     init_model_version_service,
     get_model_versions,
     get_model_path,
@@ -137,19 +137,17 @@ from src.services.model_version_service import (
 )
 
 # 导入多模型服务
-from src.services.multi_model_service import (
+from src.services.model.multi_model_service import (
     init_multi_model_service,
     process_with_multiple_models,
     add_model,
     remove_model,
     set_fusion_strategy,
-    get_model_configs,
-    get_fusion_strategy,
     get_multi_model_service,
 )
 
 # 导入识别记录服务
-from src.services.recognition_service import get_recognition_service
+from src.services.model.recognition_service import get_recognition_service
 from src.models.recognition_record import RecognitionRecordCreate
 
 # 导入特征处理器
@@ -576,7 +574,7 @@ async def detailed_health_check():
         overall_healthy = False
 
     try:
-        from src.services.monitoring_service import get_monitoring_service
+        from src.services.support.monitoring_service import get_monitoring_service
 
         monitoring_service = get_monitoring_service()
         health_status["services"]["monitoring"] = {"status": "up"}
@@ -599,7 +597,7 @@ async def detailed_health_check():
         health_status["services"]["redis"] = {"status": "down", "error": str(e)}
 
     try:
-        from src.services.recognition_service import get_recognition_service
+        from src.services.model.recognition_service import get_recognition_service
 
         recognition_service = get_recognition_service()
         record_count = len(recognition_service.records)
@@ -609,7 +607,7 @@ async def detailed_health_check():
         health_status["services"]["recognition"] = {"status": "down", "error": str(e)}
 
     try:
-        from src.services.message_queue_service import MessageQueueService
+        from src.services.messaging.message_queue_service import MessageQueueService
 
         mq_service = MessageQueueService()
         mq_status = "up" if mq_service.connection and mq_service.channel else "down"
@@ -1038,7 +1036,7 @@ async def refresh_token(refresh_token: str = Form(..., description="刷新令牌
         dict: 刷新结果，包含新的访问令牌
     """
     try:
-        from src.services.auth_service import get_auth_service
+        from src.services.support.auth_service import get_auth_service
 
         auth_service = get_auth_service()
 
@@ -1358,8 +1356,9 @@ async def get_multi_model_config():
         dict: 多模型配置
     """
     try:
-        configs = get_model_configs()
-        strategy = get_fusion_strategy()
+        service = get_multi_model_service()
+        configs = service.get_model_configs()
+        strategy = service.get_fusion_strategy()
         return {
             "success": True,
             "message": "获取多模型配置成功",

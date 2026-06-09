@@ -496,23 +496,3 @@ def set_fusion_strategy(strategy: str):
         strategy: 融合策略 (weighted_average, majority_vote, max_confidence)
     """
     get_multi_model_service().set_fusion_strategy(strategy)
-
-
-def get_model_configs() -> Dict[str, Dict[str, Any]]:
-    """
-    获取模型配置
-
-    Returns:
-        dict: 模型配置
-    """
-    return get_multi_model_service().get_model_configs()
-
-
-def get_fusion_strategy() -> str:
-    """
-    获取融合策略
-
-    Returns:
-        str: 融合策略
-    """
-    return get_multi_model_service().get_fusion_strategy()

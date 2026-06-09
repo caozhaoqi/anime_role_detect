@@ -33,7 +33,7 @@ def _import_classify():
     global classify_image
     if classify_image is None:
         logger.info("延迟导入分类服务...")
-        from src.services.classification_service import classify_image
+        from src.services.model.classification_service import classify_image
 
         logger.info("分类服务导入完成")
 
