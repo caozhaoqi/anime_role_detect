@@ -35,16 +35,24 @@ sys.path.insert(0, project_root)
 
 def get_optimal_device():
     """自动选择最佳计算设备"""
-    if IS_MACOS:
-        return "cpu"
     try:
         import torch
-        if torch.cuda.is_available():
-            return "cuda"
-        elif torch.backends.mps.is_available() and not IS_MACOS:
+        
+        # macOS优先尝试MPS加速
+        if IS_MACOS and torch.backends.mps.is_available():
+            print("✅ 检测到MPS可用，将使用Apple Silicon GPU加速")
             return "mps"
+        
+        # Linux/Windows检查CUDA
+        if torch.cuda.is_available():
+            print("✅ 检测到CUDA可用，将使用NVIDIA GPU加速")
+            return "cuda"
+        
+        # 回退到CPU
+        print("⚠️ 未检测到GPU，将使用CPU推理（速度较慢）")
         return "cpu"
     except ImportError:
+        print("⚠️ PyTorch未安装，将使用CPU")
         return "cpu"
 
 OPTIMAL_DEVICE = get_optimal_device()

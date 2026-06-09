@@ -43,7 +43,7 @@ class RecognitionService:
     def __init__(self):
         """初始化识别记录服务"""
         _init_db()
-        self.records_file = "recognition_records.json"
+        self.records_file = "data/recognition_records.json"
         self.records = self._load_records() if not _use_database else []
 
     def _load_records(self) -> List[RecognitionRecord]:

@@ -29,7 +29,7 @@ project_root = os.path.dirname(
 sys.path.insert(0, project_root)
 
 # 队列目录
-QUEUE_DIR = "search_queue"
+QUEUE_DIR = "data/search_queue"
 INPUT_DIR = os.path.join(QUEUE_DIR, "input")
 OUTPUT_DIR = os.path.join(QUEUE_DIR, "output")
 
