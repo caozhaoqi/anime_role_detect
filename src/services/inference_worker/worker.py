@@ -88,7 +88,7 @@ class InferenceWorker:
             from src.core.recognition.feature_store import FeatureStore
             
             logger.info("加载特征库...")
-            self.feature_store = FeatureStore(dim=self.embedder.embedding_dim)
+            self.feature_store = FeatureStore(dimension=self.embedder.embedding_dim)
             
             # 尝试加载已有的特征库
             feature_store_path = "data/feature_store"

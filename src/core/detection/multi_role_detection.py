@@ -486,7 +486,7 @@ class MultiRoleDetector:
 if __name__ == "__main__":
     # 测试多角色检测
     detector = MultiRoleDetector()
-    test_image = "test_image.jpg"
+    test_image = "/Users/caozhaoqi/PycharmProjects/anime_role_detect/data/final_dataset/aerial_(arknights)/37185069_p0_master1200.jpg"
     if os.path.exists(test_image):
         results = detector.detect_roles(test_image)
         print(f"检测到 {len(results)} 个角色")

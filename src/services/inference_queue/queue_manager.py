@@ -43,7 +43,7 @@ class InferenceQueueManager:
         redis_host: str = "localhost",
         redis_port: int = 6379,
         redis_db: int = 0,
-        task_timeout: int = 300,
+        task_timeout: int = 600,
         result_ttl: int = 3600,
     ):
         """
@@ -53,7 +53,7 @@ class InferenceQueueManager:
             redis_host: Redis主机
             redis_port: Redis端口
             redis_db: Redis数据库
-            task_timeout: 任务超时时间（秒）
+            task_timeout: 任务超时时间（秒），默认10分钟
             result_ttl: 结果保留时间（秒）
         """
         self.redis_client = redis.Redis(
