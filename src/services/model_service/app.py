@@ -24,6 +24,7 @@ if IS_MACOS:
 import time
 from datetime import datetime
 from typing import Dict, Any, Optional, List
+from concurrent.futures import ThreadPoolExecutor
 
 from fastapi import FastAPI, UploadFile, File, HTTPException, Form
 from fastapi.middleware.cors import CORSMiddleware
@@ -180,6 +181,22 @@ feature_extractor = None  # 特征提取器实例
 tagger = None  # 标签生成器实例
 
 
+async def _async_load_tagger_model(tagger_instance):
+    """异步后台加载标签生成模型，不阻塞事件循环"""
+    try:
+        loop = asyncio.get_running_loop()
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            model_loaded = await loop.run_in_executor(
+                executor, tagger_instance.load_model
+            )
+            if model_loaded:
+                logger.info("标签生成模型异步加载成功")
+            else:
+                logger.warning("标签生成模型异步加载失败，将继续使用默认标签")
+    except Exception as e:
+        logger.error(f"标签生成模型异步加载异常: {e}")
+
+
 # 初始化模型
 async def init_models():
     """初始化模型并预热"""
@@ -203,6 +220,7 @@ async def warmup_models():
     """
     模型预热 - 使用虚拟数据进行推理，加载模型到内存
     这样在用户请求时响应更快
+    所有阻塞操作在独立线程中执行，避免阻塞事件循环
     """
     global feature_extractor, tagger
     
@@ -210,39 +228,41 @@ async def warmup_models():
         logger.info("开始模型预热...")
         start_time = time.time()
         
-        # 确保torch已导入
-        if "torch" not in globals():
-            import_torch()
-        
-        import torch
-        from PIL import Image
-        import io
-        
         # 创建虚拟图像数据（224x224 RGB）
+        from PIL import Image
         dummy_image = Image.new('RGB', (224, 224), color=(128, 128, 128))
         
-        # 预热特征提取器
+        # 预热特征提取器（在独立线程中执行）
         logger.info("预热特征提取器...")
         if feature_extractor is None:
             async with model_init_lock:
                 if feature_extractor is None:
-                    feature_extractor = FeatureExtraction()
+                    loop = asyncio.get_running_loop()
+                    with ThreadPoolExecutor(max_workers=1) as executor:
+                        feature_extractor = await loop.run_in_executor(
+                            executor, FeatureExtraction
+                        )
+                        logger.info(f"特征提取器预热初始化完成，使用设备: {feature_extractor.device}")
         
-        # 执行一次虚拟推理
+        # 执行一次虚拟推理（在独立线程中执行）
         try:
             processed = preprocessor.preprocess(dummy_image)
             if processed is not None:
-                _ = feature_extractor.extract_features(processed)
+                loop = asyncio.get_running_loop()
+                with ThreadPoolExecutor(max_workers=1) as executor:
+                    await loop.run_in_executor(
+                        executor, feature_extractor.extract_features, processed
+                    )
                 logger.info("特征提取器预热完成")
         except Exception as e:
             logger.warning(f"特征提取器预热失败: {e}")
         
-        # 预热标签生成器
+        # 预热标签生成器（初始化快，直接执行即可）
         logger.info("预热标签生成器...")
         if tagger is None:
             try:
                 tagger = WDViTV3Tagger()
-                # 执行一次虚拟推理
+                # 执行一次虚拟推理（简单标签，很快）
                 _ = tagger.generate_tags(dummy_image)
                 logger.info("标签生成器预热完成")
             except Exception as e:
@@ -358,7 +378,11 @@ async def predict_image(
                 if feature_extractor is None:
                     logger.info("初始化特征提取器...")
                     try:
-                        feature_extractor = FeatureExtraction()
+                        loop = asyncio.get_running_loop()
+                        with ThreadPoolExecutor(max_workers=1) as executor:
+                            feature_extractor = await loop.run_in_executor(
+                                executor, FeatureExtraction
+                            )
                         logger.info(f"特征提取器初始化完成，使用设备: {feature_extractor.device}")
                     except Exception as e:
                         logger.error(f"特征提取器初始化失败: {e}")
@@ -378,13 +402,10 @@ async def predict_image(
                         try:
                             tagger = WDViTV3Tagger()
                             logger.info(f"标签生成器初始化完成，使用设备: {tagger.device}")
-                            # 加载标签生成模型
-                            logger.info("加载标签生成模型...")
-                            model_loaded = tagger.load_model()
-                            if model_loaded:
-                                logger.info("标签生成模型加载成功")
-                            else:
-                                logger.warning("标签生成模型加载失败，将使用默认标签")
+                            # 异步后台加载模型，避免阻塞事件循环
+                            # 当前请求先用默认标签，模型加载完成后后续请求自动使用
+                            logger.info("后台异步加载标签生成模型...")
+                            asyncio.create_task(_async_load_tagger_model(tagger))
                         except Exception as e:
                             logger.error(f"标签生成器初始化失败: {e}")
                             tagger = None

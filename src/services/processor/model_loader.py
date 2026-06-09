@@ -109,6 +109,15 @@ def get_model_class_to_idx_from_training_config(model_dir: str) -> Optional[Dict
                         f"从 training_results.json 加载类别映射：{len(class_to_idx)} 个类别"
                     )
                     return class_to_idx
+                # 兼容 class_names 列表格式
+                if not class_to_idx:
+                    class_names = training_results.get("class_names", [])
+                    if class_names:
+                        class_to_idx = {name: idx for idx, name in enumerate(class_names)}
+                        logger.info(
+                            f"从 training_results.json class_names 加载类别映射：{len(class_to_idx)} 个类别"
+                        )
+                        return class_to_idx
         except Exception as e:
             logger.warning(f"从 training_results.json 加载失败：{e}")
 

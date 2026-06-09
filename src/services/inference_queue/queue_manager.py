@@ -61,6 +61,8 @@ class InferenceQueueManager:
             port=redis_port,
             db=redis_db,
             decode_responses=True,
+            socket_connect_timeout=2,
+            socket_timeout=2
         )
         self.task_timeout = task_timeout
         self.result_ttl = result_ttl

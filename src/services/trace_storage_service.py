@@ -239,7 +239,14 @@ class TraceStorageService:
         # 优先使用Redis存储，支持跨进程共享追踪数据
         try:
             import redis
-            redis_client = redis.Redis(host='localhost', port=6379, db=0, decode_responses=True)
+            redis_client = redis.Redis(
+                host='localhost', 
+                port=6379, 
+                db=0, 
+                decode_responses=True,
+                socket_connect_timeout=2,
+                socket_timeout=2
+            )
             # 测试Redis连接
             redis_client.ping()
             self.storage: TraceStorage = RedisTraceStorage(redis_client)

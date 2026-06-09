@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
       fileSize: file.size
     });
 
-    const backendUrl = 'http://127.0.0.1:8001/api/classify';
+    const backendUrl = 'http://127.0.0.1:8080/api/classify';
     console.log('准备转发请求到后端API:', backendUrl);
 
     const backendFormData = new FormData();

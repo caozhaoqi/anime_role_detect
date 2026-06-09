@@ -166,7 +166,6 @@ async def classify_image(
     cache_bypass: bool = Form(False),
     multi_role: bool = Form(False),
     use_deepdanbooru: bool = Form(True),
-    current_user: dict = Depends(get_current_user),
 ):
     """
     分类图像中的角色
@@ -231,20 +230,23 @@ async def classify_image(
         result = convert_numpy_types(result)
 
         # 存储识别记录
-        recognition_service = get_recognition_service()
-        record = RecognitionRecordCreate(
-            user_id=current_user.get("sub"),
-            username=current_user.get("sub"),
-            image_filename=file.filename,
-            image_path="",  # 实际项目中应该存储文件路径
-            recognition_result=result,
-            model_used=model_name,
-            processing_time=processing_time,
-            is_multi_role=multi_role,
-            nsfw_status=result.get("nsfw", {}).get("is_nsfw", False),
-            detected_text=len(result.get("text_detections", [])) > 0,
-        )
-        recognition_service.create_record(record)
+        try:
+            recognition_service = get_recognition_service()
+            record = RecognitionRecordCreate(
+                user_id="anonymous",
+                username="anonymous",
+                image_filename=file.filename,
+                image_path="",  # 实际项目中应该存储文件路径
+                recognition_result=result,
+                model_used=model_name,
+                processing_time=processing_time,
+                is_multi_role=multi_role,
+                nsfw_status=result.get("nsfw", {}).get("is_nsfw", False),
+                detected_text=len(result.get("text_detections", [])) > 0,
+            )
+            recognition_service.create_record(record)
+        except Exception as e:
+            logger.warning(f"存储识别记录失败: {e}")
 
         # 构建响应
         response = {"success": True, "data": result, "message": "图像分类成功"}

@@ -51,6 +51,8 @@ class CacheManager:
                 password=self.REDIS_PASSWORD,
                 db=self.REDIS_DB,
                 decode_responses=True,
+                socket_connect_timeout=2,
+                socket_timeout=2
             )
             # 测试连接
             self.redis_client.ping()

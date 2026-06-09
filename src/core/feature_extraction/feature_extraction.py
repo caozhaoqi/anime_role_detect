@@ -183,12 +183,20 @@ class FeatureExtraction:
                 # 如果在GPU上，先移到CPU
                 if img.device.type != "cpu":
                     img = img.cpu()
+                # 分离计算图（避免 requires_grad=True 时 .numpy() 失败）
+                if img.requires_grad:
+                    img = img.detach()
                 # 转换为numpy数组
                 img_array = img.numpy()
                 # 如果形状是 (C, H, W)，转换为 (H, W, C)
                 if img_array.ndim == 3 and img_array.shape[0] in [1, 3]:
                     img_array = img_array.transpose(1, 2, 0)
-                # 转换为PIL Image
+                    # 反归一化（ImageNet 标准化），将值恢复到 [0,1] 范围
+                    std = [0.229, 0.224, 0.225]
+                    mean = [0.485, 0.456, 0.406]
+                    img_array = img_array * std + mean
+                # 裁剪到合法范围并转换为 PIL Image
+                img_array = np.clip(img_array, 0, 1)
                 img = Image.fromarray((img_array * 255).astype("uint8"))
 
             # 如果模型已加载，使用CLIP模型进行特征提取
