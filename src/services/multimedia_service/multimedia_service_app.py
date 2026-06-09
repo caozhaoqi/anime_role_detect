@@ -2,6 +2,9 @@
 # -*- coding: utf-8 -*-
 """
 多媒体服务 - 整合图像搜索和视频识别功能
+支持两种识别模式:
+1. 搜图模式 (search): 使用FAISS向量相似度搜索
+2. 模型推理模式 (inference): 使用训练好的分类模型直接预测
 """
 
 import os
@@ -9,12 +12,28 @@ import sys
 import io
 import cv2
 import time
+import threading
 from fastapi import FastAPI, UploadFile, File, HTTPException, Query
 from PIL import Image
 import uvicorn
 
-# 设置环境变量
+# ==================== macOS OpenMP 冲突修复 ====================
+# 在导入任何第三方库之前设置环境变量
+# 1. 允许重复加载 OpenMP 运行时（避免初始化报错）
+os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
+
+# 2. 限制 OpenMP/MKL 线程数，防止多运行时争抢 CPU
+os.environ["OMP_NUM_THREADS"] = "1"
+os.environ["MKL_NUM_THREADS"] = "1"
+os.environ["OPENBLAS_NUM_THREADS"] = "1"
+os.environ["NUMEXPR_NUM_THREADS"] = "1"
+
+# 3. macOS fork 安全
 os.environ["OBJC_DISABLE_INITIALIZE_FORK_SAFETY"] = "YES"
+
+# 4. PyTorch MPS fallback
+os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
+# ============================================================
 
 # 添加项目根目录到Python路径
 project_root = os.path.dirname(
@@ -24,18 +43,88 @@ sys.path.insert(0, project_root)
 
 # 延迟导入
 from src.services.search_service.simple_search_service import SimpleImageSearchService
-
+import requests
+from loguru import logger
 # 延迟初始化搜索服务
 search_service = None
+
+# Model Service URL (用于模型推理模式)
+MODEL_SERVICE_URL = "http://localhost:8001"
+
+# 线程锁 - 保护模型推理（双重保护：环境变量 + 锁）
+inference_lock = threading.Lock()
 
 
 def init_search_service():
     """延迟初始化搜索服务"""
     global search_service
     if search_service is None:
+        # 限制 PyTorch 线程数（防止 OpenMP 冲突）
+        try:
+            import torch
+            torch.set_num_threads(1)
+            torch.set_num_interop_threads(1)
+        except ImportError:
+            logger.warning("PyTorch is not installed, cannot limit torch threads.")
+            pass
+        
         search_service = SimpleImageSearchService()
-        search_service.load_index()
+        # SimpleImageSearchService 使用懒加载，首次调用 search() 时自动初始化
+        # 这里预初始化以加速首次请求
+        search_service._ensure_initialized()
+        logger.info("Search service initialized.")
     return search_service
+
+
+def classify_with_model(image: Image.Image, model_name: str = "efficientnet_b3_loli_optimized_v2_20260529_133654") -> list:
+    """
+    使用模型推理模式分类图像
+    
+    Args:
+        image: PIL Image对象
+        model_name: 模型名称
+        
+    Returns:
+        List of (role, similarity) tuples
+    """
+    try:
+        # 将PIL Image转换为bytes
+        img_byte_arr = io.BytesIO()
+        image.save(img_byte_arr, format='PNG')
+        img_byte_arr.seek(0)
+        
+        # 调用model-service的classify接口
+        files = {'file': ('image.png', img_byte_arr, 'image/png')}
+        data = {
+            'model_name': model_name,
+            'use_attributes': False,  # 视频识别不需要属性
+            'cache_bypass': False
+        }
+        
+        response = requests.post(
+            f"{MODEL_SERVICE_URL}/api/classify",
+            files=files,
+            data=data,
+            timeout=30
+        )
+        
+        if response.status_code == 200:
+            result = response.json()
+            if result.get('success'):
+                # 提取Top-1结果
+                role = result.get('role', 'unknown')
+                similarity = result.get('similarity', 0.0)
+                return [(role, similarity)]
+            else:
+                logger.warning(f"Model classification failed: {result.get('error', 'Unknown error')}")
+                return []
+        else:
+            logger.error(f"Model service request failed: {response.status_code}")
+            return []
+            
+    except Exception as e:
+        logger.error(f"Model classification error: {e}")
+        return []
 
 
 # 创建FastAPI应用
@@ -61,36 +150,49 @@ async def api_health_check():
 
 # ==================== 图像搜索接口 ====================
 @app.post("/search/image")
-async def search_image(file: UploadFile = File(...), top_k: int = Query(10, ge=1, le=50)):
+async def search_image(
+    file: UploadFile = File(...), 
+    top_k: int = Query(10, ge=1, le=50),
+    recognition_mode: str = Query("search", regex="^(search|inference)$"),
+    model_name: str = Query("efficientnet_b3_loli_optimized_v2_20260529_133654"),
+):
     """
     以图搜图 - 上传图像搜索相似角色
 
     Args:
         file: 图像文件
         top_k: 返回结果数量
+        recognition_mode: 识别模式 - 'search'(搜图) 或 'inference'(模型推理)
+        model_name: 模型名称（仅在inference模式下使用）
 
     Returns:
         相似角色列表
     """
     try:
-        service = init_search_service()
-
         # 读取图像
         contents = await file.read()
         image = Image.open(io.BytesIO(contents))
 
-        # 搜索相似图像
-        results = service.search(image, top_k=top_k)
+        # 根据识别模式选择不同的识别方式
+        with inference_lock:
+            if recognition_mode == "inference":
+                # 模型推理模式：调用model-service进行分类
+                results = classify_with_model(image, model_name=model_name)
+            else:
+                # 搜图模式：使用FAISS向量搜索
+                service = init_search_service()
+                results = service.search(image, top_k=top_k)
 
         # 处理结果
         response_results = []
-        for path, similarity in results:
-            role = os.path.basename(os.path.dirname(path))
-            response_results.append({"path": path, "similarity": float(similarity), "role": role})
+        for role, similarity in results:
+            response_results.append({"role": role, "similarity": float(similarity)})
 
         return {
             "success": True,
             "query": file.filename,
+            "recognition_mode": recognition_mode,
+            "model_name": model_name if recognition_mode == "inference" else None,
             "count": len(response_results),
             "results": response_results,
         }
@@ -204,6 +306,8 @@ async def recognize_video(
     frame_interval: float = Query(1.0, ge=0.1, le=10.0),
     confidence_threshold: float = Query(0.5, ge=0.0, le=1.0),
     top_k: int = Query(3, ge=1, le=10),
+    recognition_mode: str = Query("search", regex="^(search|inference)$"),
+    model_name: str = Query("efficientnet_b3_loli_optimized_v2_20260529_133654"),
 ):
     """
     视频实时抽帧识别
@@ -213,6 +317,8 @@ async def recognize_video(
         frame_interval: 抽帧间隔（秒）
         confidence_threshold: 置信度阈值
         top_k: 每个帧返回的匹配数量
+        recognition_mode: 识别模式 - 'search'(搜图) 或 'inference'(模型推理)
+        model_name: 模型名称（仅在inference模式下使用）
 
     Returns:
         识别结果列表，包含时间戳和识别出的角色
@@ -255,14 +361,20 @@ async def recognize_video(
                 frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                 image = Image.fromarray(frame_rgb)
 
-                # 搜索相似图像
-                results = service.search(image, top_k=top_k)
+                # 根据识别模式选择不同的识别方式
+                with inference_lock:
+                    if recognition_mode == "inference":
+                        # 模型推理模式：调用model-service进行分类
+                        results = classify_with_model(image, model_name=model_name)
+                    else:
+                        # 搜图模式：使用FAISS向量搜索
+                        service = init_search_service()
+                        results = service.search(image, top_k=top_k)
 
                 # 过滤置信度
                 matched_roles = []
-                for path, similarity in results:
+                for role, similarity in results:
                     if similarity >= confidence_threshold:
-                        role = os.path.basename(os.path.dirname(path))
                         matched_roles.append(
                             {"role": role, "similarity": round(float(similarity), 4)}
                         )
@@ -288,6 +400,8 @@ async def recognize_video(
             "fps": round(fps, 2),
             "total_frames": total_frames,
             "frame_interval": frame_interval,
+            "recognition_mode": recognition_mode,
+            "model_name": model_name if recognition_mode == "inference" else None,
             "recognized_timestamps": len(recognition_results),
             "results": recognition_results,
         }

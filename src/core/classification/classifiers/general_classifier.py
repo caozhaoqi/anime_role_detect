@@ -12,7 +12,7 @@ from PIL import Image
 import torch
 from transformers import CLIPProcessor, CLIPModel
 from src.core.logging.global_logger import get_logger
-from src.backend.services.cache_service import get_image_transform
+from src.services.cache_service.cache_service import get_image_transform
 
 logger = get_logger("general_classification")
 

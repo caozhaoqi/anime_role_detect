@@ -338,8 +338,6 @@ class FeatureExtraction:
         except Exception as e:
             logger.error(f"特征提取失败: {e}")
             # 返回随机特征向量作为降级方案
-            import numpy as np
-
             return np.random.rand(512).astype(np.float32)
 
     def _extract_features_efficientnet(self, img):
@@ -416,8 +414,6 @@ class FeatureExtraction:
         # 调整图像大小
         img = img.resize((224, 224))
         # 转换为numpy数组
-        import numpy as np
-
         img_array = np.array(img)
 
         # 提取更丰富的特征

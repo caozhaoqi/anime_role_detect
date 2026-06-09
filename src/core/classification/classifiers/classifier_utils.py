@@ -10,7 +10,7 @@ import os
 from PIL import Image
 from src.core.logging.global_logger import get_logger
 from src.core.classification.classifiers.general_classifier import GeneralClassification
-from src.backend.services.model_loader import get_role_predictor
+from src.services.processor.model_loader import get_role_predictor
 
 logger = get_logger("general_classification")
 
@@ -55,7 +55,7 @@ def classify_image(image_path, use_model=False):
             role_predictor = get_role_predictor()
             if role_predictor:
                 # 从图像中提取标签
-                from src.backend.services.processor.feature_processor import process_image_features
+                from src.services.processor.feature_processor import process_image_features
 
                 attributes = []
                 text_detections, keypoints, ai_predicted_role = process_image_features(
@@ -94,7 +94,7 @@ def classify_pil_image(pil_image, use_model=False):
                 pil_image.save(img_io, format="PNG")
                 img_io.seek(0)
 
-                from src.backend.services.processor.feature_processor import process_image_features
+                from src.services.processor.feature_processor import process_image_features
 
                 attributes = []
                 text_detections, keypoints, ai_predicted_role = process_image_features(

@@ -7,7 +7,7 @@ from typing import Optional, List, Dict, Any
 from datetime import datetime
 import time
 
-from src.services.trace_storage_service import get_trace_storage_service
+from src.services.support.trace_storage_service import get_trace_storage_service
 
 router = APIRouter(prefix="/api/tracing", tags=["tracing"])
 

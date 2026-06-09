@@ -216,7 +216,7 @@ def start_monitor():
     env["PYTHONPATH"] = project_root
 
     # 启动监控服务
-    cmd = [sys.executable, os.path.join(project_root, "src/run/monitor_dashboard.py")]
+    cmd = [sys.executable, os.path.join(project_root, "src/run/monitor/monitor_dashboard.py")]
     process = subprocess.Popen(cmd, cwd=project_root, env=env)
     processes["monitor"] = process
 

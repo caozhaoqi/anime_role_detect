@@ -6,7 +6,7 @@ import axios from "axios";
 
 interface VideoResult {
   timestamp: number;
-  frame_index: number;
+  frame_number: number;  // 后端返回的是 frame_number
   roles: {
     role: string;
     similarity: number;
@@ -26,6 +26,8 @@ export default function VideoPanel({ darkMode, accessToken }: VideoPanelProps) {
   const [results, setResults] = useState<VideoResult[]>([]);
   const [frameInterval, setFrameInterval] = useState(1.0);
   const [confidenceThreshold, setConfidenceThreshold] = useState(0.5);
+  const [recognitionMode, setRecognitionMode] = useState("search"); // 'search' or 'inference'
+  const [modelName, setModelName] = useState("efficientnet_b3_loli_optimized_v2_20260529_133654");
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -72,15 +74,21 @@ export default function VideoPanel({ darkMode, accessToken }: VideoPanelProps) {
     try {
       const formData = new FormData();
       formData.append("file", selectedVideo);
-      formData.append("frame_interval", frameInterval.toString());
-      formData.append("confidence_threshold", confidenceThreshold.toString());
+      
+      // 添加识别模式参数
+      const params = new URLSearchParams({
+        frame_interval: frameInterval.toString(),
+        confidence_threshold: confidenceThreshold.toString(),
+        recognition_mode: recognitionMode,
+        model_name: modelName,
+      });
 
       const headers: any = {};
       if (accessToken) {
         headers["Authorization"] = `Bearer ${accessToken}`;
       }
 
-      const response = await axios.post("/api/video/recognize", formData, { headers });
+      const response = await axios.post(`/api/video/recognize?${params}`, formData, { headers });
       
       if (response.data.success) {
         // 兼容两种返回格式
@@ -163,6 +171,39 @@ export default function VideoPanel({ darkMode, accessToken }: VideoPanelProps) {
               onChange={(e) => setConfidenceThreshold(Number(e.target.value))}
               className="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-lg appearance-none cursor-pointer accent-green-500"
             />
+          </div>
+        </div>
+
+        {/* 识别模式选择 */}
+        <div className="mb-4">
+          <label className="block text-sm font-medium mb-2">识别模式</label>
+          <div className="flex space-x-3">
+            <button
+              onClick={() => setRecognitionMode("search")}
+              className={`flex-1 px-4 py-2 rounded-lg border transition-all ${
+                recognitionMode === "search"
+                  ? "bg-green-500 text-white border-green-500"
+                  : darkMode
+                  ? "bg-gray-700 border-gray-600 text-gray-300 hover:border-green-500"
+                  : "bg-white border-gray-300 text-gray-700 hover:border-green-500"
+              }`}
+            >
+              <div className="font-medium">搜图模式</div>
+              <div className="text-xs mt-1 opacity-80">快速，适合实时处理</div>
+            </button>
+            <button
+              onClick={() => setRecognitionMode("inference")}
+              className={`flex-1 px-4 py-2 rounded-lg border transition-all ${
+                recognitionMode === "inference"
+                  ? "bg-blue-500 text-white border-blue-500"
+                  : darkMode
+                  ? "bg-gray-700 border-gray-600 text-gray-300 hover:border-blue-500"
+                  : "bg-white border-gray-300 text-gray-700 hover:border-blue-500"
+              }`}
+            >
+              <div className="font-medium">模型推理</div>
+              <div className="text-xs mt-1 opacity-80">更准确，速度较慢</div>
+            </button>
           </div>
         </div>
 
@@ -255,7 +296,7 @@ export default function VideoPanel({ darkMode, accessToken }: VideoPanelProps) {
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center space-x-2">
                       <Clock className="h-4 w-4 text-gray-500" />
-                      <span className="text-sm font-medium">第 {result.frame_index} 帧</span>
+                      <span className="text-sm font-medium">第 {result.frame_number} 帧</span>
                       <span className="text-xs text-gray-500">({result.timestamp.toFixed(2)}s)</span>
                     </div>
                     {result.roles.length > 0 ? (

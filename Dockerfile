@@ -40,16 +40,17 @@ COPY requirements.txt .
 # 安装依赖（使用--quiet减少输出）
 RUN pip install -r requirements.txt --quiet
 
-# 创建非root用户
-RUN useradd -m -u 1000 appuser
-USER appuser
-
 # 复制源代码
 COPY src/ ./src/
 COPY scripts/ ./scripts/
 
-# 创建必要目录
-RUN mkdir -p /app/cache/huggingface /app/logs /app/temp /app/data
+# 创建必要目录（在切换用户之前，以root身份创建）
+RUN mkdir -p /app/cache/huggingface /app/logs /app/temp /app/data \
+    && chown -R appuser:appuser /app/cache /app/logs /app/temp /app/data
+
+# 创建非root用户
+RUN useradd -m -u 1000 appuser
+USER appuser
 
 # 暴露端口
 EXPOSE 8000

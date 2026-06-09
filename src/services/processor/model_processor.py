@@ -18,8 +18,8 @@ from src.services.processor.model_loader import (
     get_tagger,
     get_role_predictor,
 )
-from src.services.nsfw_detector import detect_nsfw
-from src.services.circuit_breaker_service import execute_with_fallback_async
+from src.services.model.nsfw_detector import detect_nsfw
+from src.services.support.circuit_breaker_service import execute_with_fallback_async
 from .preprocessor import preprocess_image
 from .model_loader import load_trained_model
 from .feature_processor import process_image_features

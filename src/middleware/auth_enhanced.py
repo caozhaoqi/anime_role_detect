@@ -23,7 +23,7 @@ from typing import Optional, Dict, Any
 from collections import defaultdict
 
 from src.core.logging.global_logger import get_logger
-from src.services.auth_service import verify_token, get_user, get_auth_service, AuthService
+from src.services.support.auth_service import verify_token, get_user, get_auth_service, AuthService
 
 logger = get_logger("auth_middleware")
 

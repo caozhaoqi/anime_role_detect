@@ -185,7 +185,7 @@ class Tracer:
             
             # 将Trace存储到存储服务
             try:
-                from src.services.trace_storage_service import get_trace_storage_service
+                from src.services.support.trace_storage_service import get_trace_storage_service
                 storage = get_trace_storage_service()
                 storage.store_trace(trace)
             except Exception as e:

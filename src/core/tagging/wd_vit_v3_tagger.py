@@ -31,6 +31,12 @@ os.environ["OBJC_DISABLE_INITIALIZE_FORK_SAFETY"] = "YES"
 # 注意：由于 coremltools 和 scikit-learn 版本不兼容会导致锁阻塞，暂时禁用 CoreML
 USE_COREML = False  # platform.system() == "Darwin"
 
+# ==================== MPS加速开关 ====================
+# 设置为True以启用MPS加速（适用于单进程场景，如model-service）
+# 设置为False以禁用MPS（适用于多进程场景，避免锁竞争）
+ENABLE_MPS = True  # model-service单进程，可以启用MPS
+# ====================================================
+
 # 设置Hugging Face缓存目录为项目目录
 os.environ["HF_HOME"] = os.path.join(
     os.path.dirname(__file__), "..", "..", "..", "huggingface_cache"
@@ -44,13 +50,28 @@ if not USE_COREML:
     torch = None
     try:
         import torch
-        if hasattr(torch, "backends") and hasattr(torch.backends, "mps"):
-            torch.backends.mps.is_available = lambda: False
-            torch.backends.mps.is_built = lambda: False
-            torch.set_num_threads(1)
-            print("[SAFE_BOOT] 已成功在 Python 运行时对 PyTorch MPS 接口实施安全封锁（已 Mock）")
+        
+        # 根据ENABLE_MPS开关决定是否启用MPS
+        if ENABLE_MPS and platform.system() == "Darwin" and hasattr(torch, "backends") and hasattr(torch.backends, "mps"):
+            # 启用MPS加速
+            if torch.backends.mps.is_available():
+                print("✅ WDViTV3Tagger: MPS加速已启用")
+                # 不封锁MPS，允许使用
+            else:
+                print("⚠️ WDViTV3Tagger: MPS不可用，将使用CPU")
+                torch.backends.mps.is_available = lambda: False
+                torch.backends.mps.is_built = lambda: False
+        else:
+            # 禁用MPS（多进程场景）
+            if hasattr(torch, "backends") and hasattr(torch.backends, "mps"):
+                torch.backends.mps.is_available = lambda: False
+                torch.backends.mps.is_built = lambda: False
+                print("[SAFE_BOOT] MPS已禁用（多进程模式）")
+        
+        torch.set_num_threads(1)
+        
     except Exception as e:
-        print(f"[SAFE_BOOT] MPS 封锁注入失败(非致命): {e}")
+        print(f"[SAFE_BOOT] MPS 配置失败(非致命): {e}")
 
 # macOS 平台下导入 CoreML 相关模块
 if USE_COREML:
@@ -342,8 +363,20 @@ class WDViTV3Tagger:
         
         # 自动选择最佳设备
         if platform.system() == "Darwin":
+            # 根据ENABLE_MPS开关决定
+            if ENABLE_MPS:
+                try:
+                    import torch
+                    if torch.backends.mps.is_available():
+                        self.device = "mps"
+                        self.logger.info("✅ macOS环境下启用MPS加速（单进程模式）")
+                        return
+                except:
+                    pass
+            
+            # 回退到CPU
             self.device = "cpu"
-            self.logger.info("macOS环境下默认使用CPU（MPS存在锁竞争问题，可通过device='mps'手动启用）")
+            self.logger.info("⚠️ macOS环境下使用CPU（MPS未启用或不可用）")
             return
         
         # 非macOS平台自动选择最佳设备
