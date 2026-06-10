@@ -328,7 +328,7 @@ async def proxy_request(request: Request, path: str):
                 url = f"{config.MODEL_SERVICE_URL}/api/{classify_path}"
         else:
             model_path = path[6:]
-            url = f"{config.MODEL_SERVICE_URL}/api/{model_path}"
+            url = f"{config.MODEL_SERVICE_URL}/api/model/{model_path}"
     elif path == "model" or path == "model/health":
         service = "model"
         url = f"{config.MODEL_SERVICE_URL}/api/health"

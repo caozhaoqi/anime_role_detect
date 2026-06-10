@@ -156,8 +156,8 @@ def _update_session(token: str, user_info: dict):
             "created_at": _sessions.get(token, {}).get("created_at", current_time),
         }
 
-        # 清理过期会话
-        _cleanup_expired_sessions()
+    # 在锁外部清理过期会话，避免嵌套锁导致死锁
+    _cleanup_expired_sessions()
 
 
 def _get_session(token: str) -> Optional[Dict[str, Any]]:
@@ -264,6 +264,7 @@ async def auth_middleware(request: Request, call_next):
     
     # 排除不需要认证的路径（只保留文档和健康检查）
     exempt_paths = [
+        "/metrics",
         "/api/docs",
         "/api/redoc",
         "/api/openapi.json",
@@ -273,7 +274,6 @@ async def auth_middleware(request: Request, call_next):
         "/api/auth/refresh",
         "/api/feedback",
         "/api/config",
-        "/api/history",
         "/api/cleaning",
         # ONNX 推理 API（如果有独立的认证）
         "/api/v1/onnx",

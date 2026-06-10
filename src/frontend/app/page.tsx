@@ -316,6 +316,22 @@ export default function AnimeRoleDetect() {
     }
   }, [authState.isAuthenticated, authState.accessToken]);
 
+  // 监听 HistoryPanel 触发的登录请求事件
+  useEffect(() => {
+    const handler = () => {
+      setShowSessionExpired(true);
+      setTimeout(() => setShowSessionExpired(false), 10000);
+    };
+    window.addEventListener('open-login', handler);
+    return () => window.removeEventListener('open-login', handler);
+  }, []);
+
+  const handleAuthError = useCallback(() => {
+    setShowSessionExpired(true);
+    // 10秒后自动隐藏
+    setTimeout(() => setShowSessionExpired(false), 10000);
+  }, []);
+
   const handleLogin = async (username: string, password: string) => {
     setIsLoginLoading(true);
     setLoginError(null);
@@ -1083,7 +1099,7 @@ export default function AnimeRoleDetect() {
           />
       
           <div className="flex-1 flex overflow-hidden">
-            <main className={`flex-1 overflow-y-auto transition-all duration-300 ${showHistory ? 'md:ml-96' : ''}`}>
+            <main className={`flex-1 overflow-y-auto transition-all duration-300 ${showHistory ? 'md:mr-96' : ''}`}>
               <div className="flex-1 overflow-y-auto">
                 <div className="container mx-auto px-4 md:px-6 py-6 md:py-8">
                   {activePanel === 'classify' ? (
@@ -1126,6 +1142,7 @@ export default function AnimeRoleDetect() {
                     onViewRecord={handleViewRecord}
                     onDeleteRecord={() => {}}
                     onClose={() => setShowHistory(false)}
+                    onAuthError={handleAuthError}
                   />
                 </div>
               </div>

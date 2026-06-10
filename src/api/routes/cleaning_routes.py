@@ -13,7 +13,7 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
-from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Depends, BackgroundTasks
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Depends, BackgroundTasks, Query
 from typing import Optional, List, Dict
 from pydantic import BaseModel
 import time
@@ -459,7 +459,7 @@ async def get_cleaning_report(task_id: str, current_admin: dict = Depends(get_cu
 
 
 @router.get("/tasks", response_model=CleaningResponse)
-async def list_cleaning_tasks(current_admin: dict = Depends(get_current_admin)):
+async def list_cleaning_tasks():
     """
     获取任务列表
     
@@ -536,6 +536,57 @@ async def delete_cleaning_task(task_id: str, current_admin: dict = Depends(get_c
         return {
             "success": False,
             "message": f"删除任务失败: {str(e)}",
+            "data": None
+        }
+
+
+@router.get("/browse", response_model=CleaningResponse)
+async def browse_directory(path: str = Query("/", description="要浏览的目录路径")):
+    """
+    浏览服务器上的目录结构 - 用于选择输入/输出目录
+
+    Args:
+        path: 要浏览的目录路径
+
+    Returns:
+        目录下的子目录列表
+    """
+    try:
+        dir_path = Path(path)
+        if not dir_path.exists():
+            return {
+                "success": False,
+                "message": f"目录不存在: {path}",
+                "data": {"entries": [], "current_path": path, "parent_path": str(dir_path.parent)}
+            }
+        if not dir_path.is_dir():
+            return {
+                "success": False,
+                "message": f"路径不是目录: {path}",
+                "data": {"entries": [], "current_path": path, "parent_path": str(dir_path.parent)}
+            }
+
+        entries = []
+        for entry in sorted(dir_path.iterdir()):
+            if entry.is_dir() and not entry.name.startswith("."):
+                entries.append({
+                    "name": entry.name,
+                    "path": str(entry.absolute()),
+                })
+
+        return {
+            "success": True,
+            "message": "浏览成功",
+            "data": {
+                "entries": entries,
+                "current_path": str(dir_path.absolute()),
+                "parent_path": str(dir_path.parent),
+            }
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "message": f"浏览目录失败: {str(e)}",
             "data": None
         }
 
