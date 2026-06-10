@@ -44,6 +44,8 @@ class RecognitionService:
         """初始化识别记录服务"""
         _init_db()
         self.records_file = "data/recognition_records.json"
+        # 确保数据目录存在
+        os.makedirs(os.path.dirname(self.records_file), exist_ok=True)
         self.records = self._load_records() if not _use_database else []
 
     def _load_records(self) -> List[RecognitionRecord]:
@@ -148,7 +150,11 @@ class RecognitionService:
                 from src.services.support.database_service import RecognitionRecordDB, get_db_service
 
                 db = get_db_service()
+                # 先查用户自己的记录
                 db_records = RecognitionRecordDB.get_by_user(db, user_id)
+                # 如果为空，再查匿名记录
+                if not db_records and user_id != "anonymous":
+                    db_records = RecognitionRecordDB.get_by_user(db, "anonymous")
                 return [
                     RecognitionRecord(
                         id=r.id,
@@ -170,6 +176,9 @@ class RecognitionService:
                 logger.error(f"数据库获取用户记录失败: {e}")
 
         user_records = [r for r in self.records if r.user_id == user_id]
+        # 如果为空，再查匿名记录
+        if not user_records and user_id != "anonymous":
+            user_records = [r for r in self.records if r.user_id == "anonymous"]
         user_records.sort(key=lambda x: x.timestamp, reverse=True)
         return user_records
 

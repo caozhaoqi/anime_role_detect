@@ -345,7 +345,7 @@ def generate_html_dashboard() -> str:
         .topology-canvas {{
             position: relative;
             width: 100%;
-            min-height: 450px;
+            min-height: 560px;
             background: rgba(0, 0, 0, 0.2);
             border-radius: 8px;
             overflow: hidden;
@@ -364,7 +364,7 @@ def generate_html_dashboard() -> str:
         .topology-nodes {{
             position: relative;
             width: 100%;
-            min-height: 450px;
+            min-height: 560px;
             z-index: 2;
         }}
         

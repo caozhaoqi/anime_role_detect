@@ -40,6 +40,8 @@ def check_service_health(service_config: dict) -> dict:
     result = {
         "name": service_config["name"],
         "port": service_config["port"],
+        "api_base": service_config.get("api_base", "/"),
+        "has_swagger": service_config.get("has_swagger", False),
         "status": "unknown",
         "response_time": 0,
         "last_check": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),

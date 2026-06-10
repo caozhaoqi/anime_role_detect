@@ -6,9 +6,10 @@ interface HistoryPanelProps {
   darkMode: boolean;
   onViewRecord: (record: any) => void;
   onDeleteRecord: (recordId: string) => void;
+  onClose: () => void;
 }
 
-const HistoryPanel: React.FC<HistoryPanelProps> = ({ darkMode, onViewRecord, onDeleteRecord }) => {
+const HistoryPanel: React.FC<HistoryPanelProps> = ({ darkMode, onViewRecord, onDeleteRecord, onClose }) => {
   const [history, setHistory] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -79,12 +80,21 @@ const HistoryPanel: React.FC<HistoryPanelProps> = ({ darkMode, onViewRecord, onD
           <Clock className="h-5 w-5" />
           识别历史
         </h3>
-        <button
-          onClick={fetchHistory}
-          className={`px-3 py-1 rounded-md text-sm ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'} transition-colors`}
-        >
-          刷新
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={fetchHistory}
+            className={`px-3 py-1 rounded-md text-sm ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'} transition-colors`}
+          >
+            刷新
+          </button>
+          <button
+            onClick={onClose}
+            className={`p-1 rounded-md transition-colors ${darkMode ? 'hover:bg-gray-700 text-gray-400 hover:text-white' : 'hover:bg-gray-200 text-gray-500 hover:text-gray-700'}`}
+            title="关闭"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
       </div>
 
       {loading ? (

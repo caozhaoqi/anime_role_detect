@@ -5,9 +5,10 @@ interface ConfigPanelProps {
   darkMode: boolean;
   config: any;
   onConfigUpdate: (config: any) => void;
+  onClose: () => void;
 }
 
-const ConfigPanel: React.FC<ConfigPanelProps> = ({ darkMode, config, onConfigUpdate }) => {
+const ConfigPanel: React.FC<ConfigPanelProps> = ({ darkMode, config, onConfigUpdate, onClose }) => {
   const [localConfig, setLocalConfig] = useState({ ...config });
   const [activeTab, setActiveTab] = useState('ui');
   const [isSaving, setIsSaving] = useState(false);
@@ -55,18 +56,27 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ darkMode, config, onConfigUpd
           <Settings className="h-5 w-5 text-blue-500" />
           <span>配置</span>
         </h3>
-        <button
-          onClick={handleSave}
-          disabled={isSaving}
-          className={`flex items-center space-x-1 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${isSaving ? 'opacity-50 cursor-not-allowed' : darkMode ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-blue-500 hover:bg-blue-600 text-white'}`}
-        >
-          {isSaving ? (
-            <RefreshCw className="h-4 w-4 animate-spin" />
-          ) : (
-            <Save className="h-4 w-4" />
-          )}
-          <span>{isSaving ? '保存中...' : '保存'}</span>
-        </button>
+        <div className="flex items-center space-x-2">
+          <button
+            onClick={handleSave}
+            disabled={isSaving}
+            className={`flex items-center space-x-1 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${isSaving ? 'opacity-50 cursor-not-allowed' : darkMode ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-blue-500 hover:bg-blue-600 text-white'}`}
+          >
+            {isSaving ? (
+              <RefreshCw className="h-4 w-4 animate-spin" />
+            ) : (
+              <Save className="h-4 w-4" />
+            )}
+            <span>{isSaving ? '保存中...' : '保存'}</span>
+          </button>
+          <button
+            onClick={onClose}
+            className={`p-1.5 rounded-lg transition-colors ${darkMode ? 'hover:bg-gray-700 text-gray-400 hover:text-white' : 'hover:bg-gray-200 text-gray-500 hover:text-gray-700'}`}
+            title="关闭"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
       </div>
 
       {/* 标签页 */}

@@ -1125,6 +1125,7 @@ export default function AnimeRoleDetect() {
                     darkMode={darkMode}
                     onViewRecord={handleViewRecord}
                     onDeleteRecord={() => {}}
+                    onClose={() => setShowHistory(false)}
                   />
                 </div>
               </div>
@@ -1137,6 +1138,7 @@ export default function AnimeRoleDetect() {
                     darkMode={darkMode}
                     config={config}
                     onConfigUpdate={handleConfigUpdate}
+                    onClose={() => setShowConfig(false)}
                   />
                 </div>
               </div>
