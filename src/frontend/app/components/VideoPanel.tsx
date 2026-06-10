@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect, useRef } from "react";
-import { Video, Play, Pause, X, Clock, AlertTriangle, CheckCircle } from "lucide-react";
+import { Video, Play, Pause, X, Clock, AlertTriangle, CheckCircle, Download } from "lucide-react";
 import axios from "axios";
 
 interface VideoResult {
@@ -31,6 +31,8 @@ export default function VideoPanel({ darkMode, accessToken }: VideoPanelProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
+  const [outputVideo, setOutputVideo] = useState(false); // 是否生成标注结果视频
+  const [resultVideoUrl, setResultVideoUrl] = useState<string | null>(null);
 
   const videoRef = useRef<HTMLVideoElement>(null);
 
@@ -70,6 +72,7 @@ export default function VideoPanel({ darkMode, accessToken }: VideoPanelProps) {
 
     setIsProcessing(true);
     setResults([]);
+    setResultVideoUrl(null);
 
     try {
       const formData = new FormData();
@@ -88,19 +91,25 @@ export default function VideoPanel({ darkMode, accessToken }: VideoPanelProps) {
         headers["Authorization"] = `Bearer ${accessToken}`;
       }
 
-      const response = await axios.post(`/api/video/recognize?${params}`, formData, { headers });
+      // 根据是否勾选"生成标注视频"选择不同的API端点
+      const endpoint = outputVideo ? `/api/video/recognize-with-overlay?${params}` : `/api/video/recognize?${params}`;
+      const response = await axios.post(endpoint, formData, { headers });
       
       if (response.data.success) {
         // 兼容两种返回格式
         const results = response.data.data?.results || response.data.results || [];
         setResults(results);
+        // 如果返回了结果视频URL，保存
+        if (response.data.result_video_url) {
+          setResultVideoUrl(response.data.result_video_url);
+        }
       }
     } catch (error) {
       console.error("视频识别失败:", error);
     } finally {
       setIsProcessing(false);
     }
-  }, [selectedVideo, frameInterval, confidenceThreshold, isProcessing, accessToken]);
+  }, [selectedVideo, frameInterval, confidenceThreshold, recognitionMode, modelName, isProcessing, accessToken, outputVideo]);
 
   const handleTimeUpdate = (e: React.ChangeEvent<HTMLVideoElement>) => {
     setCurrentTime(e.target.currentTime);
@@ -205,6 +214,24 @@ export default function VideoPanel({ darkMode, accessToken }: VideoPanelProps) {
               <div className="text-xs mt-1 opacity-80">更准确，速度较慢</div>
             </button>
           </div>
+        </div>
+
+        {/* 生成标注视频选项 */}
+        <div className="mb-4">
+          <label className="flex items-center space-x-3 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={outputVideo}
+              onChange={(e) => setOutputVideo(e.target.checked)}
+              className="w-4 h-4 text-green-500 border-gray-300 rounded focus:ring-green-500"
+            />
+            <div>
+              <span className="text-sm font-medium">生成标注结果视频</span>
+              <p className={`text-xs mt-0.5 ${darkMode ? "text-gray-400" : "text-gray-500"}`}>
+                在视频帧上绘制识别的角色名和置信度，可下载对比识别效果
+              </p>
+            </div>
+          </label>
         </div>
 
         {/* 视频预览 */}
@@ -328,6 +355,27 @@ export default function VideoPanel({ darkMode, accessToken }: VideoPanelProps) {
                 </div>
               ))}
             </div>
+
+            {/* 下载结果视频按钮 */}
+            {resultVideoUrl && (
+              <div className="mt-4">
+                <a
+                  href={resultVideoUrl}
+                  download
+                  className={`w-full flex items-center justify-center space-x-2 px-4 py-3 rounded-lg font-medium transition-all ${
+                    darkMode
+                      ? "bg-purple-600 hover:bg-purple-700 text-white"
+                      : "bg-purple-500 hover:bg-purple-600 text-white"
+                  }`}
+                >
+                  <Download className="h-5 w-5" />
+                  <span>下载标注结果视频</span>
+                </a>
+                <p className={`text-xs mt-1 text-center ${darkMode ? "text-gray-400" : "text-gray-500"}`}>
+                  视频帧上已绘制角色名和置信度，可对比识别效果
+                </p>
+              </div>
+            )}
           </div>
         )}
       </div>

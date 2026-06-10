@@ -11,7 +11,7 @@ import sys
 import time
 import requests
 from datetime import datetime
-from typing import Dict, List
+from typing import List
 
 # 添加 src/ 和 src/run/ 到Python路径
 _current_dir = os.path.dirname(os.path.abspath(__file__))         # .../src/run/monitor/
@@ -108,10 +108,20 @@ def get_trace_details(trace_id: str):
 def get_service_relations():
     """获取服务调用关系数据"""
     # 定义服务之间的调用关系
+    # 实际架构:
+    #   frontend → api_gateway → api_service → model_service
+    #                            → multimedia_service → model_service
+    #                            → search_service → model_service
+    #   model_service + inference_worker (model_service的子进程)
+    #   search_service + search_worker (search_service的子进程)
+    #   monitor_dashboard 观测所有服务（虚线关系，不纳入有向边）
     service_relations = {
-        "api_gateway": ["api_service", "model_service", "multimedia_service"],
+        "frontend": ["api_gateway"],
+        "api_gateway": ["api_service", "multimedia_service", "search_service"],
         "api_service": ["model_service"],
         "multimedia_service": ["model_service"],
+        "search_service": ["model_service", "search_worker"],
+        "model_service": ["inference_worker"],
     }
     
     return service_relations
@@ -121,11 +131,17 @@ def get_topology_data():
     """获取拓扑图数据，包含服务状态和调用关系"""
     services_status = get_all_services_status()
     service_relations = get_service_relations()
-    
+
+    # 工作进程（后台消费者，无HTTP端口，不参与健康检查）
+    WORKER_NODES = [
+        {"id": "inference_worker", "name": "推理工作进程", "port": "-", "status": "healthy", "is_core": False, "response_time": 0},
+        {"id": "search_worker",    "name": "搜索工作进程", "port": "-", "status": "healthy", "is_core": False, "response_time": 0},
+    ]
+
     nodes = []
     edges = []
-    
-    # 创建节点
+
+    # 根据services_config创建节点
     for service in services_status:
         nodes.append({
             "id": service["key"],
@@ -135,7 +151,13 @@ def get_topology_data():
             "is_core": service["is_core"],
             "response_time": service["response_time"],
         })
-    
+
+    # 补充工作进程节点（不在SERVICES中，硬编码加入拓扑）
+    existing_ids = {n["id"] for n in nodes}
+    for w in WORKER_NODES:
+        if w["id"] not in existing_ids:
+            nodes.append(w)
+
     # 创建边（调用关系）
     for source, targets in service_relations.items():
         for target in targets:
@@ -143,7 +165,7 @@ def get_topology_data():
                 "source": source,
                 "target": target,
             })
-    
+
     return {
         "nodes": nodes,
         "edges": edges,
