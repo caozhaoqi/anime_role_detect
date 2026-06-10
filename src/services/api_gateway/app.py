@@ -10,7 +10,7 @@ import traceback
 import asyncio
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, RedirectResponse, HTMLResponse
+from fastapi.responses import JSONResponse, RedirectResponse, HTMLResponse, StreamingResponse
 from fastapi.openapi.docs import get_swagger_ui_html
 import uvicorn
 import httpx
@@ -272,6 +272,30 @@ async def check_services():
                 "error": str(e),
             }
     return {"services": status, "gateway_status": "running"}
+
+
+@app.api_route("/api/video/result/{filename}", methods=["GET"])
+async def proxy_video_download(request: Request, filename: str):
+    """
+    视频下载代理 — 使用流式响应传输二进制视频文件
+    """
+    url = f"{config.MULTIMEDIA_SERVICE_URL}/video/result/{filename}"
+    logger.info(f"代理视频下载: {url}")
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        try:
+            response = await client.get(url)
+            content = response.content
+            return StreamingResponse(
+                iter([content]),
+                media_type=response.headers.get("content-type", "video/mp4"),
+                headers={
+                    "Content-Disposition": f'attachment; filename="{filename}"',
+                    "Content-Length": str(len(content)),
+                },
+                status_code=response.status_code,
+            )
+        except httpx.ConnectError as e:
+            raise HTTPException(status_code=503, detail=f"多媒体服务连接失败: {e}")
 
 
 @app.api_route("/api/{path:path}", methods=["GET", "POST", "PUT", "DELETE"])

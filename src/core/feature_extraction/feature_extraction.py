@@ -297,6 +297,8 @@ class FeatureExtraction:
 
     def extract_features(self, img):
         """提取图像特征"""
+        import numpy as np  # 确保在线程池执行时有本地引用
+        
         try:
             # 检查输入图像
             if img is None:

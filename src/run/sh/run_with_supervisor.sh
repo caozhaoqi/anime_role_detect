@@ -2,7 +2,7 @@
 set -e
 
 # 定义路径
-PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 SUPERVISOR_CONF="$PROJECT_DIR/supervisord.conf"
 LOG_DIR="$PROJECT_DIR/logs"
 RUN_DIR="$PROJECT_DIR/run"
@@ -42,6 +42,31 @@ create_run_dir() {
     fi
 }
 
+# 释放占用端口（避免由于 set -e 导致无进程时脚本崩溃，加了 || true 保护）
+release_ports() {
+    # 9001: Supervisor控制台, 8000: 后端服务, 3000: 前端服务
+    local ports=(9001 8000 3000)
+    info "检查并释放占用端口 [${ports[*]}]..."
+    
+    for port in "${ports[@]}"; do
+        local pids=""
+        # 兼容 macOS 和 Linux 的端口检测，并采用 || true 保护防断
+        if command -v lsof &> /dev/null; then
+            pids=$(lsof -t -i :"$port" 2>/dev/null || true)
+        elif command -v fuser &> /dev/null; then
+            pids=$(fuser "$port"/tcp 2>/dev/null | awk '{print $NF}' || true)
+        fi
+        
+        if [ -n "$pids" ]; then
+            warn "端口 $port 被残留进程 (PIDs: $pids) 占用，正在强制终止释放..."
+            for pid in $pids; do
+                kill -9 "$pid" 2>/dev/null || true
+            done
+            sleep 0.5
+        fi
+    done
+}
+
 # 启动服务
 start_services() {
     info "启动所有服务..."
@@ -73,6 +98,9 @@ start_services() {
         fi
     fi
     
+    # 在全新拉起 supervisord 实例前，强制清空可能残留占用端口的残留进程
+    release_ports
+    
     # 启动 supervisord
     info "启动 supervisord..."
     cd "$PROJECT_DIR"
@@ -93,19 +121,26 @@ start_services() {
 stop_services() {
     info "停止所有服务..."
     
-    if [ ! -f "$PID_FILE" ]; then
+    if [ -f "$PID_FILE" ]; then
+        pid=$(cat "$PID_FILE")
+        if kill -0 "$pid" 2>/dev/null; then
+            supervisorctl -c "$SUPERVISOR_CONF" stop all
+            supervisorctl -c "$SUPERVISOR_CONF" shutdown
+            sleep 2
+        else
+            warn "supervisord 进程不存在，进行孤儿进程清理..."
+        fi
+    else
         warn "PID 文件不存在，可能服务未运行"
-        return
     fi
     
-    pid=$(cat "$PID_FILE")
-    if ! kill -0 "$pid" 2>/dev/null; then
-        warn "supervisord 进程不存在"
-        return
-    fi
+    # 强力清理阶段：在停止后再次扫描并关闭依然存活的后台孤儿服务
+    release_ports
     
-    supervisorctl -c "$SUPERVISOR_CONF" stop all
-    supervisorctl -c "$SUPERVISOR_CONF" shutdown
+    # 清理残留的 PID 缓存文件
+    if [ -f "$PID_FILE" ]; then
+        rm -f "$PID_FILE"
+    fi
     
     info "服务已停止"
 }
@@ -146,8 +181,8 @@ show_help() {
     echo "使用方法: $0 <command>"
     echo ""
     echo "命令列表:"
-    echo "  start     - 启动所有服务"
-    echo "  stop      - 停止所有服务"
+    echo "  start     - 启动所有服务（启动前自动清理残留端口）"
+    echo "  stop      - 停止所有服务（停止后强制释放端口占用）"
     echo "  restart   - 重启所有服务"
     echo "  status    - 查看服务状态"
     echo "  logs [服务名] - 查看日志（可选服务名: model-service, api-service, frontend 等）"

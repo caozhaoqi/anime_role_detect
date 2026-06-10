@@ -145,3 +145,5 @@ clip_cache/
 docs/todo.md
 
 tests/
+
+run/supervisord.pid

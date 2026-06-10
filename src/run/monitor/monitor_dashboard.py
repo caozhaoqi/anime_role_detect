@@ -7,8 +7,6 @@
 
 import os
 import sys
-import json
-from datetime import datetime
 
 # 添加 src/ 到Python路径
 _current_dir = os.path.dirname(os.path.abspath(__file__))            # .../src/run/monitor/
@@ -26,8 +24,6 @@ from dashboard_backend import (
 from dashboard_templates import (
     generate_service_monitor_html,
     generate_tracing_html,
-    generate_trace_items_html,
-    generate_tracing_stats_html,
     generate_topology_html,
 )
 
@@ -116,11 +112,7 @@ def generate_html_dashboard() -> str:
         }}
         
         .tab-content {{
-            display: none;
-        }}
-        
-        .tab-content.active {{
-            display: block;
+            /* display controlled by JS on parent */-tab-content divs */
         }}
         
         .stats-grid {{
@@ -336,6 +328,83 @@ def generate_html_dashboard() -> str:
             font-size: 0.85em;
         }}
         
+        /* ========= 拓扑图样式 ========= */
+        .topology-container {{
+            background: #16213e;
+            border-radius: 10px;
+            border: 1px solid #333;
+            padding: 20px;
+            min-height: 500px;
+        }}
+        
+        .topology-header h2 {{
+            color: #667eea;
+            margin-bottom: 15px;
+        }}
+        
+        .topology-canvas {{
+            position: relative;
+            width: 100%;
+            min-height: 450px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 8px;
+            overflow: hidden;
+        }}
+        
+        .topology-svg {{
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 1;
+        }}
+        
+        .topology-nodes {{
+            position: relative;
+            width: 100%;
+            min-height: 450px;
+            z-index: 2;
+        }}
+        
+        .topo-node {{
+            position: absolute;
+            background: #1a1a2e;
+            border: 2px solid #4CAF50;
+            border-radius: 10px;
+            padding: 10px 16px;
+            min-width: 120px;
+            text-align: center;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+        }}
+        
+        .topo-node:hover {{
+            transform: scale(1.08);
+            box-shadow: 0 4px 20px rgba(102, 126, 234, 0.4);
+        }}
+        
+        .topo-node-name {{
+            font-size: 1em;
+            font-weight: bold;
+            color: #fff;
+            margin-bottom: 2px;
+        }}
+        
+        .topo-node-port {{
+            font-size: 0.8em;
+            color: #888;
+            margin-bottom: 2px;
+        }}
+        
+        .topo-node-status {{
+            font-size: 0.75em;
+            font-weight: bold;
+        }}
+        /* ========= 拓扑图样式结束 ========= */
+        
         .refresh-btn {{
             padding: 8px 20px;
             background: #667eea;
@@ -467,12 +536,23 @@ def generate_html_dashboard() -> str:
             svg.setAttribute('width', svgWidth);
             svg.setAttribute('height', svgHeight);
             
-            // 定位节点
+            // 定位节点 — 7层架构布局
+            // Layer 1: 前端层
+            // Layer 2: 网关层
+            // Layer 3: 核心业务层
+            // Layer 4: 模型服务层 + 搜索工作进程
+            // Layer 5: 推理工作进程
+            // Layer 6: 监控观测层（右侧独立）
             const positions = {{
-                'api_gateway': {{ x: svgWidth/2, y: 60 }},
-                'api_service': {{ x: svgWidth/3, y: 200 }},
+                'frontend': {{ x: svgWidth/2, y: 40 }},
+                'api_gateway': {{ x: svgWidth/2, y: 120 }},
+                'api_service': {{ x: svgWidth/3 - 30, y: 220 }},
+                'multimedia_service': {{ x: svgWidth/2, y: 220 }},
+                'search_service': {{ x: svgWidth*2/3 + 30, y: 220 }},
                 'model_service': {{ x: svgWidth/2, y: 340 }},
-                'multimedia_service': {{ x: svgWidth*2/3, y: 200 }},
+                'search_worker': {{ x: svgWidth*2/3 + 30, y: 340 }},
+                'inference_worker': {{ x: svgWidth/2, y: 440 }},
+                'monitor_dashboard': {{ x: svgWidth - 100, y: svgHeight/2 }},
             }};
             
             nodes.forEach(node => {{
@@ -557,8 +637,9 @@ def trace_detail(trace_id):
     trace = get_trace_details(trace_id)
     if trace:
         # 生成HTML
-        from dashboard_templates import generate_trace_tree_html
+        from dashboard_templates import generate_trace_tree_html, generate_gantt_html
         trace["tree_html"] = generate_trace_tree_html(trace)
+        trace["gantt_html"] = generate_gantt_html(trace)
         return jsonify(trace)
     return jsonify({"error": "Trace not found"})
 

@@ -43,10 +43,16 @@ sys.path.insert(0, project_root)
 
 # 延迟导入
 from src.services.search_service.simple_search_service import SimpleImageSearchService
+from src.services.multimedia_service.video_renderer import render_result_video
 import requests
 from loguru import logger
+from fastapi.responses import FileResponse
 # 延迟初始化搜索服务
 search_service = None
+
+# 结果视频保存目录
+RESULT_VIDEO_DIR = os.path.join(project_root, "data", "video_results")
+os.makedirs(RESULT_VIDEO_DIR, exist_ok=True)
 
 # Model Service URL (用于模型推理模式)
 MODEL_SERVICE_URL = "http://localhost:8001"
@@ -412,6 +418,183 @@ async def recognize_video(
         return {"success": False, "error": str(e), "traceback": traceback.format_exc()}
 
 
+@app.post("/video/recognize-with-overlay")
+async def recognize_video_with_overlay(
+    file: UploadFile = File(...),
+    frame_interval: float = Query(1.0, ge=0.1, le=10.0),
+    confidence_threshold: float = Query(0.5, ge=0.0, le=1.0),
+    top_k: int = Query(3, ge=1, le=10),
+    recognition_mode: str = Query("search", regex="^(search|inference)$"),
+    model_name: str = Query("efficientnet_b3_loli_optimized_v2_20260529_133654"),
+):
+    """
+    视频识别并生成带标注的结果视频
+
+    与 /video/recognize 功能相同，额外生成带识别框和角色名的结果视频。
+
+    Args:
+        同 /video/recognize
+
+    Returns:
+        success + results + 结果视频下载URL
+    """
+    try:
+        service = init_search_service()
+        content = await file.read()
+
+        # 保存临时输入文件
+        timestamp = int(time.time())
+        temp_path = f"/tmp/video_{timestamp}.mp4"
+        with open(temp_path, "wb") as f:
+            f.write(content)
+
+        cap = cv2.VideoCapture(temp_path)
+        if not cap.isOpened():
+            os.remove(temp_path)
+            return {"success": False, "error": "无法打开视频文件"}
+
+        fps = cap.get(cv2.CAP_PROP_FPS)
+        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        frame_interval_frames = int(fps * frame_interval)
+
+        recognition_results = []
+        frame_count = 0
+        success, frame = cap.read()
+
+        while success:
+            if frame_count % frame_interval_frames == 0:
+                timestamp_s = frame_count / fps
+                frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                image = Image.fromarray(frame_rgb)
+
+                with inference_lock:
+                    if recognition_mode == "inference":
+                        results = classify_with_model(image, model_name=model_name)
+                    else:
+                        service = init_search_service()
+                        results = service.search(image, top_k=top_k)
+
+                matched_roles = []
+                for role, similarity in results:
+                    if similarity >= confidence_threshold:
+                        matched_roles.append({
+                            "role": role,
+                            "similarity": round(float(similarity), 4),
+                        })
+
+                if matched_roles:
+                    recognition_results.append({
+                        "timestamp": round(timestamp_s, 2),
+                        "frame_number": frame_count,
+                        "roles": matched_roles,
+                    })
+
+            frame_count += 1
+            success, frame = cap.read()
+
+        cap.release()
+
+        # --- 生成带标注的结果视频 ---
+        result_filename = f"result_{timestamp}.mp4"
+        output_path = os.path.join(RESULT_VIDEO_DIR, result_filename)
+
+        rendered = render_result_video(
+            video_path=temp_path,
+            results=recognition_results,
+            output_path=output_path,
+            frame_interval=frame_interval,
+        )
+
+        # 清理临时文件
+        os.remove(temp_path)
+
+        # 清理过旧的结果视频（保留最近20个）
+        _cleanup_old_results(keep=20)
+
+        if not rendered:
+            return {
+                "success": True,
+                "filename": file.filename,
+                "fps": round(fps, 2),
+                "total_frames": total_frames,
+                "recognized_timestamps": len(recognition_results),
+                "results": recognition_results,
+                "result_video_url": None,
+                "warning": "视频渲染失败",
+            }
+
+        return {
+            "success": True,
+            "filename": file.filename,
+            "fps": round(fps, 2),
+            "total_frames": total_frames,
+            "frame_interval": frame_interval,
+            "recognition_mode": recognition_mode,
+            "model_name": model_name if recognition_mode == "inference" else None,
+            "recognized_timestamps": len(recognition_results),
+            "results": recognition_results,
+            "result_video_url": f"/api/video/result/{result_filename}",
+        }
+
+    except Exception as e:
+        import traceback
+
+        return {"success": False, "error": str(e), "traceback": traceback.format_exc()}
+
+
+@app.get("/video/result/{filename}")
+async def download_result_video(filename: str):
+    """
+    下载识别结果视频
+
+    Args:
+        filename: 结果视频文件名
+
+    Returns:
+        视频文件流
+    """
+    filepath = os.path.join(RESULT_VIDEO_DIR, filename)
+    if not os.path.exists(filepath):
+        raise HTTPException(status_code=404, detail="结果视频不存在或已过期")
+    return FileResponse(
+        path=filepath,
+        media_type="video/mp4",
+        filename=filename,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@app.post("/video/result/cleanup")
+async def cleanup_result_videos():
+    """清理过期的结果视频（保留最近20个）"""
+    removed = _cleanup_old_results(keep=20)
+    return {"success": True, "removed": removed}
+
+
+def _cleanup_old_results(keep: int = 20):
+    """清理旧的结果视频文件，只保留最近 N 个"""
+    try:
+        files = sorted(
+            [
+                os.path.join(RESULT_VIDEO_DIR, f)
+                for f in os.listdir(RESULT_VIDEO_DIR)
+                if f.endswith(".mp4")
+            ],
+            key=os.path.getmtime,
+        )
+        removed = 0
+        while len(files) > keep:
+            old = files.pop(0)
+            os.remove(old)
+            removed += 1
+        if removed:
+            logger.info(f"清理了 {removed} 个旧结果视频")
+        return removed
+    except Exception as e:
+        logger.warning(f"清理结果视频时出错: {e}")
+        return 0
+
+
 @app.get("/video/stats")
 async def get_video_stats():
     """获取视频服务统计信息"""
@@ -432,6 +615,8 @@ async def get_service_info():
         "features": [
             {"name": "图像搜索", "endpoint": "/search/image"},
             {"name": "视频识别", "endpoint": "/video/recognize"},
+            {"name": "视频识别+标注", "endpoint": "/video/recognize-with-overlay"},
+            {"name": "识别结果视频下载", "endpoint": "/video/result/{filename}"},
             {"name": "视频抽帧", "endpoint": "/video/extract"},
         ],
     }

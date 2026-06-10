@@ -5,6 +5,7 @@
 """
 
 from typing import List, Dict
+import json
 
 
 def generate_trace_items_html(traces):
@@ -36,7 +37,7 @@ def generate_trace_items_html(traces):
 def generate_endpoint_stats_html(endpoint_distribution):
     """生成端点分布统计HTML"""
     if not endpoint_distribution:
-        return ""
+        return '<div class="empty-state" style="color: #666; text-align: center; padding: 20px;">暂无端点统计数据</div>'
     
     max_count = max(endpoint_distribution.values())
     html = ""
@@ -195,14 +196,20 @@ def generate_service_monitor_html(services_status: List[dict]) -> str:
             "unknown": "❓ 未知",
         }.get(service["status"], f"⚠️ {service['status']}")
 
-        api_url = f"http://localhost:{service['port']}"
-        docs_url = f"{api_url}/docs"
+        api_url = f"http://localhost:{service['port']}{service.get('api_base', '/')}"
+        has_swagger = service.get("has_swagger", False)
 
         if service["status"] == "healthy":
+            links_parts = [
+                f'                    <a href="{api_url}" class="api-link" target="_blank">🔗 访问API</a>',
+            ]
+            if has_swagger:
+                docs_url = f"http://localhost:{service['port']}/docs"
+                links_parts.append(f'                    <a href="{docs_url}" class="api-link" target="_blank">📚 Swagger文档</a>')
+            links_html = '\n'.join(links_parts)
             links_html = f"""
                 <div class="api-links">
-                    <a href="{api_url}" class="api-link" target="_blank">🔗 访问API</a>
-                    <a href="{docs_url}" class="api-link" target="_blank">📚 Swagger文档</a>
+{links_html}
                 </div>
             """
         else:
@@ -299,7 +306,10 @@ def generate_tracing_html(stats, recent_traces) -> str:
                 {generate_trace_items_html(recent_traces)}
                 """
     
-    html += """
+    # 预计算端点统计HTML（避免在f-string内嵌 {} 导致语法错误）
+    endpoint_html = generate_endpoint_stats_html(stats.get("endpoint_distribution", {}))
+
+    html += f"""
             </div>
         </div>
 
@@ -319,7 +329,7 @@ def generate_tracing_html(stats, recent_traces) -> str:
                 <span class="panel-title">📈 端点分布</span>
             </div>
             <div class="panel-content">
-                {generate_endpoint_stats_html(stats.get("endpoint_distribution", {}))}
+                {endpoint_html}
             </div>
         </div>
         <div class="panel">
@@ -403,3 +413,102 @@ def generate_topology_html(services_status, topology_data):
 </script>
 """
     return html
+
+
+def generate_gantt_html(trace):
+    """生成甘特图/时序图HTML"""
+    spans = trace.get("spans", [])
+    if not spans:
+        return '<div class="empty-state" style="color: #666; text-align: center; padding: 20px;">无时序数据</div>'
+    
+    # 找到最早开始时间
+    start_times = [s.get("start_time", 0) for s in spans]
+    min_start = min(start_times) if start_times else 0
+    max_end = max(s.get("end_time", s.get("start_time", 0)) for s in spans)
+    total_range = max_end - min_start if max_end > min_start else 1
+    
+    # 排序spans: 按start_time升序
+    sorted_spans = sorted(spans, key=lambda s: s.get("start_time", 0))
+    
+    bar_rows = []
+    for span in sorted_spans:
+        name = span.get("name", "unknown")
+        kind = span.get("kind", "INTERNAL")
+        duration = span.get("duration_ms", 0)
+        s_start = span.get("start_time", min_start)
+        s_end = span.get("end_time", s_start)
+        
+        left_pct = max(0, (s_start - min_start) / total_range * 100)
+        width_pct = max(3, (s_end - s_start) / total_range * 100)
+        
+        kind_color = {
+            "SERVER": "#4CAF50",
+            "CLIENT": "#2196F3",
+            "INTERNAL": "#9E9E9E",
+            "PRODUCER": "#FF9800",
+            "CONSUMER": "#E91E63",
+        }.get(kind, "#9E9E9E")
+        
+        bar_rows.append(f"""
+            <div class="gantt-row">
+                <div class="gantt-label">{name}
+                    <span style="color: #888; font-size: 0.8em;">({duration}ms)</span>
+                </div>
+                <div class="gantt-track">
+                    <div class="gantt-bar" style="
+                        margin-left: {left_pct:.1f}%;
+                        width: {width_pct:.1f}%;
+                        background: {kind_color};
+                    "></div>
+                </div>
+            </div>
+        """)
+    
+    return """
+        <div class="gantt-chart">
+            <div class="gantt-header">
+                <div class="gantt-header-label">Span名称</div>
+                <div class="gantt-header-timeline">时间线</div>
+            </div>
+            """ + "\n".join(bar_rows) + """
+        </div>
+        <style>
+            .gantt-chart { font-size: 0.9em; }
+            .gantt-header {
+                display: grid;
+                grid-template-columns: 180px 1fr;
+                padding: 8px 0;
+                border-bottom: 1px solid #333;
+                color: #888;
+                font-weight: bold;
+            }
+            .gantt-row {
+                display: grid;
+                grid-template-columns: 180px 1fr;
+                align-items: center;
+                padding: 4px 0;
+                border-bottom: 1px solid rgba(255,255,255,0.05);
+            }
+            .gantt-label {
+                padding-right: 10px;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                color: #ccc;
+            }
+            .gantt-track {
+                position: relative;
+                height: 24px;
+                background: rgba(255,255,255,0.05);
+                border-radius: 4px;
+            }
+            .gantt-bar {
+                height: 20px;
+                border-radius: 4px;
+                opacity: 0.8;
+                min-width: 4px;
+                position: absolute;
+                top: 2px;
+            }
+        </style>
+    """
