@@ -7,20 +7,26 @@ CLIP Embedder
 用于将图片转换为归一化的特征向量
 """
 
-# 必须在导入PyTorch前设置环境变量
+# 必须在导入numpy/PyTorch前设置环境变量（macOS OpenMP死锁修复）
 import os
 import platform
+import sys
+
+# macOS上提前设置环境变量，防止MKL/OpenMP死锁
+if platform.system() == "Darwin":
+    os.environ.setdefault("CUDA_VISIBLE_DEVICES", "")
+    os.environ.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "0")
+    os.environ.setdefault("PYTORCH_MPS_ENABLED", "0")
+    os.environ.setdefault("FORCE_CPU", "1")
+    os.environ.setdefault("OMP_NUM_THREADS", "1")
+    os.environ.setdefault("MKL_NUM_THREADS", "1")
+    os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
+    os.environ.setdefault("MKL_THREADING_LAYER", "GNU")
+    os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
+
 from typing import List, Optional, Union
 import numpy as np
-
-if platform.system() == "Darwin":
-    os.environ["CUDA_VISIBLE_DEVICES"] = ""
-    os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "0"
-    os.environ["PYTORCH_MPS_ENABLED"] = "0"
-    os.environ["FORCE_CPU"] = "1"
-    os.environ["OMP_NUM_THREADS"] = "1"
-    os.environ["MKL_NUM_THREADS"] = "1"
-    os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
+import threading
 
 from PIL import Image
 import logging
@@ -60,6 +66,7 @@ class CLIPEmbedder:
         self._tokenizer = None
         self._initialized = False
         self._model_type = None
+        self._init_lock = threading.Lock()
 
         # 设备选择（不触发PyTorch加载）
         self.device = self._select_device(device)
@@ -98,24 +105,29 @@ class CLIPEmbedder:
             return "cpu"
 
     def initialize(self):
-        """懒加载模型"""
+        """懒加载模型（线程安全）"""
         if self._initialized:
             return
+        
+        with self._init_lock:
+            # 双重检查锁定
+            if self._initialized:
+                return
 
-        logger.info(f"正在加载CLIP模型: {self.model_name}")
+            logger.info(f"正在加载CLIP模型: {self.model_name}")
 
-        try:
-            if self.use_huggingface:
-                self._init_huggingface()
-            else:
-                self._init_openai_clip()
+            try:
+                if self.use_huggingface:
+                    self._init_huggingface()
+                else:
+                    self._init_openai_clip()
 
-            self._initialized = True
-            logger.info(f"✅ CLIP模型加载完成")
+                self._initialized = True
+                logger.info(f"✅ CLIP模型加载完成")
 
-        except Exception as e:
-            logger.error(f"❌ CLIP模型加载失败: {e}")
-            raise
+            except Exception as e:
+                logger.error(f"❌ CLIP模型加载失败: {e}")
+                raise
 
     def _init_huggingface(self):
         """初始化HuggingFace CLIP"""

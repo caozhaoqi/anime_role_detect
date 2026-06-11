@@ -2,9 +2,11 @@
 """
 全局日志系统模块
 统一管理系统日志，包括系统运行状态、模型推理结果、模型训练结果和错误日志
+支持标准格式与 JSON 结构化日志输出（适配 ELK/Loki）
 """
 import os
 import sys
+import json
 from datetime import datetime
 from pathlib import Path
 from loguru import logger
@@ -53,6 +55,18 @@ class GlobalLogger:
         logger.remove()
 
         log_format = "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> | <level>{message}</level>"
+
+        # JSON 格式日志文件（供 ELK Filebeat / Loki 采集）
+        json_log_file = str(self.log_dir / "structured.jsonl")
+        logger.add(
+            json_log_file,
+            rotation="100 MB",
+            retention="14 days",
+            compression="zip",
+            level="INFO",
+            serialize=True,
+            enqueue=True,
+        )
 
         unified_log_file = str(self.log_dir / "unified.log")
         logger.add(

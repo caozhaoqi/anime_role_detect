@@ -128,7 +128,9 @@ export default function AnimeRoleDetect() {
                            !config.url?.includes('/api/login') &&
                            !config.url?.includes('/api/register') &&
                            !config.url?.includes('/api/health') &&
-                           !config.url?.includes('/api/auth/refresh');
+                           !config.url?.includes('/api/auth/refresh') &&
+                           !config.url?.includes('/api/cleaning/browse') &&
+                           !config.url?.includes('/api/cleaning/config');
         
         if (requiresAuth && !config.headers?.Authorization) {
           console.warn('⚠️ Authorization头为空，请先登录');
@@ -315,6 +317,37 @@ export default function AnimeRoleDetect() {
       }
     }
   }, [authState.isAuthenticated, authState.accessToken]);
+
+  // 监听 HistoryPanel 触发的登录请求事件
+  useEffect(() => {
+    const handler = () => {
+      // 清除认证状态，强制显示登录界面
+      localStorage.removeItem('accessToken');
+      localStorage.removeItem('refreshToken');
+      localStorage.removeItem('currentUser');
+      setAuthState({
+        isAuthenticated: false,
+        user: null,
+        accessToken: null,
+        refreshToken: null
+      });
+    };
+    window.addEventListener('open-login', handler);
+    return () => window.removeEventListener('open-login', handler);
+  }, []);
+
+  const handleAuthError = useCallback(() => {
+    // 清除认证状态，强制显示登录界面
+    localStorage.removeItem('accessToken');
+    localStorage.removeItem('refreshToken');
+    localStorage.removeItem('currentUser');
+    setAuthState({
+      isAuthenticated: false,
+      user: null,
+      accessToken: null,
+      refreshToken: null
+    });
+  }, []);
 
   const handleLogin = async (username: string, password: string) => {
     setIsLoginLoading(true);
@@ -1083,7 +1116,7 @@ export default function AnimeRoleDetect() {
           />
       
           <div className="flex-1 flex overflow-hidden">
-            <main className={`flex-1 overflow-y-auto transition-all duration-300 ${showHistory ? 'md:ml-96' : ''}`}>
+            <main className={`flex-1 overflow-y-auto transition-all duration-300 ${showHistory ? 'md:mr-96' : ''}`}>
               <div className="flex-1 overflow-y-auto">
                 <div className="container mx-auto px-4 md:px-6 py-6 md:py-8">
                   {activePanel === 'classify' ? (
@@ -1125,6 +1158,8 @@ export default function AnimeRoleDetect() {
                     darkMode={darkMode}
                     onViewRecord={handleViewRecord}
                     onDeleteRecord={() => {}}
+                    onClose={() => setShowHistory(false)}
+                    onAuthError={handleAuthError}
                   />
                 </div>
               </div>
@@ -1137,6 +1172,7 @@ export default function AnimeRoleDetect() {
                     darkMode={darkMode}
                     config={config}
                     onConfigUpdate={handleConfigUpdate}
+                    onClose={() => setShowConfig(false)}
                   />
                 </div>
               </div>

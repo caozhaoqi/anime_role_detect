@@ -74,7 +74,9 @@ class MultiTargetDetector:
         num_classes = config.get("num_classes", 74)
 
         model = models.efficientnet_b3(num_classes=num_classes)
-        checkpoint = torch.load(model_path, map_location=self.device, weights_only=False)
+        # 先加载到 CPU，避免 PyTorch MPS 后端 UntypedStorage 的 bug
+        # ("invalid low watermark ratio")，后续由 model.to(self.device) 移入目标设备
+        checkpoint = torch.load(model_path, map_location="cpu", weights_only=False)
 
         if isinstance(checkpoint, torch.nn.Module):
             model = checkpoint
@@ -83,7 +85,9 @@ class MultiTargetDetector:
         else:
             model.load_state_dict(checkpoint, strict=False)
 
-        model = model.to(self.device)
+        # 强制使用 CPU 设备，避免 PyTorch MPS 后端内存分配器 bug
+        # ("invalid low watermark ratio")。YOLO 模型内部自行管理设备不影响。
+        model = model.to("cpu")
         model.eval()
 
         # 获取类别名
@@ -94,7 +98,7 @@ class MultiTargetDetector:
     def detect_and_classify(
         self,
         image: Image.Image,
-        person_conf_threshold: float = 0.5,
+        person_conf_threshold: float = 0.2,
         crop_size: Tuple[int, int] = (224, 224),
     ) -> dict:
         """
@@ -111,7 +115,8 @@ class MultiTargetDetector:
         results = {"image_size": image.size, "total_detections": 0, "detections": []}
 
         # YOLOv8 人体检测
-        yolo_results = self.yolo(image, verbose=False)
+        # workers=0 禁用多进程数据加载，避免 macOS 上 "invalid low watermark ratio" 错误
+        yolo_results = self.yolo(image, verbose=False, workers=0)
 
         for result in yolo_results:
             boxes = result.boxes
@@ -190,7 +195,7 @@ class MultiTargetDetector:
         return {"role": role_name, "confidence": confidence, "class_id": top_idx}
 
     def batch_detect_and_classify(
-        self, images: List[Image.Image], person_conf_threshold: float = 0.5
+        self, images: List[Image.Image], person_conf_threshold: float = 0.2
     ) -> List[dict]:
         """批量检测和分类"""
         results = []

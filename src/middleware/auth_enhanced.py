@@ -31,7 +31,7 @@ security = HTTPBearer()
 
 # 速率限制配置
 RATE_LIMIT_MAX_REQUESTS = int(os.environ.get("RATE_LIMIT_MAX_REQUESTS", "100"))
-RATE_LIMIT_WINDOW_SECONDS = int(os.environ.get("RATE_LIMIT_WINDOW_SECONDS", "3600"))
+RATE_LIMIT_WINDOW_SECONDS = int(os.environ.get("RATE_LIMIT_WINDOW_SECONDS", "36"))
 # 定期清理间隔（秒）
 RATE_LIMIT_CLEANUP_INTERVAL = int(os.environ.get("RATE_LIMIT_CLEANUP_INTERVAL", "300"))
 
@@ -156,8 +156,8 @@ def _update_session(token: str, user_info: dict):
             "created_at": _sessions.get(token, {}).get("created_at", current_time),
         }
 
-        # 清理过期会话
-        _cleanup_expired_sessions()
+    # 在锁外部清理过期会话，避免嵌套锁导致死锁
+    _cleanup_expired_sessions()
 
 
 def _get_session(token: str) -> Optional[Dict[str, Any]]:
@@ -247,6 +247,22 @@ async def get_current_user_with_role(required_role: str):
     return dependency
 
 
+async def get_optional_current_user(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+) -> Optional[dict]:
+    """获取当前用户（可选） - 如果未认证返回None，不抛出异常"""
+    if credentials is None:
+        return None
+    try:
+        token = credentials.credentials
+        payload = verify_token(token)
+        if payload:
+            return payload
+    except Exception:
+        pass
+    return None
+
+
 async def auth_middleware(request: Request, call_next):
     """
     增强的认证中间件
@@ -264,6 +280,7 @@ async def auth_middleware(request: Request, call_next):
     
     # 排除不需要认证的路径（只保留文档和健康检查）
     exempt_paths = [
+        "/metrics",
         "/api/docs",
         "/api/redoc",
         "/api/openapi.json",
@@ -273,7 +290,6 @@ async def auth_middleware(request: Request, call_next):
         "/api/auth/refresh",
         "/api/feedback",
         "/api/config",
-        "/api/history",
         "/api/cleaning",
         # ONNX 推理 API（如果有独立的认证）
         "/api/v1/onnx",

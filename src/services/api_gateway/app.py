@@ -328,7 +328,7 @@ async def proxy_request(request: Request, path: str):
                 url = f"{config.MODEL_SERVICE_URL}/api/{classify_path}"
         else:
             model_path = path[6:]
-            url = f"{config.MODEL_SERVICE_URL}/api/{model_path}"
+            url = f"{config.MODEL_SERVICE_URL}/api/model/{model_path}"
     elif path == "model" or path == "model/health":
         service = "model"
         url = f"{config.MODEL_SERVICE_URL}/api/health"
@@ -337,6 +337,10 @@ async def proxy_request(request: Request, path: str):
         url = f"{config.CORE_API_URL}/api/{path}"
 
     logger.info(f"转发请求到 [{service}]: {url}")
+
+    # 保留原始请求的查询参数
+    if request.url.query:
+        url = f"{url}?{request.url.query}"
 
     headers = dict(request.headers)
     headers.pop("host", None)

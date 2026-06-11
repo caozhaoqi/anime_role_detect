@@ -1,27 +1,47 @@
 import React, { useState, useEffect } from 'react';
-import { Clock, Trash2, Image, Brain, Tag, AlertTriangle, FileText, Check, X } from 'lucide-react';
+import { Clock, Trash2, Image, Brain, Tag, AlertTriangle, FileText, Check, X, LogIn } from 'lucide-react';
 import { Message } from '../types';
 
 interface HistoryPanelProps {
   darkMode: boolean;
   onViewRecord: (record: any) => void;
   onDeleteRecord: (recordId: string) => void;
+  onClose: () => void;
+  onAuthError?: () => void;
 }
 
-const HistoryPanel: React.FC<HistoryPanelProps> = ({ darkMode, onViewRecord, onDeleteRecord }) => {
+const HistoryPanel: React.FC<HistoryPanelProps> = ({ darkMode, onViewRecord, onDeleteRecord, onClose, onAuthError }) => {
   const [history, setHistory] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isAuthError, setIsAuthError] = useState(false);
 
   const fetchHistory = async () => {
     setLoading(true);
     setError(null);
+    setIsAuthError(false);
     try {
+      const token = localStorage.getItem('accessToken');
+      if (!token) {
+        setIsAuthError(true);
+        setError('请先登录后再查看历史记录');
+        setHistory([]);
+        setLoading(false);
+        if (onAuthError) onAuthError();
+        return;
+      }
       const response = await fetch('/api/history', {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('accessToken')}`
+          'Authorization': `Bearer ${token}`
         }
       });
+      if (response.status === 401) {
+        setIsAuthError(true);
+        setError('登录已过期，请重新登录');
+        setHistory([]);
+        if (onAuthError) onAuthError();
+        return;
+      }
       const data = await response.json();
       if (data.success) {
         setHistory(data.data);
@@ -79,12 +99,21 @@ const HistoryPanel: React.FC<HistoryPanelProps> = ({ darkMode, onViewRecord, onD
           <Clock className="h-5 w-5" />
           识别历史
         </h3>
-        <button
-          onClick={fetchHistory}
-          className={`px-3 py-1 rounded-md text-sm ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'} transition-colors`}
-        >
-          刷新
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={fetchHistory}
+            className={`px-3 py-1 rounded-md text-sm ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'} transition-colors`}
+          >
+            刷新
+          </button>
+          <button
+            onClick={onClose}
+            className={`p-1 rounded-md transition-colors ${darkMode ? 'hover:bg-gray-700 text-gray-400 hover:text-white' : 'hover:bg-gray-200 text-gray-500 hover:text-gray-700'}`}
+            title="关闭"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
       </div>
 
       {loading ? (
@@ -92,8 +121,24 @@ const HistoryPanel: React.FC<HistoryPanelProps> = ({ darkMode, onViewRecord, onD
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" />
         </div>
       ) : error ? (
-        <div className={`p-4 rounded-md ${darkMode ? 'bg-red-900/30 text-red-400' : 'bg-red-100 text-red-600'}`}>
-          {error}
+        <div className={`p-4 rounded-md ${darkMode ? 'bg-red-900/30' : 'bg-red-100'}`}>
+          <div className={`flex items-center gap-2 ${darkMode ? 'text-red-400' : 'text-red-600'}`}>
+            {isAuthError ? <LogIn className="h-4 w-4" /> : <AlertTriangle className="h-4 w-4" />}
+            <span className="text-sm font-medium">{error}</span>
+          </div>
+          {isAuthError && (
+            <button
+              onClick={() => {
+                if (onAuthError) onAuthError();
+                window.dispatchEvent(new CustomEvent('open-login'));
+              }}
+              className={`mt-3 w-full px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                darkMode ? 'bg-blue-600 hover:bg-blue-500 text-white' : 'bg-blue-600 hover:bg-blue-700 text-white'
+              }`}
+            >
+              登录
+            </button>
+          )}
         </div>
       ) : history.length === 0 ? (
         <div className={`p-8 text-center ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>

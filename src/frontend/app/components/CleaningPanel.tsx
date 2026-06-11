@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from 'react';
-import { Play, Settings, FolderOpen, Clock, CheckCircle, XCircle, Loader2, RefreshCw, Trash2, Download, ChevronDown, ChevronUp, AlertCircle } from 'lucide-react';
+import { Play, Settings, FolderOpen, Clock, CheckCircle, XCircle, Loader2, RefreshCw, Trash2, Download, ChevronDown, ChevronUp, AlertCircle, X, ChevronLeft, Folder } from 'lucide-react';
 import axios from 'axios';
 import { CleaningConfig, CleaningResponse, CleaningTask } from '../types';
 
@@ -39,6 +39,15 @@ export default function CleaningPanel({ darkMode, accessToken }: CleaningPanelPr
   const [error, setError] = useState<string | null>(null);
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
   const [pollInterval, setPollInterval] = useState<number | null>(null);
+  
+  // 目录浏览器状态
+  const [showBrowser, setShowBrowser] = useState(false);
+  const [browseTarget, setBrowseTarget] = useState<'input' | 'output'>('input');
+  const [browsePath, setBrowsePath] = useState('/');
+  const [browseEntries, setBrowseEntries] = useState<{name: string, path: string}[]>([]);
+  const [browseLoading, setBrowseLoading] = useState(false);
+  const [browseParent, setBrowseParent] = useState('/');
+  const [browseHistory, setBrowseHistory] = useState<string[]>([]);
 
   useEffect(() => {
     loadDefaultConfig();
@@ -78,6 +87,56 @@ export default function CleaningPanel({ darkMode, accessToken }: CleaningPanelPr
     } catch (err) {
       console.error('加载任务列表失败:', err);
     }
+  };
+
+  // 目录浏览函数
+  const openBrowser = async (target: 'input' | 'output') => {
+    setBrowseTarget(target);
+    setBrowsePath('/');
+    setBrowseHistory([]);
+    setShowBrowser(true);
+    await loadDirectory('/');
+  };
+
+  const loadDirectory = async (path: string) => {
+    setBrowseLoading(true);
+    try {
+      const headers = accessToken ? { Authorization: `Bearer ${accessToken}` } : {};
+      const response = await axios.get('/api/cleaning/browse', { params: { path }, headers });
+      if (response.data.success) {
+        setBrowseEntries(response.data.data.entries);
+        setBrowsePath(response.data.data.current_path);
+        setBrowseParent(response.data.data.parent_path);
+      }
+    } catch (err) {
+      console.error('加载目录失败:', err);
+    } finally {
+      setBrowseLoading(false);
+    }
+  };
+
+  const navigateToDir = async (path: string) => {
+    setBrowseHistory(prev => [...prev, browsePath]);
+    await loadDirectory(path);
+  };
+
+  const navigateUp = async () => {
+    if (browseHistory.length > 0) {
+      const prev = browseHistory[browseHistory.length - 1];
+      setBrowseHistory(prev => prev.slice(0, -1));
+      await loadDirectory(prev);
+    } else {
+      await loadDirectory(browseParent);
+    }
+  };
+
+  const selectDirectory = (path: string) => {
+    if (browseTarget === 'input') {
+      setInputDir(path);
+    } else {
+      setOutputDir(path);
+    }
+    setShowBrowser(false);
   };
 
   const checkTaskStatus = async (taskId: string) => {
@@ -260,30 +319,48 @@ export default function CleaningPanel({ darkMode, accessToken }: CleaningPanelPr
             <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
               输入目录
             </label>
-            <div className="relative">
+            <div className="relative flex gap-2">
               <input
                 type="text"
                 value={inputDir}
                 onChange={(e) => setInputDir(e.target.value)}
                 placeholder="输入包含角色子目录的路径"
-                className={`w-full px-4 py-2 pr-10 rounded-lg border ${darkMode ? 'bg-gray-700 border-gray-600 text-gray-100' : 'bg-white border-gray-300 text-gray-900'} focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none`}
+                className={`flex-1 px-4 py-2 pr-10 rounded-lg border ${darkMode ? 'bg-gray-700 border-gray-600 text-gray-100' : 'bg-white border-gray-300 text-gray-900'} focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none`}
               />
-              <FolderOpen className={`absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 ${darkMode ? 'text-gray-400' : 'text-gray-400'}`} />
+              <button
+                onClick={() => openBrowser('input')}
+                className={`px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${
+                  darkMode ? 'bg-gray-700 border-gray-600 text-gray-200 hover:bg-gray-600' : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-100'
+                }`}
+                title="浏览目录"
+              >
+                <FolderOpen className="h-4 w-4 inline mr-1" />
+                浏览
+              </button>
             </div>
           </div>
           <div>
             <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
               输出目录
             </label>
-            <div className="relative">
+            <div className="relative flex gap-2">
               <input
                 type="text"
                 value={outputDir}
                 onChange={(e) => setOutputDir(e.target.value)}
                 placeholder="清洗后数据输出路径"
-                className={`w-full px-4 py-2 pr-10 rounded-lg border ${darkMode ? 'bg-gray-700 border-gray-600 text-gray-100' : 'bg-white border-gray-300 text-gray-900'} focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none`}
+                className={`flex-1 px-4 py-2 pr-10 rounded-lg border ${darkMode ? 'bg-gray-700 border-gray-600 text-gray-100' : 'bg-white border-gray-300 text-gray-900'} focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none`}
               />
-              <FolderOpen className={`absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 ${darkMode ? 'text-gray-400' : 'text-gray-400'}`} />
+              <button
+                onClick={() => openBrowser('output')}
+                className={`px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${
+                  darkMode ? 'bg-gray-700 border-gray-600 text-gray-200 hover:bg-gray-600' : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-100'
+                }`}
+                title="浏览目录"
+              >
+                <FolderOpen className="h-4 w-4 inline mr-1" />
+                浏览
+              </button>
             </div>
           </div>
         </div>
@@ -706,6 +783,87 @@ export default function CleaningPanel({ darkMode, accessToken }: CleaningPanelPr
           </div>
         )}
       </div>
+
+      {/* 目录浏览器对话框 */}
+      {showBrowser && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black bg-opacity-50">
+          <div className={`w-full max-w-lg mx-4 rounded-xl shadow-2xl overflow-hidden ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
+            {/* 标题栏 */}
+            <div className={`px-4 py-3 border-b flex items-center justify-between ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+              <h3 className={`text-lg font-semibold ${darkMode ? 'text-gray-100' : 'text-gray-900'}`}>
+                选择{browseTarget === 'input' ? '输入' : '输出'}目录
+              </h3>
+              <button
+                onClick={() => setShowBrowser(false)}
+                className={`p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            {/* 路径栏 */}
+            <div className={`px-4 py-2 flex items-center gap-2 border-b ${darkMode ? 'border-gray-700 bg-gray-750' : 'border-gray-100 bg-gray-50'}`}>
+              <button
+                onClick={navigateUp}
+                disabled={browsePath === '/'}
+                className={`p-1 rounded ${browsePath === '/' ? 'opacity-40 cursor-not-allowed' : 'hover:bg-gray-200 dark:hover:bg-gray-600'} ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}
+                title="上级目录"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+              <span className={`flex-1 text-xs truncate font-mono ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                {browsePath}
+              </span>
+            </div>
+            {/* 目录列表 */}
+            <div className="max-h-72 overflow-y-auto px-2 py-2">
+              {browseLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-blue-500" />
+                </div>
+              ) : browseEntries.length === 0 ? (
+                <p className={`text-center py-8 text-sm ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                  此目录下没有子目录
+                </p>
+              ) : (
+                <div className="space-y-1">
+                  {browseEntries.map(entry => (
+                    <div
+                      key={entry.path}
+                      onClick={() => navigateToDir(entry.path)}
+                      className={`flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer text-sm transition-colors ${
+                        darkMode ? 'hover:bg-gray-700 text-gray-200' : 'hover:bg-gray-100 text-gray-700'
+                      }`}
+                    >
+                      <Folder className="h-4 w-4 text-yellow-500 shrink-0" />
+                      <span className="truncate flex-1">{entry.name}</span>
+                      <span className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>文件夹</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            {/* 底部按钮 */}
+            <div className={`px-4 py-3 border-t flex justify-between items-center ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+              <button
+                onClick={() => selectDirectory(browsePath)}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  darkMode ? 'bg-blue-600 hover:bg-blue-500 text-white' : 'bg-blue-600 hover:bg-blue-700 text-white'
+                }`}
+              >
+                选择当前目录
+              </button>
+              <button
+                onClick={() => setShowBrowser(false)}
+                className={`px-4 py-2 rounded-lg text-sm font-medium ${
+                  darkMode ? 'text-gray-400 hover:text-gray-200' : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                取消
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

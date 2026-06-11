@@ -287,7 +287,7 @@ class EnhancedMultiRoleDetector:
         return result["role"], result["similarity"]
 
     def detect_roles(
-        self, image_path: str, max_characters: int = 10, person_conf_threshold: float = 0.5
+        self, image_path: str, max_characters: int = 10, person_conf_threshold: float = 0.2
     ) -> List[Dict[str, Any]]:
         """
         检测图像中的多个角色

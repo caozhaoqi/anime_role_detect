@@ -212,16 +212,23 @@ async def _call_model_service(file, content, model_name, multi_role=False):
             # 使用AI预测的角色名作为主要角色（如果模型服务返回unknown）
             final_role = role if role != "unknown" else ai_predicted_role or "unknown"
 
+            # 获取角色中文名、日文名、作品名
+            from src.core.utils.role_info_loader import get_role_info
+            role_full_info = get_role_info(final_role)
+
             # 构建结果
             result = {
                 "role": final_role,
+                "role_cn": role_full_info.get("cn", final_role),
+                "role_jp": role_full_info.get("jp", ""),
+                "role_anime": role_full_info.get("anime", ""),
                 "similarity": similarity,
                 "possible_roles": [],
                 "attributes": attributes,
                 "tags": tags,
                 "text_detections": text_detections,
                 "keypoints": keypoints,
-                "ai_predicted_role": ai_predicted_role or final_role,
+                "ai_predicted_role": role_full_info.get("cn", ai_predicted_role or final_role),
                 "nsfw": nsfw_result,
             }
 
@@ -398,6 +405,7 @@ def _get_chinese_role_name(role_name):
     Returns:
         str: 中文角色名
     """
+    # 兜底映射（优先于 json 查找，处理拼音等特殊 key）
     role_mapping = {
         "a1luo2na4": "阿罗娜",
         "ri4nai4": "日奈",
@@ -405,7 +413,19 @@ def _get_chinese_role_name(role_name):
         "plana": "普拉娜",
         "other": "其他",
     }
-    return role_mapping.get(role_name, role_name)
+    if role_name in role_mapping:
+        return role_mapping[role_name]
+
+    # 尝试从 role_info.json 查找
+    try:
+        from src.core.utils.role_info_loader import get_role_info
+        info = get_role_info(role_name)
+        cn = info.get("cn", "")
+        if cn and cn != role_name:
+            return cn
+    except Exception:
+        pass
+    return role_name
 
 
 def process_with_trained_model(file, image_source, model_name):

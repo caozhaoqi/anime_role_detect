@@ -6,8 +6,6 @@ MediaPipe 关键点检测器
 负责使用 MediaPipe 进行关键点检测
 """
 
-import cv2
-import mediapipe as mp
 from src.core.logging.global_logger import get_logger
 
 logger = get_logger("mediapipe_keypoint_detector")
@@ -29,7 +27,9 @@ class MediaPipeKeypointDetector:
             min_detection_confidence: 最小检测置信度
             min_tracking_confidence: 最小跟踪置信度
         """
-        # 初始化 MediaPipe 姿态估计
+        # 懒导入 mediapipe（避免与 PyTorch MPS 后端冲突）
+        import mediapipe as mp
+
         self.mp_pose = mp.solutions.pose
         self.pose = self.mp_pose.Pose(
             model_complexity=model_complexity,
@@ -37,7 +37,6 @@ class MediaPipeKeypointDetector:
             min_tracking_confidence=min_tracking_confidence,
         )
 
-        # 初始化 MediaPipe 绘图工具
         self.mp_drawing = mp.solutions.drawing_utils
         self.mp_drawing_styles = mp.solutions.drawing_styles
 
@@ -53,13 +52,19 @@ class MediaPipeKeypointDetector:
         Returns:
             list: 关键点列表
         """
+        import cv2
+        import numpy as np
+
         try:
-            # 加载图像
+            # 加载/转换图像
             if isinstance(image, str):
                 image = cv2.imread(image)
                 if image is None:
                     logger.error(f"无法加载图像: {image}")
                     return []
+            elif hasattr(image, 'convert'):  # PIL Image
+                image = np.array(image.convert('RGB'))
+                image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
 
             # 转换为 RGB
             image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
@@ -97,6 +102,8 @@ class MediaPipeKeypointDetector:
         Returns:
             numpy.ndarray: 绘制后的图像
         """
+        import cv2
+
         try:
             # 加载图像
             if isinstance(image, str):
@@ -110,7 +117,7 @@ class MediaPipeKeypointDetector:
 
             # 绘制关键点
             if keypoints:
-                # 构建 MediaPipe 格式的关键点
+                # 懒导入 landmark_pb2
                 from mediapipe.framework.formats import landmark_pb2
 
                 pose_landmarks = landmark_pb2.NormalizedLandmarkList()

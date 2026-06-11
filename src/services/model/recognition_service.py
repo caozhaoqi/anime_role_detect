@@ -16,7 +16,7 @@ from src.core.logging.global_logger import get_logger
 
 logger = get_logger("recognition_service")
 
-USE_DATABASE = os.environ.get("USE_DATABASE", "false").lower() == "true"
+USE_DATABASE = os.environ.get("USE_DATABASE", "true").lower() == "true"
 _use_database = None
 
 
@@ -43,7 +43,9 @@ class RecognitionService:
     def __init__(self):
         """初始化识别记录服务"""
         _init_db()
-        self.records_file = "data/recognition_records.json"
+        self.records_file = os.path.abspath("data/recognition_records.json")
+        # 确保数据目录存在
+        os.makedirs(os.path.dirname(self.records_file), exist_ok=True)
         self.records = self._load_records() if not _use_database else []
 
     def _load_records(self) -> List[RecognitionRecord]:
@@ -109,8 +111,8 @@ class RecognitionService:
                     username=db_record.username,
                     image_filename=db_record.image_filename,
                     image_path=db_record.image_path,
-                    recognition_result=db_record.recognition_result,
-                    timestamp=db_record.timestamp,
+                    recognition_result=json.loads(db_record.recognition_result),
+                    timestamp=db_record.created_at,
                     model_used=db_record.model_used,
                     processing_time=db_record.processing_time,
                     is_multi_role=db_record.is_multi_role,
@@ -148,7 +150,11 @@ class RecognitionService:
                 from src.services.support.database_service import RecognitionRecordDB, get_db_service
 
                 db = get_db_service()
+                # 先查用户自己的记录
                 db_records = RecognitionRecordDB.get_by_user(db, user_id)
+                # 如果为空，再查匿名记录
+                if not db_records and user_id != "anonymous":
+                    db_records = RecognitionRecordDB.get_by_user(db, "anonymous")
                 return [
                     RecognitionRecord(
                         id=r.id,
@@ -156,8 +162,8 @@ class RecognitionService:
                         username=r.username,
                         image_filename=r.image_filename,
                         image_path=r.image_path,
-                        recognition_result=r.recognition_result,
-                        timestamp=r.timestamp,
+                        recognition_result=json.loads(r.recognition_result),
+                        timestamp=r.created_at,
                         model_used=r.model_used,
                         processing_time=r.processing_time,
                         is_multi_role=r.is_multi_role,
@@ -170,6 +176,9 @@ class RecognitionService:
                 logger.error(f"数据库获取用户记录失败: {e}")
 
         user_records = [r for r in self.records if r.user_id == user_id]
+        # 如果为空，再查匿名记录
+        if not user_records and user_id != "anonymous":
+            user_records = [r for r in self.records if r.user_id == "anonymous"]
         user_records.sort(key=lambda x: x.timestamp, reverse=True)
         return user_records
 
@@ -188,8 +197,8 @@ class RecognitionService:
                         username=db_record.username,
                         image_filename=db_record.image_filename,
                         image_path=db_record.image_path,
-                        recognition_result=db_record.recognition_result,
-                        timestamp=db_record.timestamp,
+                        recognition_result=json.loads(db_record.recognition_result),
+                        timestamp=db_record.created_at,
                         model_used=db_record.model_used,
                         processing_time=db_record.processing_time,
                         is_multi_role=db_record.is_multi_role,
@@ -239,8 +248,8 @@ class RecognitionService:
                         username=r.username,
                         image_filename=r.image_filename,
                         image_path=r.image_path,
-                        recognition_result=r.recognition_result,
-                        timestamp=r.timestamp,
+                        recognition_result=json.loads(r.recognition_result),
+                        timestamp=r.created_at,
                         model_used=r.model_used,
                         processing_time=r.processing_time,
                         is_multi_role=r.is_multi_role,

@@ -180,6 +180,7 @@ class CleaningPipeline:
         self.embedder = CLIPEmbedderCached(
             model_name="ViT-B/32",
             cache_dir=str(project_root / "clip_cache"),
+            use_huggingface=False,  # macOS上使用OpenAI CLIP避免MKL死锁
         )
         
         # CLIP去重器
@@ -610,6 +611,13 @@ class CleaningPipeline:
         
         logger.info(f"找到 {len(char_dirs)} 个角色目录")
         logger.info(f"使用 {self.config.max_workers} 个并发线程")
+        
+        # 预初始化CLIP模型（多线程安全：在进入线程池前先初始化）
+        # 避免多个线程同时触发CLIP懒加载导致的PyTorch C++ mutex死锁
+        if self.config.enable_deduplication or self.config.enable_consistency_filter:
+            logger.info("预初始化CLIP模型...")
+            self.embedder.embedder.initialize()
+            logger.info("CLIP模型预初始化完成")
         
         # 清洗每个角色（支持并发）
         if self.config.max_workers > 1:
