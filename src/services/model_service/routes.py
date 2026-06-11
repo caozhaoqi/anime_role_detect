@@ -77,6 +77,7 @@ async def predict_image(
     file: UploadFile = File(...),
     model_name: str = Form("efficientnet_b3_loli_optimized_v2_20260529_133654"),
     use_attributes: bool = Form(True),
+    use_keypoints: bool = Form(False),
     multilabel: bool = Form(False),
     threshold: float = Form(0.4),
     use_cache: bool = Form(True),
@@ -113,6 +114,44 @@ async def predict_image(
             raise HTTPException(status_code=500, detail="图像预处理失败")
 
         keypoints = None
+        if use_keypoints:
+            try:
+                # 使用子进程运行关键点检测，避免与 uvicorn 服务中的 PyTorch MPS 后端冲突
+                import subprocess, json, base64, sys
+                from io import BytesIO
+                # 将图像编码为 base64 传给子进程
+                if hasattr(image, 'convert'):
+                    buf = BytesIO()
+                    image.save(buf, format='JPEG')
+                    img_b64 = base64.b64encode(buf.getvalue()).decode()
+                else:
+                    img_b64 = base64.b64encode(content).decode()
+
+                result = subprocess.run(
+                    [sys.executable, '-c', '''
+import base64, json, sys
+from io import BytesIO
+from PIL import Image
+img = Image.open(BytesIO(base64.b64decode(sys.argv[1]))).convert("RGB")
+# 在子进程内 lazily import mediapipe
+from src.core.keypoint.mediapipe_keypoint_detector import detect_keypoints
+kps = detect_keypoints(img)
+print(json.dumps(kps), flush=True)
+''', img_b64],
+                    capture_output=True, text=True, timeout=30,
+                    env={**__import__('os').environ, 'PYTORCH_MPS_DISABLE': '1', 'PYTHONPATH': __import__('os').path.dirname(__file__) + '/../../../..'},
+                    cwd=__import__('os').path.dirname(__file__) + '/../../../..'
+                )
+                if result.returncode == 0 and result.stdout.strip():
+                    keypoints = json.loads(result.stdout.strip())
+                    logger.info(f"关键点检测完成: {len(keypoints)} 个关键点")
+                else:
+                    if result.stderr:
+                        logger.warning(f"关键点检测子进程 stderr: {result.stderr[:200]}")
+                    keypoints = []
+            except Exception as e:
+                logger.warning(f"关键点检测失败: {e}")
+                keypoints = []
         global _efficientnet_classifier
 
         if _efficientnet_classifier is None:
@@ -477,11 +516,12 @@ async def classify_image(
     use_coreml: bool = Form(False),
     use_model: bool = Form(True),
     use_attributes: bool = Form(True),
+    use_keypoints: bool = Form(False),
     model_name: str = Form("efficientnet_b3_loli_optimized_v2_20260529_133654"),
     cache_bypass: bool = Form(False),
 ):
     """分类图像（兼容前端调用）"""
-    return await predict_image(file=file, model_name=model_name, use_attributes=use_attributes)
+    return await predict_image(file=file, model_name=model_name, use_attributes=use_attributes, use_keypoints=use_keypoints)
 
 
 @router.post("/api/model/batch-predict")
