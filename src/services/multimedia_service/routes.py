@@ -6,6 +6,7 @@ import sys
 import io
 import cv2
 import time
+import uuid
 import threading
 from PIL import Image
 from fastapi import APIRouter, UploadFile, File, HTTPException, Query
@@ -33,6 +34,52 @@ MODEL_SERVICE_URL = "http://localhost:8001"
 
 # 线程锁
 inference_lock = threading.Lock()
+
+# ========== 异步任务管理 ==========
+_video_tasks: dict = {}
+_tasks_lock = threading.Lock()
+
+
+def _create_task(task_id: str, total_steps: int) -> dict:
+    """创建异步任务记录"""
+    task = {
+        "task_id": task_id,
+        "status": "pending",       # pending | processing | completed | failed
+        "progress": 0,             # 0-100
+        "current_step": 0,
+        "total_steps": total_steps,
+        "message": "",
+        "result": None,
+        "error": None,
+        "created_at": time.time(),
+        "updated_at": time.time(),
+    }
+    with _tasks_lock:
+        _video_tasks[task_id] = task
+    return task
+
+
+def _update_task(task_id: str, **kwargs):
+    """更新任务状态"""
+    with _tasks_lock:
+        if task_id in _video_tasks:
+            _video_tasks[task_id].update(kwargs)
+            _video_tasks[task_id]["updated_at"] = time.time()
+
+
+def _get_task(task_id: str) -> dict:
+    """获取任务状态"""
+    with _tasks_lock:
+        return _video_tasks.get(task_id)
+
+
+def _cleanup_old_tasks(max_age: int = 3600):
+    """清理过期任务"""
+    now = time.time()
+    with _tasks_lock:
+        expired = [tid for tid, t in _video_tasks.items() if now - t["created_at"] > max_age]
+        for tid in expired:
+            del _video_tasks[tid]
 
 
 def init_search_service():
@@ -214,51 +261,163 @@ async def recognize_video_with_overlay(
     recognition_mode: str = Query("search", pattern="^(search|inference)$"),
     model_name: str = Query("efficientnet_b3_loli_optimized_v2_20260529_133654"),
 ):
-    """视频识别并生成带标注的结果视频"""
+    """视频识别并生成带标注的结果视频（异步任务模式）"""
     try:
         timestamp = int(time.time())
         content = await file.read()
         temp_path = f"/tmp/video_{timestamp}.mp4"
         with open(temp_path, "wb") as f:
             f.write(content)
+
+        # 先获取视频属性
         cap = cv2.VideoCapture(temp_path)
         if not cap.isOpened():
             os.remove(temp_path)
             return {"success": False, "error": "无法打开视频文件"}
         fps = cap.get(cv2.CAP_PROP_FPS)
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-        frame_interval_frames = int(fps * frame_interval)
-        recognition_results = []
-        frame_count = 0
-        success, frame = cap.read()
-        while success:
-            if frame_count % frame_interval_frames == 0:
-                timestamp_s = frame_count / fps
-                frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                image = Image.fromarray(frame_rgb)
-                with inference_lock:
-                    if recognition_mode == "inference":
-                        results = classify_with_model(image, model_name=model_name)
-                    else:
-                        service = init_search_service()
-                        results = service.search(image, top_k=top_k)
-                matched_roles = [{"role": role, "similarity": round(float(sim), 4)} for role, sim in results if sim >= confidence_threshold]
-                if matched_roles:
-                    recognition_results.append({"timestamp": round(timestamp_s, 2), "frame_number": frame_count, "roles": matched_roles})
-            frame_count += 1
-            success, frame = cap.read()
         cap.release()
+
+        # 创建异步任务
+        task_id = str(uuid.uuid4())[:8]
+        _create_task(task_id, total_steps=total_frames)
+        _update_task(task_id, status="processing", message="开始视频识别...")
+
         result_filename = f"result_{timestamp}.mp4"
         output_path = os.path.join(RESULT_VIDEO_DIR, result_filename)
-        rendered = render_result_video(video_path=temp_path, results=recognition_results, output_path=output_path, frame_interval=frame_interval)
-        os.remove(temp_path)
-        _cleanup_old_results(keep=20)
-        return {"success": True, "filename": file.filename, "fps": round(fps, 2), "total_frames": total_frames,
-                "frame_interval": frame_interval, "recognition_mode": recognition_mode,
-                "recognized_timestamps": len(recognition_results), "results": recognition_results,
-                "result_video_url": f"/api/video/result/{result_filename}" if rendered else None}
+
+        # 在后台线程中执行识别 + 渲染
+        def _process_video():
+            try:
+                cap = cv2.VideoCapture(temp_path)
+                if not cap.isOpened():
+                    _update_task(task_id, status="failed", error="无法打开视频文件")
+                    return
+
+                frame_interval_frames = int(fps * frame_interval)
+                recognition_results = []
+                frame_count = 0
+                total_frames_local = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+                last_log_pct = -1
+
+                success, frame = cap.read()
+                while success:
+                    if frame_count % frame_interval_frames == 0:
+                        timestamp_s = frame_count / fps
+                        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                        image = Image.fromarray(frame_rgb)
+                        with inference_lock:
+                            if recognition_mode == "inference":
+                                results = classify_with_model(image, model_name=model_name)
+                            else:
+                                service = init_search_service()
+                                results = service.search(image, top_k=top_k)
+                        matched_roles = [{"role": role, "similarity": round(float(sim), 4)} for role, sim in results if sim >= confidence_threshold]
+                        if matched_roles:
+                            recognition_results.append({
+                                "timestamp": round(timestamp_s, 2),
+                                "frame_number": frame_count,
+                                "roles": matched_roles,
+                            })
+
+                    frame_count += 1
+                    success, frame = cap.read()
+
+                    # 更新识别进度
+                    if total_frames_local > 0:
+                        pct = frame_count * 100 // total_frames_local
+                        if pct > last_log_pct:
+                            last_log_pct = pct
+                            _update_task(
+                                task_id,
+                                progress=pct // 2,  # 识别占 50%
+                                current_step=frame_count,
+                                message=f"识别帧 {frame_count}/{total_frames_local}",
+                            )
+
+                cap.release()
+
+                _update_task(task_id, progress=50, message=f"识别完成，共 {len(recognition_results)} 帧有结果，开始渲染视频...")
+
+                # 渲染视频（带进度回调）
+                def _render_progress(pct, cur, total):
+                    _update_task(
+                        task_id,
+                        progress=50 + pct // 2,  # 渲染占 50%
+                        current_step=cur,
+                        total_steps=total,
+                        message=f"渲染视频 {cur}/{total} 帧",
+                    )
+
+                rendered = render_result_video(
+                    video_path=temp_path,
+                    results=recognition_results,
+                    output_path=output_path,
+                    progress_callback=_render_progress,
+                )
+
+                os.remove(temp_path)
+                _cleanup_old_results(keep=20)
+
+                if rendered:
+                    _update_task(
+                        task_id,
+                        status="completed",
+                        progress=100,
+                        message=f"渲染完成，共标注 {len(recognition_results)} 帧",
+                        result={
+                            "result_video_url": f"/api/video/result/{result_filename}",
+                            "recognized_timestamps": len(recognition_results),
+                            "results": recognition_results,
+                            "total_frames": total_frames_local,
+                            "fps": round(fps, 2),
+                        },
+                    )
+                else:
+                    _update_task(task_id, status="failed", error="视频渲染失败")
+            except Exception as e:
+                logger.error(f"视频处理失败: {e}")
+                _update_task(task_id, status="failed", error=str(e))
+                try:
+                    os.remove(temp_path)
+                except Exception:
+                    pass
+
+        thread = threading.Thread(target=_process_video, daemon=True)
+        thread.start()
+
+        return {
+            "success": True,
+            "task_id": task_id,
+            "filename": file.filename,
+            "total_frames": total_frames,
+            "fps": round(fps, 2),
+            "message": "视频处理任务已创建",
+        }
     except Exception as e:
         return {"success": False, "error": str(e)}
+
+
+@router.get("/video/task/{task_id}")
+async def get_video_task_status(task_id: str):
+    """查询视频处理任务状态"""
+    task = _get_task(task_id)
+    if task is None:
+        raise HTTPException(status_code=404, detail="任务不存在或已过期")
+    resp = {
+        "success": True,
+        "task_id": task["task_id"],
+        "status": task["status"],
+        "progress": task["progress"],
+        "current_step": task["current_step"],
+        "total_steps": task["total_steps"],
+        "message": task["message"],
+    }
+    if task["status"] == "completed" and task["result"]:
+        resp["result"] = task["result"]
+    if task["status"] == "failed" and task["error"]:
+        resp["error"] = task["error"]
+    return resp
 
 
 @router.get("/video/result/{filename}")

@@ -1,12 +1,12 @@
 "use client";
 
 import { useState, useCallback, useEffect, useRef } from "react";
-import { Video, Play, Pause, X, Clock, AlertTriangle, CheckCircle, Download } from "lucide-react";
+import { Video, Play, Pause, X, Clock, AlertTriangle, CheckCircle, Download, Loader2 } from "lucide-react";
 import axios from "axios";
 
 interface VideoResult {
   timestamp: number;
-  frame_number: number;  // 后端返回的是 frame_number
+  frame_number: number;
   roles: {
     role: string;
     similarity: number;
@@ -26,15 +26,30 @@ export default function VideoPanel({ darkMode, accessToken }: VideoPanelProps) {
   const [results, setResults] = useState<VideoResult[]>([]);
   const [frameInterval, setFrameInterval] = useState(1.0);
   const [confidenceThreshold, setConfidenceThreshold] = useState(0.5);
-  const [recognitionMode, setRecognitionMode] = useState("search"); // 'search' or 'inference'
+  const [recognitionMode, setRecognitionMode] = useState("search");
   const [modelName, setModelName] = useState("efficientnet_b3_loli_optimized_v2_20260529_133654");
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
-  const [outputVideo, setOutputVideo] = useState(false); // 是否生成标注结果视频
+  const [outputVideo, setOutputVideo] = useState(false);
   const [resultVideoUrl, setResultVideoUrl] = useState<string | null>(null);
 
+  // 进度相关状态
+  const [taskId, setTaskId] = useState<string | null>(null);
+  const [progress, setProgress] = useState(0);
+  const [progressMessage, setProgressMessage] = useState("");
+  const [showSuccess, setShowSuccess] = useState(false);
+  const [showError, setShowError] = useState<string | null>(null);
+
   const videoRef = useRef<HTMLVideoElement>(null);
+  const pollTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // 清理轮询
+  useEffect(() => {
+    return () => {
+      if (pollTimerRef.current) clearInterval(pollTimerRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     if (selectedVideo && videoPreview) {
@@ -56,6 +71,10 @@ export default function VideoPanel({ darkMode, accessToken }: VideoPanelProps) {
       };
       reader.readAsDataURL(file);
       setResults([]);
+      setResultVideoUrl(null);
+      setShowSuccess(false);
+      setShowError(null);
+      setProgress(0);
     }
   };
 
@@ -65,7 +84,58 @@ export default function VideoPanel({ darkMode, accessToken }: VideoPanelProps) {
     setResults([]);
     setCurrentTime(0);
     setDuration(0);
+    setResultVideoUrl(null);
+    setProgress(0);
+    setProgressMessage("");
+    setShowSuccess(false);
+    setShowError(null);
+    setTaskId(null);
   }, []);
+
+  // 轮询任务状态
+  const startPolling = useCallback((tid: string) => {
+    if (pollTimerRef.current) clearInterval(pollTimerRef.current);
+
+    pollTimerRef.current = setInterval(async () => {
+      try {
+        const headers: any = {};
+        if (accessToken) headers["Authorization"] = `Bearer ${accessToken}`;
+
+        const resp = await axios.get(`/api/video/task/${tid}`, { headers });
+        const data = resp.data;
+
+        if (data.success) {
+          setProgress(data.progress);
+          setProgressMessage(data.message || "");
+
+          if (data.status === "completed") {
+            clearInterval(pollTimerRef.current!);
+            pollTimerRef.current = null;
+            setIsProcessing(false);
+            setShowSuccess(true);
+
+            // 取结果
+            if (data.result) {
+              setResults(data.result.results || []);
+              if (data.result.result_video_url) {
+                setResultVideoUrl(data.result.result_video_url);
+              }
+            }
+
+            // 3秒后自动隐藏成功提示
+            setTimeout(() => setShowSuccess(false), 5000);
+          } else if (data.status === "failed") {
+            clearInterval(pollTimerRef.current!);
+            pollTimerRef.current = null;
+            setIsProcessing(false);
+            setShowError(data.error || "视频处理失败");
+          }
+        }
+      } catch (e) {
+        console.error("轮询任务状态失败:", e);
+      }
+    }, 1000); // 每秒轮询
+  }, [accessToken]);
 
   const handleRecognize = useCallback(async () => {
     if (!selectedVideo || isProcessing) return;
@@ -73,12 +143,15 @@ export default function VideoPanel({ darkMode, accessToken }: VideoPanelProps) {
     setIsProcessing(true);
     setResults([]);
     setResultVideoUrl(null);
+    setShowSuccess(false);
+    setShowError(null);
+    setProgress(0);
+    setProgressMessage("准备中...");
 
     try {
       const formData = new FormData();
       formData.append("file", selectedVideo);
-      
-      // 添加识别模式参数
+
       const params = new URLSearchParams({
         frame_interval: frameInterval.toString(),
         confidence_threshold: confidenceThreshold.toString(),
@@ -92,31 +165,56 @@ export default function VideoPanel({ darkMode, accessToken }: VideoPanelProps) {
       }
 
       // 根据是否勾选"生成标注视频"选择不同的API端点
-      const endpoint = outputVideo ? `/api/video/recognize-with-overlay?${params}` : `/api/video/recognize?${params}`;
-      const response = await axios.post(endpoint, formData, { headers });
-      
-      if (response.data.success) {
-        // 兼容两种返回格式
-        const results = response.data.data?.results || response.data.results || [];
-        setResults(results);
-        // 如果返回了结果视频URL，保存
-        if (response.data.result_video_url) {
-          setResultVideoUrl(response.data.result_video_url);
+      if (outputVideo) {
+        // 异步任务模式：提交任务 → 轮询进度
+        const response = await axios.post(
+          `/api/video/recognize-with-overlay?${params}`,
+          formData,
+          { headers }
+        );
+
+        if (response.data.success && response.data.task_id) {
+          const tid = response.data.task_id;
+          setTaskId(tid);
+          startPolling(tid);
+        } else {
+          setIsProcessing(false);
+          setShowError(response.data.error || "提交任务失败");
         }
+      } else {
+        // 非标注模式保持同步
+        const response = await axios.post(`/api/video/recognize?${params}`, formData, { headers });
+
+        if (response.data.success) {
+          const results = response.data.data?.results || response.data.results || [];
+          setResults(results);
+          setShowSuccess(true);
+          setTimeout(() => setShowSuccess(false), 5000);
+        } else {
+          setShowError(response.data.error || "识别失败");
+        }
+        setIsProcessing(false);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("视频识别失败:", error);
-    } finally {
       setIsProcessing(false);
+      setShowError(error?.response?.data?.error || error?.message || "视频识别失败");
     }
-  }, [selectedVideo, frameInterval, confidenceThreshold, recognitionMode, modelName, isProcessing, accessToken, outputVideo]);
+  }, [selectedVideo, frameInterval, confidenceThreshold, recognitionMode, modelName, isProcessing, accessToken, outputVideo, startPolling]);
 
   const handleTimeUpdate = (e: React.ChangeEvent<HTMLVideoElement>) => {
     setCurrentTime(e.target.currentTime);
   };
 
   const togglePlay = () => {
-    setIsPlaying(!isPlaying);
+    if (videoRef.current) {
+      if (isPlaying) {
+        videoRef.current.pause();
+      } else {
+        videoRef.current.play();
+      }
+      setIsPlaying(!isPlaying);
+    }
   };
 
   const formatTime = (seconds: number) => {
@@ -124,6 +222,12 @@ export default function VideoPanel({ darkMode, accessToken }: VideoPanelProps) {
     const secs = Math.floor(seconds % 60);
     return `${mins}:${secs.toString().padStart(2, "0")}`;
   };
+
+  // 进度栏样式
+  const progressBarBg = darkMode ? "bg-gray-700" : "bg-gray-200";
+  const progressBarFill = outputVideo
+    ? "bg-gradient-to-r from-green-500 to-emerald-500"
+    : "bg-gradient-to-r from-blue-500 to-indigo-500";
 
   return (
     <div className={`${darkMode ? "bg-gray-800" : "bg-white"} rounded-xl shadow-lg border ${darkMode ? "border-gray-700" : "border-gray-200"} overflow-hidden`}>
@@ -135,6 +239,27 @@ export default function VideoPanel({ darkMode, accessToken }: VideoPanelProps) {
         </div>
         <p className="text-sm text-gray-500 mt-1">上传视频进行实时抽帧识别角色</p>
       </div>
+
+      {/* 成功提示横幅 */}
+      {showSuccess && (
+        <div className="mx-4 mt-4 px-4 py-3 bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-700 rounded-lg flex items-center space-x-3 animate-pulse">
+          <CheckCircle className="h-5 w-5 text-green-500 flex-shrink-0" />
+          <div className="text-sm text-green-700 dark:text-green-300 font-medium">
+            识别完成{outputVideo ? "，标注视频已生成" : ""}！
+          </div>
+        </div>
+      )}
+
+      {/* 错误提示横幅 */}
+      {showError && (
+        <div className="mx-4 mt-4 px-4 py-3 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700 rounded-lg flex items-center space-x-3">
+          <AlertTriangle className="h-5 w-5 text-red-500 flex-shrink-0" />
+          <div className="text-sm text-red-700 dark:text-red-300 font-medium flex-1">{showError}</div>
+          <button onClick={() => setShowError(null)} className="text-red-400 hover:text-red-600">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
 
       {/* 内容区 */}
       <div className="p-4">
@@ -245,7 +370,7 @@ export default function VideoPanel({ darkMode, accessToken }: VideoPanelProps) {
               onTimeUpdate={handleTimeUpdate}
               onClick={togglePlay}
             />
-            
+
             {/* 播放控制覆盖层 */}
             <div className="absolute inset-0 flex items-center justify-center bg-black/30">
               <button
@@ -288,6 +413,28 @@ export default function VideoPanel({ darkMode, accessToken }: VideoPanelProps) {
           </div>
         )}
 
+        {/* 进度显示（异步任务模式下） */}
+        {isProcessing && outputVideo && (
+          <div className="mb-4 p-4 rounded-lg border border-green-200 dark:border-green-700 bg-green-50/50 dark:bg-green-900/20">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center space-x-2">
+                <Loader2 className="h-4 w-4 text-green-500 animate-spin" />
+                <span className="text-sm font-medium text-green-700 dark:text-green-300">
+                  {progressMessage || "处理中..."}
+                </span>
+              </div>
+              <span className="text-sm font-mono text-green-600 dark:text-green-400">{progress}%</span>
+            </div>
+            {/* 进度条 */}
+            <div className={`w-full h-3 ${progressBarBg} rounded-full overflow-hidden`}>
+              <div
+                className={`h-full ${progressBarFill} rounded-full transition-all duration-500 ease-out`}
+                style={{ width: `${progress}%` }}
+              />
+            </div>
+          </div>
+        )}
+
         {/* 识别按钮 */}
         <button
           onClick={handleRecognize}
@@ -300,7 +447,7 @@ export default function VideoPanel({ darkMode, accessToken }: VideoPanelProps) {
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
               </svg>
-              <span>识别中...</span>
+              <span>{outputVideo ? `处理中 ${progress}%` : "识别中..."}</span>
             </>
           ) : (
             <>
@@ -311,71 +458,83 @@ export default function VideoPanel({ darkMode, accessToken }: VideoPanelProps) {
         </button>
 
         {/* 识别结果 */}
-        {results.length > 0 && (
-          <div className="mt-6">
-            <h3 className="text-sm font-medium mb-3">识别结果 ({results.length} 帧)</h3>
-            <div className="space-y-3 max-h-64 overflow-y-auto">
-              {results.map((result, index) => (
-                <div
-                  key={index}
-                  className={`p-3 rounded-lg ${darkMode ? "bg-gray-700" : "bg-gray-50"}`}
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center space-x-2">
-                      <Clock className="h-4 w-4 text-gray-500" />
-                      <span className="text-sm font-medium">第 {result.frame_number} 帧</span>
-                      <span className="text-xs text-gray-500">({result.timestamp.toFixed(2)}s)</span>
-                    </div>
-                    {result.roles.length > 0 ? (
-                      <CheckCircle className="h-4 w-4 text-green-500" />
-                    ) : (
-                      <AlertTriangle className="h-4 w-4 text-yellow-500" />
-                    )}
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {result.roles.length > 0 ? (
-                      result.roles.map((role, rIndex) => (
-                        <span
-                          key={rIndex}
-                          className={`px-2 py-1 rounded-full text-xs font-medium ${
-                            role.similarity > 0.8
-                              ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
-                              : role.similarity > 0.5
-                              ? "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200"
-                              : "bg-gray-100 text-gray-800 dark:bg-gray-600 dark:text-gray-200"
-                          }`}
-                        >
-                          {role.role} ({(role.similarity * 100).toFixed(0)}%)
-                        </span>
-                      ))
-                    ) : (
-                      <span className="text-xs text-gray-500">未检测到角色</span>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* 下载结果视频按钮 */}
+        {(results.length > 0 || resultVideoUrl) && (
+          <div className="mt-6 space-y-4">
+            {/* 标注结果视频播放器 */}
             {resultVideoUrl && (
-              <div className="mt-4">
-                <a
-                  href={resultVideoUrl}
-                  download
-                  className={`w-full flex items-center justify-center space-x-2 px-4 py-3 rounded-lg font-medium transition-all ${
-                    darkMode
-                      ? "bg-purple-600 hover:bg-purple-700 text-white"
-                      : "bg-purple-500 hover:bg-purple-600 text-white"
-                  }`}
-                >
-                  <Download className="h-5 w-5" />
-                  <span>下载标注结果视频</span>
-                </a>
-                <p className={`text-xs mt-1 text-center ${darkMode ? "text-gray-400" : "text-gray-500"}`}>
-                  视频帧上已绘制角色名和置信度，可对比识别效果
-                </p>
+              <div className={`rounded-lg overflow-hidden border ${darkMode ? "border-gray-700" : "border-gray-200"}`}>
+                <div className={`px-4 py-2 ${darkMode ? "bg-gray-700" : "bg-gray-100"} flex items-center justify-between`}>
+                  <div className="flex items-center space-x-2">
+                    <Video className="h-4 w-4 text-purple-500" />
+                    <span className="text-sm font-medium">标注结果视频</span>
+                  </div>
+                  <a
+                    href={resultVideoUrl}
+                    download
+                    className="flex items-center space-x-1 px-3 py-1 text-xs font-medium bg-purple-500 text-white rounded hover:bg-purple-600 transition-colors"
+                  >
+                    <Download className="h-3 w-3" />
+                    <span>下载</span>
+                  </a>
+                </div>
+                <div className="bg-black">
+                  <video
+                    src={resultVideoUrl}
+                    controls
+                    className="w-full max-h-80"
+                    preload="metadata"
+                  >
+                    您的浏览器不支持视频播放
+                  </video>
+                </div>
               </div>
             )}
+
+            {/* 识别结果列表 */}
+            <div>
+              <h3 className="text-sm font-medium mb-3">识别结果 ({results.length} 帧)</h3>
+              <div className="space-y-3 max-h-64 overflow-y-auto">
+                {results.map((result, index) => (
+                  <div
+                    key={index}
+                    className={`p-3 rounded-lg ${darkMode ? "bg-gray-700" : "bg-gray-50"}`}
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center space-x-2">
+                        <Clock className="h-4 w-4 text-gray-500" />
+                        <span className="text-sm font-medium">第 {result.frame_number} 帧</span>
+                        <span className="text-xs text-gray-500">({result.timestamp.toFixed(2)}s)</span>
+                      </div>
+                      {result.roles.length > 0 ? (
+                        <CheckCircle className="h-4 w-4 text-green-500" />
+                      ) : (
+                        <AlertTriangle className="h-4 w-4 text-yellow-500" />
+                      )}
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {result.roles.length > 0 ? (
+                        result.roles.map((role, rIndex) => (
+                          <span
+                            key={rIndex}
+                            className={`px-2 py-1 rounded-full text-xs font-medium ${
+                              role.similarity > 0.8
+                                ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
+                                : role.similarity > 0.5
+                                ? "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200"
+                                : "bg-gray-100 text-gray-800 dark:bg-gray-600 dark:text-gray-200"
+                            }`}
+                          >
+                            {role.role} ({(role.similarity * 100).toFixed(0)}%)
+                          </span>
+                        ))
+                      ) : (
+                        <span className="text-xs text-gray-500">未检测到角色</span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         )}
       </div>
