@@ -7,11 +7,23 @@
 """
 
 from .mediapipe_detector import MediaPipeKeypointDetector
-from .keypoint_utils import detect_keypoints, draw_keypoints, get_keypoint_distance
+from .keypoint_utils import (
+    detect_keypoints,
+    draw_keypoints,
+    get_keypoint_distance,
+    get_keypoint_by_id,
+    calculate_angle,
+    get_detector,
+    release_detector,
+)
 
 __all__ = [
     "MediaPipeKeypointDetector",
     "detect_keypoints",
     "draw_keypoints",
     "get_keypoint_distance",
+    "get_keypoint_by_id",
+    "calculate_angle",
+    "get_detector",
+    "release_detector",
 ]

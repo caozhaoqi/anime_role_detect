@@ -8,16 +8,23 @@
 import sys
 import os
 from pathlib import Path
+import logging
 
 # 添加项目根目录
-project_root = Path(__file__).parent.parent.parent
+# __file__ = src/api/routes/cleaning_routes.py -> 需要上溯4层到项目根目录
+_current_file = Path(__file__).resolve()
+project_root = _current_file.parent.parent.parent.parent
 sys.path.insert(0, str(project_root))
+
+logger = logging.getLogger(__name__)
 
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Depends, BackgroundTasks, Query
 from typing import Optional, List, Dict
 from pydantic import BaseModel
 import time
 import json
+import asyncio
+import subprocess
 
 from src.data_pipeline.cleaning_pipeline import CleaningPipeline, CleaningConfig
 from src.middleware.auth_enhanced import get_current_admin
@@ -209,7 +216,6 @@ async def run_cleaning_pipeline(
 
 @router.post("/run/async", response_model=CleaningResponse)
 async def run_cleaning_pipeline_async(
-    background_tasks: BackgroundTasks,
     input_dir: str = Form(..., description="输入目录路径"),
     output_dir: str = Form(..., description="输出目录路径"),
     enable_deduplication: bool = Form(True, description="启用CLIP去重"),
@@ -260,8 +266,8 @@ async def run_cleaning_pipeline_async(
         # 保存任务配置
         task_config = {
             "task_id": task_id,
-            "input_dir": input_dir,
-            "output_dir": output_dir,
+            "input_dir": str(input_dir),
+            "output_dir": str(output_dir),
             "enable_deduplication": enable_deduplication,
             "enable_consistency_filter": enable_consistency_filter,
             "enable_cluster_filter": enable_cluster_filter,
@@ -286,63 +292,31 @@ async def run_cleaning_pipeline_async(
         with open(task_file, "w", encoding="utf-8") as f:
             json.dump(task_config, f)
         
-        # 定义后台任务
-        def run_cleaning():
-            try:
-                # 更新状态
-                task_config["status"] = "running"
-                with open(task_file, "w", encoding="utf-8") as f:
-                    json.dump(task_config, f)
-                
-                # 构建配置
-                config = CleaningConfig(
-                    enable_deduplication=enable_deduplication,
-                    enable_consistency_filter=enable_consistency_filter,
-                    enable_cluster_filter=enable_cluster_filter,
-                    enable_mislabeled_detector=enable_mislabeled_detector,
-                    enable_danbooru_enrichment=enable_danbooru_enrichment,
-                    similarity_threshold=similarity_threshold,
-                    consistency_threshold=consistency_threshold,
-                    outlier_threshold=outlier_threshold,
-                    text_threshold=text_threshold,
-                    confusion_gap=confusion_gap,
-                    dedup_dry_run=dry_run,
-                    consistency_dry_run=dry_run,
-                    cluster_dry_run=dry_run,
-                    min_images_per_character=min_images_per_character,
-                )
-                
-                # 创建并运行流水线
-                pipeline = CleaningPipeline(input_dir, output_dir, config)
-                report = pipeline.run()
-                
-                # 保存结果
-                task_config["status"] = "completed"
-                task_config["end_time"] = time.time()
-                task_config["duration_seconds"] = report.duration_seconds
-                task_config["result"] = {
-                    "total_characters": report.total_characters,
-                    "total_original_images": report.total_original_images,
-                    "total_cleaned_images": report.total_cleaned_images,
-                    "total_removed_images": report.total_removed_images,
-                    "overall_keep_rate": report.overall_keep_rate,
-                    "dedup_removed": report.dedup_removed,
-                    "consistency_removed": report.consistency_removed,
-                    "cluster_removed": report.cluster_removed,
-                    "mislabeled_removed": report.mislabeled_removed,
-                    "character_results": report.character_results,
-                }
-                
-            except Exception as e:
-                task_config["status"] = "failed"
-                task_config["error"] = str(e)
-            
-            finally:
-                with open(task_file, "w", encoding="utf-8") as f:
-                    json.dump(task_config, f)
+        # 在子进程中运行清洗任务，避免PyTorch多线程死锁
+        worker_script = Path(project_root) / "scripts" / "_run_cleaning_worker.py"
+        log_dir = Path(project_root) / "logs" / "cleaning_workers"
+        log_dir.mkdir(parents=True, exist_ok=True)
         
-        # 添加后台任务
-        background_tasks.add_task(run_cleaning)
+        log_file = log_dir / f"{task_id}.log"
+        err_file = log_dir / f"{task_id}.err.log"
+        
+        # 启动子进程（传递环境变量，避免macOS PyTorch多线程死锁）
+        env = os.environ.copy()
+        env["OMP_NUM_THREADS"] = "1"
+        env["MKL_NUM_THREADS"] = "1"
+        env["KMP_DUPLICATE_LIB_OK"] = "TRUE"
+        env["MKL_THREADING_LAYER"] = "GNU"
+        
+        with open(log_file, "w") as stdout_f, open(err_file, "w") as stderr_f:
+            subprocess.Popen(
+                [sys.executable, str(worker_script), str(task_file)],
+                stdout=stdout_f,
+                stderr=stderr_f,
+                cwd=str(project_root),
+                env=env,
+            )
+        
+        logger.info(f"清洗任务已提交: task_id={task_id}, 子进程已启动")
         
         return {
             "success": True,

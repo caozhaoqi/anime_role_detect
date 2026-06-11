@@ -101,7 +101,8 @@ export default function CleaningPanel({ darkMode, accessToken }: CleaningPanelPr
   const loadDirectory = async (path: string) => {
     setBrowseLoading(true);
     try {
-      const response = await axios.get('/api/cleaning/browse', { params: { path } });
+      const headers = accessToken ? { Authorization: `Bearer ${accessToken}` } : {};
+      const response = await axios.get('/api/cleaning/browse', { params: { path }, headers });
       if (response.data.success) {
         setBrowseEntries(response.data.data.entries);
         setBrowsePath(response.data.data.current_path);

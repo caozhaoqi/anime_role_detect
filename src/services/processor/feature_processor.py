@@ -172,7 +172,18 @@ def process_image_features(image_source, content_type, attributes):
             except Exception as e:
                 logger.error(f"加载角色预测模块失败: {e}")
 
-        # 这里可以添加其他特征处理逻辑
+        # 关键点检测
+        try:
+            keypoint_detector = get_keypoint_detector()
+            if keypoint_detector:
+                kp_result = keypoint_detector(image_source)
+                if kp_result:
+                    keypoints = kp_result
+                    logger.info(f"关键点检测完成，检测到 {len(keypoints)} 个关键点")
+            else:
+                logger.warning("关键点检测器未加载")
+        except Exception as e:
+            logger.error(f"关键点检测失败: {e}")
 
     except Exception as e:
         logger.error(f"处理图像特征失败: {e}")

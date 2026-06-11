@@ -34,7 +34,7 @@ USE_COREML = False  # platform.system() == "Darwin"
 # ==================== MPS加速开关 ====================
 # 设置为True以启用MPS加速（适用于单进程场景，如model-service）
 # 设置为False以禁用MPS（适用于多进程场景，避免锁竞争）
-ENABLE_MPS = True  # model-service单进程，可以启用MPS
+ENABLE_MPS = False  # model-service使用线程池，MPS非线程安全需禁用
 # ====================================================
 
 # 设置Hugging Face缓存目录为项目目录

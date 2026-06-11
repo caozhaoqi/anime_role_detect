@@ -338,6 +338,10 @@ async def proxy_request(request: Request, path: str):
 
     logger.info(f"转发请求到 [{service}]: {url}")
 
+    # 保留原始请求的查询参数
+    if request.url.query:
+        url = f"{url}?{request.url.query}"
+
     headers = dict(request.headers)
     headers.pop("host", None)
     headers.pop("content-length", None)

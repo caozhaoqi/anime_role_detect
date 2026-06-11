@@ -16,7 +16,7 @@ from src.core.logging.global_logger import get_logger
 
 logger = get_logger("recognition_service")
 
-USE_DATABASE = os.environ.get("USE_DATABASE", "false").lower() == "true"
+USE_DATABASE = os.environ.get("USE_DATABASE", "true").lower() == "true"
 _use_database = None
 
 
@@ -43,7 +43,7 @@ class RecognitionService:
     def __init__(self):
         """初始化识别记录服务"""
         _init_db()
-        self.records_file = "data/recognition_records.json"
+        self.records_file = os.path.abspath("data/recognition_records.json")
         # 确保数据目录存在
         os.makedirs(os.path.dirname(self.records_file), exist_ok=True)
         self.records = self._load_records() if not _use_database else []
@@ -111,8 +111,8 @@ class RecognitionService:
                     username=db_record.username,
                     image_filename=db_record.image_filename,
                     image_path=db_record.image_path,
-                    recognition_result=db_record.recognition_result,
-                    timestamp=db_record.timestamp,
+                    recognition_result=json.loads(db_record.recognition_result),
+                    timestamp=db_record.created_at,
                     model_used=db_record.model_used,
                     processing_time=db_record.processing_time,
                     is_multi_role=db_record.is_multi_role,
@@ -162,8 +162,8 @@ class RecognitionService:
                         username=r.username,
                         image_filename=r.image_filename,
                         image_path=r.image_path,
-                        recognition_result=r.recognition_result,
-                        timestamp=r.timestamp,
+                        recognition_result=json.loads(r.recognition_result),
+                        timestamp=r.created_at,
                         model_used=r.model_used,
                         processing_time=r.processing_time,
                         is_multi_role=r.is_multi_role,
@@ -197,8 +197,8 @@ class RecognitionService:
                         username=db_record.username,
                         image_filename=db_record.image_filename,
                         image_path=db_record.image_path,
-                        recognition_result=db_record.recognition_result,
-                        timestamp=db_record.timestamp,
+                        recognition_result=json.loads(db_record.recognition_result),
+                        timestamp=db_record.created_at,
                         model_used=db_record.model_used,
                         processing_time=db_record.processing_time,
                         is_multi_role=db_record.is_multi_role,
@@ -248,8 +248,8 @@ class RecognitionService:
                         username=r.username,
                         image_filename=r.image_filename,
                         image_path=r.image_path,
-                        recognition_result=r.recognition_result,
-                        timestamp=r.timestamp,
+                        recognition_result=json.loads(r.recognition_result),
+                        timestamp=r.created_at,
                         model_used=r.model_used,
                         processing_time=r.processing_time,
                         is_multi_role=r.is_multi_role,

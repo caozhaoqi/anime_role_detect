@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>📋 Log Viewer</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --bg-card: #161b22;
+    --bg-input: #21262d;
+    --border: #30363d;
+    --text: #e6edf3;
+    --text-dim: #8b949e;
+    --accent: #58a6ff;
+    --danger: #f85149;
+    --warning: #d29922;
+    --success: #3fb950;
+    --info: #58a6ff;
+    --debug: #8b949e;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans SC', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+  }
+
+  .header {
+    background: var(--bg-card);
+    border-bottom: 1px solid var(--border);
+    padding: 16px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .header h1 { font-size: 20px; font-weight: 600; }
+  .header h1 span { color: var(--accent); }
+  .header-right { display: flex; align-items: center; gap: 12px; }
+
+  .btn {
+    padding: 6px 16px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--bg-input);
+    color: var(--text);
+    cursor: pointer;
+    font-size: 13px;
+    transition: all .15s;
+  }
+  .btn:hover { background: #30363d; }
+  .btn-sm { padding: 4px 10px; font-size: 12px; }
+  .btn-primary {
+    background: var(--accent); color: #fff; border-color: var(--accent);
+  }
+  .btn-primary:hover { background: #4c8cd4; }
+
+  .badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+  }
+  .badge-INFO { background: rgba(88,166,255,0.15); color: var(--info); }
+  .badge-WARNING { background: rgba(210,153,34,0.15); color: var(--warning); }
+  .badge-ERROR { background: rgba(248,81,73,0.15); color: var(--danger); }
+  .badge-CRITICAL { background: rgba(248,81,73,0.25); color: var(--danger); }
+  .badge-DEBUG { background: rgba(139,148,158,0.15); color: var(--debug); }
+  .badge-RAW { background: rgba(139,148,158,0.1); color: var(--text-dim); }
+
+  .stats-bar {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 12px;
+    padding: 16px 24px;
+  }
+  .stat-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 16px;
+  }
+  .stat-card .label { font-size: 12px; color: var(--text-dim); margin-bottom: 4px; }
+  .stat-card .value { font-size: 24px; font-weight: 700; }
+  .stat-card .value.danger { color: var(--danger); }
+  .stat-card .value.warning { color: var(--warning); }
+  .stat-card .value.info { color: var(--info); }
+  .stat-card .value.success { color: var(--success); }
+
+  .filters {
+    padding: 0 24px 16px;
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .filters input, .filters select {
+    padding: 8px 12px;
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-size: 13px;
+    outline: none;
+    transition: border .15s;
+  }
+  .filters input:focus, .filters select:focus { border-color: var(--accent); }
+  .filters .search-box {
+    flex: 1;
+    min-width: 200px;
+    position: relative;
+  }
+  .filters .search-box input { width: 100%; padding-left: 32px; }
+  .filters .search-box::before {
+    content: '🔍';
+    position: absolute;
+    left: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 12px;
+    opacity: 0.6;
+  }
+
+  .log-container { padding: 0 24px 24px; }
+  .log-entries {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    font-family: 'JetBrains Mono', 'SF Mono', 'Fira Code', monospace;
+    font-size: 12px;
+    line-height: 1.6;
+  }
+  .log-entry {
+    display: flex;
+    align-items: flex-start;
+    padding: 6px 16px;
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+    transition: background .1s;
+    gap: 10px;
+  }
+  .log-entry:last-child { border-bottom: none; }
+  .log-entry:hover { background: rgba(88,166,255,0.05); }
+  .log-entry .time {
+    color: var(--text-dim);
+    white-space: nowrap;
+    min-width: 180px;
+    flex-shrink: 0;
+  }
+  .log-entry .level { flex-shrink: 0; min-width: 80px; }
+  .log-entry .service {
+    color: var(--accent);
+    min-width: 80px;
+    flex-shrink: 0;
+    text-align: center;
+  }
+  .log-entry .message {
+    flex: 1;
+    word-break: break-all;
+    color: var(--text);
+  }
+  .log-entry .message .hl { background: rgba(210,153,34,0.3); padding: 0 2px; border-radius: 2px; }
+
+  .log-detail {
+    display: none;
+    padding: 12px 16px 12px 266px;
+    background: rgba(0,0,0,0.2);
+    border-bottom: 1px solid var(--border);
+    font-size: 12px;
+    line-height: 1.8;
+  }
+  .log-detail.open { display: block; }
+  .log-detail .row { display: flex; gap: 8px; }
+  .log-detail .key { color: var(--text-dim); min-width: 100px; }
+  .log-detail .val { color: var(--text); word-break: break-all; }
+  .log-detail pre {
+    background: rgba(0,0,0,0.3);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 8px;
+    margin-top: 6px;
+    overflow-x: auto;
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+
+  .pagination {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 16px;
+    border-top: 1px solid var(--border);
+    font-size: 13px;
+    color: var(--text-dim);
+  }
+  .pagination .page-btn {
+    padding: 4px 12px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--bg-input);
+    color: var(--text);
+    cursor: pointer;
+    font-size: 12px;
+  }
+  .pagination .page-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .pagination .page-btn:hover:not(:disabled) { background: #30363d; }
+
+  .loading {
+    text-align: center;
+    padding: 40px;
+    color: var(--text-dim);
+  }
+  .loading .spinner {
+    display: inline-block;
+    width: 24px;
+    height: 24px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin .8s linear infinite;
+    margin-bottom: 8px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  @media (max-width: 768px) {
+    .log-entry { flex-wrap: wrap; font-size: 11px; }
+    .log-entry .time { min-width: 140px; }
+    .log-detail { padding-left: 16px; }
+    .header h1 { font-size: 16px; }
+  }
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>📋 <span>Log</span>Viewer</h1>
+  <div class="header-right">
+    <span id="logTime" style="font-size:12px;color:var(--text-dim)"></span>
+    <button class="btn" onclick="refreshData()">🔄 刷新</button>
+    <button class="btn btn-primary" id="autoRefreshBtn" onclick="toggleAutoRefresh()">⏸ 暂停</button>
+  </div>
+</div>
+
+<div class="stats-bar">
+  <div class="stat-card"><div class="label">总日志数</div><div class="value info" id="statTotal">-</div></div>
+  <div class="stat-card"><div class="label">INFO</div><div class="value success" id="statInfo">-</div></div>
+  <div class="stat-card"><div class="label">WARNING</div><div class="value warning" id="statWarning">-</div></div>
+  <div class="stat-card"><div class="label">ERROR</div><div class="value danger" id="statError">-</div></div>
+  <div class="stat-card"><div class="label">服务数</div><div class="value info" id="statServices">-</div></div>
+  <div class="stat-card"><div class="label">时间范围</div><div class="value" style="font-size:13px;font-weight:400" id="statTimeRange">-</div></div>
+</div>
+
+<div class="filters">
+  <div class="search-box">
+    <input type="text" id="searchInput" placeholder="模糊搜索关键词（空格分割）..." oninput="debounceSearch()">
+  </div>
+  <select id="levelFilter" onchange="doSearch()">
+    <option value="">所有级别</option>
+    <option value="INFO">INFO</option>
+    <option value="WARNING">WARNING</option>
+    <option value="ERROR">ERROR</option>
+    <option value="CRITICAL">CRITICAL</option>
+    <option value="DEBUG">DEBUG</option>
+  </select>
+  <select id="serviceFilter" onchange="doSearch()">
+    <option value="">所有服务</option>
+  </select>
+  <div style="display:flex;gap:4px;flex-wrap:wrap">
+    <button class="btn btn-sm" onclick="quickDate('today')">今天</button>
+    <button class="btn btn-sm" onclick="quickDate('tomorrow')">明天</button>
+    <button class="btn btn-sm" onclick="quickDate('this_week')">本周</button>
+    <button class="btn btn-sm" onclick="quickDate('this_month')">本月</button>
+  </div>
+  <div style="display:flex;gap:4px;flex-wrap:wrap">
+    <button class="btn btn-sm" onclick="quickDate('morning')">上午</button>
+    <button class="btn btn-sm" onclick="quickDate('afternoon')">下午</button>
+    <button class="btn btn-sm" onclick="quickDate('evening')">晚间</button>
+    <button class="btn btn-sm" onclick="quickDate('last_hour')">最近1h</button>
+    <button class="btn btn-sm" onclick="quickDate('last_24h')">最近24h</button>
+  </div>
+  <input type="text" id="dateFrom" placeholder="起始时间" style="min-width:140px" onchange="doSearch()">
+  <span style="color:var(--text-dim)">~</span>
+  <input type="text" id="dateTo" placeholder="结束时间" style="min-width:140px" onchange="doSearch()">
+  <button class="btn btn-sm" id="sortBtn" onclick="toggleSort()" style="min-width:60px">↓ 最新</button>
+  <button class="btn btn-sm" onclick="clearFilters()" style="color:var(--text-dim)">✕ 清除</button>
+</div>
+
+<div class="log-container">
+  <div id="logEntries" class="log-entries">
+    <div class="loading"><div class="spinner"></div><div>加载日志中...</div></div>
+  </div>
+  <div id="pagination" class="pagination" style="display:none">
+    <span id="pageInfo"></span>
+    <div style="display:flex;gap:8px">
+      <button class="page-btn" id="prevBtn" onclick="prevPage()">← 上一页</button>
+      <button class="page-btn" id="nextBtn" onclick="nextPage()">下一页 →</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ───────── State ─────────
+let currentOffset = 0;
+const PAGE_SIZE = 100;
+let autoRefresh = true;
+let refreshTimer = null;
+let searchTimer = null;
+
+// ───────── Init ─────────
+document.addEventListener('DOMContentLoaded', () => {
+  loadServices();
+  refreshData();
+  startAutoRefresh();
+  updateClock();
+});
+
+function updateClock() {
+  document.getElementById('logTime').textContent = new Date().toLocaleString();
+}
+
+// ───────── Auto Refresh ─────────
+function startAutoRefresh() {
+  if (refreshTimer) clearInterval(refreshTimer);
+  refreshTimer = setInterval(() => { if (autoRefresh) refreshData(); }, 10000);
+}
+
+function toggleAutoRefresh() {
+  autoRefresh = !autoRefresh;
+  const btn = document.getElementById('autoRefreshBtn');
+  btn.textContent = autoRefresh ? '⏸ 暂停' : '▶ 恢复';
+  btn.className = autoRefresh ? 'btn btn-primary' : 'btn';
+  if (autoRefresh) startAutoRefresh();
+}
+
+// ───────── Sort & Quick Date ─────────
+function toggleSort() {
+  const btn = document.getElementById('sortBtn');
+  const cur = btn.dataset.sort || 'desc';
+  const next = cur === 'desc' ? 'asc' : 'desc';
+  btn.dataset.sort = next;
+  btn.textContent = next === 'desc' ? '↓ 最新' : '↑ 最早';
+  currentOffset = 0;
+  doSearch();
+}
+
+function quickDate(mode) {
+  const now = new Date();
+  const y = now.getFullYear();
+  const M = String(now.getMonth() + 1).padStart(2, '0');
+  const d = String(now.getDate()).padStart(2, '0');
+  const today = `${y}-${M}-${d}`;
+  let from = '', to = '';
+  const fmt = (dt) => `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')} ${String(dt.getHours()).padStart(2,'0')}:${String(dt.getMinutes()).padStart(2,'0')}:${String(dt.getSeconds()).padStart(2,'0')}`;
+
+  switch (mode) {
+    case 'today':
+      from = `${today} 00:00:00`; to = `${today} 23:59:59`; break;
+    case 'tomorrow': {
+      const t = new Date(now); t.setDate(t.getDate()+1);
+      const td = fmt(t).split(' ')[0];
+      from = `${td} 00:00:00`; to = `${td} 23:59:59`; break;
+    }
+    case 'this_week': {
+      const day = now.getDay() || 7;
+      const mon = new Date(now); mon.setDate(now.getDate()-day+1);
+      from = `${fmt(mon).split(' ')[0]} 00:00:00`; to = `${today} 23:59:59`; break;
+    }
+    case 'this_month':
+      from = `${y}-${M}-01 00:00:00`; to = `${today} 23:59:59`; break;
+    case 'morning':
+      from = `${today} 06:00:00`; to = `${today} 12:00:00`; break;
+    case 'afternoon':
+      from = `${today} 12:00:00`; to = `${today} 18:00:00`; break;
+    case 'evening':
+      from = `${today} 18:00:00`; to = `${today} 23:59:59`; break;
+    case 'last_hour': {
+      const h = new Date(now.getTime()-3600000);
+      from = fmt(h); to = fmt(now); break;
+    }
+    case 'last_24h': {
+      const h = new Date(now.getTime()-86400000);
+      from = fmt(h); to = fmt(now); break;
+    }
+  }
+  document.getElementById('dateFrom').value = from;
+  document.getElementById('dateTo').value = to;
+  currentOffset = 0; doSearch();
+}
+
+function clearFilters() {
+  document.getElementById('searchInput').value = '';
+  document.getElementById('levelFilter').value = '';
+  document.getElementById('serviceFilter').value = '';
+  document.getElementById('dateFrom').value = '';
+  document.getElementById('dateTo').value = '';
+  currentOffset = 0; doSearch();
+}
+
+// ───────── Stats ─────────
+function refreshData() {
+  updateClock(); fetchStats(); doSearch();
+}
+
+function fetchStats() {
+  fetch('/api/stats').then(r=>r.json()).then(s => {
+    document.getElementById('statTotal').textContent = s.total.toLocaleString();
+    document.getElementById('statInfo').textContent = (s.by_level.INFO||0).toLocaleString();
+    document.getElementById('statWarning').textContent = (s.by_level.WARNING||0).toLocaleString();
+    document.getElementById('statError').textContent = (s.by_level.ERROR||0)+(s.by_level.CRITICAL||0);
+    document.getElementById('statServices').textContent = Object.keys(s.by_service).length;
+    const r = s.time_range;
+    document.getElementById('statTimeRange').textContent = r.start ? r.start.substring(0,16)+' ~ '+r.end.substring(0,16) : '-';
+  }).catch(()=>{});
+}
+
+function loadServices() {
+  fetch('/api/services').then(r=>r.json()).then(list => {
+    const sel = document.getElementById('serviceFilter');
+    list.forEach(s => { const o = document.createElement('option'); o.value=s; o.textContent=s; sel.appendChild(o); });
+  }).catch(()=>{});
+}
+
+// ───────── Search ─────────
+function debounceSearch() {
+  if (searchTimer) clearTimeout(searchTimer);
+  searchTimer = setTimeout(doSearch, 300);
+}
+
+function doSearch() {
+  const q = document.getElementById('searchInput').value;
+  const level = document.getElementById('levelFilter').value;
+  const service = document.getElementById('serviceFilter').value;
+  const from = document.getElementById('dateFrom').value;
+  const to = document.getElementById('dateTo').value;
+  const sort = document.getElementById('sortBtn').dataset.sort || 'desc';
+
+  fetch('/api/search?' + new URLSearchParams({q,level,service,from,to,sort,offset:currentOffset,limit:PAGE_SIZE}))
+    .then(r=>r.json())
+    .then(data => { renderLogs(data.results); updatePagination(data.total); })
+    .catch(() => { document.getElementById('logEntries').innerHTML = '<div style="padding:40px;text-align:center;color:var(--danger)">❌ 加载失败</div>'; });
+}
+
+// ───────── Render ─────────
+function renderLogs(logs) {
+  const el = document.getElementById('logEntries');
+  if (!logs||!logs.length) { el.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text-dim)">📭 没有匹配的日志</div>'; return; }
+
+  let html = '';
+  const kw = document.getElementById('searchInput').value.trim();
+
+  logs.forEach((entry,i) => {
+    const r = entry.record||{};
+    const lv = r.level||{};
+    const lvName = lv.name||'RAW';
+    const svc = entry._service||'?';
+    const ts = (r.time||{}).repr||'';
+    const msg = r.message||(entry.text||'').substring(0,300);
+
+    let disp = escHtml(msg);
+    if (kw) {
+      kw.split(/\s+/).forEach(w => {
+        if (!w) return;
+        const re = new RegExp('('+w.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+')','gi');
+        disp = disp.replace(re, '<span class="hl">$1</span>');
+      });
+    }
+
+    html += `<div class="log-entry" onclick="toggleDetail(${i})">
+      <span class="time">${(ts||'--').substring(0,19)}</span>
+      <span class="level"><span class="badge badge-${lvName}">${lvName}</span></span>
+      <span class="service">${escHtml(svc)}</span>
+      <span class="message">${disp}</span>
+    </div>`;
+
+    html += `<div class="log-detail" id="detail-${i}">`;
+    const fn = r.file||{}, func = r.function||'', mod = r.module||'', name = r.name||'';
+    if (fn.name) html += `<div class="row"><span class="key">文件</span><span class="val">${fn.name}:${r.line||''}</span></div>`;
+    if (func) html += `<div class="row"><span class="key">函数</span><span class="val">${escHtml(func)}</span></div>`;
+    if (name) html += `<div class="row"><span class="key">Logger</span><span class="val">${escHtml(name)}</span></div>`;
+    if (ts) html += `<div class="row"><span class="key">时间</span><span class="val">${ts}</span></div>`;
+    if (r.exception) html += `<pre>${escHtml(typeof r.exception==='string'?r.exception:JSON.stringify(r.exception,null,2))}</pre>`;
+    if (entry.text) html += `<pre>${escHtml(entry.text.substring(0,600))}</pre>`;
+    html += `</div>`;
+  });
+  el.innerHTML = html;
+}
+
+function toggleDetail(i) {
+  const el = document.getElementById('detail-'+i);
+  if (el) el.classList.toggle('open');
+}
+
+function updatePagination(total) {
+  const pg = document.getElementById('pagination');
+  const info = document.getElementById('pageInfo');
+  const prev = document.getElementById('prevBtn');
+  const next = document.getElementById('nextBtn');
+  pg.style.display = 'flex';
+  if (total > PAGE_SIZE) {
+    const s = currentOffset+1, e = Math.min(currentOffset+PAGE_SIZE, total);
+    info.textContent = `${s}-${e} / ${total}`;
+    prev.disabled = currentOffset===0;
+    next.disabled = currentOffset+PAGE_SIZE >= total;
+  } else {
+    info.textContent = `共 ${total} 条`;
+    prev.disabled = true; next.disabled = true;
+  }
+}
+
+function prevPage() { if (currentOffset>0) { currentOffset-=PAGE_SIZE; doSearch(); } }
+function nextPage() { currentOffset+=PAGE_SIZE; doSearch(); }
+
+function escHtml(s) {
+  if (!s) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+</script>
+</body>
+</html>

@@ -31,7 +31,7 @@ security = HTTPBearer()
 
 # 速率限制配置
 RATE_LIMIT_MAX_REQUESTS = int(os.environ.get("RATE_LIMIT_MAX_REQUESTS", "100"))
-RATE_LIMIT_WINDOW_SECONDS = int(os.environ.get("RATE_LIMIT_WINDOW_SECONDS", "3600"))
+RATE_LIMIT_WINDOW_SECONDS = int(os.environ.get("RATE_LIMIT_WINDOW_SECONDS", "36"))
 # 定期清理间隔（秒）
 RATE_LIMIT_CLEANUP_INTERVAL = int(os.environ.get("RATE_LIMIT_CLEANUP_INTERVAL", "300"))
 
@@ -245,6 +245,22 @@ async def get_current_user_with_role(required_role: str):
             raise HTTPException(status_code=403, detail="权限不足")
         return current_user
     return dependency
+
+
+async def get_optional_current_user(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+) -> Optional[dict]:
+    """获取当前用户（可选） - 如果未认证返回None，不抛出异常"""
+    if credentials is None:
+        return None
+    try:
+        token = credentials.credentials
+        payload = verify_token(token)
+        if payload:
+            return payload
+    except Exception:
+        pass
+    return None
 
 
 async def auth_middleware(request: Request, call_next):

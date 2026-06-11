@@ -20,6 +20,8 @@ from src.services.model_service.classifiers import EfficientNetClassifier
 from src.core.cache.model_cache import model_cache
 from src.core.utils.role_info_loader import get_role_info
 from src.services.cache_service.redis_cache import get_redis_cache
+from src.services.model.recognition_service import get_recognition_service
+from src.models.recognition_record import RecognitionRecordCreate
 
 logger = get_logger("model_service.routes")
 
@@ -29,6 +31,7 @@ router = APIRouter()
 preprocessor = None
 feature_extractor = None
 tagger = None
+_efficientnet_classifier = None
 
 model_init_lock = asyncio.Lock()
 OPTIMAL_DEVICE = "cpu"
@@ -130,7 +133,10 @@ async def predict_image(
                                 try:
                                     from src.core.tagging.wd_vit_v3_tagger import WDViTV3Tagger
                                     tagger = WDViTV3Tagger()
-                                    asyncio.create_task(_async_load_tagger_model(tagger))
+                                    loop = asyncio.get_running_loop()
+                                    with ThreadPoolExecutor(max_workers=1) as executor:
+                                        await loop.run_in_executor(executor, tagger.load_model)
+                                    logger.info("标签生成器同步加载完成")
                                 except Exception as e:
                                     logger.error(f"标签生成器初始化失败: {e}")
                                     tagger = None
@@ -154,6 +160,24 @@ async def predict_image(
 
                 if use_cache and redis_cache.available:
                     redis_cache.set_image_result(image_hash, result)
+                # 保存识别记录
+                try:
+                    recognition_service = get_recognition_service()
+                    record = RecognitionRecordCreate(
+                        user_id="anonymous",
+                        username="anonymous",
+                        image_filename=file.filename if file.filename else "unknown",
+                        image_path="",
+                        recognition_result=result,
+                        model_used=model_name,
+                        processing_time=time.time(),
+                        is_multi_role=False,
+                        nsfw_status=False,
+                        detected_text=False,
+                    )
+                    recognition_service.create_record(record)
+                except Exception as e:
+                    logger.warning(f"存储识别记录失败: {e}")
                 return result
 
         from src.core.feature_extraction.feature_extraction import FeatureExtraction
@@ -175,7 +199,10 @@ async def predict_image(
                         try:
                             from src.core.tagging.wd_vit_v3_tagger import WDViTV3Tagger
                             tagger = WDViTV3Tagger()
-                            asyncio.create_task(_async_load_tagger_model(tagger))
+                            loop = asyncio.get_running_loop()
+                            with ThreadPoolExecutor(max_workers=1) as executor:
+                                await loop.run_in_executor(executor, tagger.load_model)
+                            logger.info("标签生成器同步加载完成")
                         except Exception:
                             tagger = None
             if tagger:
@@ -228,6 +255,25 @@ async def predict_image(
 
         if use_cache and redis_cache.available:
             redis_cache.set_image_result(image_hash, result)
+
+        # 保存识别记录
+        try:
+            recognition_service = get_recognition_service()
+            record = RecognitionRecordCreate(
+                user_id="anonymous",
+                username="anonymous",
+                image_filename=file.filename if file.filename else "unknown",
+                image_path="",
+                recognition_result=result,
+                model_used=model_name,
+                processing_time=time.time(),
+                is_multi_role=False,
+                nsfw_status=False,
+                detected_text=False,
+            )
+            recognition_service.create_record(record)
+        except Exception as e:
+            logger.warning(f"存储识别记录失败: {e}")
 
         return result
     except HTTPException:
@@ -508,20 +554,6 @@ async def batch_predict_images(
     except Exception as e:
         logger.error(f"批量预测失败: {e}")
         raise HTTPException(status_code=500, detail=f"批量预测失败: {e}")
-
-
-async def _async_load_tagger_model(tagger_instance):
-    """异步后台加载标签生成模型"""
-    try:
-        loop = asyncio.get_running_loop()
-        with ThreadPoolExecutor(max_workers=1) as executor:
-            model_loaded = await loop.run_in_executor(executor, tagger_instance.load_model)
-            if model_loaded:
-                logger.info("标签生成模型异步加载成功")
-            else:
-                logger.warning("标签生成模型异步加载失败")
-    except Exception as e:
-        logger.error(f"标签生成模型异步加载异常: {e}")
 
 
 # 保存全局引用的字典

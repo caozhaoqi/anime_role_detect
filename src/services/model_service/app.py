@@ -123,13 +123,20 @@ async def warmup_models():
             try:
                 from src.core.tagging.wd_vit_v3_tagger import WDViTV3Tagger
                 tagger = WDViTV3Tagger()
-                _ = tagger.generate_tags(dummy_image)
-                logger.info("标签生成器预热完成")
+                loop = asyncio.get_running_loop()
+                with ThreadPoolExecutor(max_workers=1) as executor:
+                    model_loaded = await loop.run_in_executor(executor, tagger.load_model)
+                if model_loaded:
+                    logger.info("标签生成器预热完成")
+                else:
+                    logger.warning("标签生成器预热完成（使用简单标签模式）")
             except Exception as e:
                 logger.warning(f"标签生成器预热失败: {e}")
 
         elapsed = time.time() - start_time
         logger.info(f"模型预热完成，耗时: {elapsed:.2f}秒")
+        # 预热完成后同步全局变量到路由模块
+        set_globals(preprocessor, feature_extractor, tagger, OPTIMAL_DEVICE)
     except Exception as e:
         logger.error(f"模型预热失败: {e}")
 
@@ -162,4 +169,4 @@ if __name__ == "__main__":
     parser.add_argument("--workers", type=int, default=1, help="工作进程数")
     args = parser.parse_args()
     uvicorn.run("app:app", host=args.host, port=args.port, workers=args.workers,
-                timeout_keep_alive=30, limit_concurrency=10, limit_max_requests=1000)
+                timeout_keep_alive=30, limit_concurrency=10)

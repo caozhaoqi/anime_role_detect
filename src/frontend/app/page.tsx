@@ -128,7 +128,9 @@ export default function AnimeRoleDetect() {
                            !config.url?.includes('/api/login') &&
                            !config.url?.includes('/api/register') &&
                            !config.url?.includes('/api/health') &&
-                           !config.url?.includes('/api/auth/refresh');
+                           !config.url?.includes('/api/auth/refresh') &&
+                           !config.url?.includes('/api/cleaning/browse') &&
+                           !config.url?.includes('/api/cleaning/config');
         
         if (requiresAuth && !config.headers?.Authorization) {
           console.warn('⚠️ Authorization头为空，请先登录');
@@ -319,17 +321,32 @@ export default function AnimeRoleDetect() {
   // 监听 HistoryPanel 触发的登录请求事件
   useEffect(() => {
     const handler = () => {
-      setShowSessionExpired(true);
-      setTimeout(() => setShowSessionExpired(false), 10000);
+      // 清除认证状态，强制显示登录界面
+      localStorage.removeItem('accessToken');
+      localStorage.removeItem('refreshToken');
+      localStorage.removeItem('currentUser');
+      setAuthState({
+        isAuthenticated: false,
+        user: null,
+        accessToken: null,
+        refreshToken: null
+      });
     };
     window.addEventListener('open-login', handler);
     return () => window.removeEventListener('open-login', handler);
   }, []);
 
   const handleAuthError = useCallback(() => {
-    setShowSessionExpired(true);
-    // 10秒后自动隐藏
-    setTimeout(() => setShowSessionExpired(false), 10000);
+    // 清除认证状态，强制显示登录界面
+    localStorage.removeItem('accessToken');
+    localStorage.removeItem('refreshToken');
+    localStorage.removeItem('currentUser');
+    setAuthState({
+      isAuthenticated: false,
+      user: null,
+      accessToken: null,
+      refreshToken: null
+    });
   }, []);
 
   const handleLogin = async (username: string, password: string) => {

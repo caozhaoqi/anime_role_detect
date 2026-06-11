@@ -7,6 +7,7 @@ MediaPipe 关键点检测器
 """
 
 import cv2
+import numpy as np
 import mediapipe as mp
 from src.core.logging.global_logger import get_logger
 
@@ -54,12 +55,15 @@ class MediaPipeKeypointDetector:
             list: 关键点列表
         """
         try:
-            # 加载图像
+            # 加载/转换图像
             if isinstance(image, str):
                 image = cv2.imread(image)
                 if image is None:
                     logger.error(f"无法加载图像: {image}")
                     return []
+            elif hasattr(image, 'convert'):  # PIL Image
+                image = np.array(image.convert('RGB'))
+                image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
 
             # 转换为 RGB
             image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)

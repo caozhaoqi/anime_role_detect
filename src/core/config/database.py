@@ -15,7 +15,10 @@ from src.core.logging.global_logger import get_logger
 
 logger = get_logger("database")
 
-DATABASE_URL = os.environ.get("DATABASE_URL", "sqlite+aiosqlite:///./recognition.db")
+DATABASE_URL = os.environ.get(
+    "DATABASE_URL",
+    f"sqlite+aiosqlite:///{os.path.abspath('data/recognition.db')}",
+)
 
 USE_SQLITE = DATABASE_URL.startswith("sqlite")
 
@@ -34,6 +37,15 @@ def init_database():
     global engine, SessionLocal
 
     if USE_SQLITE:
+        # 确保数据库目录存在
+        db_path = DATABASE_URL.replace("+aiosqlite", "")
+        if db_path.startswith("sqlite:///"):
+            file_path = db_path[len("sqlite:///"):]
+            db_dir = os.path.dirname(file_path)
+            if db_dir:
+                os.makedirs(db_dir, exist_ok=True)
+            logger.info(f"SQLite数据库路径: {file_path}")
+
         engine = create_engine(
             DATABASE_URL.replace("+aiosqlite", ""),
             connect_args={"check_same_thread": False, "timeout": 30},
@@ -69,7 +81,14 @@ def create_tables():
     if engine is None:
         init_database()
 
-    from src.models.database_models import RecognitionRecordModel
+    # 导入所有模型以确保表被创建
+    from src.models.database_models import (
+        UserModel,
+        RecognitionRecordModel,
+        ApiKeyModel,
+        SystemConfigModel,
+        UserFeedbackModel,
+    )
 
     Base.metadata.create_all(bind=engine)
     logger.info("数据库表创建完成")

@@ -5,6 +5,7 @@
 提供数据库操作的封装
 """
 
+import json
 from datetime import datetime
 from typing import List, Optional, Dict, Any
 from sqlalchemy.orm import Session
@@ -63,13 +64,13 @@ class RecognitionRecordDB:
             username=username,
             image_filename=image_filename,
             image_path=image_path,
-            recognition_result=recognition_result,
+            recognition_result=json.dumps(recognition_result, ensure_ascii=False),
             model_used=model_used,
-            processing_time=processing_time,
+            processing_time=int(processing_time),
             is_multi_role=is_multi_role,
             nsfw_status=nsfw_status,
             detected_text=detected_text,
-            timestamp=datetime.now(),
+            created_at=datetime.now(),
         )
         db.add(record)
         db.commit()
@@ -92,7 +93,7 @@ class RecognitionRecordDB:
         return (
             db.query(RecognitionRecordModel)
             .filter(RecognitionRecordModel.user_id == user_id)
-            .order_by(desc(RecognitionRecordModel.timestamp))
+            .order_by(desc(RecognitionRecordModel.created_at))
             .offset(offset)
             .limit(limit)
             .all()
@@ -103,7 +104,7 @@ class RecognitionRecordDB:
         """获取所有识别记录"""
         return (
             db.query(RecognitionRecordModel)
-            .order_by(desc(RecognitionRecordModel.timestamp))
+            .order_by(desc(RecognitionRecordModel.created_at))
             .offset(offset)
             .limit(limit)
             .all()
@@ -175,7 +176,7 @@ class UserFeedbackDB:
             comment=comment,
             correction_role=correction_role,
             is_correct=is_correct,
-            extra_data=extra_data or {},
+            extra_data=json.dumps(extra_data or {}, ensure_ascii=False),
             created_at=datetime.now(),
         )
         db.add(feedback)

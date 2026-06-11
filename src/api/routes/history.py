@@ -8,9 +8,10 @@ project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../..
 sys.path.insert(0, project_root)
 
 from fastapi import APIRouter, Depends
+from typing import Optional
 
 from src.core.logging.global_logger import get_logger
-from src.middleware.auth_enhanced import get_current_user
+from src.middleware.auth_enhanced import get_optional_current_user
 from src.services.model.recognition_service import get_recognition_service
 
 logger = get_logger("api.routes.history")
@@ -19,11 +20,12 @@ router = APIRouter()
 
 
 @router.get("/api/history")
-async def get_recognition_history(current_user: dict = Depends(get_current_user)):
+async def get_recognition_history(current_user: Optional[dict] = Depends(get_optional_current_user)):
     """获取用户的识别历史记录"""
     try:
+        user_id = current_user.get("sub", "anonymous") if current_user else "anonymous"
         recognition_service = get_recognition_service()
-        records = recognition_service.get_records_by_user(current_user.get("sub"))
+        records = recognition_service.get_records_by_user(user_id)
         records_data = []
         for record in records:
             records_data.append({
@@ -44,7 +46,7 @@ async def get_recognition_history(current_user: dict = Depends(get_current_user)
 
 
 @router.delete("/api/history/{record_id}")
-async def delete_recognition_record(record_id: str, current_user: dict = Depends(get_current_user)):
+async def delete_recognition_record(record_id: str, current_user: Optional[dict] = Depends(get_optional_current_user)):
     """删除识别记录"""
     try:
         recognition_service = get_recognition_service()
