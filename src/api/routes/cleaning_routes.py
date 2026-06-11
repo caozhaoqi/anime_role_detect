@@ -25,9 +25,12 @@ import time
 import json
 import asyncio
 import subprocess
+import uuid
+from datetime import datetime
 
 from src.data_pipeline.cleaning_pipeline import CleaningPipeline, CleaningConfig
 from src.middleware.auth_enhanced import get_current_admin
+from src.services.support.database_service import CleaningRecordDB, get_db_service
 
 router = APIRouter(prefix="/api/cleaning", tags=["数据清洗"])
 
@@ -156,6 +159,39 @@ async def run_cleaning_pipeline(
         if not Path(input_dir).exists():
             raise HTTPException(status_code=400, detail=f"输入目录不存在: {input_dir}")
         
+        # 生成任务ID
+        task_id = f"cleaning_{int(time.time())}_{str(uuid.uuid4())[:8]}"
+        
+        # 获取用户信息
+        user_id = str(current_admin.get("id", "admin"))
+        username = current_admin.get("username", "admin")
+        
+        # 创建数据库记录
+        db = get_db_service()
+        CleaningRecordDB.create(
+            db,
+            record_id=task_id,
+            user_id=user_id,
+            username=username,
+            input_dir=str(input_dir),
+            output_dir=str(output_dir),
+            config={
+                "enable_deduplication": enable_deduplication,
+                "enable_consistency_filter": enable_consistency_filter,
+                "enable_cluster_filter": enable_cluster_filter,
+                "enable_mislabeled_detector": enable_mislabeled_detector,
+                "enable_danbooru_enrichment": enable_danbooru_enrichment,
+                "similarity_threshold": similarity_threshold,
+                "consistency_threshold": consistency_threshold,
+                "outlier_threshold": outlier_threshold,
+                "text_threshold": text_threshold,
+                "confusion_gap": confusion_gap,
+                "dry_run": dry_run,
+                "min_images_per_character": min_images_per_character,
+                "max_workers": max_workers,
+            },
+        )
+        
         # 构建配置
         config = CleaningConfig(
             enable_deduplication=enable_deduplication,
@@ -175,16 +211,41 @@ async def run_cleaning_pipeline(
             max_workers=max_workers,
         )
         
+        # 更新状态为运行中
+        CleaningRecordDB.update_status(
+            db,
+            task_id,
+            "running",
+            started_at=datetime.now(),
+            total_files=0,
+        )
+        
         # 创建流水线
         pipeline = CleaningPipeline(input_dir, output_dir, config)
         
         # 运行流水线
         report = pipeline.run()
         
+        # 更新数据库记录为完成
+        CleaningRecordDB.update_status(
+            db,
+            task_id,
+            "completed",
+            completed_at=datetime.now(),
+            total_files=report.total_original_images,
+            processed_files=report.total_original_images,
+            valid_files=report.total_cleaned_images,
+            rejected_files=report.total_removed_images,
+            duplicate_files=report.dedup_removed,
+            report_path=f"{output_dir}/cleaning_report.json",
+            duration_seconds=int(report.duration_seconds),
+        )
+        
         # 返回结果
         return {
             "success": True,
             "message": "清洗完成",
+            "task_id": task_id,
             "data": {
                 "duration_seconds": report.duration_seconds,
                 "total_characters": report.total_characters,
@@ -207,6 +268,20 @@ async def run_cleaning_pipeline(
         import traceback
         print(f"清洗失败: {e}")
         print(traceback.format_exc())
+        
+        # 更新数据库记录为失败
+        try:
+            db = get_db_service()
+            CleaningRecordDB.update_status(
+                db,
+                task_id,
+                "failed",
+                completed_at=datetime.now(),
+                error_message=str(e),
+            )
+        except:
+            pass
+        
         return {
             "success": False,
             "message": f"清洗失败: {str(e)}",
@@ -260,12 +335,51 @@ async def run_cleaning_pipeline_async(
             raise HTTPException(status_code=400, detail=f"输入目录不存在: {input_dir}")
         
         # 生成任务ID
-        import uuid
         task_id = f"cleaning_{int(time.time())}_{str(uuid.uuid4())[:8]}"
         
-        # 保存任务配置
+        # 获取用户信息
+        user_id = str(current_admin.get("id", "admin"))
+        username = current_admin.get("username", "admin")
+        
+        # 创建数据库记录
+        db = get_db_service()
+        CleaningRecordDB.create(
+            db,
+            record_id=task_id,
+            user_id=user_id,
+            username=username,
+            input_dir=str(input_dir),
+            output_dir=str(output_dir),
+            config={
+                "enable_deduplication": enable_deduplication,
+                "enable_consistency_filter": enable_consistency_filter,
+                "enable_cluster_filter": enable_cluster_filter,
+                "enable_mislabeled_detector": enable_mislabeled_detector,
+                "enable_danbooru_enrichment": enable_danbooru_enrichment,
+                "similarity_threshold": similarity_threshold,
+                "consistency_threshold": consistency_threshold,
+                "outlier_threshold": outlier_threshold,
+                "text_threshold": text_threshold,
+                "confusion_gap": confusion_gap,
+                "dry_run": dry_run,
+                "min_images_per_character": min_images_per_character,
+            },
+        )
+        
+        # 更新状态为运行中
+        CleaningRecordDB.update_status(
+            db,
+            task_id,
+            "running",
+            started_at=datetime.now(),
+            total_files=0,
+        )
+        
+        # 保存任务配置（包含用户信息，供worker使用）
         task_config = {
             "task_id": task_id,
+            "user_id": user_id,
+            "username": username,
             "input_dir": str(input_dir),
             "output_dir": str(output_dir),
             "enable_deduplication": enable_deduplication,
@@ -280,7 +394,7 @@ async def run_cleaning_pipeline_async(
             "confusion_gap": confusion_gap,
             "dry_run": dry_run,
             "min_images_per_character": min_images_per_character,
-            "status": "pending",
+            "status": "running",
             "start_time": time.time(),
         }
         
@@ -293,7 +407,7 @@ async def run_cleaning_pipeline_async(
             json.dump(task_config, f)
         
         # 在子进程中运行清洗任务，避免PyTorch多线程死锁
-        worker_script = Path(project_root) / "scripts" / "_run_cleaning_worker.py"
+        worker_script = Path(project_root) / "scripts" / "data_cleaning" / "_run_cleaning_worker.py"
         log_dir = Path(project_root) / "logs" / "cleaning_workers"
         log_dir.mkdir(parents=True, exist_ok=True)
         
@@ -323,7 +437,7 @@ async def run_cleaning_pipeline_async(
             "message": "清洗任务已提交",
             "task_id": task_id,
             "data": {
-                "status": "pending",
+                "status": "running",
                 "message": "任务正在后台运行，请通过 /api/cleaning/task/{task_id} 查询进度",
             }
         }
@@ -331,6 +445,19 @@ async def run_cleaning_pipeline_async(
     except HTTPException as e:
         raise e
     except Exception as e:
+        # 更新数据库记录为失败
+        try:
+            db = get_db_service()
+            CleaningRecordDB.update_status(
+                db,
+                task_id,
+                "failed",
+                completed_at=datetime.now(),
+                error_message=str(e),
+            )
+        except:
+            pass
+        
         return {
             "success": False,
             "message": f"提交任务失败: {str(e)}",
@@ -433,36 +560,42 @@ async def get_cleaning_report(task_id: str, current_admin: dict = Depends(get_cu
 
 
 @router.get("/tasks", response_model=CleaningResponse)
-async def list_cleaning_tasks():
+async def list_cleaning_tasks(current_admin: dict = Depends(get_current_admin)):
     """
-    获取任务列表
+    获取任务列表（从数据库查询，按用户存储）
     
     Returns:
         任务列表
     """
     try:
-        tasks_dir = Path(project_root) / "data" / "cleaning_tasks"
-        tasks_dir.mkdir(parents=True, exist_ok=True)
+        # 获取用户ID
+        user_id = str(current_admin.get("id", "admin"))
+        
+        # 从数据库查询用户的清洗记录
+        db = get_db_service()
+        db_records = CleaningRecordDB.get_by_user(db, user_id)
         
         tasks = []
-        for task_file in sorted(tasks_dir.glob("*.json"), reverse=True):
-            try:
-                with open(task_file, "r", encoding="utf-8") as f:
-                    task_config = json.load(f)
-                    tasks.append({
-                        "task_id": task_file.stem,
-                        "status": task_config.get("status"),
-                        "input_dir": task_config.get("input_dir"),
-                        "output_dir": task_config.get("output_dir"),
-                        "start_time": task_config.get("start_time"),
-                        "end_time": task_config.get("end_time"),
-                        "duration_seconds": task_config.get("duration_seconds"),
-                        "total_characters": task_config.get("result", {}).get("total_characters"),
-                        "total_original_images": task_config.get("result", {}).get("total_original_images"),
-                        "total_cleaned_images": task_config.get("result", {}).get("total_cleaned_images"),
-                    })
-            except Exception as e:
-                print(f"读取任务文件失败 {task_file}: {e}")
+        for record in db_records:
+            tasks.append({
+                "task_id": record.id,
+                "user_id": record.user_id,
+                "username": record.username,
+                "status": record.status,
+                "input_dir": record.input_dir,
+                "output_dir": record.output_dir,
+                "total_files": record.total_files,
+                "processed_files": record.processed_files,
+                "valid_files": record.valid_files,
+                "rejected_files": record.rejected_files,
+                "duplicate_files": record.duplicate_files,
+                "duration_seconds": record.duration_seconds,
+                "report_path": record.report_path,
+                "error_message": record.error_message,
+                "created_at": record.created_at.isoformat() if record.created_at else None,
+                "started_at": record.started_at.isoformat() if record.started_at else None,
+                "completed_at": record.completed_at.isoformat() if record.completed_at else None,
+            })
         
         return {
             "success": True,
@@ -481,7 +614,7 @@ async def list_cleaning_tasks():
 @router.delete("/task/{task_id}", response_model=CleaningResponse)
 async def delete_cleaning_task(task_id: str, current_admin: dict = Depends(get_current_admin)):
     """
-    删除任务记录
+    删除任务记录（同时删除数据库记录）
     
     Args:
         task_id: 任务ID
@@ -490,13 +623,15 @@ async def delete_cleaning_task(task_id: str, current_admin: dict = Depends(get_c
         删除结果
     """
     try:
+        # 删除文件系统中的任务配置
         tasks_dir = Path(project_root) / "data" / "cleaning_tasks"
         task_file = tasks_dir / f"{task_id}.json"
+        if task_file.exists():
+            task_file.unlink()
         
-        if not task_file.exists():
-            raise HTTPException(status_code=404, detail=f"任务不存在: {task_id}")
-        
-        task_file.unlink()
+        # 删除数据库中的记录
+        db = get_db_service()
+        CleaningRecordDB.delete(db, task_id)
         
         return {
             "success": True,
@@ -561,6 +696,62 @@ async def browse_directory(path: str = Query("/", description="要浏览的目�
         return {
             "success": False,
             "message": f"浏览目录失败: {str(e)}",
+            "data": None
+        }
+
+
+@router.get("/progress", response_model=CleaningResponse)
+async def get_cleaning_progress():
+    """
+    获取数据清理进度
+    
+    Returns:
+        清理进度数据，包含各任务状态和汇总统计
+    """
+    try:
+        # 导入进度模块
+        from src.run.monitor.cleaning_progress import get_cleaning_progress
+        
+        progress = get_cleaning_progress()
+        
+        return {
+            "success": True,
+            "message": "获取进度成功",
+            "data": progress
+        }
+    
+    except Exception as e:
+        return {
+            "success": False,
+            "message": f"获取进度失败: {str(e)}",
+            "data": None
+        }
+
+
+@router.post("/progress/reset", response_model=CleaningResponse)
+async def reset_cleaning_progress(current_admin: dict = Depends(get_current_admin)):
+    """
+    重置数据清理进度
+    
+    Returns:
+        重置结果
+    """
+    try:
+        from src.run.monitor.cleaning_progress import CleaningProgressTracker
+        
+        tracker = CleaningProgressTracker()
+        tracker.reset_progress()
+        
+        return {
+            "success": True,
+            "message": "进度已重置",
+            "data": None
+        }
+    
+    except Exception as e:
+        return {
+            "success": False,
+            "message": f"重置进度失败: {str(e)}",
             "data": None
         }
 

@@ -87,6 +87,7 @@ def create_tables():
         RecognitionRecordModel,
         ApiKeyModel,
         SystemConfigModel,
+        CleaningRecordModel,
         UserFeedbackModel,
     )
 

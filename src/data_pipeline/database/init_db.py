@@ -114,6 +114,8 @@ class Annotation(Base):
     annotator = Column(String(50), nullable=False)  # auto, human
     bbox = Column(JSON, nullable=True)  # [x1, y1, x2, y2]
     confidence = Column(Float, nullable=True)
+    character_name = Column(String(100), nullable=True, index=True)  # 识别的角色名
+    character_confidence = Column(Float, nullable=True)  # 角色识别置信度
     attributes = Column(JSON, nullable=True)
     is_verified = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)

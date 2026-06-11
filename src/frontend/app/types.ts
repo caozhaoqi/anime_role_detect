@@ -199,3 +199,38 @@ export interface CleaningTask {
   result?: CleaningResult;
   error?: string;
 }
+
+// 数据清理进度相关类型
+export interface CleaningTaskProgress {
+  name: string;
+  status: 'pending' | 'running' | 'completed' | 'failed';
+  total: number;
+  completed: number;
+  failed: number;
+  progress: number;
+  start_time?: string;
+  end_time?: string;
+  message: string;
+}
+
+export interface CleaningSummary {
+  total_processed: number;
+  total_valid: number;
+  total_rejected: number;
+  total_duplicates: number;
+  avg_confidence: number;
+  avg_quality_score: number;
+}
+
+export interface CleaningProgress {
+  last_updated: string;
+  total_samples: number;
+  tasks: {
+    annotation: CleaningTaskProgress;
+    deduplication: CleaningTaskProgress;
+    quality_filter: CleaningTaskProgress;
+    character_matching: CleaningTaskProgress;
+    data_export: CleaningTaskProgress;
+  };
+  summary: CleaningSummary;
+}

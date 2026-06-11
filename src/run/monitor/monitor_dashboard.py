@@ -26,6 +26,7 @@ from dashboard_templates import (
     generate_tracing_html,
     generate_topology_html,
 )
+from cleaning_progress import generate_cleaning_progress_html
 
 from flask import Flask, jsonify
 
@@ -440,12 +441,17 @@ def generate_html_dashboard() -> str:
         
         <div class="tabs">
             <div class="tab active" onclick="switchTab('services')">📊 服务监控</div>
+            <div class="tab" onclick="switchTab('cleaning')">🧹 数据清理</div>
             <div class="tab" onclick="switchTab('tracing')">🔗 链路追踪</div>
             <div class="tab" onclick="switchTab('topology')">📊 拓扑图</div>
         </div>
         
         <div id="services-tab-content">
             {generate_service_monitor_html(services_status)}
+        </div>
+        
+        <div id="cleaning-tab-content">
+            {generate_cleaning_progress_html()}
         </div>
         
         <div id="tracing-tab-content">
@@ -648,6 +654,22 @@ def trace_detail(trace_id):
 def topology():
     """获取拓扑图数据"""
     return jsonify(get_topology_data())
+
+
+@app.route("/api/cleaning/progress")
+def cleaning_progress():
+    """获取数据清理进度"""
+    from cleaning_progress import get_cleaning_progress
+    return jsonify(get_cleaning_progress())
+
+
+@app.route("/api/cleaning/reset")
+def cleaning_reset():
+    """重置数据清理进度"""
+    from cleaning_progress import CleaningProgressTracker
+    tracker = CleaningProgressTracker()
+    tracker.reset_progress()
+    return jsonify({"status": "success", "message": "进度已重置"})
 
 
 if __name__ == "__main__":
