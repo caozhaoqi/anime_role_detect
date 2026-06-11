@@ -23,6 +23,13 @@ from src.services.cache_service.redis_cache import get_redis_cache
 from src.services.model.recognition_service import get_recognition_service
 from src.models.recognition_record import RecognitionRecordCreate
 
+# 模块级别导入 WDViTV3Tagger，确保在请求处理之前完成导入和 torch 初始化
+# 避免在首次请求时触发 MPS C++ 后端 mutex 死锁
+try:
+    from src.core.tagging.wd_vit_v3_tagger import WDViTV3Tagger
+except Exception:
+    WDViTV3Tagger = None
+
 logger = get_logger("model_service.routes")
 
 router = APIRouter()
@@ -132,7 +139,7 @@ async def predict_image(
                             if tagger is None:
                                 try:
                                     from src.core.tagging.wd_vit_v3_tagger import WDViTV3Tagger
-                                    tagger = WDViTV3Tagger()
+                                    tagger = WDViTV3Tagger.get_instance()
                                     loop = asyncio.get_running_loop()
                                     with ThreadPoolExecutor(max_workers=1) as executor:
                                         await loop.run_in_executor(executor, tagger.load_model)
@@ -142,7 +149,7 @@ async def predict_image(
                                     tagger = None
                     if tagger:
                         try:
-                            attributes = tagger.generate_tags(processed_image)
+                            attributes = tagger.generate_tags(image)
                         except Exception as e:
                             logger.error(f"标签生成失败: {e}")
 
@@ -198,7 +205,7 @@ async def predict_image(
                     if tagger is None:
                         try:
                             from src.core.tagging.wd_vit_v3_tagger import WDViTV3Tagger
-                            tagger = WDViTV3Tagger()
+                            tagger = WDViTV3Tagger.get_instance()
                             loop = asyncio.get_running_loop()
                             with ThreadPoolExecutor(max_workers=1) as executor:
                                 await loop.run_in_executor(executor, tagger.load_model)
@@ -207,7 +214,7 @@ async def predict_image(
                             tagger = None
             if tagger:
                 try:
-                    attributes = tagger.generate_tags(processed_image)
+                    attributes = tagger.generate_tags(image)
                 except Exception as e:
                     logger.error(f"标签生成失败: {e}")
 
@@ -360,7 +367,7 @@ async def detect_multiple_characters(
 
         if tagger is None:
             from src.core.tagging.wd_vit_v3_tagger import WDViTV3Tagger
-            tagger = WDViTV3Tagger()
+            tagger = WDViTV3Tagger.get_instance()
             tagger.load_model()
 
         results = []
@@ -516,7 +523,7 @@ async def batch_predict_images(
                 attributes = []
                 if use_attributes and tagger:
                     try:
-                        attributes = tagger.generate_tags(processed_image)
+                        attributes = tagger.generate_tags(image)
                     except Exception:
                         pass
 

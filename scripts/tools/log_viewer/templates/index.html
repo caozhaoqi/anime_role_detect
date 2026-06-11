@@ -142,14 +142,26 @@
   .log-entry {
     display: flex;
     align-items: flex-start;
-    padding: 6px 16px;
+    padding: 6px 8px 6px 4px;
     border-bottom: 1px solid var(--border);
     cursor: pointer;
     transition: background .1s;
-    gap: 10px;
+    gap: 6px;
   }
   .log-entry:last-child { border-bottom: none; }
   .log-entry:hover { background: rgba(88,166,255,0.05); }
+  .log-entry.selected { background: rgba(88,166,255,0.12); }
+  .log-entry .cb { 
+    flex-shrink: 0; width: 16px; margin-top: 4px;
+    accent-color: var(--accent); cursor: pointer;
+  }
+  .log-entry .copy-icon {
+    flex-shrink: 0; width: 20px; text-align: center;
+    opacity: 0; transition: opacity .15s;
+    color: var(--text-dim); font-size: 13px; margin-top: 2px;
+  }
+  .log-entry:hover .copy-icon { opacity: 0.7; }
+  .log-entry .copy-icon:hover { opacity: 1; color: var(--accent); }
   .log-entry .time {
     color: var(--text-dim);
     white-space: nowrap;
@@ -213,6 +225,21 @@
   }
   .pagination .page-btn:disabled { opacity: 0.4; cursor: not-allowed; }
   .pagination .page-btn:hover:not(:disabled) { background: #30363d; }
+
+  /* Selection bar */
+  .sel-bar {
+    display: none;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 16px;
+    background: var(--bg-card);
+    border-top: 1px solid var(--border);
+    font-size: 13px;
+    color: var(--text-dim);
+  }
+  .sel-bar.show { display: flex; }
+  .sel-bar .count { color: var(--accent); font-weight: 600; }
+  .sel-bar .actions { display: flex; gap: 8px; }
 
   .loading {
     text-align: center;
@@ -304,6 +331,14 @@
       <button class="page-btn" id="nextBtn" onclick="nextPage()">下一页 →</button>
     </div>
   </div>
+  <div id="selBar" class="sel-bar">
+    <span>已选 <span class="count" id="selCount">0</span> 条</span>
+    <div class="actions">
+      <button class="btn btn-sm" onclick="selectAllPage()">全选本页</button>
+      <button class="btn btn-sm" onclick="clearSelection()">取消选择</button>
+      <button class="btn btn-sm btn-primary" onclick="copySelected()">📋 复制选中</button>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -313,6 +348,8 @@ const PAGE_SIZE = 100;
 let autoRefresh = true;
 let refreshTimer = null;
 let searchTimer = null;
+let selectedLogs = new Set();
+let currentLogs = [];
 
 // ───────── Init ─────────
 document.addEventListener('DOMContentLoaded', () => {
@@ -451,7 +488,8 @@ function doSearch() {
 // ───────── Render ─────────
 function renderLogs(logs) {
   const el = document.getElementById('logEntries');
-  if (!logs||!logs.length) { el.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text-dim)">📭 没有匹配的日志</div>'; return; }
+  currentLogs = logs;
+  if (!logs||!logs.length) { el.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text-dim)">📭 没有匹配的日志</div>'; updateSelBar(); return; }
 
   let html = '';
   const kw = document.getElementById('searchInput').value.trim();
@@ -463,6 +501,13 @@ function renderLogs(logs) {
     const svc = entry._service||'?';
     const ts = (r.time||{}).repr||'';
     const msg = r.message||(entry.text||'').substring(0,300);
+    const uid = entry.uid != null ? entry.uid : i;
+
+    // 生成唯一ID用于选中
+    let logId = entry._logId;
+    if (!logId) { logId = 'log_'+Date.now()+'_'+i+'_'+Math.random().toString(36).slice(2,6); entry._logId = logId; }
+
+    const checked = selectedLogs.has(logId) ? 'checked' : '';
 
     let disp = escHtml(msg);
     if (kw) {
@@ -473,14 +518,18 @@ function renderLogs(logs) {
       });
     }
 
-    html += `<div class="log-entry" onclick="toggleDetail(${i})">
-      <span class="time">${(ts||'--').substring(0,19)}</span>
+    const logText = escHtml((ts||'--').substring(0,19)+' ['+lvName+'] ['+svc+'] '+msg);
+
+    html += `<div class="log-entry${checked?' selected':''}" id="logRow_${logId}">
+      <input class="cb" type="checkbox" ${checked} onclick="event.stopPropagation();toggleSelect('${logId}')">
+      <span class="time" onclick="toggleDetailByRow('${logId}')">${(ts||'--').substring(0,19)}</span>
       <span class="level"><span class="badge badge-${lvName}">${lvName}</span></span>
       <span class="service">${escHtml(svc)}</span>
-      <span class="message">${disp}</span>
+      <span class="message" onclick="toggleDetailByRow('${logId}')">${disp}</span>
+      <span class="copy-icon" onclick="event.stopPropagation();copySingle('${logId}')" title="复制本行">📋</span>
     </div>`;
 
-    html += `<div class="log-detail" id="detail-${i}">`;
+    html += `<div class="log-detail" id="detail_${logId}">`;
     const fn = r.file||{}, func = r.function||'', mod = r.module||'', name = r.name||'';
     if (fn.name) html += `<div class="row"><span class="key">文件</span><span class="val">${fn.name}:${r.line||''}</span></div>`;
     if (func) html += `<div class="row"><span class="key">函数</span><span class="val">${escHtml(func)}</span></div>`;
@@ -491,11 +540,86 @@ function renderLogs(logs) {
     html += `</div>`;
   });
   el.innerHTML = html;
+  updateSelBar();
 }
 
-function toggleDetail(i) {
-  const el = document.getElementById('detail-'+i);
+function toggleDetailByRow(logId) {
+  const el = document.getElementById('detail_'+logId);
   if (el) el.classList.toggle('open');
+}
+
+// ───────── Selection & Copy ─────────
+function toggleSelect(logId) {
+  if (selectedLogs.has(logId)) selectedLogs.delete(logId);
+  else selectedLogs.add(logId);
+  const row = document.getElementById('logRow_'+logId);
+  if (row) row.classList.toggle('selected');
+  updateSelBar();
+}
+
+function updateSelBar() {
+  const bar = document.getElementById('selBar');
+  const count = document.getElementById('selCount');
+  count.textContent = selectedLogs.size;
+  bar.classList.toggle('show', selectedLogs.size > 0);
+}
+
+function selectAllPage() {
+  currentLogs.forEach(entry => {
+    if (entry._logId) selectedLogs.add(entry._logId);
+  });
+  renderLogs(currentLogs);
+}
+
+function clearSelection() {
+  selectedLogs.clear();
+  renderLogs(currentLogs);
+}
+
+function copySelected() {
+  const lines = [];
+  currentLogs.forEach(entry => {
+    if (entry._logId && selectedLogs.has(entry._logId)) {
+      const r = entry.record||{};
+      const ts = (r.time||{}).repr||'';
+      const lv = (r.level||{}).name||'RAW';
+      const svc = entry._service||'?';
+      const msg = r.message||'';
+      lines.push(`${(ts||'--').substring(0,19)} [${lv}] [${svc}] ${msg}`);
+    }
+  });
+  if (!lines.length) return;
+  const text = lines.join('\n');
+  navigator.clipboard.writeText(text).then(() => {
+    showToast(`✅ 已复制 ${lines.length} 条日志到剪贴板`);
+  }).catch(() => {
+    // fallback
+    const ta = document.createElement('textarea');
+    ta.value = text; document.body.appendChild(ta);
+    ta.select(); document.execCommand('copy');
+    document.body.removeChild(ta);
+    showToast(`✅ 已复制 ${lines.length} 条日志`);
+  });
+}
+
+function copySingle(logId) {
+  selectedLogs.clear();
+  selectedLogs.add(logId);
+  copySelected();
+}
+
+function showToast(msg) {
+  let t = document.getElementById('toast');
+  if (!t) {
+    t = document.createElement('div');
+    t.id = 'toast';
+    t.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:var(--bg-card);border:1px solid var(--accent);color:var(--text);padding:10px 24px;border-radius:8px;font-size:14px;z-index:9999;transition:opacity .3s;box-shadow:0 4px 12px rgba(0,0,0,0.3)';
+    document.body.appendChild(t);
+  }
+  t.textContent = msg;
+  t.style.opacity = '1';
+  clearTimeout(t._hide);
+  t._hide = setTimeout(() => { t.style.opacity = '0'; }, 2500);
 }
 
 function updatePagination(total) {

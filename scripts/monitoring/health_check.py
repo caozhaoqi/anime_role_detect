@@ -16,7 +16,7 @@ from typing import Dict, List, Optional, Tuple
 from pathlib import Path
 
 # 添加项目根目录到路径
-project_root = Path(__file__).parent.parent
+project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
 from src.core.logging.global_logger import get_logger
@@ -29,6 +29,7 @@ class ServiceHealthChecker:
 
     def __init__(self):
         self.supervisor_config = project_root / "supervisord.conf"
+        # .venv/bin/supervisorctl
         self.supervisorctl = project_root / ".venv" / "bin" / "supervisorctl"
         self.services = {
             "api-service": {"port": 8001, "endpoint": "/api/health", "timeout": 5},

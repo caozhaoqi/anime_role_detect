@@ -8,15 +8,31 @@ WD Vit Tagger v3 模型集成
 """
 
 import os
-import sys
 import argparse
 import json
-import gc
-from PIL import Image
-from tqdm import tqdm
-import requests
-import multiprocessing
 import platform
+import threading
+import subprocess
+import re
+
+# ==================== 【第零步：清理系统信号量】 ====================
+# 清理之前崩溃进程泄漏的 macOS System V 信号量
+# 这些信号量会导致 resource_tracker SIGABRT 崩溃（Exit code 134）
+try:
+    result = subprocess.run(["ipcs", "-s"], capture_output=True, text=True, timeout=5)
+    if result.returncode == 0:
+        sem_ids = []
+        for line in result.stdout.split("\n"):
+            match = re.match(r"s\s+(\d+)", line.strip())
+            if match:
+                sem_ids.append(match.group(1))
+        for sid in sem_ids:
+            subprocess.run(["ipcrm", "-s", sid], capture_output=True, timeout=3)
+        if sem_ids:
+            pass  # 静默清理
+except Exception:
+    pass
+# ================================================================
 
 # ==================== 【第一步：环境与多线程限制】 ====================
 # 禁用多线程环境下的 OpenMP 锁争抢（针对 macOS M系列芯片优化）
@@ -27,14 +43,17 @@ os.environ["VECLIB_MAXIMUM_THREADS"] = "1"
 os.environ["NUMEXPR_NUM_THREADS"] = "1"
 os.environ["OBJC_DISABLE_INITIALIZE_FORK_SAFETY"] = "YES"
 
-# macOS 平台下导入 CoreML 相关模块（提前到这里，避免多进程设置导致死锁）
-# 注意：由于 coremltools 和 scikit-learn 版本不兼容会导致锁阻塞，暂时禁用 CoreML
-USE_COREML = False  # platform.system() == "Darwin"
 
-# ==================== MPS加速开关 ====================
-# 设置为True以启用MPS加速（适用于单进程场景，如model-service）
-# 设置为False以禁用MPS（适用于多进程场景，避免锁竞争）
-ENABLE_MPS = False  # model-service使用线程池，MPS非线程安全需禁用
+if platform.system() == "Darwin":
+
+    # macOS 平台下导入 CoreML 相关模块（提前到这里，避免多进程设置导致死锁）
+    # 注意：由于 coremltools 和 scikit-learn 版本不兼容会导致锁阻塞，暂时禁用 CoreML
+    USE_COREML = False  # platform.system() == "Darwin"
+
+    # ==================== MPS加速开关 ====================
+    # 设置为True以启用MPS加速（适用于单进程场景，如model-service）
+    # 设置为False以禁用MPS（适用于多进程场景，避免锁竞争）
+    ENABLE_MPS = False  # model-service使用线程池，MPS非线程安全需禁用
 # ====================================================
 
 # 设置Hugging Face缓存目录为项目目录
@@ -86,24 +105,44 @@ from src.core.logging.global_logger import get_logger
 
 logger = get_logger("wd_vit_v3_tagger")
 
-# 延迟导入 transformers 相关模块（非 macOS 平台使用）
-AutoProcessor = None
-AutoModelForImageClassification = None
-CLIPProcessor = None
-CLIPModel = None
-
 
 class WDViTV3Tagger:
     """WD Vit Tagger v3 标签生成器
     支持多平台加速方案：
     - macOS (Apple Silicon): CoreML (ANE加速)
     - Linux/Windows: PyTorch (CUDA/MPS/CPU自动选择)
+    
+    单例模式：全局统一实例，避免多线程/多协程重复初始化和文件锁竞争。
     """
+
+    # 单例实例
+    _instance = None
 
     # 全局Core ML标签生成器实例缓存
     _coreml_tagger = None
 
+    def __new__(cls, *args, **kwargs):
+        """确保单例：只有首次调用 __init__ 才会执行初始化逻辑"""
+        if cls._instance is None:
+            instance = super().__new__(cls)
+            instance._initialized = False
+            instance._loaded = False
+            instance._load_lock = threading.Lock()
+            cls._instance = instance
+        return cls._instance
+
+    @classmethod
+    def get_instance(cls):
+        """获取单例实例（推荐用法：WDViTV3Tagger.get_instance()）"""
+        if cls._instance is None:
+            cls._instance = cls()
+        return cls._instance
+
     def __init__(self, device=None):
+        """初始化（仅在首次调用时执行）"""
+        if self._initialized:
+            return
+        self._initialized = True
         # 先初始化logger
         self.logger = get_logger("wd_vit_v3_tagger")
         
@@ -120,6 +159,7 @@ class WDViTV3Tagger:
         self.logger.info(f"WD Vit Tagger 使用设备: {self.device}")
         self.wd_model = None
         self.wd_processor = None
+        self.img_size = 448  # 默认输入尺寸
         self.clip_model = None
         self.clip_processor = None
         self.id2label = {}
@@ -409,46 +449,95 @@ class WDViTV3Tagger:
         if USE_COREML:
             return self._load_coreml_model()
         
-        # 非macOS平台使用PyTorch模型
+        # 使用timm + safetensors直接加载，绕过transformers的from_pretrained()避免MPS死锁
         try:
-            global AutoProcessor, AutoModelForImageClassification
-
-            # 安全导入 transformers
-            from transformers import (
-                AutoProcessor,
-                AutoModelForImageClassification,
-                CLIPProcessor,
-                CLIPModel,
-            )
-            print("[SAFE_BOOT] transformers 库安全导入成功")
-
             self.logger.info(f"加载WD Vit Tagger v3模型: {model_name}")
             self.logger.info(f"使用设备: {self.device}")
 
-            # 加载处理器和模型
-            self.wd_processor = AutoProcessor.from_pretrained(model_name)
-            self.wd_model = AutoModelForImageClassification.from_pretrained(model_name)
+            # [STEP 1] 读取配置文件获取模型参数（不再需要 AutoProcessor）
+            self.logger.info("[load_model] STEP 1/7: 解析模型配置")
+            cache_dir = os.path.expanduser("~/.cache/huggingface/hub")
+            safe_model_name = model_name.replace("/", "--")
+            snapshots_dir = os.path.join(cache_dir, f"models--{safe_model_name}", "snapshots")
+            if not os.path.isdir(snapshots_dir):
+                cache_dir = os.path.join(os.path.dirname(__file__), "..", "..", "..", "huggingface_cache")
+                snapshots_dir = os.path.join(cache_dir, f"models--{safe_model_name}", "snapshots")
+            
+            snapshots = sorted(os.listdir(snapshots_dir)) if os.path.isdir(snapshots_dir) else []
+            if not snapshots:
+                from huggingface_hub import hf_hub_download
+                safetensors_path = hf_hub_download(model_name, "model.safetensors")
+                config_path = hf_hub_download(model_name, "config.json")
+                csv_path = hf_hub_download(model_name, "selected_tags.csv")
+            else:
+                snapshot = snapshots[-1]
+                snapshot_dir = os.path.join(snapshots_dir, snapshot)
+                safetensors_path = os.path.join(snapshot_dir, "model.safetensors")
+                config_path = os.path.join(snapshot_dir, "config.json")
+                csv_path = os.path.join(snapshot_dir, "selected_tags.csv")
+            
+            # 读取配置
+            with open(config_path, "r") as f:
+                model_config = json.load(f)
+            self.img_size = model_config.get("model_args", {}).get("img_size", 448)
+            self.logger.info(f"[load_model] STEP 1/7 完成: img_size={self.img_size}, model_path={safetensors_path}")
 
-            # 将模型移到指定设备
+            model_args = model_config.get("model_args", {})
+            num_classes = model_config.get("num_classes", 10861)
+
+            # [STEP 2] 创建模型架构
+            self.logger.info("[load_model] STEP 2/7: timm.create_model()")
+            import timm
+            self.wd_model = timm.create_model(
+                model_config.get("architecture", "vit_base_patch16_224"),
+                pretrained=False,
+                num_classes=num_classes,
+                img_size=self.img_size,
+                class_token=model_args.get("class_token", False),
+                global_pool=model_args.get("global_pool", "avg"),
+                fc_norm=model_args.get("fc_norm", False),
+                act_layer=model_args.get("act_layer", "gelu_tanh"),
+            )
+            self.logger.info("[load_model] STEP 2/7 完成: 模型架构创建成功")
+
+            # [STEP 3] 加载模型权重
+            self.logger.info("[load_model] STEP 3/7: 加载 safetensors 权重")
+            from safetensors.torch import load_file
+            state_dict = load_file(safetensors_path)
+            self.wd_model.load_state_dict(state_dict, strict=False)
+            self.logger.info("[load_model] STEP 3/7 完成: 模型权重加载成功")
+
+            # [STEP 4] 设备迁移
+            self.logger.info("[load_model] STEP 4/7: 模型迁移到设备 {self.device} 并设置为 eval 模式")
             self.wd_model.to(self.device)
             self.wd_model.eval()
+            self.logger.info("[load_model] STEP 4/7 完成")
 
-            # 获取标签映射
-            if hasattr(self.wd_model.config, "id2label"):
-                self.id2label = self.wd_model.config.id2label
-                # 转换为数字索引映射
-                self.num_id2label = {int(k): v for k, v in self.id2label.items()}
+            # [STEP 5] 加载标签映射
+            self.logger.info("[load_model] STEP 5/5: 加载标签映射")
+            import csv
+            if os.path.exists(csv_path):
+                with open(csv_path, "r", encoding="utf-8") as f:
+                    reader = csv.reader(f)
+                    _ = next(reader, None)
+                    tag_id_map = {}
+                    for row in reader:
+                        if len(row) >= 2:
+                            try:
+                                tag_id = int(row[0])
+                                tag_name = row[1].strip()
+                                tag_id_map[tag_id] = tag_name
+                            except (ValueError, IndexError):
+                                continue
+                if tag_id_map:
+                    self.num_id2label = tag_id_map
+                    self.id2label = {str(k): v for k, v in tag_id_map.items()}
+                    self.logger.info(f"[load_model] STEP 5/5 完成: 加载了 {len(tag_id_map)} 个标签")
 
             self.logger.info("WD Vit Tagger v3模型加载完成")
             return True
         except Exception as e:
             self.logger.error(f"加载模型失败: {e}")
-            # 如果是MPS设备加载失败，尝试回退到CPU
-            if self.device == "mps":
-                self.logger.info("MPS设备加载失败，尝试回退到CPU")
-                self.device = "cpu"
-                return self.load_model(model_name)
-            # 加载失败时使用简单标签生成方法
             self.logger.info("加载模型失败，使用简单标签生成方法")
             return False
 
@@ -724,6 +813,8 @@ class WDViTV3Tagger:
             list: 标签列表
         """
         try:
+            from PIL import Image
+            
             # 检查image是否为Image对象
             if isinstance(image, Image.Image):
                 # 已经是Image对象，直接使用
@@ -755,19 +846,24 @@ class WDViTV3Tagger:
                     f"CoreML模型 前10个标签: {[t['tag'] for t in filtered_tags[:10]]}"
                 )
             # 检查是否加载了PyTorch模型
-            elif self.wd_model is not None and self.wd_processor is not None:
-                # 使用PyTorch模型生成标签
+            elif self.wd_model is not None:
+                # 使用PyTorch模型生成标签（timm模型，直接接受tensor输入）
                 self.logger.debug("使用PyTorch模型生成标签")
 
-                # 预处理图像
-                inputs = self.wd_processor(images=image, return_tensors="pt").to(self.device)
+                # 手动预处理图像（替换 AutoProcessor，避免 SIGABRT）
+                import torchvision.transforms as T
+                preprocess = T.Compose([
+                    T.Resize((self.img_size, self.img_size)),
+                    T.ToTensor(),
+                    T.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]),
+                ])
+                pixel_tensor = preprocess(image).unsqueeze(0).to(self.device)
 
-                # 模型推理
+                # 模型推理（timm模型接受原始tensor）
                 with torch.no_grad():
-                    outputs = self.wd_model(**inputs)
+                    logits = self.wd_model(pixel_tensor)
 
                 # 获取预测结果
-                logits = outputs.logits
                 probabilities = torch.nn.functional.softmax(logits, dim=1).squeeze().cpu().numpy()
 
                 # 生成标签
@@ -812,6 +908,7 @@ class WDViTV3Tagger:
             output_file: 输出文件路径
             threshold: 置信度阈值
         """
+        from tqdm import tqdm
         results = []
 
         # 遍历图像目录

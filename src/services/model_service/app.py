@@ -16,12 +16,27 @@ if IS_MACOS:
     os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
     os.environ["MPS_HIGH_WATERMARK_RATIO"] = "0.0"
     os.environ["PYTORCH_MPS_HIGH_WATERMARK_RATIO"] = "0.0"
+    os.environ["PYTORCH_MPS_DISABLE"] = "1"
     os.environ["OMP_NUM_THREADS"] = "1"
     os.environ["MKL_NUM_THREADS"] = "1"
     os.environ["OPENBLAS_NUM_THREADS"] = "1"
     os.environ["VECLIB_MAXIMUM_THREADS"] = "1"
     os.environ["NUMEXPR_NUM_THREADS"] = "1"
     os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
+
+# ==================== MPS 强制禁用补丁 ====================
+# macOS MPS 后端存在 mutex 死锁问题（[mutex.cc : 452] RAW: Lock blocking）
+# 该死锁由 macOS 内核级信号量残留导致，无法通过环境变量完全清理
+# 通过在 torch 初始化前 monkey-patch _mps_is_available 来彻底禁用 MPS
+# 注意：此补丁必须在任何模块导入 torch 之前执行
+try:
+    import torch._C
+    # 检查是否已有 MPS 可用性检查函数
+    if hasattr(torch._C, '_mps_is_available'):
+        torch._C._mps_is_available = lambda: False
+except Exception:
+    pass
+# ==========================================================
 
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.."))
 sys.path.insert(0, project_root)
@@ -59,6 +74,13 @@ def get_optimal_device():
     """自动选择最佳计算设备"""
     try:
         import torch
+        # 如果环境变量禁用了MPS，跳过MPS检测
+        if os.environ.get("PYTORCH_MPS_DISABLE", "0") == "1":
+            if torch.cuda.is_available():
+                print("✅ 检测到CUDA可用，将使用NVIDIA GPU加速")
+                return "cuda"
+            print("⚠️ MPS已被环境变量禁用，将使用CPU推理")
+            return "cpu"
         if IS_MACOS and torch.backends.mps.is_available():
             print("✅ 检测到MPS可用，将使用Apple Silicon GPU加速")
             return "mps"
@@ -118,20 +140,9 @@ async def warmup_models():
                 await loop.run_in_executor(executor, feature_extractor.extract_features, processed)
             logger.info("特征提取器预热完成")
 
-        logger.info("预热标签生成器...")
-        if tagger is None:
-            try:
-                from src.core.tagging.wd_vit_v3_tagger import WDViTV3Tagger
-                tagger = WDViTV3Tagger()
-                loop = asyncio.get_running_loop()
-                with ThreadPoolExecutor(max_workers=1) as executor:
-                    model_loaded = await loop.run_in_executor(executor, tagger.load_model)
-                if model_loaded:
-                    logger.info("标签生成器预热完成")
-                else:
-                    logger.warning("标签生成器预热完成（使用简单标签模式）")
-            except Exception as e:
-                logger.warning(f"标签生成器预热失败: {e}")
+        # 标签生成器跳过预热（按需加载），
+        # 避免 transformers 加载 SmilingWolf/wd-vit-tagger-v3 时触发 MPS mutex 死锁
+        logger.info("标签生成器跳过预热（按需加载）")
 
         elapsed = time.time() - start_time
         logger.info(f"模型预热完成，耗时: {elapsed:.2f}秒")
@@ -145,9 +156,6 @@ async def warmup_models():
 async def startup_event():
     """启动事件"""
     global logger
-    from src.core.preprocessing.preprocessing import Preprocessing as PP
-    from src.core.feature_extraction.feature_extraction import FeatureExtraction as FE
-    from src.core.tagging.wd_vit_v3_tagger import WDViTV3Tagger as WT
     from src.core.logging.global_logger import get_logger as gl
     from PIL import Image as Img
 
