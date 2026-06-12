@@ -52,6 +52,27 @@ def update_db_record(task_id: str, status: str, **kwargs):
         return False
 
 
+def update_progress(task_file: str, current_stage: str, processed_count: int, total_count: int):
+    """更新任务进度"""
+    try:
+        with open(task_file, "r", encoding="utf-8") as f:
+            task_config = json.load(f)
+        
+        task_config["current_stage"] = current_stage
+        task_config["processed_count"] = processed_count
+        task_config["total_count"] = total_count
+        if total_count > 0:
+            task_config["progress_percent"] = round((processed_count / total_count) * 100, 2)
+        
+        with open(task_file, "w", encoding="utf-8") as f:
+            json.dump(task_config, f)
+        
+        return True
+    except Exception as e:
+        print(f"更新任务进度失败: {e}", file=sys.stderr)
+        return False
+
+
 def main():
     if len(sys.argv) < 2:
         print("Usage: python _run_cleaning_worker.py <task_file>", file=sys.stderr)

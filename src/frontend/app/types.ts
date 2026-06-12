@@ -193,11 +193,22 @@ export interface CleaningTask {
   status: 'pending' | 'running' | 'completed' | 'failed';
   input_dir: string;
   output_dir: string;
-  start_time?: number;
-  end_time?: number;
+  start_time?: string;
+  end_time?: string;
   duration_seconds?: number;
   result?: CleaningResult;
   error?: string;
+  // 新增进度字段
+  user_id?: string;
+  username?: string;
+  total_files?: number;
+  processed_files?: number;
+  valid_files?: number;
+  rejected_files?: number;
+  duplicate_files?: number;
+  progress_percent?: number;
+  report_path?: string;
+  error_message?: string;
 }
 
 // 数据清理进度相关类型

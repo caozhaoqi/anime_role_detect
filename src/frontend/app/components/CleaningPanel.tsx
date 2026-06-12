@@ -186,16 +186,28 @@ export default function CleaningPanel({ darkMode, accessToken }: CleaningPanelPr
       const headers = accessToken ? { Authorization: `Bearer ${accessToken}` } : {};
       const response = await axios.get(`/api/cleaning/task/${taskId}`, { headers });
       if (response.data.success) {
+        const data = response.data.data;
         const task: CleaningTask = {
           task_id: taskId,
-          status: response.data.data.status as CleaningTask['status'],
-          input_dir: response.data.data.input_dir,
-          output_dir: response.data.data.output_dir,
-          start_time: response.data.data.start_time,
-          end_time: response.data.data.end_time,
-          duration_seconds: response.data.data.duration_seconds,
-          result: response.data.data.result,
-          error: response.data.data.error,
+          status: data.status as CleaningTask['status'],
+          input_dir: data.input_dir,
+          output_dir: data.output_dir,
+          start_time: data.start_time,
+          end_time: data.end_time,
+          duration_seconds: data.duration_seconds,
+          result: data.result,
+          error: data.error_message || data.error,
+          // 新增进度字段
+          user_id: data.user_id,
+          username: data.username,
+          total_files: data.total_files,
+          processed_files: data.processed_files,
+          valid_files: data.valid_files,
+          rejected_files: data.rejected_files,
+          duplicate_files: data.duplicate_files,
+          progress_percent: data.progress_percent,
+          report_path: data.report_path,
+          error_message: data.error_message,
         };
         setCurrentTaskStatus(task);
         
@@ -203,7 +215,7 @@ export default function CleaningPanel({ darkMode, accessToken }: CleaningPanelPr
           setPollInterval(null);
           setLastResult({
             success: task.status === 'completed',
-            message: task.status === 'completed' ? '清洗完成' : task.error || '清洗失败',
+            message: task.status === 'completed' ? '清洗完成' : task.error_message || task.error || '清洗失败',
             data: task.result,
             task_id: taskId,
           });
@@ -807,15 +819,65 @@ export default function CleaningPanel({ darkMode, accessToken }: CleaningPanelPr
               <span>{getStatusText(currentTaskStatus.status)}</span>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-4 text-sm">
-            <div>
-              <span className={`block ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>任务ID</span>
-              <span className={darkMode ? 'text-gray-200' : 'text-gray-800'}>{currentTaskStatus.task_id}</span>
+          
+          {/* 任务ID和进度 */}
+          <div className="mb-4">
+            <div className="flex items-center justify-between mb-2">
+              <span className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>任务ID</span>
+              <span className={`text-sm font-mono ${darkMode ? 'text-blue-400' : 'text-blue-600'}`} title={currentTaskStatus.task_id}>
+                {currentTaskStatus.task_id}
+              </span>
             </div>
+            
+            {/* 进度条 */}
+            {currentTaskStatus.progress_percent !== undefined && (
+              <div className="mb-2">
+                <div className="flex items-center justify-between text-xs mb-1">
+                  <span className={darkMode ? 'text-gray-400' : 'text-gray-500'}>处理进度</span>
+                  <span className={darkMode ? 'text-gray-300' : 'text-gray-700'}>
+                    {currentTaskStatus.processed_files || 0}/{currentTaskStatus.total_files || 0} ({currentTaskStatus.progress_percent.toFixed(1)}%)
+                  </span>
+                </div>
+                <div className="h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                  <div 
+                    className={`h-full transition-all duration-300 ${
+                      currentTaskStatus.status === 'running' 
+                        ? 'bg-gradient-to-r from-blue-500 to-purple-500' 
+                        : currentTaskStatus.status === 'completed'
+                        ? 'bg-gradient-to-r from-green-500 to-green-400'
+                        : currentTaskStatus.status === 'failed'
+                        ? 'bg-gradient-to-r from-red-500 to-red-400'
+                        : 'bg-gray-400'
+                    }`} 
+                    style={{ width: `${currentTaskStatus.progress_percent}%` }} 
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+          
+          {/* 统计信息 */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm mb-4">
             <div>
               <span className={`block ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>耗时</span>
               <span className={darkMode ? 'text-gray-200' : 'text-gray-800'}>{formatDuration(currentTaskStatus.duration_seconds)}</span>
             </div>
+            <div>
+              <span className={`block ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>有效图片</span>
+              <span className={`font-medium ${darkMode ? 'text-green-400' : 'text-green-600'}`}>{currentTaskStatus.valid_files || 0}</span>
+            </div>
+            <div>
+              <span className={`block ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>已移除</span>
+              <span className={`font-medium ${darkMode ? 'text-red-400' : 'text-red-600'}`}>{currentTaskStatus.rejected_files || 0}</span>
+            </div>
+            <div>
+              <span className={`block ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>重复数</span>
+              <span className={`font-medium ${darkMode ? 'text-yellow-400' : 'text-yellow-600'}`}>{currentTaskStatus.duplicate_files || 0}</span>
+            </div>
+          </div>
+          
+          {/* 目录信息 */}
+          <div className="grid grid-cols-2 gap-4 text-sm">
             <div>
               <span className={`block ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>输入目录</span>
               <span className={`truncate ${darkMode ? 'text-gray-200' : 'text-gray-800'}`} title={currentTaskStatus.input_dir}>{currentTaskStatus.input_dir}</span>
@@ -825,10 +887,13 @@ export default function CleaningPanel({ darkMode, accessToken }: CleaningPanelPr
               <span className={`truncate ${darkMode ? 'text-gray-200' : 'text-gray-800'}`} title={currentTaskStatus.output_dir}>{currentTaskStatus.output_dir}</span>
             </div>
           </div>
-          {currentTaskStatus.status === 'running' && (
-            <div className="mt-4">
-              <div className="h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                <div className="h-full bg-gradient-to-r from-blue-500 to-purple-500 animate-pulse" style={{ width: '100%' }} />
+          
+          {/* 错误信息 */}
+          {currentTaskStatus.status === 'failed' && currentTaskStatus.error_message && (
+            <div className="mt-4 p-3 rounded-lg bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700">
+              <div className="flex items-start space-x-2">
+                <AlertCircle className="h-5 w-5 text-red-500 flex-shrink-0 mt-0.5" />
+                <span className="text-sm text-red-700 dark:text-red-400">{currentTaskStatus.error_message}</span>
               </div>
             </div>
           )}

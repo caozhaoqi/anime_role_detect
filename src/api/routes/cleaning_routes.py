@@ -468,43 +468,107 @@ async def run_cleaning_pipeline_async(
 @router.get("/task/{task_id}", response_model=CleaningResponse)
 async def get_cleaning_task_status(task_id: str, current_admin: dict = Depends(get_current_admin)):
     """
-    查询清洗任务状态
+    查询清洗任务状态（从数据库和文件系统获取完整进度）
     
     Args:
         task_id: 任务ID
     
     Returns:
-        任务状态和结果
+        任务状态、进度和结果
     """
     try:
+        # 1. 从数据库获取记录
+        db = get_db_service()
+        db_record = CleaningRecordDB.get_by_id(db, task_id)
+        
+        # 2. 从文件系统获取实时进度
         tasks_dir = Path(project_root) / "data" / "cleaning_tasks"
         task_file = tasks_dir / f"{task_id}.json"
         
-        if not task_file.exists():
-            raise HTTPException(status_code=404, detail=f"任务不存在: {task_id}")
+        file_progress = {}
+        if task_file.exists():
+            with open(task_file, "r", encoding="utf-8") as f:
+                file_progress = json.load(f)
         
-        with open(task_file, "r", encoding="utf-8") as f:
-            task_config = json.load(f)
+        # 3. 合并数据库记录和文件进度
+        result = {
+            "task_id": task_id,
+            "status": "unknown",
+            "user_id": None,
+            "username": None,
+            "input_dir": None,
+            "output_dir": None,
+            "total_files": 0,
+            "processed_files": 0,
+            "valid_files": 0,
+            "rejected_files": 0,
+            "duplicate_files": 0,
+            "duration_seconds": None,
+            "progress_percent": 0,
+            "start_time": None,
+            "end_time": None,
+            "report_path": None,
+            "error_message": None,
+            "result": None,
+        }
+        
+        # 优先使用数据库记录
+        if db_record:
+            result.update({
+                "status": db_record.status,
+                "user_id": db_record.user_id,
+                "username": db_record.username,
+                "input_dir": db_record.input_dir,
+                "output_dir": db_record.output_dir,
+                "total_files": db_record.total_files or 0,
+                "processed_files": db_record.processed_files or 0,
+                "valid_files": db_record.valid_files or 0,
+                "rejected_files": db_record.rejected_files or 0,
+                "duplicate_files": db_record.duplicate_files or 0,
+                "duration_seconds": db_record.duration_seconds,
+                "report_path": db_record.report_path,
+                "error_message": db_record.error_message,
+                "start_time": db_record.started_at.isoformat() if db_record.started_at else None,
+                "end_time": db_record.completed_at.isoformat() if db_record.completed_at else None,
+            })
+        
+        # 用文件系统的实时进度补充
+        if file_progress:
+            if not result["status"]:
+                result["status"] = file_progress.get("status", "unknown")
+            if not result["input_dir"]:
+                result["input_dir"] = file_progress.get("input_dir")
+            if not result["output_dir"]:
+                result["output_dir"] = file_progress.get("output_dir")
+            if not result["start_time"]:
+                result["start_time"] = file_progress.get("start_time")
+            if not result["end_time"]:
+                result["end_time"] = file_progress.get("end_time")
+            if not result["duration_seconds"]:
+                result["duration_seconds"] = file_progress.get("duration_seconds")
+            if "result" in file_progress:
+                result["result"] = file_progress.get("result")
+        
+        # 计算进度百分比
+        if result["total_files"] > 0:
+            result["progress_percent"] = (result["processed_files"] / result["total_files"]) * 100
+        
+        # 验证任务是否存在
+        if result["status"] == "unknown" and not db_record and not file_progress:
+            raise HTTPException(status_code=404, detail=f"任务不存在: {task_id}")
         
         return {
             "success": True,
             "message": "获取任务状态成功",
-            "data": {
-                "task_id": task_id,
-                "status": task_config.get("status"),
-                "input_dir": task_config.get("input_dir"),
-                "output_dir": task_config.get("output_dir"),
-                "start_time": task_config.get("start_time"),
-                "end_time": task_config.get("end_time"),
-                "duration_seconds": task_config.get("duration_seconds"),
-                "result": task_config.get("result"),
-                "error": task_config.get("error"),
-            }
+            "data": result
         }
     
     except HTTPException as e:
         raise e
     except Exception as e:
+        import traceback
+        print(f"获取任务状态失败: {e}")
+        print(traceback.format_exc())
         return {
             "success": False,
             "message": f"获取任务状态失败: {str(e)}",
