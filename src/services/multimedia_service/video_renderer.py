@@ -127,7 +127,7 @@ def render_result_video(
     video_path: str,
     results: List[Dict],
     output_path: str,
-    frame_interval: float = 1.0,
+    progress_callback: Optional[callable] = None,
 ) -> Optional[str]:
     """
     根据识别结果生成带标注的结果视频
@@ -136,7 +136,7 @@ def render_result_video(
         video_path: 原始视频路径
         results: 识别结果（与 /video/recognize 返回格式一致）
         output_path: 输出视频路径
-        frame_interval: 抽帧间隔（秒），需与识别时使用的值一致
+        progress_callback: 进度回调函数 fn(pct, current_frame, total_frames)
 
     Returns:
         输出视频路径，失败返回 None
@@ -176,6 +176,7 @@ def render_result_video(
     frame_count = 0
     success, frame = cap.read()
     processed = 0
+    last_progress_pct = -1
 
     while success:
         if frame_count in result_by_frame:
@@ -193,6 +194,13 @@ def render_result_video(
         out.write(frame)
         frame_count += 1
         success, frame = cap.read()
+
+        # 进度回调（每5%触发一次）
+        if total_frames > 0 and progress_callback:
+            pct = frame_count * 100 // total_frames
+            if pct > last_progress_pct:
+                last_progress_pct = pct
+                progress_callback(pct, frame_count, total_frames)
 
         # 进度日志（每10%输出一次）
         if total_frames > 0 and frame_count % max(1, total_frames // 10) == 0:

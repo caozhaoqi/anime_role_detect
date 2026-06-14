@@ -140,21 +140,74 @@ def get_db_stats_optimized():
 
 
 def draw_bbox(image_path, annotations):
-    """在图像上绘制BBox"""
+    """在图像上绘制BBox，包含角色名和置信度"""
     try:
         img = Image.open(image_path).convert("RGB")
         draw = ImageDraw.Draw(img)
+        
+        # 使用更清晰的字体
+        from PIL import ImageFont
+        try:
+            font = ImageFont.truetype("/System/Library/Fonts/Supplemental/Arial.ttf", 14)
+        except:
+            font = ImageFont.load_default()
         
         for ann in annotations:
             bbox = ann.bbox
             if bbox and len(bbox) == 4:
                 x1, y1, x2, y2 = bbox
-                draw.rectangle([x1, y1, x2, y2], outline="red", width=3)
                 
-                if ann.confidence:
-                    conf_text = f"{ann.confidence:.2f}"
-                    draw.text((x1, y1 - 20), conf_text, fill="red")
+                # 绘制边界框（脸部框选）
+                draw.rectangle([x1, y1, x2, y2], outline="#FF6B6B", width=3)
+                
+                # 准备标签文本
+                label_parts = []
+                
+                # 添加角色名
+                if hasattr(ann, 'character_name') and ann.character_name:
+                    label_parts.append(f"{ann.character_name}")
+                
+                # 添加检测置信度
+                if hasattr(ann, 'confidence') and ann.confidence:
+                    label_parts.append(f"detect:{ann.confidence:.2f}")
+                
+                # 添加角色识别置信度
+                if hasattr(ann, 'character_confidence') and ann.character_confidence:
+                    label_parts.append(f"char:{ann.character_confidence:.2f}")
+                
+                # 绘制标签
+                if label_parts:
+                    label_text = " | ".join(label_parts)
+                    
+                    # 计算文本尺寸
+                    try:
+                        text_bbox = draw.textbbox((0, 0), label_text, font=font)
+                        text_width = text_bbox[2] - text_bbox[0]
+                        text_height = text_bbox[3] - text_bbox[1]
+                    except:
+                        text_width, text_height = 100, 20
+                    
+                    # 确定标签位置（在边界框上方，超出则显示在下方）
+                    label_x = x1
+                    label_y = y1 - text_height - 5
+                    
+                    if label_y < 5:
+                        label_y = y2 + 5
+                    
+                    # 绘制半透明背景
+                    bg_padding = 5
+                    draw.rectangle(
+                        [label_x - bg_padding, label_y - bg_padding, 
+                         label_x + text_width + bg_padding, label_y + text_height + bg_padding],
+                        fill=(0, 0, 0, 180)  # 半透明黑色
+                    )
+                    
+                    # 绘制文本
+                    draw.text((label_x, label_y), label_text, fill="#FFFFFF", font=font)
         
         return img
-    except Exception:
+    except Exception as e:
+        import traceback
+        print(f"⚠️ 绘制BBox失败: {e}")
+        print(traceback.format_exc())
         return None

@@ -134,8 +134,10 @@ class ServiceHealthChecker:
             for conn in psutil.net_connections():
                 if conn.laddr.port == port and conn.status == "LISTEN":
                     return True
+        except psutil.AccessDenied as e:
+            logger.debug(f"检查端口 {port} 权限不足: {e}")
         except Exception as e:
-            logger.error(f"检查端口失败: {e}")
+            logger.warning(f"检查端口 {port} 失败: {e}")
 
         return False
 
@@ -153,8 +155,8 @@ class ServiceHealthChecker:
                         }
                     except (psutil.NoSuchProcess, psutil.AccessDenied):
                         continue
-        except Exception as e:
-            logger.error(f"获取进程信息失败: {e}")
+        except psutil.AccessDenied as e:
+            logger.debug(f"获取进程信息权限不足: {e}")
 
         return None
 
@@ -208,7 +210,7 @@ class ServiceHealthChecker:
                 cmd,
                 capture_output=True,
                 text=True,
-                timeout=30
+                timeout=90
             )
 
             if result.returncode == 0:

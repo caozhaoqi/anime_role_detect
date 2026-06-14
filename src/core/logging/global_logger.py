@@ -57,10 +57,11 @@ class GlobalLogger:
         log_format = "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> | <level>{message}</level>"
 
         # JSON 格式日志文件（供 ELK Filebeat / Loki 采集）
-        json_log_file = str(self.log_dir / "structured.jsonl")
+        # 按日期轮转，每天生成新文件，保留14天
+        json_log_file = str(self.log_dir / "structured_{time:YYYY-MM-DD}.jsonl")
         logger.add(
             json_log_file,
-            rotation="100 MB",
+            rotation="00:00",
             retention="14 days",
             compression="zip",
             level="INFO",

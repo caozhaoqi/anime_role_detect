@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Play, Settings, FolderOpen, Clock, CheckCircle, XCircle, Loader2, RefreshCw, Trash2, Download, ChevronDown, ChevronUp, AlertCircle, X, ChevronLeft, Folder } from 'lucide-react';
 import axios from 'axios';
-import { CleaningConfig, CleaningResponse, CleaningTask } from '../types';
+import { CleaningConfig, CleaningResponse, CleaningTask, CleaningProgress } from '../types';
 
 interface CleaningPanelProps {
   darkMode: boolean;
@@ -40,6 +40,11 @@ export default function CleaningPanel({ darkMode, accessToken }: CleaningPanelPr
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
   const [pollInterval, setPollInterval] = useState<number | null>(null);
   
+  // 数据清理进度状态
+  const [cleaningProgress, setCleaningProgress] = useState<CleaningProgress | null>(null);
+  const [progressPollInterval, setProgressPollInterval] = useState<number | null>(null);
+  const [showProgressPanel, setShowProgressPanel] = useState(true);
+  
   // 目录浏览器状态
   const [showBrowser, setShowBrowser] = useState(false);
   const [browseTarget, setBrowseTarget] = useState<'input' | 'output'>('input');
@@ -52,6 +57,7 @@ export default function CleaningPanel({ darkMode, accessToken }: CleaningPanelPr
   useEffect(() => {
     loadDefaultConfig();
     loadTasks();
+    loadCleaningProgress();
   }, []);
 
   useEffect(() => {
@@ -64,6 +70,16 @@ export default function CleaningPanel({ darkMode, accessToken }: CleaningPanelPr
       return () => clearInterval(interval);
     }
   }, [pollInterval, currentTaskId]);
+
+  // 进度轮询
+  useEffect(() => {
+    if (progressPollInterval) {
+      const interval = setInterval(() => {
+        loadCleaningProgress();
+      }, 2000);
+      return () => clearInterval(interval);
+    }
+  }, [progressPollInterval]);
 
   const loadDefaultConfig = async () => {
     try {
@@ -86,6 +102,32 @@ export default function CleaningPanel({ darkMode, accessToken }: CleaningPanelPr
       }
     } catch (err) {
       console.error('加载任务列表失败:', err);
+    }
+  };
+
+  // 加载清理进度
+  const loadCleaningProgress = async () => {
+    try {
+      const headers = accessToken ? { Authorization: `Bearer ${accessToken}` } : {};
+      const response = await axios.get('/api/cleaning/progress', { headers });
+      if (response.data.success) {
+        setCleaningProgress(response.data.data);
+      }
+    } catch (err) {
+      console.error('加载清理进度失败:', err);
+    }
+  };
+
+  // 重置清理进度
+  const resetCleaningProgress = async () => {
+    try {
+      const headers = accessToken ? { Authorization: `Bearer ${accessToken}` } : {};
+      const response = await axios.post('/api/cleaning/progress/reset', {}, { headers });
+      if (response.data.success) {
+        loadCleaningProgress();
+      }
+    } catch (err) {
+      console.error('重置清理进度失败:', err);
     }
   };
 
@@ -144,16 +186,28 @@ export default function CleaningPanel({ darkMode, accessToken }: CleaningPanelPr
       const headers = accessToken ? { Authorization: `Bearer ${accessToken}` } : {};
       const response = await axios.get(`/api/cleaning/task/${taskId}`, { headers });
       if (response.data.success) {
+        const data = response.data.data;
         const task: CleaningTask = {
           task_id: taskId,
-          status: response.data.data.status as CleaningTask['status'],
-          input_dir: response.data.data.input_dir,
-          output_dir: response.data.data.output_dir,
-          start_time: response.data.data.start_time,
-          end_time: response.data.data.end_time,
-          duration_seconds: response.data.data.duration_seconds,
-          result: response.data.data.result,
-          error: response.data.data.error,
+          status: data.status as CleaningTask['status'],
+          input_dir: data.input_dir,
+          output_dir: data.output_dir,
+          start_time: data.start_time,
+          end_time: data.end_time,
+          duration_seconds: data.duration_seconds,
+          result: data.result,
+          error: data.error_message || data.error,
+          // 新增进度字段
+          user_id: data.user_id,
+          username: data.username,
+          total_files: data.total_files,
+          processed_files: data.processed_files,
+          valid_files: data.valid_files,
+          rejected_files: data.rejected_files,
+          duplicate_files: data.duplicate_files,
+          progress_percent: data.progress_percent,
+          report_path: data.report_path,
+          error_message: data.error_message,
         };
         setCurrentTaskStatus(task);
         
@@ -161,7 +215,7 @@ export default function CleaningPanel({ darkMode, accessToken }: CleaningPanelPr
           setPollInterval(null);
           setLastResult({
             success: task.status === 'completed',
-            message: task.status === 'completed' ? '清洗完成' : task.error || '清洗失败',
+            message: task.status === 'completed' ? '清洗完成' : task.error_message || task.error || '清洗失败',
             data: task.result,
             task_id: taskId,
           });
@@ -613,6 +667,148 @@ export default function CleaningPanel({ darkMode, accessToken }: CleaningPanelPr
         </button>
       </div>
 
+      {/* 数据清理进度面板 */}
+      <div className={`rounded-lg ${darkMode ? 'bg-gray-800' : 'bg-white'} border ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+        <button
+          onClick={() => setShowProgressPanel(!showProgressPanel)}
+          className="w-full p-4 flex items-center justify-between"
+        >
+          <div className="flex items-center space-x-2">
+            <RefreshCw className={`h-5 w-5 ${darkMode ? 'text-blue-400' : 'text-blue-600'}`} />
+            <span className={`font-medium ${darkMode ? 'text-gray-200' : 'text-gray-800'}`}>数据清理进度</span>
+            {cleaningProgress && (
+              <span className={`text-xs px-2 py-0.5 rounded ${darkMode ? 'bg-blue-900 text-blue-300' : 'bg-blue-100 text-blue-700'}`}>
+                总样本: {cleaningProgress.total_samples}
+              </span>
+            )}
+          </div>
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                resetCleaningProgress();
+              }}
+              className={`p-1.5 rounded-lg transition-colors ${darkMode ? 'hover:bg-gray-700 text-gray-400' : 'hover:bg-gray-100 text-gray-500'}`}
+              title="重置进度"
+            >
+              <RefreshCw className="h-4 w-4" />
+            </button>
+            {showProgressPanel ? (
+              <ChevronUp className={`h-5 w-5 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`} />
+            ) : (
+              <ChevronDown className={`h-5 w-5 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`} />
+            )}
+          </div>
+        </button>
+
+        {showProgressPanel && cleaningProgress && (
+          <div className="p-4 pt-0 space-y-4">
+            {/* 汇总统计卡片 */}
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+              <div className={`p-3 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
+                <div className={`text-lg font-bold ${darkMode ? 'text-blue-400' : 'text-blue-600'}`}>
+                  {cleaningProgress.summary.total_processed}
+                </div>
+                <div className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>总处理数</div>
+              </div>
+              <div className={`p-3 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-green-50'}`}>
+                <div className={`text-lg font-bold ${darkMode ? 'text-green-400' : 'text-green-600'}`}>
+                  {cleaningProgress.summary.total_valid}
+                </div>
+                <div className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>有效样本</div>
+              </div>
+              <div className={`p-3 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-red-50'}`}>
+                <div className={`text-lg font-bold ${darkMode ? 'text-red-400' : 'text-red-600'}`}>
+                  {cleaningProgress.summary.total_rejected}
+                </div>
+                <div className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>已过滤</div>
+              </div>
+              <div className={`p-3 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-purple-50'}`}>
+                <div className={`text-lg font-bold ${darkMode ? 'text-purple-400' : 'text-purple-600'}`}>
+                  {cleaningProgress.summary.total_duplicates}
+                </div>
+                <div className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>重复数</div>
+              </div>
+              <div className={`p-3 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-yellow-50'}`}>
+                <div className={`text-lg font-bold ${darkMode ? 'text-yellow-400' : 'text-yellow-600'}`}>
+                  {cleaningProgress.summary.avg_confidence.toFixed(2)}
+                </div>
+                <div className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>平均置信度</div>
+              </div>
+              <div className={`p-3 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-cyan-50'}`}>
+                <div className={`text-lg font-bold ${darkMode ? 'text-cyan-400' : 'text-cyan-600'}`}>
+                  {cleaningProgress.summary.avg_quality_score.toFixed(2)}
+                </div>
+                <div className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>平均质量分</div>
+              </div>
+            </div>
+
+            {/* 任务进度列表 */}
+            <div className="space-y-3">
+              {Object.entries(cleaningProgress.tasks).map(([taskId, task]) => (
+                <div
+                  key={taskId}
+                  className={`p-3 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center space-x-2">
+                      <span className={`text-sm font-medium ${darkMode ? 'text-gray-200' : 'text-gray-800'}`}>
+                        {task.name}
+                      </span>
+                      <span className={`text-xs px-2 py-0.5 rounded ${
+                        task.status === 'completed' ? (darkMode ? 'bg-green-900 text-green-400' : 'bg-green-100 text-green-700') :
+                        task.status === 'running' ? (darkMode ? 'bg-blue-900 text-blue-400' : 'bg-blue-100 text-blue-700') :
+                        task.status === 'failed' ? (darkMode ? 'bg-red-900 text-red-400' : 'bg-red-100 text-red-700') :
+                        (darkMode ? 'bg-gray-600 text-gray-400' : 'bg-gray-200 text-gray-600')
+                      }`}>
+                        {task.status === 'pending' ? '等待中' :
+                         task.status === 'running' ? '运行中' :
+                         task.status === 'completed' ? '已完成' : '失败'}
+                      </span>
+                    </div>
+                    <span className={`text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                      {task.completed}/{task.total} ({task.progress.toFixed(1)}%)
+                    </span>
+                  </div>
+                  <div className={`h-2 rounded-full overflow-hidden ${darkMode ? 'bg-gray-600' : 'bg-gray-200'}`}>
+                    <div
+                      className={`h-full transition-all duration-300 ${
+                        task.status === 'completed' ? 'bg-gradient-to-r from-green-500 to-green-400' :
+                        task.status === 'running' ? 'bg-gradient-to-r from-blue-500 to-blue-400 animate-pulse' :
+                        task.status === 'failed' ? 'bg-gradient-to-r from-red-500 to-red-400' :
+                        'bg-gray-400'
+                      }`}
+                      style={{ width: `${task.progress}%` }}
+                    />
+                  </div>
+                  {task.message && (
+                    <p className={`text-xs mt-2 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                      {task.message}
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {/* 更新时间 */}
+            <div className={`flex items-center justify-between text-xs ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+              <span>更新时间: {new Date(cleaningProgress.last_updated).toLocaleString('zh-CN')}</span>
+              <button
+                onClick={() => {
+                  setProgressPollInterval(progressPollInterval ? null : Date.now());
+                }}
+                className={`px-2 py-1 rounded transition-colors ${
+                  progressPollInterval ? (darkMode ? 'bg-green-900 text-green-400' : 'bg-green-100 text-green-700') :
+                  (darkMode ? 'bg-gray-600 text-gray-400' : 'bg-gray-200 text-gray-600')
+                }`}
+              >
+                {progressPollInterval ? '🔄 自动刷新中' : '⏸ 已暂停'}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* 当前任务状态（异步模式） */}
       {currentTaskStatus && (
         <div className={`p-4 rounded-lg ${darkMode ? 'bg-gray-800' : 'bg-white'} border ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
@@ -623,15 +819,65 @@ export default function CleaningPanel({ darkMode, accessToken }: CleaningPanelPr
               <span>{getStatusText(currentTaskStatus.status)}</span>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-4 text-sm">
-            <div>
-              <span className={`block ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>任务ID</span>
-              <span className={darkMode ? 'text-gray-200' : 'text-gray-800'}>{currentTaskStatus.task_id}</span>
+          
+          {/* 任务ID和进度 */}
+          <div className="mb-4">
+            <div className="flex items-center justify-between mb-2">
+              <span className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>任务ID</span>
+              <span className={`text-sm font-mono ${darkMode ? 'text-blue-400' : 'text-blue-600'}`} title={currentTaskStatus.task_id}>
+                {currentTaskStatus.task_id}
+              </span>
             </div>
+            
+            {/* 进度条 */}
+            {currentTaskStatus.progress_percent !== undefined && (
+              <div className="mb-2">
+                <div className="flex items-center justify-between text-xs mb-1">
+                  <span className={darkMode ? 'text-gray-400' : 'text-gray-500'}>处理进度</span>
+                  <span className={darkMode ? 'text-gray-300' : 'text-gray-700'}>
+                    {currentTaskStatus.processed_files || 0}/{currentTaskStatus.total_files || 0} ({currentTaskStatus.progress_percent.toFixed(1)}%)
+                  </span>
+                </div>
+                <div className="h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                  <div 
+                    className={`h-full transition-all duration-300 ${
+                      currentTaskStatus.status === 'running' 
+                        ? 'bg-gradient-to-r from-blue-500 to-purple-500' 
+                        : currentTaskStatus.status === 'completed'
+                        ? 'bg-gradient-to-r from-green-500 to-green-400'
+                        : currentTaskStatus.status === 'failed'
+                        ? 'bg-gradient-to-r from-red-500 to-red-400'
+                        : 'bg-gray-400'
+                    }`} 
+                    style={{ width: `${currentTaskStatus.progress_percent}%` }} 
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+          
+          {/* 统计信息 */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm mb-4">
             <div>
               <span className={`block ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>耗时</span>
               <span className={darkMode ? 'text-gray-200' : 'text-gray-800'}>{formatDuration(currentTaskStatus.duration_seconds)}</span>
             </div>
+            <div>
+              <span className={`block ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>有效图片</span>
+              <span className={`font-medium ${darkMode ? 'text-green-400' : 'text-green-600'}`}>{currentTaskStatus.valid_files || 0}</span>
+            </div>
+            <div>
+              <span className={`block ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>已移除</span>
+              <span className={`font-medium ${darkMode ? 'text-red-400' : 'text-red-600'}`}>{currentTaskStatus.rejected_files || 0}</span>
+            </div>
+            <div>
+              <span className={`block ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>重复数</span>
+              <span className={`font-medium ${darkMode ? 'text-yellow-400' : 'text-yellow-600'}`}>{currentTaskStatus.duplicate_files || 0}</span>
+            </div>
+          </div>
+          
+          {/* 目录信息 */}
+          <div className="grid grid-cols-2 gap-4 text-sm">
             <div>
               <span className={`block ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>输入目录</span>
               <span className={`truncate ${darkMode ? 'text-gray-200' : 'text-gray-800'}`} title={currentTaskStatus.input_dir}>{currentTaskStatus.input_dir}</span>
@@ -641,10 +887,13 @@ export default function CleaningPanel({ darkMode, accessToken }: CleaningPanelPr
               <span className={`truncate ${darkMode ? 'text-gray-200' : 'text-gray-800'}`} title={currentTaskStatus.output_dir}>{currentTaskStatus.output_dir}</span>
             </div>
           </div>
-          {currentTaskStatus.status === 'running' && (
-            <div className="mt-4">
-              <div className="h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                <div className="h-full bg-gradient-to-r from-blue-500 to-purple-500 animate-pulse" style={{ width: '100%' }} />
+          
+          {/* 错误信息 */}
+          {currentTaskStatus.status === 'failed' && currentTaskStatus.error_message && (
+            <div className="mt-4 p-3 rounded-lg bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700">
+              <div className="flex items-start space-x-2">
+                <AlertCircle className="h-5 w-5 text-red-500 flex-shrink-0 mt-0.5" />
+                <span className="text-sm text-red-700 dark:text-red-400">{currentTaskStatus.error_message}</span>
               </div>
             </div>
           )}
