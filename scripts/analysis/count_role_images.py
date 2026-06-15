@@ -9,12 +9,12 @@ import os
 
 def count_role_images():
     # 角色列表文件
-    role_file = "/Users/caozhaoqi/PycharmProjects/anime_role_detect/auto_spider_img/loli-role.txt"
+    role_file = "/Users/caozhaoqi/PycharmProjects/anime_role_detect/archived/auto_spider_img/loli-role-new.txt"
     # 图片目录
     image_dirs = [
         "/Users/caozhaoqi/PycharmProjects/anime_role_detect/data/final_dataset",
-        "/Users/caozhaoqi/PycharmProjects/anime_role_detect/data/merged_english_dataset",
-        "/Users/caozhaoqi/PycharmProjects/anime_role_detect/data/organized_images",
+        "/Users/caozhaoqi/PycharmProjects/anime_role_detect/data/training_dataset",
+        # "/Users/caozhaoqi/PycharmProjects/anime_role_detect/data/organized_images",
     ]
 
     # 读取角色列表（提取英文名称，第三列）
