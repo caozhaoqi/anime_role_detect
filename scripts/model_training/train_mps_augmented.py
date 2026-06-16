@@ -10,6 +10,10 @@ import json
 import argparse
 import logging
 from datetime import datetime
+from PIL import Image, ImageFile
+
+# 允许加载截断的图片
+ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 import torch
 import torch.nn as nn
@@ -344,7 +348,7 @@ def main():
     parser.add_argument(
         "--augment_level",
         type=str,
-        default="high",
+        default="medium",
         choices=["low", "medium", "high"],
         help="数据增强级别",
     )
@@ -370,6 +374,9 @@ def main():
         "--freeze_backbone", action="store_true", default=False, help="冻结主干网络"
     )
     parser.add_argument("--label_smoothing", type=float, default=0.1, help="标签平滑系数")
+    parser.add_argument(
+        "--use_class_weight", action="store_true", default=True, help="使用类别权重平衡样本"
+    )
     parser.add_argument("--resume", type=str, default=None, help="从检查点恢复训练（包含完整状态）")
     parser.add_argument(
         "--pretrained_model",
@@ -474,8 +481,21 @@ def main():
             for param in model.features.parameters():
                 param.requires_grad = False
 
-    # 定义损失函数（带标签平滑）和优化器
-    criterion = nn.CrossEntropyLoss(label_smoothing=args.label_smoothing)
+    # 定义损失函数（带标签平滑 + 类别权重）
+    if args.use_class_weight:
+        # 计算类别权重: 样本数越少的类权重越高
+        class_counts = [0] * num_classes
+        for _, label_idx in train_dataset.samples:
+            class_counts[label_idx] += 1
+        max_count = max(class_counts)
+        weights = [max_count / c for c in class_counts]
+        class_weight = torch.tensor(weights, dtype=torch.float).to(device)
+        logger.info(f"⚖️ 使用类别权重 (范围: {min(weights):.2f} ~ {max(weights):.2f})")
+        criterion = nn.CrossEntropyLoss(
+            label_smoothing=args.label_smoothing, weight=class_weight
+        )
+    else:
+        criterion = nn.CrossEntropyLoss(label_smoothing=args.label_smoothing)
 
     # 分层学习率
     if args.freeze_backbone:
