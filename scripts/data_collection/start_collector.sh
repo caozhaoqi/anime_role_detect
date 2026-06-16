@@ -40,7 +40,7 @@ fi
 # ── 2. 检查必要依赖 ──
 echo -n "  🔍 检查依赖... "
 DEP_MISSING=0
-for mod in requests; do
+for mod in requests oss2; do
     if ! "$PYTHON" -c "import $mod" 2>/dev/null; then
         echo ""
         echo "  ⚠️ 缺少 $mod，正在安装..."

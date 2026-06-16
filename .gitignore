@@ -46,8 +46,11 @@ env/
 *.DS_Store
 *.node_modules
 skillhub/web/node_modules/
-# OS
-.DS_Store
+# Config with secrets
+scripts/notification_config.json
+
+# Packs / zips
+packs/
 Thumbs.db
 
 # Data

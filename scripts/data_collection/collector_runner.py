@@ -12,6 +12,8 @@
     - 启动 collect_from_keywords.py 作为子进程
     - 定期检查内存 / 磁盘 / CPU 占用
     - 定时推送采集进度到飞书
+    - 每新增 100 张图片自动打包成 zip（保持角色目录结构）
+    - 自动推送打包通知，提醒用户下载
     - 资源告急时自动停止采集并推送告警
 """
 
@@ -43,6 +45,13 @@ DISK_WARN_PCT = 80           # 磁盘使用 ≥80% 时警告
 DISK_CRITICAL_PCT = 92       # 磁盘使用 ≥92% 时自动停止采集
 PROGRESS_INTERVAL = 300      # 进度推送间隔（秒）
 RESOURCE_CHECK_INTERVAL = 60  # 资源检查间隔（秒）
+
+# ── 打包配置 ──
+PACK_INTERVAL = 100          # 每新增 100 张打包一次
+PACK_INTERVAL_CHECK_INTERVAL = 60  # 打包检查间隔（秒）
+PACK_DIR = PROJECT_ROOT / "packs"
+PACK_STATE_FILE = PROJECT_ROOT / "data" / ".pack_state.json"
+MAX_LOCAL_PACKS = 2          # 本地保留最近 N 个包，多余自动删除
 
 # ── 采集日志路径 ──
 TIMESTAMP = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -102,6 +111,47 @@ class FeishuNotifier:
         except Exception as e:
             print(f"  [Feishu] 发送消息失败: {e}")
             return False
+
+
+# ══════════════════════════════════════════════
+#  OSS 上传
+# ══════════════════════════════════════════════
+class OssUploader:
+    """阿里云 OSS 上传"""
+
+    def __init__(self, config_path: str):
+        with open(config_path, "r", encoding="utf-8") as f:
+            cfg = json.load(f)
+        oss_cfg = cfg.get("oss")
+        if not oss_cfg:
+            raise ValueError("配置文件中缺少 oss 配置")
+        self.endpoint = oss_cfg["endpoint"]
+        self.bucket_name = oss_cfg["bucket"]
+        self.access_key_id = oss_cfg["access_key_id"]
+        self.access_key_secret = oss_cfg["access_key_secret"]
+        self._client = None
+
+    def _get_client(self):
+        if self._client is None:
+            import oss2
+            auth = oss2.Auth(self.access_key_id, self.access_key_secret)
+            self._client = oss2.Bucket(auth, self.endpoint, self.bucket_name)
+        return self._client
+
+    def upload(self, local_path: str, object_name: str = None) -> str:
+        """
+        上传文件到 OSS，返回带签名的下载链接（7 天有效）
+        local_path: 本地文件路径
+        object_name: OSS 对象名（默认使用文件名）
+        """
+        if object_name is None:
+            object_name = Path(local_path).name
+
+        bucket = self._get_client()
+        bucket.put_object_from_file(object_name, local_path)
+        # 生成签名下载链接（7 天有效）
+        download_url = bucket.sign_url('GET', object_name, 7 * 86400)
+        return download_url
 
 
 # ══════════════════════════════════════════════
@@ -186,6 +236,17 @@ class CollectorRunner:
 
         # 飞书通知
         self.notifier = FeishuNotifier(args.feishu_config) if args.feishu_config else None
+
+        # OSS 上传
+        self.oss_uploader: Optional[OssUploader] = None
+        if args.oss and args.feishu_config:
+            try:
+                self.oss_uploader = OssUploader(args.feishu_config)
+                self.log("  ✅ OSS 上传器已初始化")
+            except Exception as e:
+                self.log(f"  ⚠️ OSS 初始化失败（跳过上传）: {e}")
+        elif args.oss and not args.feishu_config:
+            self.log("  ⚠️ 未指定配置文件，OSS 上传已禁用")
 
         # 子进程
         self.process: Optional[subprocess.Popen] = None
@@ -298,6 +359,144 @@ class CollectorRunner:
 
             self.send_feishu("📸 采集进展报告", msg)
 
+    # ── 打包状态 ──
+    def _load_pack_state(self) -> dict:
+        """加载打包状态"""
+        if PACK_STATE_FILE.exists():
+            try:
+                with open(PACK_STATE_FILE, "r") as f:
+                    return json.load(f)
+            except Exception:
+                pass
+        return {"pack_number": 0, "last_packed_count": 0}
+
+    def _save_pack_state(self, state: dict):
+        """保存打包状态"""
+        PACK_STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+        with open(PACK_STATE_FILE, "w") as f:
+            json.dump(state, f)
+
+    def _do_pack(self) -> bool:
+        """打包 final_dataset 全量快照，返回是否成功"""
+        import zipfile
+
+        img_count, role_count = count_dataset_images()
+        state = self._load_pack_state()
+        pack_no = state["pack_number"] + 1
+
+        # 输出 zip
+        PACK_DIR.mkdir(parents=True, exist_ok=True)
+        zip_name = f"dataset_pack_{pack_no:03d}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip"
+        zip_path = PACK_DIR / zip_name
+
+        self.log(f"  📦 开始打包 #{pack_no} ({img_count} 张 → {zip_name})")
+
+        image_files = []
+        for d in FINAL_DATASET_DIR.iterdir():
+            if d.is_dir():
+                for f in sorted(d.iterdir()):
+                    if f.is_file() and f.suffix.lower() in ('.jpg', '.jpeg', '.png', '.webp'):
+                        image_files.append(f)
+
+        try:
+            with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
+                for img_path in image_files:
+                    # 在 zip 内保持 角色目录/图片名 结构
+                    arcname = str(img_path.relative_to(FINAL_DATASET_DIR))
+                    zf.write(img_path, arcname)
+        except Exception as e:
+            self.log(f"  ❌ 打包失败: {e}")
+            return False
+
+        size_mb = zip_path.stat().st_size / (1024 * 1024)
+
+        # 更新状态
+        state["pack_number"] = pack_no
+        state["last_packed_count"] = img_count
+        state[f"pack_{pack_no}"] = {
+            "zip": zip_name,
+            "size_mb": round(size_mb, 1),
+            "image_count": img_count,
+            "timestamp": datetime.now().isoformat(),
+        }
+        self._save_pack_state(state)
+
+        self.log(f"  ✅ 打包完成: {zip_name} ({size_mb:.1f} MB, {img_count} 张)")
+        return True, zip_path, pack_no
+
+    # ── OSS 上传 + 本地清理 ──
+    def _upload_and_cleanup(self, zip_path: Path, pack_no: int) -> Optional[str]:
+        """上传到 OSS，清理旧本地包，返回 OSS URL"""
+        oss_url = None
+
+        # 上传到 OSS
+        if self.oss_uploader:
+            self.log(f"  ☁️ 正在上传到 OSS...")
+            try:
+                object_name = f"dataset_pack_{pack_no:03d}.zip"
+                oss_url = self.oss_uploader.upload(str(zip_path), object_name)
+                self.log(f"  ✅ OSS 上传成功: {oss_url}")
+
+                # 记录 OSS 信息到状态
+                state = self._load_pack_state()
+                key = f"pack_{pack_no}"
+                if key in state:
+                    state[key]["oss_url"] = oss_url
+                    state[key]["oss_object"] = object_name
+                    self._save_pack_state(state)
+            except Exception as e:
+                self.log(f"  ❌ OSS 上传失败: {e}")
+
+        # 清理旧包：只保留最近 2 个
+        all_zips = sorted(PACK_DIR.glob("dataset_pack_*.zip"), key=lambda p: p.stat().st_mtime)
+        while len(all_zips) > MAX_LOCAL_PACKS:
+            oldest = all_zips.pop(0)
+            self.log(f"  🗑️ 删除旧包: {oldest.name}")
+            oldest.unlink(missing_ok=True)
+
+        return oss_url
+
+    # ── 打包监控线程 ──
+    def _pack_monitor(self):
+        """检查图片增量，达到 PACK_INTERVAL 时自动打包并上传 OSS"""
+        while not self.stop_event.is_set():
+            time.sleep(PACK_INTERVAL_CHECK_INTERVAL)
+
+            img_count, _ = count_dataset_images()
+            state = self._load_pack_state()
+            last_packed = state.get("last_packed_count", 0)
+
+            if img_count - last_packed >= PACK_INTERVAL:
+                pack_ok, zip_path, pack_no = self._do_pack()
+                if pack_ok:
+                    # 上传 OSS + 清理旧包
+                    oss_url = self._upload_and_cleanup(zip_path, pack_no)
+
+                    # 构造通知
+                    new_state = self._load_pack_state()
+                    pack_info = new_state.get(f"pack_{new_state['pack_number']}", {})
+
+                    msg_parts = [
+                        f"📦 **新数据集包已生成**",
+                        f"包号: #{new_state['pack_number']}",
+                        f"文件名: {pack_info.get('zip', '')}",
+                        f"大小: {pack_info.get('size_mb', 0)} MB",
+                        f"🖼️ 图片总数: {pack_info.get('image_count', 0)}",
+                    ]
+
+                    if oss_url:
+                        msg_parts.append(f"☁️ OSS: {oss_url}")
+                    else:
+                        msg_parts.append(f"📂 本地: {PACK_DIR / pack_info.get('zip', '')}")
+
+                    # 本地保留提示
+                    all_zips = list(sorted(PACK_DIR.glob("dataset_pack_*.zip")))
+                    msg_parts.append(f"本地保留: {len(all_zips)} 个最新包")
+                    if len(all_zips) >= MAX_LOCAL_PACKS:
+                        msg_parts.append(f"旧包已自动删除")
+
+                    self.send_feishu("📦 数据集可下载", "\n".join(msg_parts))
+
     # ── 停止采集 ──
     def _stop_collector(self, reason: str = ""):
         """停止采集子进程"""
@@ -369,6 +568,9 @@ class CollectorRunner:
         progress_thread = threading.Thread(target=self._progress_reporter, daemon=True)
         progress_thread.start()
 
+        pack_thread = threading.Thread(target=self._pack_monitor, daemon=True)
+        pack_thread.start()
+
         # 5. 实时输出子进程日志 + 同时写入文件
         with open(COLLECTOR_LOG, "w", encoding="utf-8") as log_fp:
             log_fp.write(f"# 采集日志 {TIMESTAMP}\n# {' '.join(cmd)}\n\n")
@@ -426,6 +628,8 @@ def main():
                         help="并发下载线程数 (默认: 采集脚本默认值)")
     parser.add_argument("--no-feishu", action="store_true",
                         help="禁用飞书推送")
+    parser.add_argument("--no-oss", action="store_true",
+                        help="禁用 OSS 上传 (默认启用，需配置文件含 oss 配置)")
     parser.add_argument("--memory-critical", type=float, default=MEMORY_CRITICAL_PCT,
                         help=f"内存告急阈值%% (默认: {MEMORY_CRITICAL_PCT})")
     parser.add_argument("--disk-critical", type=float, default=DISK_CRITICAL_PCT,
@@ -435,6 +639,9 @@ def main():
     # 禁用飞书
     if args.no_feishu:
         args.feishu_config = None
+
+    # 禁用 OSS
+    args.oss = not args.no_oss
 
     # 检查配置文件
     if args.feishu_config and not Path(args.feishu_config).exists():
