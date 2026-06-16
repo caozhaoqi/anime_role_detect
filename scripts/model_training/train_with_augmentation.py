@@ -12,8 +12,9 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.utils.data import DataLoader, Subset
+from torch.utils.data import DataLoader, Subset, Dataset
 from torchvision import datasets, transforms, models
+from PIL import Image
 import numpy as np
 from tqdm import tqdm
 import os
@@ -25,6 +26,26 @@ import gc
 TRAIN_DIR = Path("/Users/caozhaoqi/PycharmProjects/anime_role_detect/data/training_dataset")
 MODEL_DIR = Path("/Users/caozhaoqi/PycharmProjects/anime_role_detect/models")
 LOG_DIR = Path("/Users/caozhaoqi/PycharmProjects/anime_role_detect/logs")
+
+
+class SafeImageFolder(datasets.ImageFolder):
+    """
+    安全的图片文件夹数据集，自动跳过损坏的图片
+    """
+    def __getitem__(self, index):
+        path, target = self.samples[index]
+        try:
+            sample = self.loader(path)
+            if self.transform is not None:
+                sample = self.transform(sample)
+            return sample, target
+        except Exception as e:
+            print(f"⚠️ 跳过损坏图片: {path} - {e}")
+            # 返回一个黑色占位图像
+            sample = Image.new('RGB', (224, 224), color=0)
+            if self.transform is not None:
+                sample = self.transform(sample)
+            return sample, target
 
 
 def get_device():
@@ -217,8 +238,9 @@ def main(resume=False):
     val_transform = get_transforms(augment=False)
     
     # 建立两个独立的 Dataset 实例以彻底实现训练集和验证集的变换隔离 [2]
-    train_dataset_full = datasets.ImageFolder(str(TRAIN_DIR), transform=train_transform)
-    val_dataset_full = datasets.ImageFolder(str(TRAIN_DIR), transform=val_transform)
+    # 使用 SafeImageFolder 自动跳过损坏的图片
+    train_dataset_full = SafeImageFolder(str(TRAIN_DIR), transform=train_transform)
+    val_dataset_full = SafeImageFolder(str(TRAIN_DIR), transform=val_transform)
     
     # 利用 randperm 随机划分不重叠的索引，确保两个子集无数据交叉，且各自的数据变换完全独立 [2]
     num_samples = len(train_dataset_full)

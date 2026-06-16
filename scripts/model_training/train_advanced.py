@@ -11,7 +11,17 @@ from torchvision import datasets, transforms
 from torchvision import models
 from tqdm import tqdm
 from datetime import datetime
-from collections import defaultdict
+from collections import defaultdict, Counter
+
+try:
+    from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    HAS_SKLEARN = True
+except ImportError:
+    HAS_SKLEARN = False
+    print("⚠️ sklearn未安装，将跳过混淆矩阵")
 
 # 支持的模型列表
 MODEL_ZOO = {
@@ -84,21 +94,6 @@ def get_augmentations(augment_level="high", image_size=224):
     return train_transform, base_transform
 
 
-def cutmix(data, targets, alpha=1.0):
-    """CutMix 数据增强"""
-    indices = torch.randperm(data.size(0))
-    shuffled_data = data[indices]
-    shuffled_targets = targets[indices]
-
-    lam = np.random.beta(alpha, alpha)
-
-    bbx1, bby1, bbx2, bby2 = rand_bbox(data.size(), lam)
-    data[:, :, bbx1:bbx2, bby1:bby2] = shuffled_data[:, :, bbx1:bbx2, bby1:bby2]
-
-    lam = 1 - ((bbx2 - bbx1) * (bby2 - bby1) / (data.size()[-1] * data.size()[-2]))
-    return data, targets, shuffled_targets, lam
-
-
 def rand_bbox(size, lam):
     """生成随机边界框"""
     W = size[2]
@@ -118,11 +113,55 @@ def rand_bbox(size, lam):
     return bbx1, bby1, bbx2, bby2
 
 
+def cutmix(data, targets, alpha=1.0):
+    """CutMix 数据增强"""
+    indices = torch.randperm(data.size(0))
+    shuffled_data = data[indices]
+    shuffled_targets = targets[indices]
+
+    lam = np.random.beta(alpha, alpha)
+
+    bbx1, bby1, bbx2, bby2 = rand_bbox(data.size(), lam)
+    data[:, :, bbx1:bbx2, bby1:bby2] = shuffled_data[:, :, bbx1:bbx2, bby1:bby2]
+
+    lam = 1 - ((bbx2 - bbx1) * (bby2 - bby1) / (data.size()[-1] * data.size()[-2]))
+    return data, targets, shuffled_targets, lam
+
+
+def mixup_data(data, targets, alpha=1.0):
+    """Mixup 数据增强"""
+    lam = np.random.beta(alpha, alpha)
+    batch_size = data.size(0)
+    index = torch.randperm(batch_size)
+    mixed_data = lam * data + (1 - lam) * data[index]
+    targets_a, targets_b = targets, targets[index]
+    return mixed_data, targets_a, targets_b, lam
+
+
+def compute_topk_accuracy(outputs, labels, k=(1, 3, 5)):
+    """计算 Top-1, Top-3, Top-5 准确率"""
+    maxk = max(k)
+    batch_size = labels.size(0)
+    _, pred = outputs.topk(maxk, 1, True, True)
+    pred = pred.t()
+    correct = pred.eq(labels.view(1, -1).expand_as(pred))
+    results = {}
+    for k_val in k:
+        if k_val <= outputs.size(1):
+            correct_k = correct[:k_val].reshape(-1).float().sum(0, keepdim=True)
+            results[f"top{k_val}"] = correct_k.item() / batch_size
+    return results
+
+
 def train_model(model, dataloaders, criterion, optimizer, scheduler, device, args):
     """训练模型"""
     best_acc = 0.0
     train_history = []
     scaler = torch.cuda.amp.GradScaler() if args.fp16 and device.type == "cuda" else None
+
+    # 混淆矩阵收集
+    all_val_preds = []
+    all_val_labels = []
 
     for epoch in range(args.epochs):
         print(f"\nEpoch {epoch+1}/{args.epochs}")
@@ -135,31 +174,59 @@ def train_model(model, dataloaders, criterion, optimizer, scheduler, device, arg
                 model.eval()
 
             running_loss = 0.0
-            running_corrects = 0
+            running_corrects = {k: 0.0 for k in [1, 3, 5]}
+            total_samples = 0
 
             for inputs, labels in tqdm(dataloaders[phase], desc=f"{phase}"):
                 inputs = inputs.to(device)
                 labels = labels.to(device)
+                batch_size = labels.size(0)
+                total_samples += batch_size
 
                 optimizer.zero_grad()
 
                 with torch.set_grad_enabled(phase == "train"):
-                    # CutMix 增强
-                    if phase == "train" and args.cutmix:
+                    # 数据增强选择：随机选 mixup / cutmix / 无增强
+                    use_aug = phase == "train" and (args.mixup or args.cutmix)
+                    if use_aug:
+                        aug_choice = random.choice(["mixup", "cutmix", "none"])
+                        if args.mixup and aug_choice == "mixup":
+                            use_aug = "mixup"
+                        elif args.cutmix and aug_choice == "cutmix":
+                            use_aug = "cutmix"
+                        else:
+                            use_aug = "none"
+                    else:
+                        use_aug = "none"
+
+                    if use_aug == "mixup":
+                        inputs, labels_a, labels_b, lam = mixup_data(inputs, labels, args.mixup_alpha)
+                        outputs = model(inputs)
+                        loss = lam * criterion(outputs, labels_a) + (1 - lam) * criterion(outputs, labels_b)
+                        # mixup下不精确计算准确率
+                        for k in running_corrects:
+                            running_corrects[k] += 0
+                    elif use_aug == "cutmix":
                         inputs, labels_a, labels_b, lam = cutmix(inputs, labels)
                         outputs = model(inputs)
-                        loss = lam * criterion(outputs, labels_a) + (1 - lam) * criterion(
-                            outputs, labels_b
-                        )
+                        loss = lam * criterion(outputs, labels_a) + (1 - lam) * criterion(outputs, labels_b)
                         preds = torch.argmax(outputs, dim=1)
-                        running_corrects += lam * torch.sum(preds == labels_a.data) + (
+                        running_corrects[1] += lam * torch.sum(preds == labels_a.data).item() + (
                             1 - lam
-                        ) * torch.sum(preds == labels_b.data)
+                        ) * torch.sum(preds == labels_b.data).item()
                     else:
                         outputs = model(inputs)
                         loss = criterion(outputs, labels)
+                        # Top-k 准确率
+                        topk = compute_topk_accuracy(outputs, labels, k=(1, 3, 5))
+                        for k, v in topk.items():
+                            k_val = int(k.replace("top", ""))
+                            running_corrects[k_val] += v * batch_size
                         preds = torch.argmax(outputs, dim=1)
-                        running_corrects += torch.sum(preds == labels.data)
+                        # val阶段收集预测用于混淆矩阵
+                        if phase == "val":
+                            all_val_preds.extend(preds.cpu().numpy().tolist())
+                            all_val_labels.extend(labels.cpu().numpy().tolist())
 
                 if phase == "train":
                     if scaler:
@@ -170,28 +237,32 @@ def train_model(model, dataloaders, criterion, optimizer, scheduler, device, arg
                         loss.backward()
                         optimizer.step()
 
-                running_loss += loss.item() * inputs.size(0)
+                running_loss += loss.item() * batch_size
 
-            epoch_loss = running_loss / len(dataloaders[phase].dataset)
-            epoch_acc = running_corrects.float() / len(dataloaders[phase].dataset)
+            epoch_loss = running_loss / total_samples
+            epoch_acc = running_corrects[1] / total_samples
+
+            log_msg = f"{phase} Loss: {epoch_loss:.4f} Acc@1: {epoch_acc:.4f}"
+            if phase == "val" and use_aug == "none":
+                for k in [3, 5]:
+                    if running_corrects[k] > 0:
+                        log_msg += f" Acc@{k}: {running_corrects[k]/total_samples:.4f}"
+            print(log_msg)
+
+            train_history.append({
+                "epoch": epoch + 1,
+                "phase": phase,
+                "loss": epoch_loss,
+                "accuracy": epoch_acc,
+                "top3": running_corrects.get(3, 0) / total_samples if total_samples > 0 else 0,
+                "top5": running_corrects.get(5, 0) / total_samples if total_samples > 0 else 0,
+            })
 
             if phase == "val":
                 scheduler.step(epoch_loss)
-
-            print(f"{phase} Loss: {epoch_loss:.4f} Acc: {epoch_acc:.4f}")
-
-            train_history.append(
-                {
-                    "epoch": epoch + 1,
-                    "phase": phase,
-                    "loss": epoch_loss,
-                    "accuracy": epoch_acc.item(),
-                }
-            )
-
-            if phase == "val" and epoch_acc > best_acc:
-                best_acc = epoch_acc
-                torch.save(model.state_dict(), os.path.join(args.output_dir, "model_best.pth"))
+                if epoch_acc > best_acc:
+                    best_acc = epoch_acc
+                    torch.save(model.state_dict(), os.path.join(args.output_dir, "model_best.pth"))
 
         # 早停检查
         if epoch > 5:
@@ -200,7 +271,31 @@ def train_model(model, dataloaders, criterion, optimizer, scheduler, device, arg
                 print(f"⚠️ 早停触发：连续5轮验证准确率变化小于1%")
                 break
 
-    return model, best_acc.item(), train_history
+    # 混淆矩阵
+    if HAS_SKLEARN and len(all_val_preds) > 0 and len(all_val_labels) > 0:
+        try:
+            cm = confusion_matrix(all_val_labels, all_val_preds)
+            # 获取类别名称
+            try:
+                class_names = dataloaders["val"].dataset.classes
+            except AttributeError:
+                class_names = [str(i) for i in range(cm.shape[0])]
+            n_classes = cm.shape[0]
+            plt.figure(figsize=(min(40, n_classes * 1.2), min(40, n_classes * 1.2)))
+            disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=class_names)
+            disp.plot(cmap="Blues", xticks_rotation=90, values_format="d")
+            plt.title(f"{args.model_name} - Confusion Matrix (val set)")
+            plt.tight_layout()
+            cm_path = os.path.join(args.output_dir, "confusion_matrix.png")
+            plt.savefig(cm_path, dpi=150)
+            plt.close()
+            print(f"📊 混淆矩阵已保存: {cm_path}")
+        except Exception as e:
+            print(f"⚠️ 混淆矩阵生成失败: {e}")
+    elif len(all_val_preds) == 0:
+        print("⚠️ 无验证集预测数据，跳过混淆矩阵")
+
+    return model, best_acc, train_history
 
 
 def main():
@@ -218,6 +313,8 @@ def main():
         "--augment_level", type=str, default="high", choices=["low", "medium", "high"]
     )
     parser.add_argument("--cutmix", action="store_true", default=False, help="启用 CutMix")
+    parser.add_argument("--mixup", action="store_true", default=False, help="启用 MixUp")
+    parser.add_argument("--mixup_alpha", type=float, default=0.8, help="MixUp/CutMix alpha 参数")
     parser.add_argument("--label_smoothing", type=float, default=0.1, help="标签平滑系数")
     parser.add_argument("--fp16", action="store_true", default=False, help="混合精度训练")
     parser.add_argument("--weight_decay", type=float, default=1e-4)
@@ -258,8 +355,8 @@ def main():
 
     # 创建数据加载器
     dataloaders = {
-        "train": DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=4),
-        "val": DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False, num_workers=4),
+        "train": DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=0),
+        "val": DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False, num_workers=0),
     }
 
     # 创建模型

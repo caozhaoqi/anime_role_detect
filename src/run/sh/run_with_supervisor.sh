@@ -29,9 +29,14 @@ error() {
 # 创建日志目录
 create_log_dir() {
     info "创建日志目录..."
-    if [ ! -d "$LOG_DIR" ]; then
-        mkdir -p "$LOG_DIR"
-    fi
+    # 创建所有 service 需要的子目录
+    local services=(
+        model-service api-service api-gateway multimedia-service
+        search-service inference-worker monitoring frontend log-viewer
+    )
+    for svc in "${services[@]}"; do
+        mkdir -p "$LOG_DIR/services/$svc"
+    done
 }
 
 # 创建 PID 目录
