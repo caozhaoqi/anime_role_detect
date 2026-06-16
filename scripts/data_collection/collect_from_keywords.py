@@ -741,9 +741,38 @@ def collect_chinese_names(keyword_dir: str) -> Dict[str, str]:
     return names
 
 
+# ── 全局去重 ────────────────────────────────────────────────
+HASH_DB_PATH = PROJECT_ROOT / "data" / "image_hashes.db"
+
+
+def _load_global_hash_db(db_path: str = None) -> Tuple[set, int]:
+    """
+    从 SQLite 哈希数据库加载全局去重索引。
+    服务器端无需扫描图片目录，仅需同步这个 ~500KB 的 db 文件。
+
+    返回: (哈希集合, 记录数)
+    """
+    import sqlite3
+    path = db_path or str(HASH_DB_PATH)
+    if not Path(path).exists():
+        print(f"  ⚠️ 哈希数据库不存在: {path}")
+        return set(), 0
+    try:
+        conn = sqlite3.connect(path)
+        cur = conn.cursor()
+        rows = cur.execute("SELECT hash FROM image_hashes").fetchall()
+        conn.close()
+        hashes = {r[0] for r in rows}
+        print(f"   已加载全局哈希库: {len(hashes)} 条 (db: {Path(path).name})")
+        return hashes, len(hashes)
+    except Exception as e:
+        print(f"  ⚠️ 加载哈希数据库失败: {e}")
+        return set(), 0
+
+
 # ── 下载函数 ────────────────────────────────────────────────
 def _compute_existing_hashes(save_dir: str) -> set:
-    """计算目录中现有文件的 sha256 哈希集合，用于内容去重"""
+    """计算目录中现有文件的 sha256 哈希集合，用于本角色内容去重"""
     import hashlib
     hashes = set()
     dir_path = Path(save_dir)
@@ -760,18 +789,25 @@ def _compute_existing_hashes(save_dir: str) -> set:
 
 
 def download_character(target_tag: str, save_dir: str,
-                        max_count: int = 100) -> Tuple[int, int]:
+                        max_count: int = 100,
+                        global_hashes: Optional[set] = None) -> Tuple[int, int]:
     """
     使用 Spider 系统下载单个角色的图片（直接存入 save_dir，不创建嵌套子目录）。
-    下载后通过 sha256 内容去重，避免重复图片。
+    下载后通过 sha256 内容去重（本角色 + 全局跨角色），避免重复图片。
+
+    参数:
+        global_hashes: 全局去重索引（跨角色），由 _load_global_hash_db() 从 SQLite 加载
     返回 (成功数, 失败数)
     """
     from danbooru_mirror_spider import DanbooruMirrorSpider
 
     # 预计算现有文件哈希
     existing_hashes = _compute_existing_hashes(save_dir)
-    if existing_hashes:
-        print(f"   已有 {len(existing_hashes)} 张（内容去重基准）")
+    # 合并全局去重索引（跨角色）
+    if global_hashes:
+        old_count = len(existing_hashes)
+        existing_hashes.update(global_hashes)
+        print(f"   本角色 {old_count} 张 + 全局 {len(global_hashes)} 个哈希 = {len(existing_hashes)} 去重基准")
 
     spider = DanbooruMirrorSpider(site="safebooru", max_workers=4)
 
@@ -909,6 +945,11 @@ def main():
             existing_counts[d.name] = count
 
     print(f"   final_dataset 已有 {len(existing_counts)} 个角色目录，共 {sum(existing_counts.values())} 张")
+
+    # 2b. 加载全局去重索引（从 SQLite，无需扫描图片）
+    print("加载全局跨角色去重索引...")
+    global_hashes, hash_count = _load_global_hash_db()
+    print(f"   全局索引: {hash_count} 个唯一哈希（db: {HASH_DB_PATH.name}）")
     print("=" * 60)
 
     # 3. 逐角色处理
@@ -964,7 +1005,8 @@ def main():
 
         try:
             success, fail = download_character(target_tag, save_dir,
-                                                max_count=need)
+                                                max_count=need,
+                                                global_hashes=global_hashes)
             print(f"   ✅ {chinese_name}: 成功={success}, 失败={fail}")
             total_done += 1
         except Exception as e:
