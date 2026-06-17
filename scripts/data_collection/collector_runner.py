@@ -31,6 +31,9 @@ from pathlib import Path
 from datetime import datetime
 from typing import Optional, Tuple
 
+# 同级模块导入
+from cleanup_system import run_cleanup, format_report
+
 # ── 路径 ──
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 COLLECTOR_SCRIPT = PROJECT_ROOT / "scripts" / "data_collection" / "collect_from_keywords.py"
@@ -295,18 +298,28 @@ class CollectorRunner:
             # 磁盘告警
             if disk["pct"] >= DISK_CRITICAL_PCT and not self._disk_critical:
                 self._disk_critical = True
+                # 先尝试自动清理（告急模式: aggressive=True）
+                cleanup_result = self._auto_cleanup(aggressive=True)
+                disk = get_disk_usage(str(FINAL_DATASET_DIR.parent))  # 重新获取磁盘状态
                 msg = (f"🚨 **磁盘空间告急！**\n"
-                       f"已用: {disk['used_gb']:.1f}GB / {disk['total_gb']:.1f}GB ({disk['pct']:.1f}%)\n"
-                       f"⚠️ 即将自动停止采集...")
+                       f"已用: {disk['used_gb']:.1f}GB / {disk['total_gb']:.1f}GB ({disk['pct']:.1f}%)\n")
+                if cleanup_result and cleanup_result.get("total_freed_mb", 0) > 0:
+                    msg += f"🧹 自动清理: +{cleanup_result['total_freed_mb']}MB\n"
+                msg += f"⚠️ 即将自动停止采集..."
                 self.send_feishu("🚨 磁盘空间告急", msg)
                 self.log(f"  ⛔ 磁盘 {disk['pct']:.1f}% ≥ {DISK_CRITICAL_PCT}%，触发自动停止")
                 self._stop_collector(reason="磁盘空间不足")
                 return
             elif disk["pct"] >= DISK_WARN_PCT and not self._disk_warned:
                 self._disk_warned = True
+                # 自动清理
+                cleanup_result = self._auto_cleanup()
+                disk = get_disk_usage(str(FINAL_DATASET_DIR.parent))
                 msg = (f"⚠️ **磁盘空间预警**\n"
-                       f"已用: {disk['used_gb']:.1f}GB / {disk['total_gb']:.1f}GB ({disk['pct']:.1f}%)\n"
-                       f"请及时清理空间")
+                       f"已用: {disk['used_gb']:.1f}GB / {disk['total_gb']:.1f}GB ({disk['pct']:.1f}%)\n")
+                if cleanup_result and cleanup_result.get("total_freed_mb", 0) > 0:
+                    msg += f"🧹 自动清理: +{cleanup_result['total_freed_mb']}MB\n"
+                msg += f"💾 当前可用: {disk['free_gb']:.1f}GB"
                 self.send_feishu("⚠️ 磁盘空间预警", msg)
 
             # 内存告警
@@ -531,6 +544,29 @@ class CollectorRunner:
                         msg_parts.append(f"🗑️ 旧包文件及 .pack_state.json 历史元数据已自动清理")
 
                     self.send_feishu("📦 数据集可下载", "\n".join(msg_parts))
+
+    # ── 自动清理 ──
+    def _auto_cleanup(self, aggressive: bool = False) -> Optional[dict]:
+        """磁盘预警时自动执行系统清理，返回清理报告"""
+        level = "🧹 磁盘预警，自动执行系统清理" if not aggressive else "🚨 磁盘告急，执行强力清理..."
+        self.log(f"  {level}")
+        try:
+            result = run_cleanup(dry_run=False, aggressive=aggressive)
+            if result["total_freed_mb"] > 0:
+                self.log(f"  ✅ 自动清理完成: +{result['total_freed_mb']}MB 释放")
+            else:
+                self.log(f"  ℹ️ 自动清理: 无可释放空间")
+
+            # 推送清理报告到飞书（仅释放 > 0 时）
+            if result["total_freed_mb"] > 0 and self.notifier:
+                report_text = format_report(result)
+                title = "🚨 系统强力清理" if aggressive else "🧹 已自动清理系统"
+                self.send_feishu(title, report_text)
+
+            return result
+        except Exception as e:
+            self.log(f"  ⚠️ 自动清理异常: {e}")
+            return None
 
     # ── 停止采集 ──
     def _stop_collector(self, reason: str = ""):
