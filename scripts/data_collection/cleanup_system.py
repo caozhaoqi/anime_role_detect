@@ -10,8 +10,10 @@
 """
 
 import os
+import re
 import sys
 import json
+import shutil
 import subprocess
 import time
 from pathlib import Path
@@ -593,9 +595,6 @@ def format_report(result: dict) -> str:
 # ══════════════════════════════════════════════
 if __name__ == "__main__":
     import argparse
-
-    # 确保 shutil 可用
-    import shutil
 
     parser = argparse.ArgumentParser(description="系统清理工具")
     parser.add_argument("--dry-run", action="store_true", help="仅预览，不执行")
