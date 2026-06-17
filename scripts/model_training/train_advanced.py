@@ -8,7 +8,8 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader, random_split, WeightedRandomSampler
 from torchvision import datasets, transforms
-from torchvision import models
+from torchvision import models as tv_models
+import timm
 from tqdm import tqdm
 from datetime import datetime
 from collections import defaultdict, Counter
@@ -25,11 +26,21 @@ except ImportError:
 
 # 支持的模型列表
 MODEL_ZOO = {
-    "mobilenetv2": models.mobilenet_v2,
-    "efficientnet_b0": models.efficientnet_b0,
-    "efficientnet_b3": models.efficientnet_b3,
-    "resnet18": models.resnet18,
-    "resnet50": models.resnet50,
+    "mobilenetv2": lambda num_classes: tv_models.mobilenet_v2(num_classes=num_classes),
+    "efficientnet_b0": lambda num_classes: tv_models.efficientnet_b0(num_classes=num_classes),
+    "efficientnet_b3": lambda num_classes: tv_models.efficientnet_b3(num_classes=num_classes),
+    "resnet18": lambda num_classes: tv_models.resnet18(num_classes=num_classes),
+    "resnet50": lambda num_classes: tv_models.resnet50(num_classes=num_classes),
+    "convnext_tiny": lambda num_classes: timm.create_model(
+        "convnext_tiny.fb_in22k_ft_in1k",
+        pretrained=True,
+        num_classes=num_classes,
+    ),
+    "convnext_tiny_in22k": lambda num_classes: timm.create_model(
+        "convnext_tiny.fb_in22k",
+        pretrained=True,
+        num_classes=num_classes,
+    ),
 }
 
 
@@ -303,14 +314,14 @@ def main():
     parser.add_argument("--data_dir", type=str, required=True, help="数据目录")
     parser.add_argument("--output_dir", type=str, default="./models", help="输出目录")
     parser.add_argument(
-        "--model_name", type=str, default="efficientnet_b0", choices=MODEL_ZOO.keys()
+        "--model_name", type=str, default="convnext_tiny", choices=list(MODEL_ZOO.keys())
     )
     parser.add_argument("--epochs", type=int, default=50)
     parser.add_argument("--batch_size", type=int, default=32)
     parser.add_argument("--lr", type=float, default=0.001)
     parser.add_argument("--image_size", type=int, default=224)
     parser.add_argument(
-        "--augment_level", type=str, default="high", choices=["low", "medium", "high"]
+        "--augment_level", type=str, default="medium", choices=["low", "medium", "high"]
     )
     parser.add_argument("--cutmix", action="store_true", default=False, help="启用 CutMix")
     parser.add_argument("--mixup", action="store_true", default=False, help="启用 MixUp")
