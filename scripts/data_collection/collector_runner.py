@@ -18,6 +18,7 @@
 """
 
 import os
+import re
 import sys
 import json
 import time
@@ -28,7 +29,7 @@ import threading
 import shutil
 from pathlib import Path
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Tuple
 
 # ── 路径 ──
 PROJECT_ROOT = Path(__file__).parent.parent.parent
@@ -425,9 +426,13 @@ class CollectorRunner:
         return True, zip_path, pack_no
 
     # ── OSS 上传 + 本地清理 ──
-    def _upload_and_cleanup(self, zip_path: Path, pack_no: int) -> Optional[str]:
-        """上传到 OSS，清理旧本地包，返回 OSS URL"""
+    def _upload_and_cleanup(self, zip_path: Path, pack_no: int) -> Tuple[Optional[str], bool]:
+        """
+        上传到 OSS → 返回 (oss_url, upload_success)
+        清理旧本地包 → 清理对应状态元数据
+        """
         oss_url = None
+        upload_success = False
 
         # 上传到 OSS
         if self.oss_uploader:
@@ -435,7 +440,8 @@ class CollectorRunner:
             try:
                 object_name = f"dataset_pack_{pack_no:03d}.zip"
                 oss_url = self.oss_uploader.upload(str(zip_path), object_name)
-                self.log(f"  ✅ OSS 上传成功: {oss_url}")
+                upload_success = True
+                self.log(f"  ✅ OSS 上传成功")
 
                 # 记录 OSS 信息到状态
                 state = self._load_pack_state()
@@ -447,14 +453,35 @@ class CollectorRunner:
             except Exception as e:
                 self.log(f"  ❌ OSS 上传失败: {e}")
 
-        # 清理旧包：只保留最近 2 个
+        # 清理旧包 + 旧元数据：只保留最近 N 个
         all_zips = sorted(PACK_DIR.glob("dataset_pack_*.zip"), key=lambda p: p.stat().st_mtime)
+        deleted_packs = set()
         while len(all_zips) > MAX_LOCAL_PACKS:
             oldest = all_zips.pop(0)
             self.log(f"  🗑️ 删除旧包: {oldest.name}")
+            # 记录被删的包号用于清理元数据
+            m = re.search(r'pack_(\d+)', oldest.name)
+            if m:
+                deleted_packs.add(f"pack_{int(m.group(1))}")
             oldest.unlink(missing_ok=True)
 
-        return oss_url
+        # 清理状态文件中对应的旧元数据
+        if deleted_packs:
+            state = self._load_pack_state()
+            changed = False
+            for k in list(state.keys()):
+                if k in deleted_packs:
+                    del state[k]
+                    changed = True
+                # 也清理 oss_object / oss_url 单独字段（如果后来改成顶层字段）
+                if k == f"oss_url_{pack_no}" or k == f"oss_object_{pack_no}":
+                    del state[k]
+                    changed = True
+            if changed:
+                self._save_pack_state(state)
+                self.log(f"  🧹 已清理状态元数据: {', '.join(sorted(deleted_packs))}")
+
+        return oss_url, upload_success
 
     # ── 打包监控线程 ──
     def _pack_monitor(self):
@@ -469,12 +496,13 @@ class CollectorRunner:
             if img_count - last_packed >= PACK_INTERVAL:
                 pack_ok, zip_path, pack_no = self._do_pack()
                 if pack_ok:
-                    # 上传 OSS + 清理旧包
-                    oss_url = self._upload_and_cleanup(zip_path, pack_no)
+                    # 上传 OSS + 清理旧包 + 清理元数据
+                    oss_url, upload_success = self._upload_and_cleanup(zip_path, pack_no)
 
                     # 构造通知
                     new_state = self._load_pack_state()
                     pack_info = new_state.get(f"pack_{new_state['pack_number']}", {})
+                    all_zips = list(sorted(PACK_DIR.glob("dataset_pack_*.zip")))
 
                     msg_parts = [
                         f"📦 **新数据集包已生成**",
@@ -484,16 +512,23 @@ class CollectorRunner:
                         f"🖼️ 图片总数: {pack_info.get('image_count', 0)}",
                     ]
 
-                    if oss_url:
-                        msg_parts.append(f"☁️ OSS: {oss_url}")
+                    # 上传结果
+                    if self.oss_uploader:
+                        if upload_success:
+                            msg_parts.append(f"☁️ **OSS 上传: ✅ 成功**")
+                            msg_parts.append(f"🔗 下载链接 (7天有效): {oss_url}")
+                        else:
+                            msg_parts.append(f"☁️ **OSS 上传: ❌ 失败** — 包仅本地可用")
+                            msg_parts.append(f"📂 本地路径: {PACK_DIR / pack_info.get('zip', '')}")
                     else:
-                        msg_parts.append(f"📂 本地: {PACK_DIR / pack_info.get('zip', '')}")
+                        msg_parts.append(f"📂 本地路径: {PACK_DIR / pack_info.get('zip', '')}")
 
-                    # 本地保留提示
-                    all_zips = list(sorted(PACK_DIR.glob("dataset_pack_*.zip")))
-                    msg_parts.append(f"本地保留: {len(all_zips)} 个最新包")
-                    if len(all_zips) >= MAX_LOCAL_PACKS:
-                        msg_parts.append(f"旧包已自动删除")
+                    # 本地保留情况
+                    kept_count = len(all_zips)
+                    if kept_count > 0:
+                        msg_parts.append(f"💾 本地保留: {kept_count} 个最新包 (packs/)")
+                    if kept_count < new_state['pack_number']:
+                        msg_parts.append(f"🗑️ 旧包文件及 .pack_state.json 历史元数据已自动清理")
 
                     self.send_feishu("📦 数据集可下载", "\n".join(msg_parts))
 
