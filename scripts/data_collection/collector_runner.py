@@ -142,17 +142,48 @@ class OssUploader:
             self._client = oss2.Bucket(auth, self.endpoint, self.bucket_name)
         return self._client
 
-    def upload(self, local_path: str, object_name: str = None) -> str:
+    def upload(self, local_path: str, object_name: str = None,
+                log_func=None) -> str:
         """
         上传文件到 OSS，返回带签名的下载链接（7 天有效）
-        local_path: 本地文件路径
-        object_name: OSS 对象名（默认使用文件名）
+
+        Args:
+            local_path: 本地文件路径
+            object_name: OSS 对象名（默认使用文件名）
+            log_func: 日志回调函数，如 self.log
         """
         if object_name is None:
             object_name = Path(local_path).name
 
+        local_path = Path(local_path)
+        total_size = local_path.stat().st_size
+        uploaded = [0]  # 用列表包裹以便闭包内修改
+        last_pct = [0]
+        start_time = time.time()
+
+        if log_func:
+            log_func(f"  ☁️ OSS 上传开始: {object_name} ({total_size / 1024 / 1024:.1f} MB)")
+
+        def _progress(consumed_bytes, _total_bytes=None):
+            uploaded[0] = consumed_bytes
+            pct = int(consumed_bytes / total_size * 100) if total_size else 0
+            if pct % 10 == 0 and pct > last_pct[0]:  # 每 10% 推送一次
+                last_pct[0] = pct
+                elapsed = time.time() - start_time
+                speed = consumed_bytes / 1024 / 1024 / elapsed if elapsed > 0 else 0
+                remain = (total_size - consumed_bytes) / speed / 60 if speed > 0 else 0
+                if log_func:
+                    log_func(f"  ☁️ OSS 上传: {pct}% ({consumed_bytes / 1024 / 1024:.1f}/{total_size / 1024 / 1024:.1f} MB, {speed:.1f} MB/s, 剩余 ~{remain:.0f}分钟)")
+
         bucket = self._get_client()
-        bucket.put_object_from_file(object_name, local_path)
+        bucket.put_object_from_file(object_name, str(local_path),
+                                     progress_callback=_progress)
+
+        elapsed = time.time() - start_time
+        speed = total_size / 1024 / 1024 / elapsed if elapsed > 0 else 0
+        if log_func:
+            log_func(f"  ✅ OSS 上传完成: {total_size / 1024 / 1024:.1f} MB, 用时 {elapsed:.0f}s ({speed:.1f} MB/s)")
+
         # 生成签名下载链接（7 天有效）
         download_url = bucket.sign_url('GET', object_name, 7 * 86400)
         return download_url
@@ -298,16 +329,19 @@ class CollectorRunner:
             # 磁盘告警
             if disk["pct"] >= DISK_CRITICAL_PCT and not self._disk_critical:
                 self._disk_critical = True
+                pct_before = disk["pct"]  # 记录清理前的值
+                used_before = disk["used_gb"]
                 # 先尝试自动清理（告急模式: aggressive=True）
                 cleanup_result = self._auto_cleanup(aggressive=True)
                 disk = get_disk_usage(str(FINAL_DATASET_DIR.parent))  # 重新获取磁盘状态
                 msg = (f"🚨 **磁盘空间告急！**\n"
-                       f"已用: {disk['used_gb']:.1f}GB / {disk['total_gb']:.1f}GB ({disk['pct']:.1f}%)\n")
+                       f"清理前: {used_before:.1f}GB / {disk['total_gb']:.1f}GB ({pct_before:.1f}%)\n"
+                       f"清理后: {disk['used_gb']:.1f}GB / {disk['total_gb']:.1f}GB ({disk['pct']:.1f}%)\n")
                 if cleanup_result and cleanup_result.get("total_freed_mb", 0) > 0:
                     msg += f"🧹 自动清理: +{cleanup_result['total_freed_mb']}MB\n"
-                msg += f"⚠️ 即将自动停止采集..."
+                msg += f"⚠️ 已触发自动保护，停止采集..."
                 self.send_feishu("🚨 磁盘空间告急", msg)
-                self.log(f"  ⛔ 磁盘 {disk['pct']:.1f}% ≥ {DISK_CRITICAL_PCT}%，触发自动停止")
+                self.log(f"  ⛔ 磁盘 {pct_before:.1f}% ≥ {DISK_CRITICAL_PCT}%，已清理 +{cleanup_result.get('total_freed_mb', 0)}MB，触发自动停止")
                 self._stop_collector(reason="磁盘空间不足")
                 return
             elif disk["pct"] >= DISK_WARN_PCT and not self._disk_warned:
@@ -452,7 +486,7 @@ class CollectorRunner:
             self.log(f"  ☁️ 正在上传到 OSS...")
             try:
                 object_name = f"dataset_pack_{pack_no:03d}.zip"
-                oss_url = self.oss_uploader.upload(str(zip_path), object_name)
+                oss_url = self.oss_uploader.upload(str(zip_path), object_name, log_func=self.log)
                 upload_success = True
                 self.log(f"  ✅ OSS 上传成功")
 
