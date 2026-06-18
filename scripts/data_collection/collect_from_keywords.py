@@ -18,7 +18,7 @@ import time
 import random
 import hashlib
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Set, Tuple
 from collections import OrderedDict
 
 # ── 项目路径 ─────────────────────────────────────────────
