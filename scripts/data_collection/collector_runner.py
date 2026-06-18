@@ -176,8 +176,13 @@ class OssUploader:
                     log_func(f"  ☁️ OSS 上传: {pct}% ({consumed_bytes / 1024 / 1024:.1f}/{total_size / 1024 / 1024:.1f} MB, {speed:.1f} MB/s, 剩余 ~{remain:.0f}分钟)")
 
         bucket = self._get_client()
-        bucket.put_object_from_file(object_name, str(local_path),
-                                     progress_callback=_progress)
+        result = bucket.put_object_from_file(object_name, str(local_path),
+                                              progress_callback=_progress)
+
+        # 检查上传结果
+        if result is None or (hasattr(result, 'status') and result.status not in (200, 201, 204)):
+            status_code = getattr(result, 'status', 'unknown')
+            raise RuntimeError(f"OSS 返回异常状态码: {status_code}")
 
         elapsed = time.time() - start_time
         speed = total_size / 1024 / 1024 / elapsed if elapsed > 0 else 0
@@ -186,6 +191,8 @@ class OssUploader:
 
         # 生成签名下载链接（7 天有效）
         download_url = bucket.sign_url('GET', object_name, 7 * 86400)
+        if log_func:
+            log_func(f"  🔗 下载链接已生成 (7天有效)")
         return download_url
 
 
@@ -416,7 +423,7 @@ class CollectorRunner:
                     return json.load(f)
             except Exception:
                 pass
-        return {"pack_number": 0, "last_packed_count": 0}
+        return {"pack_number": 0, "packed_files": []}
 
     def _save_pack_state(self, state: dict):
         """保存打包状态"""
@@ -425,32 +432,38 @@ class CollectorRunner:
             json.dump(state, f)
 
     def _do_pack(self) -> bool:
-        """打包 final_dataset 全量快照，返回是否成功"""
+        """打包 final_dataset 新增图片（增量打包），返回是否成功"""
         import zipfile
 
         img_count, role_count = count_dataset_images()
         state = self._load_pack_state()
         pack_no = state["pack_number"] + 1
 
+        # 计算自上次打包后新增的图片
+        packed_set = set(state.get("packed_files", []))
+        new_files = []
+        for d in FINAL_DATASET_DIR.iterdir():
+            if d.is_dir():
+                for f in sorted(d.iterdir()):
+                    if f.is_file() and f.suffix.lower() in ('.jpg', '.jpeg', '.png', '.webp'):
+                        rel = str(f.relative_to(FINAL_DATASET_DIR))
+                        if rel not in packed_set:
+                            new_files.append((f, rel))
+
+        if not new_files:
+            self.log(f"  ℹ️ 无可打包的新增图片")
+            return True
+
         # 输出 zip
         PACK_DIR.mkdir(parents=True, exist_ok=True)
         zip_name = f"dataset_pack_{pack_no:03d}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip"
         zip_path = PACK_DIR / zip_name
 
-        self.log(f"  📦 开始打包 #{pack_no} ({img_count} 张 → {zip_name})")
-
-        image_files = []
-        for d in FINAL_DATASET_DIR.iterdir():
-            if d.is_dir():
-                for f in sorted(d.iterdir()):
-                    if f.is_file() and f.suffix.lower() in ('.jpg', '.jpeg', '.png', '.webp'):
-                        image_files.append(f)
+        self.log(f"  📦 开始增量打包 #{pack_no} ({len(new_files)} 张新增, 累计 {img_count} 张 → {zip_name})")
 
         try:
             with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
-                for img_path in image_files:
-                    # 在 zip 内保持 角色目录/图片名 结构
-                    arcname = str(img_path.relative_to(FINAL_DATASET_DIR))
+                for img_path, arcname in new_files:
                     zf.write(img_path, arcname)
         except Exception as e:
             self.log(f"  ❌ 打包失败: {e}")
@@ -458,13 +471,16 @@ class CollectorRunner:
 
         size_mb = zip_path.stat().st_size / (1024 * 1024)
 
-        # 更新状态
+        # 更新状态：记录本次已打包的文件
+        packed_files = state.get("packed_files", [])
+        packed_files.extend(rel for _, rel in new_files)
         state["pack_number"] = pack_no
-        state["last_packed_count"] = img_count
+        state["packed_files"] = packed_files
         state[f"pack_{pack_no}"] = {
             "zip": zip_name,
             "size_mb": round(size_mb, 1),
-            "image_count": img_count,
+            "new_image_count": len(new_files),
+            "total_image_count": img_count,
             "timestamp": datetime.now().isoformat(),
         }
         self._save_pack_state(state)
@@ -505,12 +521,15 @@ class CollectorRunner:
         deleted_packs = set()
         while len(all_zips) > MAX_LOCAL_PACKS:
             oldest = all_zips.pop(0)
-            self.log(f"  🗑️ 删除旧包: {oldest.name}")
+            self.log(f"  🗑️ 清理旧包: {oldest.name} ({oldest.stat().st_size / 1024 / 1024:.1f} MB)")
             # 记录被删的包号用于清理元数据
             m = re.search(r'pack_(\d+)', oldest.name)
             if m:
                 deleted_packs.add(f"pack_{int(m.group(1))}")
             oldest.unlink(missing_ok=True)
+
+        if not deleted_packs:
+            self.log(f"  ℹ️ 旧包清理: 本地包数 ({len(all_zips)}) 未超过限制 ({MAX_LOCAL_PACKS})，无需清理")
 
         # 清理状态文件中对应的旧元数据
         if deleted_packs:
@@ -538,7 +557,7 @@ class CollectorRunner:
 
             img_count, _ = count_dataset_images()
             state = self._load_pack_state()
-            last_packed = state.get("last_packed_count", 0)
+            last_packed = len(state.get("packed_files", []))
 
             if img_count - last_packed >= PACK_INTERVAL:
                 pack_ok, zip_path, pack_no = self._do_pack()
@@ -586,10 +605,31 @@ class CollectorRunner:
         self.log(f"  {level}")
         try:
             result = run_cleanup(dry_run=False, aggressive=aggressive)
+
+            # 输出每个清理步骤的详细日志
+            for s in result.get("steps", []):
+                icon = "✅" if s["ok"] else "⚠️"
+                freed = s.get("freed_mb", 0)
+                detail = s.get("detail", "").strip()
+                if freed > 0:
+                    self.log(f"    {icon} {s['name']}: +{freed}MB — {detail[:100]}")
+                elif detail and detail != "无需处理":
+                    self.log(f"    {icon} {s['name']}: {detail[:100]}")
+                else:
+                    self.log(f"    {icon} {s['name']}: 无需处理")
+
+            # 大文件处理结果
+            large_files = result.get("large_files", [])
+            if large_files:
+                total_large_mb = sum(item[0] for item in large_files)
+                self.log(f"    📊 识别可清理大文件: {len(large_files)} 项, 共约 {total_large_mb}MB")
+                for mb, path, cat, desc in large_files[:5]:
+                    self.log(f"      • {desc}: {path} (~{mb}MB)")
+
             if result["total_freed_mb"] > 0:
-                self.log(f"  ✅ 自动清理完成: +{result['total_freed_mb']}MB 释放")
+                self.log(f"  ✅ 自动清理完成: +{result['total_freed_mb']}MB 释放 (磁盘: {result['free_before_gb']}GB → {result['free_after_gb']}GB)")
             else:
-                self.log(f"  ℹ️ 自动清理: 无可释放空间")
+                self.log(f"  ℹ️ 自动清理: 无可释放空间 (当前磁盘: {result['free_after_gb']}GB 可用)")
 
             # 推送清理报告到飞书（仅释放 > 0 时）
             if result["total_freed_mb"] > 0 and self.notifier:

@@ -29,8 +29,8 @@ MODEL_ZOO = {
     "mobilenetv2": lambda num_classes: tv_models.mobilenet_v2(num_classes=num_classes),
     "efficientnet_b0": lambda num_classes: tv_models.efficientnet_b0(num_classes=num_classes),
     "efficientnet_b3": lambda num_classes: tv_models.efficientnet_b3(num_classes=num_classes),
-    "resnet18": lambda num_classes: tv_models.resnet18(num_classes=num_classes),
-    "resnet50": lambda num_classes: tv_models.resnet50(num_classes=num_classes),
+    "resnet18": lambda num_classes: _load_resnet(num_classes, "resnet18"),
+    "resnet50": lambda num_classes: _load_resnet(num_classes, "resnet50"),
     "convnext_tiny": lambda num_classes: timm.create_model(
         "convnext_tiny.fb_in22k_ft_in1k",
         pretrained=True,
@@ -42,6 +42,20 @@ MODEL_ZOO = {
         num_classes=num_classes,
     ),
 }
+
+
+def _load_resnet(num_classes: int, variant: str = "resnet50"):
+    """加载预训练 ResNet 并替换分类头"""
+    weights_enum = {
+        "resnet18": tv_models.ResNet18_Weights.IMAGENET1K_V1,
+        "resnet50": tv_models.ResNet50_Weights.IMAGENET1K_V1,
+    }
+    weights = weights_enum[variant]
+    model = getattr(tv_models, variant)(weights=weights)
+    # 替换 FC 层
+    in_features = model.fc.in_features
+    model.fc = torch.nn.Linear(in_features, num_classes)
+    return model
 
 
 def get_device():
