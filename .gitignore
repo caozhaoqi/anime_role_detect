@@ -150,3 +150,5 @@ docs/todo.md
 tests/
 
 run/supervisord.pid
+
+.env.rds

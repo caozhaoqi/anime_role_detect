@@ -18,12 +18,14 @@ import time
 import random
 import hashlib
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Set, Tuple
 from collections import OrderedDict
 
 # ── 项目路径 ─────────────────────────────────────────────
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 DANBOORU_DIR = PROJECT_ROOT / "archived" / "spider_image_system" / "src" / "danbooru"
+
+from db_utils import DB
 sys.path.insert(0, str(DANBOORU_DIR))
 sys.path.insert(0, str(DANBOORU_DIR.parent))
 
@@ -747,27 +749,29 @@ HASH_DB_PATH = PROJECT_ROOT / "data" / "image_hashes.db"
 
 def _load_global_hash_db(db_path: str = None) -> Tuple[set, int]:
     """
-    从 SQLite 哈希数据库加载全局去重索引。
-    服务器端无需扫描图片目录，仅需同步这个 ~500KB 的 db 文件。
+    从 RDS MySQL 加载全局去重索引。
+    替代原有 SQLite 存储。
 
     返回: (哈希集合, 记录数)
     """
-    import sqlite3
-    path = db_path or str(HASH_DB_PATH)
-    if not Path(path).exists():
-        print(f"  ⚠️ 哈希数据库不存在: {path}")
-        return set(), 0
     try:
-        conn = sqlite3.connect(path)
-        cur = conn.cursor()
-        rows = cur.execute("SELECT hash FROM image_hashes").fetchall()
-        conn.close()
-        hashes = {r[0] for r in rows}
-        print(f"   已加载全局哈希库: {len(hashes)} 条 (db: {Path(path).name})")
-        return hashes, len(hashes)
+        return DB.load_all_hashes()
     except Exception as e:
-        print(f"  ⚠️ 加载哈希数据库失败: {e}")
+        print(f"  ⚠️ 从 RDS 加载哈希失败，降级到空集合: {e}")
         return set(), 0
+
+
+def _append_hashes_to_db(new_hashes: Set[str], role_name: str, db_path: str = None) -> None:
+    """
+    将新增哈希持久化到 RDS MySQL，保证重启后全局去重基准不丢失。
+
+    使用 INSERT IGNORE 避免重复写入，同时更新角色的文件计数和角色列表。
+    替代原有 SQLite 存储。
+    """
+    try:
+        DB.append_hashes(new_hashes, role_name)
+    except Exception as e:
+        print(f"    ⚠️ 持久化哈希到 RDS 失败: {e}")
 
 
 # ── 下载函数 ────────────────────────────────────────────────
@@ -800,6 +804,9 @@ def download_character(target_tag: str, save_dir: str,
     返回 (成功数, 失败数)
     """
     from danbooru_mirror_spider import DanbooruMirrorSpider
+
+    # 用于记录本次新增的哈希，更新全局去重基准
+    new_hashes = set()
 
     # 预计算现有文件哈希
     existing_hashes = _compute_existing_hashes(save_dir)
@@ -899,6 +906,7 @@ def download_character(target_tag: str, save_dir: str,
                         f.write(data)
 
                     existing_hashes.add(img_hash)
+                    new_hashes.add(img_hash)
                     site_success += 1
                 except Exception as e:
                     site_fail += 1
@@ -912,10 +920,16 @@ def download_character(target_tag: str, save_dir: str,
         remaining = max_count - total_success
         time.sleep(random.uniform(0.5, 1.5))
 
+    # 去重基准更新：把本次新增的哈希带回去 + 持久化到数据库
+    if global_hashes is not None and new_hashes:
+        global_hashes.update(new_hashes)
+        print(f"    去重基准已更新: +{len(new_hashes)} 个新哈希 (累计 {len(global_hashes)})")
+        # 持久化到 SQLite，保证重启后不丢失
+        role_name = Path(save_dir).name
+        _append_hashes_to_db(new_hashes, role_name)
+
     return total_success, total_fail
 
-
-# ── 主流程 ──────────────────────────────────────────────────
 def main():
     import argparse
 
@@ -1009,6 +1023,20 @@ def main():
                                                 global_hashes=global_hashes)
             print(f"   ✅ {chinese_name}: 成功={success}, 失败={fail}")
             total_done += 1
+            # 写入 RDS 采集记录
+            try:
+                DB.add_collection_record(
+                    role_name=chinese_name,
+                    role_tag=target_tag,
+                    site=args.site or "",
+                    success_count=success,
+                    fail_count=fail,
+                    total_needed=need,
+                    existing_before=existing_count,
+                    new_hashes_added=success,
+                )
+            except Exception:
+                pass  # RDS 写入失败不影响主流程
         except Exception as e:
             print(f"   ❌ {chinese_name} 下载失败: {e}")
 
