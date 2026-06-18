@@ -770,6 +770,51 @@ def _load_global_hash_db(db_path: str = None) -> Tuple[set, int]:
         return set(), 0
 
 
+def _append_hashes_to_db(new_hashes: Set[str], role_name: str, db_path: str = None) -> None:
+    """
+    将新增哈希持久化到 SQLite 数据库，保证重启后全局去重基准不丢失。
+
+    使用 INSERT OR IGNORE 避免重复写入，同时更新角色的文件计数和角色列表。
+    """
+    if not new_hashes:
+        return
+    import sqlite3
+    path = db_path or str(HASH_DB_PATH)
+    try:
+        conn = sqlite3.connect(path)
+        cur = conn.cursor()
+        # 确保表存在
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS image_hashes (
+                hash       TEXT PRIMARY KEY,
+                roles      TEXT NOT NULL DEFAULT '',
+                file_count INTEGER DEFAULT 1
+            )
+        """)
+        # 批量插入
+        rows = [(h, role_name, 1) for h in new_hashes]
+        cur.executemany(
+            "INSERT OR IGNORE INTO image_hashes (hash, roles, file_count) VALUES (?, ?, ?)",
+            rows,
+        )
+        conn.commit()
+
+        inserted = cur.rowcount
+        # 对于已存在的哈希，更新 roles 和 file_count
+        for h in new_hashes:
+            cur.execute(
+                "UPDATE image_hashes SET file_count = file_count + 1, "
+                "roles = CASE WHEN instr(roles, ?) = 0 THEN roles || ',' || ? ELSE roles END "
+                "WHERE hash = ? AND file_count = 1",
+                (role_name, role_name, h),
+            )
+        conn.commit()
+        conn.close()
+        print(f"    💾 已持久化 {len(new_hashes)} 个新哈希到数据库 ({Path(path).name})")
+    except Exception as e:
+        print(f"    ⚠️ 持久化哈希到数据库失败: {e}")
+
+
 # ── 下载函数 ────────────────────────────────────────────────
 def _compute_existing_hashes(save_dir: str) -> set:
     """计算目录中现有文件的 sha256 哈希集合，用于本角色内容去重"""
@@ -800,6 +845,9 @@ def download_character(target_tag: str, save_dir: str,
     返回 (成功数, 失败数)
     """
     from danbooru_mirror_spider import DanbooruMirrorSpider
+
+    # 用于记录本次新增的哈希，更新全局去重基准
+    new_hashes = set()
 
     # 预计算现有文件哈希
     existing_hashes = _compute_existing_hashes(save_dir)
@@ -899,6 +947,7 @@ def download_character(target_tag: str, save_dir: str,
                         f.write(data)
 
                     existing_hashes.add(img_hash)
+                    new_hashes.add(img_hash)
                     site_success += 1
                 except Exception as e:
                     site_fail += 1
@@ -912,10 +961,16 @@ def download_character(target_tag: str, save_dir: str,
         remaining = max_count - total_success
         time.sleep(random.uniform(0.5, 1.5))
 
+    # 去重基准更新：把本次新增的哈希带回去 + 持久化到数据库
+    if global_hashes is not None and new_hashes:
+        global_hashes.update(new_hashes)
+        print(f"    去重基准已更新: +{len(new_hashes)} 个新哈希 (累计 {len(global_hashes)})")
+        # 持久化到 SQLite，保证重启后不丢失
+        role_name = Path(save_dir).name
+        _append_hashes_to_db(new_hashes, role_name)
+
     return total_success, total_fail
 
-
-# ── 主流程 ──────────────────────────────────────────────────
 def main():
     import argparse
 

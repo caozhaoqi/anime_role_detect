@@ -157,27 +157,42 @@ class OssUploader:
 
         local_path = Path(local_path)
         total_size = local_path.stat().st_size
-        uploaded = [0]  # 用列表包裹以便闭包内修改
-        last_pct = [0]
         start_time = time.time()
 
         if log_func:
             log_func(f"  ☁️ OSS 上传开始: {object_name} ({total_size / 1024 / 1024:.1f} MB)")
 
+        # 使用 tqdm 在终端显示实时进度条
+        from tqdm import tqdm
+        pbar = tqdm(
+            total=total_size,
+            unit='B',
+            unit_scale=True,
+            unit_divisor=1024,
+            desc=f"  ☁️ 上传 {object_name}",
+            ncols=80,
+            leave=False,
+        )
+        last_pct = [0]
+
         def _progress(consumed_bytes, _total_bytes=None):
-            uploaded[0] = consumed_bytes
+            pbar.update(consumed_bytes - pbar.n)
             pct = int(consumed_bytes / total_size * 100) if total_size else 0
-            if pct % 10 == 0 and pct > last_pct[0]:  # 每 10% 推送一次
+            if pct % 10 == 0 and pct > last_pct[0]:
                 last_pct[0] = pct
                 elapsed = time.time() - start_time
                 speed = consumed_bytes / 1024 / 1024 / elapsed if elapsed > 0 else 0
                 remain = (total_size - consumed_bytes) / speed / 60 if speed > 0 else 0
+                pbar.set_postfix_str(f"{pct}% {speed:.1f}MB/s ~{remain:.0f}min")
                 if log_func:
                     log_func(f"  ☁️ OSS 上传: {pct}% ({consumed_bytes / 1024 / 1024:.1f}/{total_size / 1024 / 1024:.1f} MB, {speed:.1f} MB/s, 剩余 ~{remain:.0f}分钟)")
 
         bucket = self._get_client()
-        result = bucket.put_object_from_file(object_name, str(local_path),
-                                              progress_callback=_progress)
+        try:
+            result = bucket.put_object_from_file(object_name, str(local_path),
+                                                  progress_callback=_progress)
+        finally:
+            pbar.close()
 
         # 检查上传结果
         if result is None or (hasattr(result, 'status') and result.status not in (200, 201, 204)):
@@ -472,8 +487,9 @@ class CollectorRunner:
         size_mb = zip_path.stat().st_size / (1024 * 1024)
 
         # 更新状态：记录本次已打包的文件
+        new_rel_paths = [rel for _, rel in new_files]
         packed_files = state.get("packed_files", [])
-        packed_files.extend(rel for _, rel in new_files)
+        packed_files.extend(new_rel_paths)
         state["pack_number"] = pack_no
         state["packed_files"] = packed_files
         state[f"pack_{pack_no}"] = {
@@ -481,6 +497,7 @@ class CollectorRunner:
             "size_mb": round(size_mb, 1),
             "new_image_count": len(new_files),
             "total_image_count": img_count,
+            "pack_files": new_rel_paths,  # 记录本次打包的文件列表，供后续清理使用
             "timestamp": datetime.now().isoformat(),
         }
         self._save_pack_state(state)
@@ -547,7 +564,50 @@ class CollectorRunner:
                 self._save_pack_state(state)
                 self.log(f"  🧹 已清理状态元数据: {', '.join(sorted(deleted_packs))}")
 
+        # 上传成功后，清理 final_dataset 中已打包的原图
+        if upload_success:
+            self._clean_packed_data(pack_no)
+
         return oss_url, upload_success
+
+    # ── 清理已打包的原图 ──
+    def _clean_packed_data(self, pack_no: int) -> None:
+        """
+        打包+上传成功后，删除 final_dataset 中已打包的原始图片以释放磁盘空间。
+        只删除本次打包的文件（pack_files），不影响其他角色和历史数据。
+        """
+        state = self._load_pack_state()
+        key = f"pack_{pack_no}"
+        if key not in state:
+            self.log(f"  ⚠️ 状态中找不到 {key}，跳过原图清理")
+            return
+
+        pack_files = state[key].get("pack_files", [])
+        if not pack_files:
+            self.log(f"  ℹ️ 本次打包无新增文件，跳过原图清理")
+            return
+
+        deleted = 0
+        freed = 0
+        for rel_path in pack_files:
+            fp = FINAL_DATASET_DIR / rel_path
+            if fp.exists():
+                try:
+                    size = fp.stat().st_size
+                    fp.unlink()
+                    deleted += 1
+                    freed += size
+                except Exception as e:
+                    self.log(f"    ⚠️ 删除失败 {rel_path}: {e}")
+
+        freed_mb = freed / (1024 * 1024)
+        self.log(f"  🧹 原图清理: 已删除 {deleted}/{len(pack_files)} 张 ({freed_mb:.1f} MB 释放) "
+                 f"— 图片已打包到包 #{pack_no}，原始文件已安全删除")
+        if deleted > 0:
+            # 更新状态：记录已清理的数量
+            state[key]["cleaned_count"] = deleted
+            state[key]["cleaned_mb"] = round(freed_mb, 1)
+            self._save_pack_state(state)
 
     # ── 打包监控线程 ──
     def _pack_monitor(self):
