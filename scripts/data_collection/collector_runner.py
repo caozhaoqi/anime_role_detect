@@ -28,6 +28,8 @@ import argparse
 import threading
 import shutil
 from pathlib import Path
+
+from db_utils import DB
 from datetime import datetime
 from typing import Optional, Tuple
 
@@ -321,11 +323,16 @@ class CollectorRunner:
         LOG_DIR.mkdir(parents=True, exist_ok=True)
 
     # ── 日志 ──
-    def log(self, msg: str):
+    def log(self, msg: str, level: str = "INFO"):
         line = f"[{datetime.now().strftime('%H:%M:%S')}] {msg}"
         print(line)
         with open(COLLECTOR_LOG, "a", encoding="utf-8") as f:
             f.write(line + "\n")
+        # 同步写入 RDS
+        try:
+            DB.log(level, "collector_runner", msg)
+        except Exception:
+            pass  # RDS 写入失败不影响主流程
 
     # ── 飞书 ──
     def send_feishu(self, title: str, message: str):
@@ -347,6 +354,19 @@ class CollectorRunner:
             disk = get_disk_usage(str(FINAL_DATASET_DIR.parent))
             mem = get_memory_usage()
             load = get_load_avg()
+
+            # 写入 RDS 资源监控
+            try:
+                img_count, _ = count_dataset_images()
+                DB.add_metric(
+                    cpu=load["cpu"],
+                    memory=mem["pct"],
+                    disk=disk["pct"],
+                    disk_free_gb=disk["free_gb"],
+                    total_images=img_count,
+                )
+            except Exception:
+                pass  # RDS 写入失败不影响主流程
 
             # 磁盘告警
             if disk["pct"] >= DISK_CRITICAL_PCT and not self._disk_critical:
@@ -431,7 +451,15 @@ class CollectorRunner:
 
     # ── 打包状态 ──
     def _load_pack_state(self) -> dict:
-        """加载打包状态"""
+        """加载打包状态（优先从 RDS，降级到本地 JSON）"""
+        try:
+            state = DB.load_pack_state()
+            # 如果 RDS 有数据，直接使用
+            if state["pack_number"] > 0:
+                return state
+        except Exception:
+            pass
+        # 降级：从本地 JSON 加载
         if PACK_STATE_FILE.exists():
             try:
                 with open(PACK_STATE_FILE, "r") as f:
@@ -441,7 +469,13 @@ class CollectorRunner:
         return {"pack_number": 0, "packed_files": []}
 
     def _save_pack_state(self, state: dict):
-        """保存打包状态"""
+        """保存打包状态（写入 RDS + 本地 JSON 双写）"""
+        # 写入 RDS
+        try:
+            DB.save_pack_state(state)
+        except Exception as e:
+            self.log(f"  ⚠️ RDS 保存 pack_state 失败: {e}")
+        # 写入本地 JSON（兼容降级）
         PACK_STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
         with open(PACK_STATE_FILE, "w") as f:
             json.dump(state, f)
