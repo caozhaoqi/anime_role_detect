@@ -4,6 +4,7 @@
 服务注册模块
 """
 
+import os
 import subprocess
 import time
 import socket
@@ -96,6 +97,9 @@ class ServiceRegistry:
         # 处理特殊命令（如npm、shell脚本等）
         if script.startswith("npm ") or script.startswith("node "):
             cmd = script.split()
+            # Windows平台需要通过cmd执行npm
+            if sys.platform == "win32":
+                cmd = ["cmd", "/c"] + cmd
         elif script.startswith("-m "):
             cmd = [sys.executable] + script.split()
         elif script.endswith(".sh"):
@@ -106,14 +110,17 @@ class ServiceRegistry:
             process = subprocess.Popen(cmd, cwd=work_dir, env=env)
             self._processes[name] = process
 
-            # 等待服务启动
-            time.sleep(3)
+            # 前端服务启动较慢，需要更长的等待时间
+            wait_time = 15 if name == "frontend" else 3
+            time.sleep(wait_time)
 
             # 检查是否启动成功
             if process.poll() is None:
                 # 等待端口就绪（如果有端口）
                 if port:
-                    if self._wait_for_port(port, timeout=15):
+                    # 前端服务端口等待时间也需要更长
+                    timeout = 30 if name == "frontend" else 15
+                    if self._wait_for_port(port, timeout=timeout):
                         logger.info(f"服务启动成功: {name}")
                         return True
                     else:
@@ -221,21 +228,18 @@ class ServiceRegistry:
 
     def _get_start_order(self) -> List[str]:
         """获取服务启动顺序"""
-        # 定义服务依赖顺序（优先级高的先启动）
         order = {
-            "model": 1,
-            "api": 2,
-            "multimedia": 3,
-            "search": 4,
-            "search-worker": 5,
-            "inference-worker": 6,
-            "gateway": 7,
-            "monitor-dashboard": 8,
-            "frontend": 9,
-            "log-viewer": 10,
-            "health-check": 11,
-            "log-monitor": 12,
-            "resource-monitor": 13,
+            "model-service": 1,
+            "api-service": 2,
+            "multimedia-service": 3,
+            "search-service": 4,
+            "api-gateway": 5,
+            "monitor-dashboard": 6,
+            "frontend": 7,
+            "log-viewer": 8,
+            "health-check": 9,
+            "log-monitor": 10,
+            "resource-monitor": 11,
         }
         return sorted(self._services.keys(), key=lambda x: order.get(x, 99))
 
@@ -247,7 +251,3 @@ service_registry = ServiceRegistry()
 def get_service_registry() -> ServiceRegistry:
     """获取服务注册实例"""
     return service_registry
-
-
-# 添加os导入
-import os
