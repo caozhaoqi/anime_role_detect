@@ -44,6 +44,9 @@ class ServiceConfig(BaseSettings):
 
     LOG_LEVEL: str = "INFO"
 
+    HF_CACHE_DIR: str = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "cache", "huggingface")
+    KERAS_CACHE_DIR: str = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "cache", "keras")
+
     DATABASE_MODE: str = "sqlite"
     SQLITE_URL: Optional[str] = None
     MYSQL_HOST: Optional[str] = None

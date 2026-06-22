@@ -21,7 +21,7 @@ project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, project_root)
 
 from src.core.config import get_config
-from src.core.logging import get_logger, log_info, log_warning, log_error
+from src.core.logging import get_logger
 from src.core.service import get_service_registry
 
 # 全局变量
@@ -31,25 +31,25 @@ service_registry = get_service_registry()
 
 def initialize():
     """初始化应用"""
-    log_info("=" * 60)
-    log_info("🎬 动漫角色识别系统 - 初始化")
-    log_info("=" * 60)
+    logger.info("=" * 60)
+    logger.info("动漫角色识别系统 - 初始化")
+    logger.info("=" * 60)
 
     # 初始化配置
     config = get_config()
-    log_info(f"配置加载完成")
+    logger.info(f"配置加载完成")
 
     # 注册服务
     services = config.get_all_services()
     service_registry.register_services(services)
-    log_info(f"已注册服务: {list(services.keys())}")
+    logger.info(f"已注册服务: {list(services.keys())}")
 
-    log_info("初始化完成")
+    logger.info("初始化完成")
 
 
 def start_services(service_names=None):
     """启动服务"""
-    log_info("\n🚀 开始启动服务")
+    logger.info("\n开始启动服务")
 
     if service_names:
         # 启动指定服务
@@ -60,26 +60,26 @@ def start_services(service_names=None):
         # 启动所有服务
         service_registry.start_all_services()
 
-    log_info("\n📊 服务状态:")
+    logger.info("\n服务状态:")
     status = service_registry.get_all_status()
     for name, state in status.items():
-        log_info(f"   {name}: {state}")
+        logger.info(f"   {name}: {state}")
 
 
 def stop_services(signal_num, frame):
     """停止所有服务（信号处理）"""
-    log_info("\n🛑 收到停止信号，正在停止服务...")
+    logger.info("\n收到停止信号，正在停止服务...")
     service_registry.stop_all_services()
-    log_info("✅ 所有服务已停止")
+    logger.info("所有服务已停止")
     sys.exit(0)
 
 
 def show_status():
     """显示服务状态"""
-    log_info("\n📊 当前服务状态:")
+    logger.info("\n当前服务状态:")
     status = service_registry.get_all_status()
     for name, state in status.items():
-        log_info(f"   {name}: {state}")
+        logger.info(f"   {name}: {state}")
 
 
 def main():
@@ -101,7 +101,7 @@ def main():
     if args.action == "start":
         if args.core:
             # 仅启动核心服务
-            log_info("启动核心服务模式")
+            logger.info("启动核心服务模式")
             service_registry.start_service("multimedia")
         elif args.services:
             # 启动指定服务
@@ -111,7 +111,7 @@ def main():
             start_services()
 
         # 保持运行
-        log_info("\n按 Ctrl+C 停止所有服务...")
+        logger.info("\n按 Ctrl+C 停止所有服务...")
         import time
 
         try:
