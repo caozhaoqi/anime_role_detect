@@ -1,0 +1,14 @@
+@echo off
+chcp 65001 >nul
+
+set OMP_NUM_THREADS=1
+set MKL_NUM_THREADS=1
+set OPENBLAS_NUM_THREADS=1
+set VECLIB_MAXIMUM_THREADS=1
+set NUMEXPR_NUM_THREADS=1
+
+if exist ".venv\Scripts\python.exe" (
+    .venv\Scripts\python.exe %*
+) else (
+    python %*
+)
