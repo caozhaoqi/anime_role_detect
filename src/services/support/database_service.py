@@ -20,14 +20,12 @@ _db_session = None
 
 
 def get_db_service() -> Session:
-    """获取数据库会话"""
+    """获取数据库会话（根据DATABASE_MODE选择）"""
     global _db_session
     if _db_session is None:
         init_database()
         create_tables()
-        from src.core.config.database import SessionLocal
-
-        _db_session = SessionLocal()
+        _db_session = next(get_db())
     return _db_session
 
 

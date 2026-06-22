@@ -3,6 +3,7 @@
 """
 推理队列管理器
 管理异步推理任务的提交和结果获取
+支持Redis和内存队列两种模式，Redis不可用时自动回退到内存队列
 """
 
 import json
@@ -11,8 +12,10 @@ import time
 from typing import Optional, Dict, Any
 from datetime import datetime
 from enum import Enum
+from collections import deque
 
 import redis
+from redis.exceptions import ConnectionError as RedisConnectionError
 from src.core.logging.global_logger import get_logger
 
 logger = get_logger("inference_queue")
@@ -27,6 +30,60 @@ class TaskStatus(Enum):
     TIMEOUT = "timeout"
 
 
+class MemoryQueueManager:
+    """
+    内存队列管理器（Redis回退方案）
+    
+    基于内存实现任务队列，功能与Redis版本一致
+    """
+    
+    def __init__(self, task_timeout: int = 600, result_ttl: int = 3600):
+        self.task_timeout = task_timeout
+        self.result_ttl = result_ttl
+        self.task_queue = deque()
+        self.processing_queue = {}
+        self.results = {}
+        self.status = {}
+    
+    def lpush(self, key: str, value: str):
+        self.task_queue.append(value)
+    
+    def brpop(self, key: str, timeout: int = 1):
+        if self.task_queue:
+            return (key, self.task_queue.popleft())
+        time.sleep(timeout)
+        return None
+    
+    def hset(self, key: str, field: str, value: str):
+        self.processing_queue[field] = value
+    
+    def hgetall(self, key: str):
+        return self.processing_queue.copy()
+    
+    def hdel(self, key: str, field: str):
+        if field in self.processing_queue:
+            del self.processing_queue[field]
+    
+    def llen(self, key: str):
+        return len(self.task_queue)
+    
+    def hlen(self, key: str):
+        return len(self.processing_queue)
+    
+    def get(self, key: str):
+        return self.status.get(key)
+    
+    def setex(self, key: str, ttl: int, value: str):
+        self.status[key] = value
+    
+    def delete(self, key: str):
+        if key in self.status:
+            del self.status[key]
+    
+    def set(self, key: str, value: str):
+        self.status[key] = value
+
+
 class InferenceQueueManager:
     """
     推理队列管理器
@@ -36,6 +93,7 @@ class InferenceQueueManager:
     - 状态查询
     - 结果获取
     - 超时处理
+    - Redis不可用时自动回退到内存队列
     """
     
     def __init__(
@@ -56,16 +114,9 @@ class InferenceQueueManager:
             task_timeout: 任务超时时间（秒），默认10分钟
             result_ttl: 结果保留时间（秒）
         """
-        self.redis_client = redis.Redis(
-            host=redis_host,
-            port=redis_port,
-            db=redis_db,
-            decode_responses=True,
-            socket_connect_timeout=2,
-            socket_timeout=2
-        )
         self.task_timeout = task_timeout
         self.result_ttl = result_ttl
+        self.use_redis = True
         
         # 队列名称
         self.task_queue = "inference:tasks"
@@ -73,7 +124,31 @@ class InferenceQueueManager:
         self.result_prefix = "inference:result:"
         self.status_prefix = "inference:status:"
         
-        logger.info(f"推理队列管理器初始化完成: {redis_host}:{redis_port}")
+        try:
+            self.redis_client = redis.Redis(
+                host=redis_host,
+                port=redis_port,
+                db=redis_db,
+                decode_responses=True,
+                socket_connect_timeout=2,
+                socket_timeout=2
+            )
+            self.redis_client.ping()
+            logger.info(f"推理队列管理器初始化完成: {redis_host}:{redis_port}")
+        except (RedisConnectionError, Exception) as e:
+            logger.warning(f"Redis连接失败，回退到内存队列: {e}")
+            self.use_redis = False
+            self.redis_client = MemoryQueueManager(task_timeout, result_ttl)
+    
+    def is_connected(self) -> bool:
+        """检查队列管理器是否连接正常"""
+        if not self.use_redis:
+            return True
+        try:
+            self.redis_client.ping()
+            return True
+        except Exception:
+            return False
     
     def submit_task(
         self,
