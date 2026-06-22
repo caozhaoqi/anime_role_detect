@@ -52,7 +52,40 @@ def start_service(service_key):
     env = os.environ.copy()
     env["PYTHONPATH"] = project_root
 
-    # 启动服务
+    # 前端服务特殊处理 - 使用npm启动
+    if service_key == "frontend":
+        frontend_dir = os.path.join(project_root, "src/frontend")
+        
+        # 检查npm是否可用
+        try:
+            subprocess.run(["npm", "--version"], capture_output=True, check=True)
+        except (FileNotFoundError, subprocess.CalledProcessError):
+            print(f"   ❌ npm 命令不可用，请确保已安装 Node.js")
+            return False
+
+        # 检查前端目录是否存在
+        if not os.path.exists(frontend_dir):
+            print(f"   ❌ 前端目录不存在: {frontend_dir}")
+            return False
+
+        # 启动前端服务
+        cmd = ["npm", "run", "dev"]
+        process = subprocess.Popen(cmd, cwd=frontend_dir, env=env)
+        processes[service_key] = process
+
+        # 等待服务启动（前端启动较慢）
+        time.sleep(10)
+
+        # 检查是否启动成功
+        if process.poll() is None:
+            print(f"   ✅ {config['name']} 启动成功")
+            print(f"   🌐 访问地址: http://localhost:{config['port']}")
+            return True
+        else:
+            print(f"   ❌ {config['name']} 启动失败")
+            return False
+
+    # 普通Python服务
     cmd = [sys.executable, config["script"]]
     process = subprocess.Popen(cmd, cwd=project_root, env=env)
     processes[service_key] = process

@@ -60,12 +60,13 @@ class ServiceHealthChecker:
         }
 
         try:
-            # 1. 检查Supervisor进程状态
-            supervisor_status = self._get_supervisor_status(service_name)
-            if supervisor_status != "RUNNING":
-                result["status"] = "stopped"
-                result["error"] = f"Supervisor status: {supervisor_status}"
-                return result
+            # 1. 检查Supervisor进程状态（仅非Windows平台）
+            if sys.platform != "win32":
+                supervisor_status = self._get_supervisor_status(service_name)
+                if supervisor_status != "RUNNING":
+                    result["status"] = "stopped"
+                    result["error"] = f"Supervisor status: {supervisor_status}"
+                    return result
 
             # 2. 检查端口是否监听
             port_info = self._check_port(service_name)
@@ -101,6 +102,10 @@ class ServiceHealthChecker:
 
     def _get_supervisor_status(self, service_name: str) -> Optional[str]:
         """获取Supervisor中的服务状态"""
+        # Windows平台不支持supervisorctl，直接返回None跳过此检查
+        if sys.platform == "win32":
+            return None
+
         try:
             cmd = [
                 str(self.supervisorctl),
@@ -197,6 +202,11 @@ class ServiceHealthChecker:
 
     def restart_service(self, service_name: str) -> bool:
         """重启服务"""
+        # Windows平台不支持supervisorctl，返回False
+        if sys.platform == "win32":
+            logger.warning(f"Windows平台不支持通过supervisor重启服务: {service_name}")
+            return False
+
         try:
             cmd = [
                 str(self.supervisorctl),

@@ -102,7 +102,7 @@ def main():
         if args.core:
             # 仅启动核心服务
             logger.info("启动核心服务模式")
-            service_registry.start_service("multimedia")
+            service_registry.start_service("multimedia-service")
         elif args.services:
             # 启动指定服务
             start_services(args.services)
@@ -112,7 +112,6 @@ def main():
 
         # 保持运行
         logger.info("\n按 Ctrl+C 停止所有服务...")
-        import time
 
         try:
             while True:
