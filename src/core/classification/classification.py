@@ -3,280 +3,219 @@ import numpy as np
 import json
 import os
 import hashlib
+from typing import List, Tuple, Dict, Optional, Any, Union
+from dataclasses import dataclass
 
-# 使用全局日志系统
-from src.core.logging.global_logger import get_logger, log_system, log_error
+from src.core.logging.global_logger import get_logger
 
 logger = get_logger("classification")
 
 
+@dataclass
+class ClassificationResult:
+    """分类结果"""
+    role: str
+    similarity: float
+
+
 class Classification:
-    # 全局索引缓存
-    _index_cache = {}
-    # 结果缓存
-    _result_cache = {}
-    # 缓存大小限制 - 减少缓存大小以降低内存使用
+    """角色分类模块 - 基于Faiss向量检索"""
+
+    _index_cache: Dict[str, Tuple[faiss.Index, List[str]]] = {}
+    _result_cache: Dict[str, ClassificationResult] = {}
     _cache_size = 100
-    # 索引缓存大小限制
     _index_cache_size = 2
 
-    def __init__(self, index_path=None, threshold=0.4):
-        """初始化分类模块"""
+    def __init__(self, index_path: Optional[str] = None, threshold: float = 0.4):
         self.threshold = threshold
-        self.index = None
-        self.role_mapping = []  # 存储向量索引到角色名称的映射
+        self.index: Optional[faiss.Index] = None
+        self.role_mapping: List[str] = []
 
-        logger.info(f"初始化分类模块，阈值: {threshold}, index_path: {index_path}")
+        logger.info(f"初始化分类模块，阈值: {threshold}")
 
-        # 如果提供了索引路径，加载索引
         if index_path:
             self._try_load_index(index_path)
         else:
-            # 尝试从默认路径加载索引
             self._try_load_default_index()
 
-    def _try_load_index(self, index_path):
+    def _try_load_index(self, index_path: str) -> None:
         """尝试加载索引文件"""
         try:
-            # 检查是否是绝对路径
-            if os.path.isabs(index_path):
-                # 如果是绝对路径，直接使用
-                faiss_path = index_path
-                logger.info(f"使用绝对路径: {faiss_path}")
+            faiss_path = self._resolve_path(index_path)
+            mapping_path = self._get_mapping_path(faiss_path)
+
+            if os.path.exists(faiss_path) and os.path.exists(mapping_path):
+                logger.info(f"加载索引: {faiss_path}")
+                self.load_index(faiss_path)
             else:
-                # 如果是相对路径，构建绝对路径
-                # 获取项目根目录
-                current_file = os.path.abspath(__file__)
-                project_root = os.path.dirname(os.path.dirname(os.path.dirname(current_file)))
-                # 再次向上一级，因为我们需要的是项目根目录，不是src目录
-                project_root = os.path.dirname(project_root)
-                logger.info(f"项目根目录: {project_root}")
-
-                # 构建绝对路径
-                faiss_path = os.path.join(project_root, index_path)
-                logger.info(f"构建绝对路径: {faiss_path}")
-
-            mapping_path = faiss_path.replace(".faiss", "_mapping.json")
-
-            logger.info(f"检查索引文件是否存在: {faiss_path} -> {os.path.exists(faiss_path)}")
-            logger.info(f"检查映射文件是否存在: {mapping_path} -> {os.path.exists(mapping_path)}")
-
-            # 检查文件是否存在，处理.faiss后缀
-            if not faiss_path.endswith(".faiss"):
-                faiss_path_with_ext = f"{faiss_path}.faiss"
-            else:
-                faiss_path_with_ext = faiss_path
-
-            if not mapping_path.endswith("_mapping.json"):
-                mapping_path_with_ext = f"{mapping_path}_mapping.json"
-            else:
-                mapping_path_with_ext = mapping_path
-
-            logger.info(
-                f"检查索引文件是否存在: {faiss_path_with_ext} -> {os.path.exists(faiss_path_with_ext)}"
-            )
-            logger.info(
-                f"检查映射文件是否存在: {mapping_path_with_ext} -> {os.path.exists(mapping_path_with_ext)}"
-            )
-
-            if os.path.exists(faiss_path_with_ext) and os.path.exists(mapping_path_with_ext):
-                logger.info(f"加载索引: {faiss_path_with_ext}")
-                self.load_index(faiss_path_with_ext)
-            else:
-                logger.warning(f"索引文件或映射文件不存在，将创建空索引")
+                logger.warning(f"索引文件不存在，创建空索引")
                 self._create_empty_index()
-                
         except Exception as e:
             logger.error(f"加载索引失败: {e}")
-            logger.info("创建空索引作为降级方案")
             self._create_empty_index()
 
-    def _try_load_default_index(self):
-        """尝试从默认路径加载索引"""
+    def _resolve_path(self, path: str) -> str:
+        """解析路径为绝对路径"""
+        if os.path.isabs(path):
+            return path if path.endswith(".faiss") else f"{path}.faiss"
+
+        project_root = self._get_project_root()
+        faiss_path = os.path.join(project_root, path)
+        return faiss_path if faiss_path.endswith(".faiss") else f"{faiss_path}.faiss"
+
+    def _get_mapping_path(self, faiss_path: str) -> str:
+        """获取映射文件路径"""
+        return faiss_path.replace(".faiss", "_mapping.json")
+
+    def _get_project_root(self) -> str:
+        """获取项目根目录"""
         current_file = os.path.abspath(__file__)
-        project_root = os.path.dirname(os.path.dirname(os.path.dirname(current_file)))
-        project_root = os.path.dirname(project_root)
-        
-        # 尝试多个默认路径
+        return os.path.dirname(os.path.dirname(os.path.dirname(current_file)))
+
+    def _try_load_default_index(self) -> None:
+        """尝试从默认路径加载索引"""
+        project_root = self._get_project_root()
         default_paths = [
             os.path.join(project_root, "data", "index", "faiss_index.faiss"),
             os.path.join(project_root, "models", "faiss_index.faiss"),
-            os.path.join(project_root, "faiss_index.faiss"),
         ]
-        
+
         for faiss_path in default_paths:
             if os.path.exists(faiss_path):
                 logger.info(f"找到默认索引: {faiss_path}")
                 self.load_index(faiss_path)
                 return
-        
+
         logger.info("未找到默认索引，创建空索引")
         self._create_empty_index()
 
-    def _create_empty_index(self):
-        """创建空索引作为降级方案"""
-        # 创建一个空的Flat索引，维度为512（CLIP特征维度）
+    def _create_empty_index(self) -> None:
+        """创建空索引"""
         dim = 512
         self.index = faiss.IndexFlatIP(dim)
         self.role_mapping = []
         logger.info(f"创建空索引完成，维度: {dim}")
 
-    def build_index(self, features, role_names):
+    def build_index(self, features: np.ndarray, role_names: List[str]) -> None:
         """构建向量索引"""
-        # 获取特征维度
         dim = features.shape[1]
+        logger.info(f"构建索引，维度: {dim}, 特征数: {features.shape[0]}, 角色数: {len(role_names)}")
 
-        logger.info(
-            f"开始构建索引，特征维度: {dim}, 特征数量: {features.shape[0]}, 角色数量: {len(role_names)}"
-        )
-
-        # 创建Faiss索引（使用余弦相似度）
         self.index = faiss.IndexFlatIP(dim)
-
-        # 添加特征向量到索引
         self.index.add(features)
-
-        # 存储角色名称映射
         self.role_mapping = role_names
 
-        logger.info(f"索引构建完成，包含 {len(role_names)} 个角色")
+        logger.info(f"索引构建完成")
 
-    def save_index(self, index_path):
+    def save_index(self, index_path: str) -> None:
         """保存索引到文件"""
         if self.index is None:
             raise ValueError("索引尚未构建")
 
-        logger.info(f"开始保存索引到: {index_path}")
+        logger.info(f"保存索引到: {index_path}")
 
-        # 保存Faiss索引
         faiss.write_index(self.index, f"{index_path}.faiss")
 
-        # 保存角色映射
         with open(f"{index_path}_mapping.json", "w", encoding="utf-8") as f:
             json.dump(self.role_mapping, f, ensure_ascii=False, indent=2)
 
         logger.info(f"索引保存完成")
 
-    def load_index(self, index_path):
+    def load_index(self, index_path: str) -> None:
         """从文件加载索引"""
-        # 检查缓存中是否已有该索引
-        if index_path in self.__class__._index_cache:
+        if index_path in self._index_cache:
             logger.info(f"从缓存加载索引: {index_path}")
-            cached_index, cached_mapping = self.__class__._index_cache[index_path]
-            self.index = cached_index
-            self.role_mapping = cached_mapping
-            logger.info(f"缓存加载完成，角色数量: {len(cached_mapping)}")
+            self.index, self.role_mapping = self._index_cache[index_path]
             return
 
-        # 检查索引缓存大小
-        if len(self.__class__._index_cache) >= self.__class__._index_cache_size:
-            # 移除最早的缓存项
-            oldest_key = next(iter(self.__class__._index_cache))
-            del self.__class__._index_cache[oldest_key]
-            logger.info(f"索引缓存已满，移除最早的索引: {oldest_key}")
+        if len(self._index_cache) >= self._index_cache_size:
+            oldest_key = next(iter(self._index_cache))
+            del self._index_cache[oldest_key]
+            logger.info(f"移除最早的索引缓存: {oldest_key}")
 
-        logger.info(f"开始加载索引: {index_path}")
+        logger.info(f"加载索引: {index_path}")
 
-        # 确保路径有 .faiss 扩展名
-        faiss_path = index_path if index_path.endswith(".faiss") else f"{index_path}.faiss"
-        # 构建映射路径：移除 .faiss 扩展名，然后添加 _mapping.json
-        mapping_path = faiss_path.replace(".faiss", "_mapping.json")
+        self.index = faiss.read_index(index_path)
+        mapping_path = self._get_mapping_path(index_path)
 
-        # 加载Faiss索引
-        self.index = faiss.read_index(faiss_path)
-
-        # 加载角色映射
         with open(mapping_path, "r", encoding="utf-8") as f:
             self.role_mapping = json.load(f)
 
-        # 缓存索引和映射
-        self.__class__._index_cache[faiss_path] = (self.index, self.role_mapping)
+        self._index_cache[index_path] = (self.index, self.role_mapping)
 
-        logger.info(f"索引加载完成，角色数量: {len(self.role_mapping)}")
+        logger.info(f"索引加载完成，角色数: {len(self.role_mapping)}")
 
-    def _get_feature_hash(self, feature):
-        """计算特征向量的哈希值作为缓存键"""
-        # 确保特征向量是一维的
+    def _get_feature_hash(self, feature: np.ndarray) -> str:
+        """计算特征哈希"""
         if len(feature.shape) > 1:
             feature = feature.flatten()
-        # 转换为字节并计算哈希
-        feature_bytes = feature.tobytes()
-        return hashlib.md5(feature_bytes).hexdigest()
+        return hashlib.md5(feature.tobytes()).hexdigest()
 
-    def _cache_result(self, feature, result):
-        """缓存分类结果"""
-        # 计算缓存键
+    def _cache_result(self, feature: np.ndarray, result: ClassificationResult) -> None:
+        """缓存结果"""
         cache_key = self._get_feature_hash(feature)
-        # 检查缓存大小
-        if len(self.__class__._result_cache) >= self.__class__._cache_size:
-            # 移除最早的缓存项
-            oldest_key = next(iter(self.__class__._result_cache))
-            del self.__class__._result_cache[oldest_key]
-        # 添加到缓存
-        self.__class__._result_cache[cache_key] = result
 
-    def _get_cached_result(self, feature):
-        """获取缓存的分类结果"""
-        cache_key = self._get_feature_hash(feature)
-        return self.__class__._result_cache.get(cache_key)
+        if len(self._result_cache) >= self._cache_size:
+            oldest_key = next(iter(self._result_cache))
+            del self._result_cache[oldest_key]
 
-    def classify(self, feature, top_k=5, tags=None, multilabel=False, threshold=None):
-        """分类单个特征向量
+        self._result_cache[cache_key] = result
 
-        Args:
-            feature: 特征向量
-            top_k: 返回前k个最相似的结果
-            tags: 图片标签，用于辅助分类
-            multilabel: 是否返回多标签结果
-            threshold: 分类阈值，默认使用构造函数中设置的阈值
+    def _get_cached_result(self, feature: np.ndarray) -> Optional[ClassificationResult]:
+        """获取缓存结果"""
+        return self._result_cache.get(self._get_feature_hash(feature))
 
-        Returns:
-            单标签模式: (角色名称, 相似度)
-            多标签模式: [(角色名称, 相似度), ...]
-        """
-        if self.index is None:
-            logger.error("索引尚未构建")
-            raise ValueError("索引尚未构建")
+    def classify(
+        self,
+        feature: np.ndarray,
+        top_k: int = 5,
+        tags: Optional[List[Any]] = None,
+        multilabel: bool = False,
+        threshold: Optional[float] = None,
+    ) -> Union[Tuple[str, float], List[Tuple[str, float]]]:
+        """分类单个特征向量"""
+        if self.index is None or self.index.ntotal == 0:
+            logger.warning("索引为空")
+            return [] if multilabel else ("unknown", 0.0)
 
-        # 检查索引是否为空
-        if self.index.ntotal == 0:
-            logger.info("索引为空，返回unknown")
-            if multilabel:
-                return []
-            else:
-                return ("unknown", 0.0)
-
-        # 使用指定的阈值或默认阈值
         current_threshold = threshold if threshold is not None else self.threshold
 
-        # 确保特征向量是二维的
         if len(feature.shape) == 1:
             feature = feature.reshape(1, -1)
 
-        # 搜索最相似的向量
         distances, indices = self.index.search(feature, top_k)
 
-        # 处理结果
         results = []
         for i in range(top_k):
             idx = indices[0][i]
             distance = distances[0][i]
 
-            # 确保索引在有效范围内
             if idx < len(self.role_mapping):
-                role_name = self.role_mapping[idx]
-                # 将距离转换为相似度 (距离越小，相似度越高)
                 similarity = 1.0 / (1.0 + distance)
-                results.append({"role": role_name, "similarity": float(similarity)})
+                results.append({"role": self.role_mapping[idx], "similarity": float(similarity)})
 
-        # 如果没有结果
         if not results:
-            if multilabel:
-                return []
-            else:
-                return ("unknown", 0.0)
+            return [] if multilabel else ("unknown", 0.0)
 
-        # 1. 计算每个角色的平均相似度
+        role_similarities = self._aggregate_similarities(results)
+        sorted_roles = sorted(role_similarities.items(), key=lambda x: x[1], reverse=True)
+
+        if tags:
+            sorted_roles = self._apply_tag_filter(sorted_roles, tags)
+
+        if multilabel:
+            return [
+                (role, sim)
+                for role, sim in sorted_roles
+                if sim >= current_threshold
+            ]
+        else:
+            return sorted_roles[0] if sorted_roles else ("unknown", 0.0)
+
+    def _aggregate_similarities(
+        self, results: List[Dict[str, Any]]
+    ) -> Dict[str, float]:
+        """聚合相似度"""
         role_similarities = {}
         role_counts = {}
 
@@ -284,123 +223,64 @@ class Classification:
             role = result["role"]
             similarity = result["similarity"]
 
-            if role not in role_similarities:
-                role_similarities[role] = 0
-                role_counts[role] = 0
+            role_similarities[role] = role_similarities.get(role, 0) + similarity
+            role_counts[role] = role_counts.get(role, 0) + 1
 
-            role_similarities[role] += similarity
-            role_counts[role] += 1
+        return {
+            role: total / role_counts[role]
+            for role, total in role_similarities.items()
+        }
 
-        # 计算平均相似度
-        role_avg_similarities = {}
-        for role, total_similarity in role_similarities.items():
-            role_avg_similarities[role] = total_similarity / role_counts[role]
+    def _apply_tag_filter(
+        self,
+        sorted_roles: List[Tuple[str, float]],
+        tags: List[Any],
+    ) -> List[Tuple[str, float]]:
+        """应用标签过滤"""
+        tags_lower = self._normalize_tags(tags)
 
-        # 2. 排序角色
-        sorted_roles = sorted(role_avg_similarities.items(), key=lambda x: x[1], reverse=True)
+        for role, similarity in sorted_roles:
+            if self._role_matches_tags(role, tags_lower):
+                return [(role, similarity)]
 
-        # 3. 利用标签信息辅助分类
-        if tags:
-            # 转换标签为小写（处理字典格式的标签）
-            tags_lower = []
-            for tag_item in tags:
-                if isinstance(tag_item, dict) and "tag" in tag_item:
-                    tags_lower.append(tag_item["tag"].lower())
-                elif isinstance(tag_item, str):
-                    tags_lower.append(tag_item.lower())
+        return sorted_roles
 
-            # 检查标签中是否包含角色相关信息
-            for role, similarity in sorted_roles:
-                # 拼音到中文的映射
-                pinyin_to_chinese = {"ri4nai4": "日奈", "a1luo2na4": "阿罗娜"}
+    def _normalize_tags(self, tags: List[Any]) -> List[str]:
+        """标准化标签"""
+        tags_lower = []
+        for tag in tags:
+            if isinstance(tag, dict) and "tag" in tag:
+                tags_lower.append(tag["tag"].lower())
+            elif isinstance(tag, str):
+                tags_lower.append(tag.lower())
+        return tags_lower
 
-                # 获取中文角色名
-                chinese_role = pinyin_to_chinese.get(role, role)
+    def _role_matches_tags(self, role: str, tags_lower: List[str]) -> bool:
+        """检查角色是否匹配标签"""
+        tag_keywords = {
+            "日奈": ["hina", "日奈"],
+            "伊织": ["izumi", "伊织"],
+            "阿罗娜": ["arona", "阿罗娜", "a1luo2na4"],
+            "普拉娜": ["prana", "普拉娜"],
+        }
 
-                # 检查日奈
-                if (role == "日奈" or role == "ri4nai4") and any(
-                    "hina" in tag or "日奈" in tag for tag in tags_lower
-                ):
-                    if multilabel:
-                        # 继续处理其他角色
-                        continue
-                    else:
-                        return ("日奈", similarity)
-                # 检查伊织
-                elif role == "伊织" and any("izumi" in tag or "伊织" in tag for tag in tags_lower):
-                    if multilabel:
-                        # 继续处理其他角色
-                        continue
-                    else:
-                        return ("伊织", similarity)
-                # 检查阿罗娜
-                elif (role == "阿罗娜" or role == "a1luo2na4") and any(
-                    "arona" in tag or "阿罗娜" in tag for tag in tags_lower
-                ):
-                    if multilabel:
-                        # 继续处理其他角色
-                        continue
-                    else:
-                        return ("阿罗娜", similarity)
-                # 检查普拉娜
-                elif role == "普拉娜" and any(
-                    "prana" in tag or "普拉娜" in tag for tag in tags_lower
-                ):
-                    if multilabel:
-                        # 继续处理其他角色
-                        continue
-                    else:
-                        return ("普拉娜", similarity)
+        for tag in tags_lower:
+            for role_name, keywords in tag_keywords.items():
+                if role == role_name and any(kw in tag for kw in keywords):
+                    return True
+        return False
 
-        # 4. 拼音到中文的映射
-        pinyin_to_chinese = {"ri4nai4": "日奈", "a1luo2na4": "阿罗娜"}
-
-        # 5. 处理结果
-        if multilabel:
-            # 多标签模式：返回所有相似度高于阈值的角色
-            multilabel_results = []
-            for role, similarity in sorted_roles:
-                # 转换拼音为中文
-                if role in pinyin_to_chinese:
-                    role = pinyin_to_chinese[role]
-
-                # 只添加相似度高于阈值的角色
-                if similarity >= current_threshold:
-                    multilabel_results.append((role, similarity))
-
-            # 如果没有结果，返回空列表
-            return multilabel_results
-        else:
-            # 单标签模式：返回最相似的角色
-            best_role = sorted_roles[0][0]
-            best_similarity = sorted_roles[0][1]
-
-            # 转换拼音为中文
-            if best_role in pinyin_to_chinese:
-                best_role = pinyin_to_chinese[best_role]
-
-            # 总是返回最相似的角色，即使相似度低于阈值
-            return (best_role, best_similarity)
-
-    def batch_classify(self, features, top_k=5):
-        """批量分类特征向量
-
-        Args:
-            features: 特征向量批次
-            top_k: 返回前k个最相似的结果
-
-        Returns:
-            分类结果列表 [(角色名称, 相似度)]
-        """
+    def batch_classify(
+        self, features: np.ndarray, top_k: int = 5
+    ) -> List[Tuple[str, float]]:
+        """批量分类"""
         if self.index is None:
             raise ValueError("索引尚未构建")
 
-        logger.info(f"开始批量分类，特征数量: {features.shape[0]}, top_k: {top_k}")
+        logger.info(f"批量分类，特征数: {features.shape[0]}, top_k: {top_k}")
 
-        # 搜索最相似的向量
         distances, indices = self.index.search(features, top_k)
 
-        # 处理结果
         batch_results = []
         for i in range(features.shape[0]):
             results = []
@@ -408,96 +288,41 @@ class Classification:
                 idx = indices[i][j]
                 distance = distances[i][j]
 
-                # 确保索引在有效范围内
                 if idx < len(self.role_mapping):
-                    role_name = self.role_mapping[idx]
-                    # 将距离转换为相似度 (距离越小，相似度越高)
                     similarity = 1.0 / (1.0 + distance)
-                    results.append({"role": role_name, "similarity": float(similarity)})
+                    results.append({
+                        "role": self.role_mapping[idx],
+                        "similarity": float(similarity)
+                    })
 
-            # 如果没有结果，返回unknown
             if not results:
                 batch_results.append(("unknown", 0.0))
                 continue
 
-            # 1. 动态阈值调整
-            # 计算相似度的平均值和标准差
-            similarities = [r["similarity"] for r in results]
-            avg_similarity = sum(similarities) / len(similarities)
-            std_similarity = (
-                sum((s - avg_similarity) ** 2 for s in similarities) / len(similarities)
-            ) ** 0.5
+            role_similarities = self._aggregate_similarities(results)
+            sorted_roles = sorted(role_similarities.items(), key=lambda x: x[1], reverse=True)
 
-            # 根据相似度分布动态调整阈值
-            dynamic_threshold = max(
-                self.threshold - 0.1,
-                min(self.threshold + 0.1, avg_similarity - std_similarity * 0.5),
-            )
-
-            # 2. Top-k投票机制
-            role_counts = {}
-            role_scores = {}
-
-            for j, result in enumerate(results):
-                role = result["role"]
-                similarity = result["similarity"]
-
-                # 权重随排名递减
-                weight = (top_k - j) / top_k
-
-                if role not in role_counts:
-                    role_counts[role] = 0
-                    role_scores[role] = 0
-
-                # 只有相似度高于动态阈值的结果才参与投票
-                if similarity >= dynamic_threshold:
-                    role_counts[role] += 1
-                    role_scores[role] += similarity * weight
-
-            # 找出得票最多的角色
-            if role_counts:
-                # 首先按票数排序，票数相同则按得分排序
-                sorted_roles = sorted(
-                    role_counts.items(), key=lambda x: (x[1], role_scores[x[0]]), reverse=True
-                )
-                best_role = sorted_roles[0][0]
-                # 避免除以零
-                if role_counts[best_role] > 0:
-                    best_similarity = (
-                        role_scores[best_role] / role_counts[best_role]
-                    )  # 平均加权相似度
-                else:
-                    best_similarity = 0.0
-
-                # 检查最佳角色的相似度是否足够高
-                if best_similarity >= max(self.threshold - 0.1, 0.5):
-                    batch_results.append((best_role, best_similarity))
-                    continue
-
-            # 3. 如果投票机制失败，回退到原始的top-1结果
-            if results[0]["similarity"] >= self.threshold - 0.1:
-                batch_results.append((results[0]["role"], results[0]["similarity"]))
+            if sorted_roles and sorted_roles[0][1] >= self.threshold:
+                batch_results.append(sorted_roles[0])
             else:
                 batch_results.append(("unknown", results[0]["similarity"] if results else 0.0))
 
-        logger.info(f"批量分类完成，处理了 {len(batch_results)} 个特征向量")
+        logger.info(f"批量分类完成")
         return batch_results
 
-    def classify_multiple_characters(self, characters):
+    def classify_multiple_characters(
+        self, characters: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
         """分类多个角色"""
         if self.index is None:
             raise ValueError("索引尚未构建")
 
-        logger.info(f"开始多角色分类，角色数量: {len(characters)}")
+        logger.info(f"多角色分类，角色数: {len(characters)}")
 
         try:
-            # 提取所有角色的特征
             features = np.array([char["feature"] for char in characters], dtype=np.float32)
-
-            # 批量分类
             results = self.batch_classify(features)
 
-            # 将分类结果与角色信息关联
             for i, char in enumerate(characters):
                 char["role"], char["similarity"] = results[i]
 
@@ -507,109 +332,69 @@ class Classification:
             logger.error(f"多角色分类失败: {e}")
             return []
 
-    def update_index(self, new_features, new_role_names):
-        """更新索引，添加新的特征向量和角色"""
+    def update_index(self, new_features: np.ndarray, new_role_names: List[str]) -> None:
+        """更新索引"""
         if self.index is None:
-            # 如果索引不存在，构建新索引
-            logger.info(f"索引不存在，构建新索引，特征数量: {new_features.shape[0]}")
+            logger.info(f"索引不存在，构建新索引")
             self.build_index(new_features, new_role_names)
         else:
-            logger.info(
-                f"开始更新索引，添加特征数量: {new_features.shape[0]}, 角色数量: {len(new_role_names)}"
-            )
-            # 添加新的特征向量
+            logger.info(f"更新索引，添加特征数: {new_features.shape[0]}")
             self.index.add(new_features)
-
-            # 添加新的角色名称映射
             self.role_mapping.extend(new_role_names)
+            logger.info(f"索引更新完成，角色数: {len(self.role_mapping)}")
 
-            logger.info(f"索引更新完成，当前角色数量: {len(self.role_mapping)}")
-
-    def incremental_learning(self, image_path, correct_role):
-        """增量学习：根据用户提供的正确角色更新索引"""
+    def incremental_learning(self, image_path: str, correct_role: str) -> bool:
+        """增量学习"""
         from src.core.preprocessing.preprocessing import Preprocessing
         from src.core.feature_extraction.feature_extraction import FeatureExtraction
 
-        logger.info(f"开始增量学习，图像路径: {image_path}, 正确角色: {correct_role}")
-
-        # 初始化预处理和特征提取模块
-        preprocessor = Preprocessing()
-        extractor = FeatureExtraction()
+        logger.info(f"增量学习，图像: {image_path}, 角色: {correct_role}")
 
         try:
-            # 预处理图像
-            normalized_img, _ = preprocessor.process(image_path)
+            preprocessor = Preprocessing()
+            extractor = FeatureExtraction()
 
-            # 提取特征
+            normalized_img, _ = preprocessor.process(image_path)
             feature = extractor.extract_features(normalized_img)
             feature = feature.reshape(1, -1)
 
-            # 更新索引
             self.update_index(feature, [correct_role])
 
-            logger.info(f"增量学习成功: 图像 {image_path} 已添加到角色 {correct_role} 的索引中")
+            logger.info(f"增量学习成功")
             return True
         except Exception as e:
             logger.error(f"增量学习失败: {e}")
             return False
 
-    @classmethod
-    def use_coreml(cls, config_path="./coreml_models/end_to_end_config.json"):
-        """使用Core ML分类器
-
-        Args:
-            config_path: 配置文件路径
-
-        Returns:
-            Core ML分类器实例
-        """
-        try:
-            # 动态导入Core ML分类器
-            from .coreml_classification import CoreMLClassification
-
-            logger.info("使用Core ML分类器")
-            return CoreMLClassification(config_path)
-        except ImportError as e:
-            logger.warning(f"Core ML分类器导入失败: {e}")
-            logger.info("回退到默认分类器")
-            return cls()
-
 
 if __name__ == "__main__":
-    # 测试分类模块
+    import sys
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+
     classifier = Classification(threshold=0.7)
 
-    # 生成测试数据
-    # 假设有2个角色，每个角色有5个特征向量
-    dim = 512  # CLIP ViT-B/32特征维度
+    dim = 512
     num_roles = 2
     num_samples_per_role = 5
 
-    # 生成随机特征向量（实际应用中应该使用真实的特征向量）
     features = np.random.randn(num_roles * num_samples_per_role, dim).astype(np.float32)
-    # 归一化特征向量
     features = features / np.linalg.norm(features, axis=1, keepdims=True)
 
-    # 生成角色名称映射
     role_names = []
     for i in range(num_roles):
         role_name = f"角色{i+1}"
         role_names.extend([role_name] * num_samples_per_role)
 
-    # 构建索引
     classifier.build_index(features, role_names)
 
-    # 保存索引
     index_path = "test_index"
     classifier.save_index(index_path)
     print("索引已保存")
 
-    # 加载索引
     new_classifier = Classification()
     new_classifier.load_index(index_path)
     print("索引已加载")
 
-    # 测试分类
     test_feature = np.random.randn(dim).astype(np.float32)
     test_feature = test_feature / np.linalg.norm(test_feature)
 
