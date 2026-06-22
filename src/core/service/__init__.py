@@ -63,26 +63,47 @@ class ServiceRegistry:
         port = service.get("port")
         script = service.get("script")
         description = service.get("description", "")
+        args = service.get("args", [])
+        env_vars = service.get("env", {})
+        directory = service.get("directory", "")
 
         # 检查端口是否被占用
-        if self._is_port_in_use(port):
+        if port and self._is_port_in_use(port):
             logger.warning(f"端口 {port} 已被占用: {name}")
             return False
 
-        logger.info(f"🚀 启动服务: {name}")
+        logger.info(f"启动服务: {name}")
         logger.info(f"   描述: {description}")
-        logger.info(f"   端口: {port}")
+        if port:
+            logger.info(f"   端口: {port}")
 
         # 获取项目根目录
         project_root = self._get_project_root()
 
+        # 确定工作目录
+        work_dir = os.path.join(project_root, directory) if directory else project_root
+
         # 构建命令
         script_path = script
-        cmd = [sys.executable, script_path, "--port", str(port)]
+
+        # 处理相对路径
+        if not os.path.isabs(script_path):
+            script_path = os.path.join(work_dir, script_path)
+
+        cmd = [sys.executable, script_path]
+        cmd.extend(args)
+
+        # 处理特殊命令（如npm、shell脚本等）
+        if script.startswith("npm ") or script.startswith("node "):
+            cmd = script.split()
+        elif script.startswith("-m "):
+            cmd = [sys.executable] + script.split()
+        elif script.endswith(".sh"):
+            cmd = ["bash", script_path]
 
         try:
-            env = self._build_env()
-            process = subprocess.Popen(cmd, cwd=project_root, env=env)
+            env = self._build_env(env_vars)
+            process = subprocess.Popen(cmd, cwd=work_dir, env=env)
             self._processes[name] = process
 
             # 等待服务启动
@@ -90,21 +111,26 @@ class ServiceRegistry:
 
             # 检查是否启动成功
             if process.poll() is None:
-                # 等待端口就绪
-                if self._wait_for_port(port, timeout=15):
-                    logger.info(f"✅ 服务启动成功: {name}")
-                    return True
+                # 等待端口就绪（如果有端口）
+                if port:
+                    if self._wait_for_port(port, timeout=15):
+                        logger.info(f"服务启动成功: {name}")
+                        return True
+                    else:
+                        logger.error(f"服务端口未就绪: {name}")
+                        process.terminate()
+                        del self._processes[name]
+                        return False
                 else:
-                    logger.error(f"❌ 服务端口未就绪: {name}")
-                    process.terminate()
-                    del self._processes[name]
-                    return False
+                    # 无端口服务，直接认为启动成功
+                    logger.info(f"服务启动成功: {name}")
+                    return True
             else:
-                logger.error(f"❌ 服务启动失败，退出码: {process.returncode}")
+                logger.error(f"服务启动失败，退出码: {process.returncode}")
                 return False
 
         except Exception as e:
-            logger.error(f"❌ 服务启动异常: {name}, 错误: {str(e)}")
+            logger.error(f"服务启动异常: {name}, 错误: {str(e)}")
             return False
 
     def start_all_services(self) -> int:
@@ -174,24 +200,43 @@ class ServiceRegistry:
             time.sleep(1)
         return False
 
-    def _build_env(self) -> Dict[str, str]:
+    def _build_env(self, extra_env: Dict[str, str] = None) -> Dict[str, str]:
         """构建环境变量"""
         env = dict(os.environ)
         project_root = self._get_project_root()
         env["PYTHONPATH"] = project_root
         env["OBJC_DISABLE_INITIALIZE_FORK_SAFETY"] = "YES"
+
+        # 添加自定义环境变量
+        if extra_env:
+            env.update(extra_env)
+
         return env
 
     def _get_project_root(self) -> str:
         """获取项目根目录"""
         import os
 
-        return os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        return os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
     def _get_start_order(self) -> List[str]:
         """获取服务启动顺序"""
-        # 定义服务依赖顺序
-        order = {"multimedia": 1, "model": 2, "api": 3, "gateway": 4}
+        # 定义服务依赖顺序（优先级高的先启动）
+        order = {
+            "model": 1,
+            "api": 2,
+            "multimedia": 3,
+            "search": 4,
+            "search-worker": 5,
+            "inference-worker": 6,
+            "gateway": 7,
+            "monitor-dashboard": 8,
+            "frontend": 9,
+            "log-viewer": 10,
+            "health-check": 11,
+            "log-monitor": 12,
+            "resource-monitor": 13,
+        }
         return sorted(self._services.keys(), key=lambda x: order.get(x, 99))
 
 
