@@ -114,7 +114,9 @@ class Settings(BaseSettings):
     api_description: str = "技能仓库 RESTful API - 提供技能管理、用户认证、技能搜索等功能"
 
     model_config = SettingsConfigDict(
-        env_file=".env", env_file_encoding="utf-8", env_nested_delimiter="__"
+        env_file=str(Path(__file__).resolve().parent.parent / ".env"),
+        env_file_encoding="utf-8",
+        env_nested_delimiter="__"
     )
 
 
