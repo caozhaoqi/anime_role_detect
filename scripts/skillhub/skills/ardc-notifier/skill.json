@@ -1,0 +1,25 @@
+{
+  "id": "ardc-notifier",
+  "name": "消息通知器",
+  "version": "1.0.0",
+  "description": "消息通知技能，支持多种通知渠道。支持邮件、钉钉、微信、短信通知。",
+  "author": "ARD Team",
+  "author_url": null,
+  "category": "utility",
+  "tags": [
+    "通知",
+    "消息",
+    "告警"
+  ],
+  "entry_point": "scripts/notify.py",
+  "runtime": "python",
+  "dependencies": [],
+  "config_schema": [],
+  "status": "development",
+  "created_at": "2026-05-20T17:24:56.466052",
+  "updated_at": "2026-05-20T17:24:56.466059",
+  "min_platform_version": "1.0.0",
+  "max_platform_version": null,
+  "memory_mb": 256,
+  "cpu_cores": 1.0
+}
