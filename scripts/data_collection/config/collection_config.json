@@ -1,0 +1,3826 @@
+{
+  "game_tag_map": {
+    "genshin": "genshin_impact",
+    "star_rail": "honkai:_star_rail",
+    "honkai3": "honkai_impact_3rd",
+    "blda": "blue_archive",
+    "mc": "wuthering_waves",
+    "zzz": "zenless_zone_zero",
+    "cbjq": "snowbreak",
+    "ht": "tower_of_fantasy"
+  },
+  "keyword_game_map": {
+    "1_genshin_chinese_spider_img_keyword.txt": "genshin",
+    "3_star_rail_chinese_spider_img_keyword.txt": "star_rail",
+    "6_honkai3_chinese_spider_img_keyword.txt": "honkai3",
+    "blda_spider_img_keyword.txt": "blda",
+    "mc_spider_img_keyword.txt": "mc",
+    "zzz_spider_img_keyword.txt": "zzz",
+    "cbjq_spider_img_keyword.txt": "cbjq",
+    "ht_spider_img_keyword.txt": "ht",
+    "qlwh_spider_img_keyword.txt": null,
+    "ll_spider_img_keyword.txt": null,
+    "lsxy_spider_img_keyword.txt": null,
+    "0307_spider_img_keyword.txt": null,
+    "1_p_top_spider_img_keyword.txt": null,
+    "new_spider_img_keyword.txt": null,
+    "spider_img_keyword.txt": null
+  },
+  "character_map": {
+    "琴": "jean_(genshin_impact)",
+    "安柏": "amber_(genshin_impact)",
+    "丽莎": "lisa_(genshin_impact)",
+    "芭芭拉": "barbara_(genshin_impact)",
+    "可莉": "klee_(genshin_impact)",
+    "诺艾尔": "noelle_(genshin_impact)",
+    "菲谢尔": "fischl_(genshin_impact)",
+    "砂糖": "sucrose_(genshin_impact)",
+    "莫娜": "mona_(genshin_impact)",
+    "迪奥娜": "diona_(genshin_impact)",
+    "罗莎莉亚": "rosaria_(genshin_impact)",
+    "优菈": "eula_(genshin_impact)",
+    "闲云": "xianyun_(genshin_impact)",
+    "瑶瑶": "yaoyao_(genshin_impact)",
+    "夜兰": "yelan_(genshin_impact)",
+    "申鹤": "shenhe_(genshin_impact)",
+    "云堇": "yunjin_(genshin_impact)",
+    "北斗": "beidou_(genshin_impact)",
+    "凝光": "ningguang_(genshin_impact)",
+    "香菱": "xiangling_(genshin_impact)",
+    "刻晴": "keqing_(genshin_impact)",
+    "七七": "qiqi_(genshin_impact)",
+    "辛焱": "xinyan_(genshin_impact)",
+    "甘雨": "ganyu_(genshin_impact)",
+    "胡桃": "hu_tao_(genshin_impact)",
+    "烟绯": "yanfei_(genshin_impact)",
+    "神里绫华": "ayaka_(genshin_impact)",
+    "宵宫": "yoimiya_(genshin_impact)",
+    "早柚": "sayu_(genshin_impact)",
+    "雷电将军": "raiden_shogun_(genshin_impact)",
+    "八重神子": "yae_miko_(genshin_impact)",
+    "九条裟罗": "kujou_sara_(genshin_impact)",
+    "珊瑚宫心海": "kokomi_(genshin_impact)",
+    "娜维娅": "navia_(genshin_impact)",
+    "芙宁娜": "furina_(genshin_impact)",
+    "千织": "chiori_(genshin_impact)",
+    "久岐忍": "kuki_shinobu_(genshin_impact)",
+    "珐露珊": "faruzan_(genshin_impact)",
+    "莱依拉": "layla_(genshin_impact)",
+    "妮露": "nilou_(genshin_impact)",
+    "坎蒂丝": "candace_(genshin_impact)",
+    "多莉": "dori_(genshin_impact)",
+    "柯莱": "collei_(genshin_impact)",
+    "绮良良": "kirara_(genshin_impact)",
+    "纳西妲": "nahida_(genshin_impact)",
+    "迪希雅": "dehya_(genshin_impact)",
+    "迪娜泽黛": "dunyarzad_(genshin_impact)",
+    "派蒙": "paimon_(genshin_impact)",
+    "夏沃蕾": "chevreuse_(genshin_impact)",
+    "夏洛蒂": "charlotte_(genshin_impact)",
+    "琳妮特": "lynette_(genshin_impact)",
+    "希格雯": "sigewinne_(genshin_impact)",
+    "克洛琳德": "clorinde_(genshin_impact)",
+    "荧": "lumine_(genshin_impact)",
+    "莉奈娅": "lyney_(genshin_impact)",
+    "玛拉妮": "mualani_(genshin_impact)",
+    "卡齐娜": "kachina_(genshin_impact)",
+    "希诺宁": "xilonen_(genshin_impact)",
+    "玛薇卡": "mavuika_(genshin_impact)",
+    "伊涅芙": "inefuu_(genshin_impact)",
+    "菈乌玛": "la_uma_(genshin_impact)",
+    "爱诺": "aino_(genshin_impact)",
+    "奈芙尔": "nefer_(genshin_impact)",
+    "雅珂达": "yakoda_(genshin_impact)",
+    "哥伦比娅": "columbina_(genshin_impact)",
+    "桑多涅": "sandrone_(genshin_impact)",
+    "尼可": "nico_(genshin_impact)",
+    "归终": "guizhong_(genshin_impact)",
+    "留云借风真君": "xianyun_(genshin_impact)",
+    "歌尘浪市真君": "ping_(genshin_impact)",
+    "埃洛伊": "aloy_(horizon_zero_dawn)",
+    "艾丝妲": "asta_(honkai:_star_rail)",
+    "三月七": "march_7th_(honkai:_star_rail)",
+    "希露瓦": "serval_(honkai:_star_rail)",
+    "黑塔": "herta_(honkai:_star_rail)",
+    "大丽花": "dahli_(honkai:_star_rail)",
+    "银狼": "silver_wolf_(honkai:_star_rail)",
+    "希儿": "seele_(honkai:_star_rail)",
+    "卡芙卡": "kafka_(honkai:_star_rail)",
+    "素裳": "sushang_(honkai:_star_rail)",
+    "姬子": "himeko_(honkai:_star_rail)",
+    "布洛妮娅": "bronya_(honkai:_star_rail)",
+    "克拉拉": "clara_(honkai:_star_rail)",
+    "佩拉": "pela_(honkai:_star_rail)",
+    "虎克": "hook_(honkai:_star_rail)",
+    "黑天鹅": "black_swan_(honkai:_star_rail)",
+    "花火": "sparkle_(honkai:_star_rail)",
+    "阮梅": "ruan_mei_(honkai:_star_rail)",
+    "娜塔莎": "natasha_(honkai:_star_rail)",
+    "寒鸦": "hanya_(honkai:_star_rail)",
+    "镜流": "jingliu_(honkai:_star_rail)",
+    "雪衣": "xueyi_(honkai:_star_rail)",
+    "黄泉": "acheron_(honkai:_star_rail)",
+    "符玄": "fu_xuan_(honkai:_star_rail)",
+    "白露": "bailu_(honkai:_star_rail)",
+    "霍霍": "huohuo_(honkai:_star_rail)",
+    "玲妮": "lynx_(honkai:_star_rail)",
+    "青雀": "qingque_(honkai:_star_rail)",
+    "停云": "tingyun_(honkai:_star_rail)",
+    "托帕": "topaz_(honkai:_star_rail)",
+    "驭空": "yukong_(honkai:_star_rail)",
+    "流萤": "firefly_(honkai:_star_rail)",
+    "知更鸟": "robin_(honkai:_star_rail)",
+    "缇宝": "tribbie_(honkai:_star_rail)",
+    "真珠": "pearl_(honkai:_star_rail)",
+    "火花": "sparkle_(honkai:_star_rail)",
+    "云璃": "yunli_(honkai:_star_rail)",
+    "阿格莱雅": "aglaea_(honkai:_star_rail)",
+    "遐蝶": "castorice_(honkai:_star_rail)",
+    "刻律德菈": "keller_(honkai:_star_rail)",
+    "赛飞儿": "sapphire_(honkai:_star_rail)",
+    "昔涟": "cyrene_(honkai:_star_rail)",
+    "风堇": "husband_(honkai:_star_rail)",
+    "海瑟音": "hester_(honkai:_star_rail)",
+    "绯英": "scarlet_(honkai:_star_rail)",
+    "虚照": "void_(honkai:_star_rail)",
+    "翡翠": "jade_(honkai:_star_rail)",
+    "布洛妮娅·扎伊切克": "bronya_(honkai_impact_3rd)",
+    "无量塔姬子": "himeko_(honkai_impact_3rd)",
+    "八重樱": "yae_sakura_(honkai_impact_3rd)",
+    "德丽莎·阿波卡利斯": "theresa_(honkai_impact_3rd)",
+    "卡莲·卡斯兰娜": "kallen_(honkai_impact_3rd)",
+    "丽塔·洛丝薇瑟": "rita_(honkai_impact_3rd)",
+    "希儿·芙乐艾": "seele_(honkai_impact_3rd)",
+    "萝莎莉娅·阿琳": "rozaliya_(honkai_impact_3rd)",
+    "莉莉娅·阿琳": "liliya_(honkai_impact_3rd)",
+    "时雨绮罗": "shigure_kira_(honkai_impact_3rd)",
+    "普罗米修斯": "prometheus_(honkai_impact_3rd)",
+    "米丝忒琳·沙尼亚特": "misteln_(honkai_impact_3rd)",
+    "苏莎娜": "susannah_(honkai_impact_3rd)",
+    "爱衣·休伯利安Λ": "ai_(honkai_impact_3rd)",
+    "李素裳": "li_sushang_(honkai_impact_3rd)",
+    "维尔薇": "vill-v_(honkai_impact_3rd)",
+    "梅比乌斯": "mobius_(honkai_impact_3rd)",
+    "帕朵菲莉丝": "pardofelis_(honkai_impact_3rd)",
+    "阿波尼亚": "aponia_(honkai_impact_3rd)",
+    "伊甸": "eden_(honkai_impact_3rd)",
+    "比安卡·幽兰黛尔·阿塔吉娜": "biana_youlandeier_altjina_(honkai_impact_3rd)",
+    "式波·明日香·兰格雷": "asuka_langley_(honkai_impact_3rd)",
+    "娜塔莎·希奥拉": "natasha_ciora_(honkai_impact_3rd)",
+    "卡萝尔·佩珀": "carol_pepper_(honkai_impact_3rd)",
+    "符华": "fu_hua_(honkai_impact_3rd)",
+    "格蕾修": "griseo_(honkai_impact_3rd)",
+    "爱莉希雅": "elysia_(honkai_impact_3rd)",
+    "琪亚娜": "kiana_(honkai_impact_3rd)",
+    "雷电芽衣": "raiden_mei_(honkai_impact_3rd)",
+    "识之律者": "herrscher_of_sentience_(honkai_impact_3rd)",
+    "雷之律者": "herrscher_of_thunder_(honkai_impact_3rd)",
+    "空之律者": "herrscher_of_the_void_(honkai_impact_3rd)",
+    "死生之律者": "herrscher_of_death_(honkai_impact_3rd)",
+    "薪炎之律者": "herrscher_of_flamescion_(honkai_impact_3rd)",
+    "始源之律者": "herrscher_of_origin_(honkai_impact_3rd)",
+    "人之律者": "herrscher_of_human_(honkai_impact_3rd)",
+    "幽兰黛尔": "durandal_(honkai_impact_3rd)",
+    "阿洛娜": "arona_(blue_archive)",
+    "普拉娜": "plana_(blue_archive)",
+    "日奈": "hina_(blue_archive)",
+    "亚子": "ako_(blue_archive)",
+    "伊织": "iori_(blue_archive)",
+    "千夏": "chinatsu_(zenless_zone_zero)",
+    "伊吕波": "iroha_(blue_archive)",
+    "阿露": "aru_(blue_archive)",
+    "睦月": "mutsuki_(blue_archive)",
+    "佳代子": "kayoko_(blue_archive)",
+    "遥香": "haruka_(blue_archive)",
+    "晴奈": "haruna_(blue_archive)",
+    "淳子": "junko_(blue_archive)",
+    "明里": "akari_(blue_archive)",
+    "泉": "izumi_(blue_archive)",
+    "枫香": "fuuka_(blue_archive)",
+    "朱莉": "juri_(blue_archive)",
+    "濑名": "sena_(blue_archive)",
+    "惠": "megumi_(blue_archive)",
+    "霞": "kasumi_(blue_archive)",
+    "优香": "yuuka_(blue_archive)",
+    "诺亚": "noa_(blue_archive)",
+    "小雪": "koyuki_(blue_archive)",
+    "尼禄": "neru_(blue_archive)",
+    "明日奈": "asuna_(blue_archive)",
+    "花凛": "karin_(blue_archive)",
+    "朱音": "akane_(blue_archive)",
+    "时": "toki_(blue_archive)",
+    "歌原": "utaha_(blue_archive)",
+    "响": "hibiki_(blue_archive)",
+    "柯托莉": "kotori_(blue_archive)",
+    "柚子": "yuzu_(blue_archive)",
+    "桃井": "momoi_(blue_archive)",
+    "绿": "midori_(blue_archive)",
+    "爱丽丝": "aris_(blue_archive)",
+    "千寻": "chihiro_(blue_archive)",
+    "真纪": "maki_(blue_archive)",
+    "晴": "haru_(blue_archive)",
+    "小玉": "kotama_(blue_archive)",
+    "日鞠": "hifumi_(blue_archive)",
+    "艾米": "emi_(blue_archive)",
+    "菫": "sumire_(blue_archive)",
+    "未花": "mika_(blue_archive)",
+    "渚": "nagisa_(blue_archive)",
+    "鹤城": "hoshino_(blue_archive)",
+    "小鸟游星野": "hoshino_(blue_archive)",
+    "空崎日奈": "hina_(blue_archive)",
+    "鬼方佳代子": "kayoko_(blue_archive)",
+    "早濑优香": "yuuka_(blue_archive)",
+    "天雨亚子": "ako_(blue_archive)",
+    "陆八魔爱露": "aru_(blue_archive)",
+    "圣园未花": "mika_(blue_archive)",
+    "天童爱丽丝": "aris_(blue_archive)",
+    "杏山和纱": "kazusa_(blue_archive)",
+    "砂狼白子": "shiroko_(blue_archive)",
+    "一之濑明日奈": "asuna_(blue_archive)",
+    "秧秧": "yangyang_(wuthering_waves)",
+    "安可": "encore_(wuthering_waves)",
+    "炽霞": "chixia_(wuthering_waves)",
+    "丹瑾": "danjin_(wuthering_waves)",
+    "白芷": "baizhi_(wuthering_waves)",
+    "散华": "sanhua_(wuthering_waves)",
+    "维里奈": "verina_(wuthering_waves)",
+    "今汐": "jinhsi_(wuthering_waves)",
+    "长离": "changli_(wuthering_waves)",
+    "吟霖": "yinlin_(wuthering_waves)",
+    "漂泊者": "rover_(wuthering_waves)",
+    "桃祈": "taoqi_(wuthering_waves)",
+    "鉴心": "jianxin_(wuthering_waves)",
+    "卡提希娅": "carthya_(wuthering_waves)",
+    "爱弥斯": "aix_(wuthering_waves)",
+    "绯雪": "feixue_(wuthering_waves)",
+    "洛可可": "roccoco_(wuthering_waves)",
+    "菲比": "fifi_(wuthering_waves)",
+    "珂莱塔": "carlotta_(wuthering_waves)",
+    "釉瑚": "youhu_(wuthering_waves)",
+    "莫宁": "moning_(wuthering_waves)",
+    "洛瑟拉": "roscella_(wuthering_waves)",
+    "琳奈": "linne_(wuthering_waves)",
+    "守岸人": "shorekeeper_(wuthering_waves)",
+    "达妮娅": "dania_(wuthering_waves)",
+    "西格莉卡": "siglika_(wuthering_waves)",
+    "丽贝卡": "rebecca_(wuthering_waves)",
+    "露西": "lucy_(wuthering_waves)",
+    "弗洛洛": "phrololo_(wuthering_waves)",
+    "嘉贝莉娜": "gabriel_(wuthering_waves)",
+    "奥古斯塔": "augusta_(wuthering_waves)",
+    "尤诺": "yuno_(wuthering_waves)",
+    "赞妮": "zani_(wuthering_waves)",
+    "坎特蕾拉": "cantarella_(wuthering_waves)",
+    "露帕": "lupa_(wuthering_waves)",
+    "夏空": "xiakong_(wuthering_waves)",
+    "椿": "tsubaki_(wuthering_waves)",
+    "灯灯": "dengdeng_(wuthering_waves)",
+    "铃": "ring_(zenless_zone_zero)",
+    "零号": "zero_(zenless_zone_zero)",
+    "猫宫又奈": "nekomiya_(zenless_zone_zero)",
+    "猫又": "nekomata_(zenless_zone_zero)",
+    "妮可·德玛拉": "nicole_(zenless_zone_zero)",
+    "格莉丝·霍华德": "grace_(zenless_zone_zero)",
+    "珂蕾妲·贝洛伯格": "koleda_(zenless_zone_zero)",
+    "柏妮思·怀特": "burnice_(zenless_zone_zero)",
+    "凯撒·金": "caesar_(zenless_zone_zero)",
+    "莱特": "lycaon_(zenless_zone_zero)",
+    "派派·韦尔": "piper_(zenless_zone_zero)",
+    "波可娜·费雷尼": "pomona_(zenless_zone_zero)",
+    "雨果·维拉德": "hugo_(zenless_zone_zero)",
+    "薇薇安·班希": "vivian_(zenless_zone_zero)",
+    "爱丽丝·泰姆菲尔德": "alice_(zenless_zone_zero)",
+    "狛野真斗": "...(zenless_zone_zero)",
+    "卢西娅·艾洛温": "lucia_(zenless_zone_zero)",
+    "浮波柚叶": "...(zenless_zone_zero)",
+    "伊德海莉·墨菲": "yideli_(zenless_zone_zero)",
+    "爱芮": "erii_(zenless_zone_zero)",
+    "南宫羽": "mikuni_(zenless_zone_zero)",
+    "亚历山德丽娜·莎芭丝缇安": "alexandrina_(zenless_zone_zero)",
+    "可琳·威克斯": "corin_(zenless_zone_zero)",
+    "艾莲·乔": "ellen_(zenless_zone_zero)",
+    "冯·莱卡恩": "von_lycaon_(zenless_zone_zero)",
+    "简·杜": "jane_(zenless_zone_zero)",
+    "青衣": "qingyi_(zenless_zone_zero)",
+    "赛斯·洛威尔": "seth_(zenless_zone_zero)",
+    "朱鸢": "zhu_yuan_(zenless_zone_zero)",
+    "星见雅": "yanagi_(zenless_zone_zero)",
+    "苍角": "sokaku_(zenless_zone_zero)",
+    "月城柳": "yanagi_(zenless_zone_zero)",
+    "奥菲丝": "anby_(zenless_zone_zero)",
+    "11号": "soldier_11_(zenless_zone_zero)",
+    "扳机": "trigger_(zenless_zone_zero)",
+    "橘福福": "...(zenless_zone_zero)",
+    "潘引壶": "...(zenless_zone_zero)",
+    "叶瞬光": "...(zenless_zone_zero)",
+    "仪玄": "...(zenless_zone_zero)",
+    "般岳": "...(zenless_zone_zero)",
+    "琉音": "...(zenless_zone_zero)",
+    "希希芙": "...(zenless_zone_zero)",
+    "妮塔": "nita_(snowbreak)",
+    "肴": "yao_(snowbreak)",
+    "瑟瑞斯": "seres_(snowbreak)",
+    "苔丝·科特金": "tess_(snowbreak)",
+    "芙提雅-缄默": "fritia_(snowbreak)",
+    "肴-冬至": "yao_(snowbreak)",
+    "鸣濑晴": "haru_(snowbreak)",
+    "晴-藏锋": "haru_(snowbreak)",
+    "辰星-云篆": "chenxing_(snowbreak)",
+    "凯茜娅·克莱因": "kasia_(snowbreak)",
+    "茉莉安·安德烈奥蒂": "mariya_(snowbreak)",
+    "芬妮·戈尔登": "fenni_(snowbreak)",
+    "琴诺": "qin_(snowbreak)",
+    "安卡希雅": "ankaxiya_(snowbreak)",
+    "里芙": "lifu_(snowbreak)",
+    "伊切尔·豹豹": "yichier_(snowbreak)",
+    "凯茜娅·蓝闪": "kasia_(snowbreak)",
+    "辰星": "chenxing_(snowbreak)",
+    "恩雅": "enya_(snowbreak)",
+    "芬妮·咎冠": "fenni_(snowbreak)",
+    "猫汐尔·溯影": "maoxier_(snowbreak)",
+    "猫汐尔": "maoxier_(snowbreak)",
+    "夏佐": "xiazao_(tower_of_fantasy)",
+    "莎莉": "shali_(tower_of_fantasy)",
+    "梅丽尔": "meriel_(tower_of_fantasy)",
+    "赛弥尔": "samir_(tower_of_fantasy)",
+    "艾莉丝": "alice_(tower_of_fantasy)",
+    "奈美西斯": "nemesis_(tower_of_fantasy)",
+    "蕾贝": "rube_(tower_of_fantasy)",
+    "菲欧娜": "fiona_(tower_of_fantasy)",
+    "卡洛琳": "caroline_(tower_of_fantasy)",
+    "伊卡洛斯": "icarus_(tower_of_fantasy)",
+    "可可丽特": "cocoritter_(tower_of_fantasy)",
+    "凛夜": "linye_(tower_of_fantasy)",
+    "白伶": "bailing_(tower_of_fantasy)",
+    "克劳迪娅": "claudia_(tower_of_fantasy)",
+    "海拉": "haila_(tower_of_fantasy)",
+    "伊蕾娜": "yilena_(tower_of_fantasy)",
+    "薇拉": "vera_(tower_of_fantasy)",
+    "弗丽嘉": "frigg_(tower_of_fantasy)",
+    "赛琳娜": "serena_(tower_of_fantasy)",
+    "修玛": "huma_(tower_of_fantasy)",
+    "芬璃尔": "fenrir_(tower_of_fantasy)",
+    "初音未来": "hatsune_miku",
+    "芙莉莲": "frieren_(sousou_no_frieren)",
+    "菲伦": "fern_(sousou_no_frieren)",
+    "尤贝尔": "uvel_(sousou_no_frieren)",
+    "博丽灵梦": "hakurei_reimu",
+    "雾雨魔理沙": "marisa_kirisame",
+    "芙兰朵露": "frandre_scarlet",
+    "古明地恋": "komeiji_koishi",
+    "后藤一里": "gouto_hitori_(bocchi_the_rock)",
+    "星街彗星": "hoshimachi_suisei",
+    "宝钟玛琳": "houshou_marine",
+    "小埋": "umaru_(himouto!_umaru-chan)",
+    "干物妹": "umaru_(himouto!_umaru-chan)",
+    "工作细胞血小板": "platelet_(hataraku_saibou)",
+    "蕾姆": "rem_(re:zero)",
+    "拉姆": "ram_(re:zero)",
+    "犬饲小麦": "inu_kogal",
+    "佩佩": "pepe_(love_live)",
+    "诺诺": "nono_(love_live)",
+    "忒拉拉": "telara_(love_live)",
+    "寒悠悠": "han_youyou_(love_live)",
+    "夏儿": "xiar_(love_live)",
+    "洛卿": "luoqing_(love_live)",
+    "朝武芳乃": "yoshino_(k_o_u_s_h_i_k_i)",
+    "常陆茉子": "maiko_(k_o_u_s_h_i_k_i)"
+  },
+  "all_characters": {
+    "夏佐": {
+      "source_file": "ht_spider_img_keyword.txt",
+      "game_key": "ht",
+      "game_tag": "tower_of_fantasy",
+      "danbooru_tag": "xiazao_(tower_of_fantasy)"
+    },
+    "莎莉": {
+      "source_file": "ht_spider_img_keyword.txt",
+      "game_key": "ht",
+      "game_tag": "tower_of_fantasy",
+      "danbooru_tag": "shali_(tower_of_fantasy)"
+    },
+    "梅丽尔": {
+      "source_file": "ht_spider_img_keyword.txt",
+      "game_key": "ht",
+      "game_tag": "tower_of_fantasy",
+      "danbooru_tag": "meriel_(tower_of_fantasy)"
+    },
+    "赛弥尔": {
+      "source_file": "ht_spider_img_keyword.txt",
+      "game_key": "ht",
+      "game_tag": "tower_of_fantasy",
+      "danbooru_tag": "samir_(tower_of_fantasy)"
+    },
+    "艾莉丝": {
+      "source_file": "ht_spider_img_keyword.txt",
+      "game_key": "ht",
+      "game_tag": "tower_of_fantasy",
+      "danbooru_tag": "alice_(tower_of_fantasy)"
+    },
+    "奈美西斯": {
+      "source_file": "ht_spider_img_keyword.txt",
+      "game_key": "ht",
+      "game_tag": "tower_of_fantasy",
+      "danbooru_tag": "nemesis_(tower_of_fantasy)"
+    },
+    "蕾贝": {
+      "source_file": "ht_spider_img_keyword.txt",
+      "game_key": "ht",
+      "game_tag": "tower_of_fantasy",
+      "danbooru_tag": "rube_(tower_of_fantasy)"
+    },
+    "菲欧娜": {
+      "source_file": "ht_spider_img_keyword.txt",
+      "game_key": "ht",
+      "game_tag": "tower_of_fantasy",
+      "danbooru_tag": "fiona_(tower_of_fantasy)"
+    },
+    "卡洛琳": {
+      "source_file": "ht_spider_img_keyword.txt",
+      "game_key": "ht",
+      "game_tag": "tower_of_fantasy",
+      "danbooru_tag": "caroline_(tower_of_fantasy)"
+    },
+    "伊卡洛斯": {
+      "source_file": "ht_spider_img_keyword.txt",
+      "game_key": "ht",
+      "game_tag": "tower_of_fantasy",
+      "danbooru_tag": "icarus_(tower_of_fantasy)"
+    },
+    "可可丽特": {
+      "source_file": "ht_spider_img_keyword.txt",
+      "game_key": "ht",
+      "game_tag": "tower_of_fantasy",
+      "danbooru_tag": "cocoritter_(tower_of_fantasy)"
+    },
+    "乌丸": {
+      "source_file": "ht_spider_img_keyword.txt",
+      "game_key": "ht",
+      "game_tag": "tower_of_fantasy",
+      "danbooru_tag": ""
+    },
+    "凛夜": {
+      "source_file": "ht_spider_img_keyword.txt",
+      "game_key": "ht",
+      "game_tag": "tower_of_fantasy",
+      "danbooru_tag": "linye_(tower_of_fantasy)"
+    },
+    "西萝": {
+      "source_file": "ht_spider_img_keyword.txt",
+      "game_key": "ht",
+      "game_tag": "tower_of_fantasy",
+      "danbooru_tag": ""
+    },
+    "白伶": {
+      "source_file": "ht_spider_img_keyword.txt",
+      "game_key": "ht",
+      "game_tag": "tower_of_fantasy",
+      "danbooru_tag": "bailing_(tower_of_fantasy)"
+    },
+    "克劳迪娅": {
+      "source_file": "ht_spider_img_keyword.txt",
+      "game_key": "ht",
+      "game_tag": "tower_of_fantasy",
+      "danbooru_tag": "claudia_(tower_of_fantasy)"
+    },
+    "四枫院羽": {
+      "source_file": "ht_spider_img_keyword.txt",
+      "game_key": "ht",
+      "game_tag": "tower_of_fantasy",
+      "danbooru_tag": ""
+    },
+    "海拉": {
+      "source_file": "ht_spider_img_keyword.txt",
+      "game_key": "ht",
+      "game_tag": "tower_of_fantasy",
+      "danbooru_tag": "haila_(tower_of_fantasy)"
+    },
+    "艾达星": {
+      "source_file": "ht_spider_img_keyword.txt",
+      "game_key": "ht",
+      "game_tag": "tower_of_fantasy",
+      "danbooru_tag": ""
+    },
+    "奈·亚伯拉罕": {
+      "source_file": "ht_spider_img_keyword.txt",
+      "game_key": "ht",
+      "game_tag": "tower_of_fantasy",
+      "danbooru_tag": ""
+    },
+    "希里": {
+      "source_file": "ht_spider_img_keyword.txt",
+      "game_key": "ht",
+      "game_tag": "tower_of_fantasy",
+      "danbooru_tag": ""
+    },
+    "银岚": {
+      "source_file": "ht_spider_img_keyword.txt",
+      "game_key": "ht",
+      "game_tag": "tower_of_fantasy",
+      "danbooru_tag": ""
+    },
+    "伊蕾娜": {
+      "source_file": "ht_spider_img_keyword.txt",
+      "game_key": "ht",
+      "game_tag": "tower_of_fantasy",
+      "danbooru_tag": "yilena_(tower_of_fantasy)"
+    },
+    "薇拉": {
+      "source_file": "ht_spider_img_keyword.txt",
+      "game_key": "ht",
+      "game_tag": "tower_of_fantasy",
+      "danbooru_tag": "vera_(tower_of_fantasy)"
+    },
+    "弗丽嘉": {
+      "source_file": "ht_spider_img_keyword.txt",
+      "game_key": "ht",
+      "game_tag": "tower_of_fantasy",
+      "danbooru_tag": "frigg_(tower_of_fantasy)"
+    },
+    "赛琳娜": {
+      "source_file": "ht_spider_img_keyword.txt",
+      "game_key": "ht",
+      "game_tag": "tower_of_fantasy",
+      "danbooru_tag": "serena_(tower_of_fantasy)"
+    },
+    "伊芙琳": {
+      "source_file": "ht_spider_img_keyword.txt",
+      "game_key": "ht",
+      "game_tag": "tower_of_fantasy",
+      "danbooru_tag": ""
+    },
+    "白月魁": {
+      "source_file": "ht_spider_img_keyword.txt",
+      "game_key": "ht",
+      "game_tag": "tower_of_fantasy",
+      "danbooru_tag": ""
+    },
+    "蕾蒂": {
+      "source_file": "ht_spider_img_keyword.txt",
+      "game_key": "ht",
+      "game_tag": "tower_of_fantasy",
+      "danbooru_tag": ""
+    },
+    "卡穆": {
+      "source_file": "ht_spider_img_keyword.txt",
+      "game_key": "ht",
+      "game_tag": "tower_of_fantasy",
+      "danbooru_tag": ""
+    },
+    "修玛": {
+      "source_file": "ht_spider_img_keyword.txt",
+      "game_key": "ht",
+      "game_tag": "tower_of_fantasy",
+      "danbooru_tag": "huma_(tower_of_fantasy)"
+    },
+    "芬璃尔": {
+      "source_file": "ht_spider_img_keyword.txt",
+      "game_key": "ht",
+      "game_tag": "tower_of_fantasy",
+      "danbooru_tag": "fenrir_(tower_of_fantasy)"
+    },
+    "布洛妮娅": {
+      "source_file": "6_honkai3_chinese_spider_img_keyword.txt",
+      "game_key": "honkai3",
+      "game_tag": "honkai_impact_3rd",
+      "danbooru_tag": "bronya_(honkai:_star_rail)"
+    },
+    "符华": {
+      "source_file": "6_honkai3_chinese_spider_img_keyword.txt",
+      "game_key": "honkai3",
+      "game_tag": "honkai_impact_3rd",
+      "danbooru_tag": "fu_hua_(honkai_impact_3rd)"
+    },
+    "希儿": {
+      "source_file": "6_honkai3_chinese_spider_img_keyword.txt",
+      "game_key": "honkai3",
+      "game_tag": "honkai_impact_3rd",
+      "danbooru_tag": "seele_(honkai:_star_rail)"
+    },
+    "格蕾修": {
+      "source_file": "6_honkai3_chinese_spider_img_keyword.txt",
+      "game_key": "honkai3",
+      "game_tag": "honkai_impact_3rd",
+      "danbooru_tag": "griseo_(honkai_impact_3rd)"
+    },
+    "丽塔": {
+      "source_file": "6_honkai3_chinese_spider_img_keyword.txt",
+      "game_key": "honkai3",
+      "game_tag": "honkai_impact_3rd",
+      "danbooru_tag": ""
+    },
+    "爱莉希雅": {
+      "source_file": "6_honkai3_chinese_spider_img_keyword.txt",
+      "game_key": "honkai3",
+      "game_tag": "honkai_impact_3rd",
+      "danbooru_tag": "elysia_(honkai_impact_3rd)"
+    },
+    "琪亚娜": {
+      "source_file": "6_honkai3_chinese_spider_img_keyword.txt",
+      "game_key": "honkai3",
+      "game_tag": "honkai_impact_3rd",
+      "danbooru_tag": "kiana_(honkai_impact_3rd)"
+    },
+    "雷电芽衣": {
+      "source_file": "6_honkai3_chinese_spider_img_keyword.txt",
+      "game_key": "honkai3",
+      "game_tag": "honkai_impact_3rd",
+      "danbooru_tag": "raiden_mei_(honkai_impact_3rd)"
+    },
+    "识之律者": {
+      "source_file": "6_honkai3_chinese_spider_img_keyword.txt",
+      "game_key": "honkai3",
+      "game_tag": "honkai_impact_3rd",
+      "danbooru_tag": "herrscher_of_sentience_(honkai_impact_3rd)"
+    },
+    "雷之律者": {
+      "source_file": "6_honkai3_chinese_spider_img_keyword.txt",
+      "game_key": "honkai3",
+      "game_tag": "honkai_impact_3rd",
+      "danbooru_tag": "herrscher_of_thunder_(honkai_impact_3rd)"
+    },
+    "空之律者": {
+      "source_file": "6_honkai3_chinese_spider_img_keyword.txt",
+      "game_key": "honkai3",
+      "game_tag": "honkai_impact_3rd",
+      "danbooru_tag": "herrscher_of_the_void_(honkai_impact_3rd)"
+    },
+    "死生之律者": {
+      "source_file": "6_honkai3_chinese_spider_img_keyword.txt",
+      "game_key": "honkai3",
+      "game_tag": "honkai_impact_3rd",
+      "danbooru_tag": "herrscher_of_death_(honkai_impact_3rd)"
+    },
+    "薪炎之律者": {
+      "source_file": "6_honkai3_chinese_spider_img_keyword.txt",
+      "game_key": "honkai3",
+      "game_tag": "honkai_impact_3rd",
+      "danbooru_tag": "herrscher_of_flamescion_(honkai_impact_3rd)"
+    },
+    "始源之律者": {
+      "source_file": "6_honkai3_chinese_spider_img_keyword.txt",
+      "game_key": "honkai3",
+      "game_tag": "honkai_impact_3rd",
+      "danbooru_tag": "herrscher_of_origin_(honkai_impact_3rd)"
+    },
+    "人之律者": {
+      "source_file": "6_honkai3_chinese_spider_img_keyword.txt",
+      "game_key": "honkai3",
+      "game_tag": "honkai_impact_3rd",
+      "danbooru_tag": "herrscher_of_human_(honkai_impact_3rd)"
+    },
+    "布洛妮娅·扎伊切克": {
+      "source_file": "6_honkai3_chinese_spider_img_keyword.txt",
+      "game_key": "honkai3",
+      "game_tag": "honkai_impact_3rd",
+      "danbooru_tag": "bronya_(honkai_impact_3rd)"
+    },
+    "无量塔姬子": {
+      "source_file": "6_honkai3_chinese_spider_img_keyword.txt",
+      "game_key": "honkai3",
+      "game_tag": "honkai_impact_3rd",
+      "danbooru_tag": "himeko_(honkai_impact_3rd)"
+    },
+    "八重樱": {
+      "source_file": "6_honkai3_chinese_spider_img_keyword.txt",
+      "game_key": "honkai3",
+      "game_tag": "honkai_impact_3rd",
+      "danbooru_tag": "yae_sakura_(honkai_impact_3rd)"
+    },
+    "德丽莎·阿波卡利斯": {
+      "source_file": "6_honkai3_chinese_spider_img_keyword.txt",
+      "game_key": "honkai3",
+      "game_tag": "honkai_impact_3rd",
+      "danbooru_tag": "theresa_(honkai_impact_3rd)"
+    },
+    "卡莲·卡斯兰娜": {
+      "source_file": "6_honkai3_chinese_spider_img_keyword.txt",
+      "game_key": "honkai3",
+      "game_tag": "honkai_impact_3rd",
+      "danbooru_tag": "kallen_(honkai_impact_3rd)"
+    },
+    "丽塔·洛丝薇瑟": {
+      "source_file": "6_honkai3_chinese_spider_img_keyword.txt",
+      "game_key": "honkai3",
+      "game_tag": "honkai_impact_3rd",
+      "danbooru_tag": "rita_(honkai_impact_3rd)"
+    },
+    "希儿·芙乐艾": {
+      "source_file": "6_honkai3_chinese_spider_img_keyword.txt",
+      "game_key": "honkai3",
+      "game_tag": "honkai_impact_3rd",
+      "danbooru_tag": "seele_(honkai_impact_3rd)"
+    },
+    "萝莎莉娅·阿琳": {
+      "source_file": "6_honkai3_chinese_spider_img_keyword.txt",
+      "game_key": "honkai3",
+      "game_tag": "honkai_impact_3rd",
+      "danbooru_tag": "rozaliya_(honkai_impact_3rd)"
+    },
+    "莉莉娅·阿琳": {
+      "source_file": "6_honkai3_chinese_spider_img_keyword.txt",
+      "game_key": "honkai3",
+      "game_tag": "honkai_impact_3rd",
+      "danbooru_tag": "liliya_(honkai_impact_3rd)"
+    },
+    "时雨绮罗": {
+      "source_file": "6_honkai3_chinese_spider_img_keyword.txt",
+      "game_key": "honkai3",
+      "game_tag": "honkai_impact_3rd",
+      "danbooru_tag": "shigure_kira_(honkai_impact_3rd)"
+    },
+    "普罗米修斯": {
+      "source_file": "6_honkai3_chinese_spider_img_keyword.txt",
+      "game_key": "honkai3",
+      "game_tag": "honkai_impact_3rd",
+      "danbooru_tag": "prometheus_(honkai_impact_3rd)"
+    },
+    "米丝忒琳·沙尼亚特": {
+      "source_file": "6_honkai3_chinese_spider_img_keyword.txt",
+      "game_key": "honkai3",
+      "game_tag": "honkai_impact_3rd",
+      "danbooru_tag": "misteln_(honkai_impact_3rd)"
+    },
+    "苏莎娜": {
+      "source_file": "6_honkai3_chinese_spider_img_keyword.txt",
+      "game_key": "honkai3",
+      "game_tag": "honkai_impact_3rd",
+      "danbooru_tag": "susannah_(honkai_impact_3rd)"
+    },
+    "爱衣·休伯利安Λ": {
+      "source_file": "6_honkai3_chinese_spider_img_keyword.txt",
+      "game_key": "honkai3",
+      "game_tag": "honkai_impact_3rd",
+      "danbooru_tag": "ai_(honkai_impact_3rd)"
+    },
+    "李素裳": {
+      "source_file": "6_honkai3_chinese_spider_img_keyword.txt",
+      "game_key": "honkai3",
+      "game_tag": "honkai_impact_3rd",
+      "danbooru_tag": "li_sushang_(honkai_impact_3rd)"
+    },
+    "维尔薇": {
+      "source_file": "6_honkai3_chinese_spider_img_keyword.txt",
+      "game_key": "honkai3",
+      "game_tag": "honkai_impact_3rd",
+      "danbooru_tag": "vill-v_(honkai_impact_3rd)"
+    },
+    "梅比乌斯": {
+      "source_file": "6_honkai3_chinese_spider_img_keyword.txt",
+      "game_key": "honkai3",
+      "game_tag": "honkai_impact_3rd",
+      "danbooru_tag": "mobius_(honkai_impact_3rd)"
+    },
+    "帕朵菲莉丝": {
+      "source_file": "6_honkai3_chinese_spider_img_keyword.txt",
+      "game_key": "honkai3",
+      "game_tag": "honkai_impact_3rd",
+      "danbooru_tag": "pardofelis_(honkai_impact_3rd)"
+    },
+    "阿波尼亚": {
+      "source_file": "6_honkai3_chinese_spider_img_keyword.txt",
+      "game_key": "honkai3",
+      "game_tag": "honkai_impact_3rd",
+      "danbooru_tag": "aponia_(honkai_impact_3rd)"
+    },
+    "伊甸": {
+      "source_file": "6_honkai3_chinese_spider_img_keyword.txt",
+      "game_key": "honkai3",
+      "game_tag": "honkai_impact_3rd",
+      "danbooru_tag": "eden_(honkai_impact_3rd)"
+    },
+    "比安卡·幽兰黛尔·阿塔吉娜": {
+      "source_file": "6_honkai3_chinese_spider_img_keyword.txt",
+      "game_key": "honkai3",
+      "game_tag": "honkai_impact_3rd",
+      "danbooru_tag": "biana_youlandeier_altjina_(honkai_impact_3rd)"
+    },
+    "式波·明日香·兰格雷": {
+      "source_file": "6_honkai3_chinese_spider_img_keyword.txt",
+      "game_key": "honkai3",
+      "game_tag": "honkai_impact_3rd",
+      "danbooru_tag": "asuka_langley_(honkai_impact_3rd)"
+    },
+    "娜塔莎·希奥拉": {
+      "source_file": "6_honkai3_chinese_spider_img_keyword.txt",
+      "game_key": "honkai3",
+      "game_tag": "honkai_impact_3rd",
+      "danbooru_tag": "natasha_ciora_(honkai_impact_3rd)"
+    },
+    "卡萝尔·佩珀": {
+      "source_file": "6_honkai3_chinese_spider_img_keyword.txt",
+      "game_key": "honkai3",
+      "game_tag": "honkai_impact_3rd",
+      "danbooru_tag": "carol_pepper_(honkai_impact_3rd)"
+    },
+    "秧秧": {
+      "source_file": "mc_spider_img_keyword.txt",
+      "game_key": "mc",
+      "game_tag": "wuthering_waves",
+      "danbooru_tag": "yangyang_(wuthering_waves)"
+    },
+    "安可": {
+      "source_file": "mc_spider_img_keyword.txt",
+      "game_key": "mc",
+      "game_tag": "wuthering_waves",
+      "danbooru_tag": "encore_(wuthering_waves)"
+    },
+    "炽霞": {
+      "source_file": "mc_spider_img_keyword.txt",
+      "game_key": "mc",
+      "game_tag": "wuthering_waves",
+      "danbooru_tag": "chixia_(wuthering_waves)"
+    },
+    "丹瑾": {
+      "source_file": "mc_spider_img_keyword.txt",
+      "game_key": "mc",
+      "game_tag": "wuthering_waves",
+      "danbooru_tag": "danjin_(wuthering_waves)"
+    },
+    "白芷": {
+      "source_file": "mc_spider_img_keyword.txt",
+      "game_key": "mc",
+      "game_tag": "wuthering_waves",
+      "danbooru_tag": "baizhi_(wuthering_waves)"
+    },
+    "散华": {
+      "source_file": "mc_spider_img_keyword.txt",
+      "game_key": "mc",
+      "game_tag": "wuthering_waves",
+      "danbooru_tag": "sanhua_(wuthering_waves)"
+    },
+    "维里奈": {
+      "source_file": "mc_spider_img_keyword.txt",
+      "game_key": "mc",
+      "game_tag": "wuthering_waves",
+      "danbooru_tag": "verina_(wuthering_waves)"
+    },
+    "今汐": {
+      "source_file": "mc_spider_img_keyword.txt",
+      "game_key": "mc",
+      "game_tag": "wuthering_waves",
+      "danbooru_tag": "jinhsi_(wuthering_waves)"
+    },
+    "长离": {
+      "source_file": "mc_spider_img_keyword.txt",
+      "game_key": "mc",
+      "game_tag": "wuthering_waves",
+      "danbooru_tag": "changli_(wuthering_waves)"
+    },
+    "吟霖": {
+      "source_file": "mc_spider_img_keyword.txt",
+      "game_key": "mc",
+      "game_tag": "wuthering_waves",
+      "danbooru_tag": "yinlin_(wuthering_waves)"
+    },
+    "漂泊者": {
+      "source_file": "mc_spider_img_keyword.txt",
+      "game_key": "mc",
+      "game_tag": "wuthering_waves",
+      "danbooru_tag": "rover_(wuthering_waves)"
+    },
+    "桃祈": {
+      "source_file": "mc_spider_img_keyword.txt",
+      "game_key": "mc",
+      "game_tag": "wuthering_waves",
+      "danbooru_tag": "taoqi_(wuthering_waves)"
+    },
+    "鉴心": {
+      "source_file": "mc_spider_img_keyword.txt",
+      "game_key": "mc",
+      "game_tag": "wuthering_waves",
+      "danbooru_tag": "jianxin_(wuthering_waves)"
+    },
+    "卡提希娅": {
+      "source_file": "mc_spider_img_keyword.txt",
+      "game_key": "mc",
+      "game_tag": "wuthering_waves",
+      "danbooru_tag": "carthya_(wuthering_waves)"
+    },
+    "爱弥斯": {
+      "source_file": "mc_spider_img_keyword.txt",
+      "game_key": "mc",
+      "game_tag": "wuthering_waves",
+      "danbooru_tag": "aix_(wuthering_waves)"
+    },
+    "绯雪": {
+      "source_file": "mc_spider_img_keyword.txt",
+      "game_key": "mc",
+      "game_tag": "wuthering_waves",
+      "danbooru_tag": "feixue_(wuthering_waves)"
+    },
+    "洛可可": {
+      "source_file": "mc_spider_img_keyword.txt",
+      "game_key": "mc",
+      "game_tag": "wuthering_waves",
+      "danbooru_tag": "roccoco_(wuthering_waves)"
+    },
+    "菲比": {
+      "source_file": "mc_spider_img_keyword.txt",
+      "game_key": "mc",
+      "game_tag": "wuthering_waves",
+      "danbooru_tag": "fifi_(wuthering_waves)"
+    },
+    "珂莱塔": {
+      "source_file": "mc_spider_img_keyword.txt",
+      "game_key": "mc",
+      "game_tag": "wuthering_waves",
+      "danbooru_tag": "carlotta_(wuthering_waves)"
+    },
+    "釉瑚": {
+      "source_file": "mc_spider_img_keyword.txt",
+      "game_key": "mc",
+      "game_tag": "wuthering_waves",
+      "danbooru_tag": "youhu_(wuthering_waves)"
+    },
+    "莫宁": {
+      "source_file": "mc_spider_img_keyword.txt",
+      "game_key": "mc",
+      "game_tag": "wuthering_waves",
+      "danbooru_tag": "moning_(wuthering_waves)"
+    },
+    "洛瑟拉": {
+      "source_file": "mc_spider_img_keyword.txt",
+      "game_key": "mc",
+      "game_tag": "wuthering_waves",
+      "danbooru_tag": "roscella_(wuthering_waves)"
+    },
+    "琳奈": {
+      "source_file": "mc_spider_img_keyword.txt",
+      "game_key": "mc",
+      "game_tag": "wuthering_waves",
+      "danbooru_tag": "linne_(wuthering_waves)"
+    },
+    "守岸人": {
+      "source_file": "mc_spider_img_keyword.txt",
+      "game_key": "mc",
+      "game_tag": "wuthering_waves",
+      "danbooru_tag": "shorekeeper_(wuthering_waves)"
+    },
+    "达妮娅": {
+      "source_file": "mc_spider_img_keyword.txt",
+      "game_key": "mc",
+      "game_tag": "wuthering_waves",
+      "danbooru_tag": "dania_(wuthering_waves)"
+    },
+    "西格莉卡": {
+      "source_file": "mc_spider_img_keyword.txt",
+      "game_key": "mc",
+      "game_tag": "wuthering_waves",
+      "danbooru_tag": "siglika_(wuthering_waves)"
+    },
+    "丽贝卡": {
+      "source_file": "mc_spider_img_keyword.txt",
+      "game_key": "mc",
+      "game_tag": "wuthering_waves",
+      "danbooru_tag": "rebecca_(wuthering_waves)"
+    },
+    "露西": {
+      "source_file": "mc_spider_img_keyword.txt",
+      "game_key": "mc",
+      "game_tag": "wuthering_waves",
+      "danbooru_tag": "lucy_(wuthering_waves)"
+    },
+    "弗洛洛": {
+      "source_file": "mc_spider_img_keyword.txt",
+      "game_key": "mc",
+      "game_tag": "wuthering_waves",
+      "danbooru_tag": "phrololo_(wuthering_waves)"
+    },
+    "嘉贝莉娜": {
+      "source_file": "mc_spider_img_keyword.txt",
+      "game_key": "mc",
+      "game_tag": "wuthering_waves",
+      "danbooru_tag": "gabriel_(wuthering_waves)"
+    },
+    "奥古斯塔": {
+      "source_file": "mc_spider_img_keyword.txt",
+      "game_key": "mc",
+      "game_tag": "wuthering_waves",
+      "danbooru_tag": "augusta_(wuthering_waves)"
+    },
+    "尤诺": {
+      "source_file": "mc_spider_img_keyword.txt",
+      "game_key": "mc",
+      "game_tag": "wuthering_waves",
+      "danbooru_tag": "yuno_(wuthering_waves)"
+    },
+    "赞妮": {
+      "source_file": "mc_spider_img_keyword.txt",
+      "game_key": "mc",
+      "game_tag": "wuthering_waves",
+      "danbooru_tag": "zani_(wuthering_waves)"
+    },
+    "坎特蕾拉": {
+      "source_file": "mc_spider_img_keyword.txt",
+      "game_key": "mc",
+      "game_tag": "wuthering_waves",
+      "danbooru_tag": "cantarella_(wuthering_waves)"
+    },
+    "露帕": {
+      "source_file": "mc_spider_img_keyword.txt",
+      "game_key": "mc",
+      "game_tag": "wuthering_waves",
+      "danbooru_tag": "lupa_(wuthering_waves)"
+    },
+    "夏空": {
+      "source_file": "mc_spider_img_keyword.txt",
+      "game_key": "mc",
+      "game_tag": "wuthering_waves",
+      "danbooru_tag": "xiakong_(wuthering_waves)"
+    },
+    "椿": {
+      "source_file": "mc_spider_img_keyword.txt",
+      "game_key": "mc",
+      "game_tag": "wuthering_waves",
+      "danbooru_tag": "tsubaki_(wuthering_waves)"
+    },
+    "灯灯": {
+      "source_file": "mc_spider_img_keyword.txt",
+      "game_key": "mc",
+      "game_tag": "wuthering_waves",
+      "danbooru_tag": "dengdeng_(wuthering_waves)"
+    },
+    "朝武芳乃": {
+      "source_file": "qlwh_spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": "yoshino_(k_o_u_s_h_i_k_i)"
+    },
+    "常陆茉子": {
+      "source_file": "qlwh_spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": "maiko_(k_o_u_s_h_i_k_i)"
+    },
+    "丛雨": {
+      "source_file": "qlwh_spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "蕾娜·列支敦瑙尔": {
+      "source_file": "qlwh_spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "伊莉雅": {
+      "source_file": "qlwh_spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "莉格露": {
+      "source_file": "qlwh_spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "春希": {
+      "source_file": "qlwh_spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "夏树": {
+      "source_file": "qlwh_spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "奈·绪方": {
+      "source_file": "qlwh_spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "宫泽谦吾": {
+      "source_file": "qlwh_spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "柚子": {
+      "source_file": "qlwh_spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": "yuzu_(blue_archive)"
+    },
+    "小春": {
+      "source_file": "qlwh_spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "神崎堇": {
+      "source_file": "qlwh_spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "成濑川奈·美": {
+      "source_file": "qlwh_spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "成濑川雏子": {
+      "source_file": "qlwh_spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "相模兰": {
+      "source_file": "qlwh_spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "相模绫": {
+      "source_file": "qlwh_spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "相模茜": {
+      "source_file": "qlwh_spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "相模朱": {
+      "source_file": "qlwh_spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "相模枫": {
+      "source_file": "qlwh_spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "相模桂": {
+      "source_file": "qlwh_spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "相模椿": {
+      "source_file": "qlwh_spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "相模栞": {
+      "source_file": "qlwh_spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "相模桧": {
+      "source_file": "qlwh_spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "相模樱": {
+      "source_file": "qlwh_spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "相模桃": {
+      "source_file": "qlwh_spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "相模李": {
+      "source_file": "qlwh_spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "相模梅": {
+      "source_file": "qlwh_spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "相模杏": {
+      "source_file": "qlwh_spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "相模梨": {
+      "source_file": "qlwh_spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "相模柊": {
+      "source_file": "qlwh_spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "相模棹": {
+      "source_file": "qlwh_spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "相模桀": {
+      "source_file": "qlwh_spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "相模槙": {
+      "source_file": "qlwh_spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "相模桜": {
+      "source_file": "qlwh_spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "初音未来": {
+      "source_file": "1_p_top_spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": "hatsune_miku"
+    },
+    "芙莉莲": {
+      "source_file": "1_p_top_spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": "frieren_(sousou_no_frieren)"
+    },
+    "菲伦": {
+      "source_file": "1_p_top_spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": "fern_(sousou_no_frieren)"
+    },
+    "空崎日奈": {
+      "source_file": "1_p_top_spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": "hina_(blue_archive)"
+    },
+    "芙宁娜": {
+      "source_file": "1_p_top_spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": "furina_(genshin_impact)"
+    },
+    "小鸟游星野": {
+      "source_file": "1_p_top_spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": "hoshino_(blue_archive)"
+    },
+    "鬼方佳代子": {
+      "source_file": "1_p_top_spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": "kayoko_(blue_archive)"
+    },
+    "早濑优香": {
+      "source_file": "1_p_top_spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": "yuuka_(blue_archive)"
+    },
+    "博丽灵梦": {
+      "source_file": "1_p_top_spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": "hakurei_reimu"
+    },
+    "后藤一里": {
+      "source_file": "1_p_top_spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": "gouto_hitori_(bocchi_the_rock)"
+    },
+    "花火": {
+      "source_file": "1_p_top_spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": "sparkle_(honkai:_star_rail)"
+    },
+    "天雨亚子": {
+      "source_file": "1_p_top_spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": "ako_(blue_archive)"
+    },
+    "星街彗星": {
+      "source_file": "1_p_top_spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": "hoshimachi_suisei"
+    },
+    "陆八魔爱露": {
+      "source_file": "1_p_top_spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": "aru_(blue_archive)"
+    },
+    "雾雨魔理沙": {
+      "source_file": "1_p_top_spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": "marisa_kirisame"
+    },
+    "芙兰朵露": {
+      "source_file": "1_p_top_spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": "frandre_scarlet"
+    },
+    "甘雨": {
+      "source_file": "1_p_top_spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": "ganyu_(genshin_impact)"
+    },
+    "一之濑明日奈": {
+      "source_file": "1_p_top_spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": "asuna_(blue_archive)"
+    },
+    "流萤": {
+      "source_file": "1_p_top_spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": "firefly_(honkai:_star_rail)"
+    },
+    "砂狼白子": {
+      "source_file": "1_p_top_spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": "shiroko_(blue_archive)"
+    },
+    "巴尔泽布": {
+      "source_file": "1_p_top_spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "圣园未花": {
+      "source_file": "1_p_top_spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": "mika_(blue_archive)"
+    },
+    "宝钟玛琳": {
+      "source_file": "1_p_top_spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": "houshou_marine"
+    },
+    "荧": {
+      "source_file": "1_p_top_spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": "lumine_(genshin_impact)"
+    },
+    "天童爱丽丝": {
+      "source_file": "1_p_top_spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": "aris_(blue_archive)"
+    },
+    "纳西妲": {
+      "source_file": "1_p_top_spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": "nahida_(genshin_impact)"
+    },
+    "杏山和纱": {
+      "source_file": "1_p_top_spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": "kazusa_(blue_archive)"
+    },
+    "尤贝尔": {
+      "source_file": "1_p_top_spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": "uvel_(sousou_no_frieren)"
+    },
+    "古明地恋": {
+      "source_file": "1_p_top_spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": "komeiji_koishi"
+    },
+    "犬饲小麦": {
+      "source_file": "1_p_top_spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": "inu_kogal"
+    },
+    "铃": {
+      "source_file": "zzz_spider_img_keyword.txt",
+      "game_key": "zzz",
+      "game_tag": "zenless_zone_zero",
+      "danbooru_tag": "ring_(zenless_zone_zero)"
+    },
+    "零号": {
+      "source_file": "zzz_spider_img_keyword.txt",
+      "game_key": "zzz",
+      "game_tag": "zenless_zone_zero",
+      "danbooru_tag": "zero_(zenless_zone_zero)"
+    },
+    "猫宫又奈": {
+      "source_file": "zzz_spider_img_keyword.txt",
+      "game_key": "zzz",
+      "game_tag": "zenless_zone_zero",
+      "danbooru_tag": "nekomiya_(zenless_zone_zero)"
+    },
+    "猫又": {
+      "source_file": "zzz_spider_img_keyword.txt",
+      "game_key": "zzz",
+      "game_tag": "zenless_zone_zero",
+      "danbooru_tag": "nekomata_(zenless_zone_zero)"
+    },
+    "妮可•德玛拉": {
+      "source_file": "zzz_spider_img_keyword.txt",
+      "game_key": "zzz",
+      "game_tag": "zenless_zone_zero",
+      "danbooru_tag": ""
+    },
+    "格莉丝•霍华德": {
+      "source_file": "zzz_spider_img_keyword.txt",
+      "game_key": "zzz",
+      "game_tag": "zenless_zone_zero",
+      "danbooru_tag": ""
+    },
+    "珂蕾妲•贝洛伯格": {
+      "source_file": "zzz_spider_img_keyword.txt",
+      "game_key": "zzz",
+      "game_tag": "zenless_zone_zero",
+      "danbooru_tag": ""
+    },
+    "柏妮思•怀特": {
+      "source_file": "zzz_spider_img_keyword.txt",
+      "game_key": "zzz",
+      "game_tag": "zenless_zone_zero",
+      "danbooru_tag": ""
+    },
+    "凯撒•金": {
+      "source_file": "zzz_spider_img_keyword.txt",
+      "game_key": "zzz",
+      "game_tag": "zenless_zone_zero",
+      "danbooru_tag": ""
+    },
+    "莱特": {
+      "source_file": "zzz_spider_img_keyword.txt",
+      "game_key": "zzz",
+      "game_tag": "zenless_zone_zero",
+      "danbooru_tag": "lycaon_(zenless_zone_zero)"
+    },
+    "露西亚娜•奥克希斯•提奥多•德•蒙特夫": {
+      "source_file": "zzz_spider_img_keyword.txt",
+      "game_key": "zzz",
+      "game_tag": "zenless_zone_zero",
+      "danbooru_tag": ""
+    },
+    "派派•韦尔": {
+      "source_file": "zzz_spider_img_keyword.txt",
+      "game_key": "zzz",
+      "game_tag": "zenless_zone_zero",
+      "danbooru_tag": ""
+    },
+    "波可娜•费雷尼": {
+      "source_file": "zzz_spider_img_keyword.txt",
+      "game_key": "zzz",
+      "game_tag": "zenless_zone_zero",
+      "danbooru_tag": ""
+    },
+    "雨果•维拉德": {
+      "source_file": "zzz_spider_img_keyword.txt",
+      "game_key": "zzz",
+      "game_tag": "zenless_zone_zero",
+      "danbooru_tag": ""
+    },
+    "薇薇安•班希": {
+      "source_file": "zzz_spider_img_keyword.txt",
+      "game_key": "zzz",
+      "game_tag": "zenless_zone_zero",
+      "danbooru_tag": ""
+    },
+    "爱丽丝・泰姆菲尔德": {
+      "source_file": "zzz_spider_img_keyword.txt",
+      "game_key": "zzz",
+      "game_tag": "zenless_zone_zero",
+      "danbooru_tag": ""
+    },
+    "狛野真斗": {
+      "source_file": "zzz_spider_img_keyword.txt",
+      "game_key": "zzz",
+      "game_tag": "zenless_zone_zero",
+      "danbooru_tag": "...(zenless_zone_zero)"
+    },
+    "卢西娅・艾洛温": {
+      "source_file": "zzz_spider_img_keyword.txt",
+      "game_key": "zzz",
+      "game_tag": "zenless_zone_zero",
+      "danbooru_tag": ""
+    },
+    "浮波柚叶": {
+      "source_file": "zzz_spider_img_keyword.txt",
+      "game_key": "zzz",
+      "game_tag": "zenless_zone_zero",
+      "danbooru_tag": "...(zenless_zone_zero)"
+    },
+    "伊德海莉・墨菲": {
+      "source_file": "zzz_spider_img_keyword.txt",
+      "game_key": "zzz",
+      "game_tag": "zenless_zone_zero",
+      "danbooru_tag": ""
+    },
+    "爱芮": {
+      "source_file": "zzz_spider_img_keyword.txt",
+      "game_key": "zzz",
+      "game_tag": "zenless_zone_zero",
+      "danbooru_tag": "erii_(zenless_zone_zero)"
+    },
+    "南宫羽": {
+      "source_file": "zzz_spider_img_keyword.txt",
+      "game_key": "zzz",
+      "game_tag": "zenless_zone_zero",
+      "danbooru_tag": "mikuni_(zenless_zone_zero)"
+    },
+    "千夏": {
+      "source_file": "zzz_spider_img_keyword.txt",
+      "game_key": "zzz",
+      "game_tag": "zenless_zone_zero",
+      "danbooru_tag": "chinatsu_(zenless_zone_zero)"
+    },
+    "亚历山德丽娜•莎芭丝缇安": {
+      "source_file": "zzz_spider_img_keyword.txt",
+      "game_key": "zzz",
+      "game_tag": "zenless_zone_zero",
+      "danbooru_tag": ""
+    },
+    "可琳•威克斯": {
+      "source_file": "zzz_spider_img_keyword.txt",
+      "game_key": "zzz",
+      "game_tag": "zenless_zone_zero",
+      "danbooru_tag": ""
+    },
+    "艾莲•乔": {
+      "source_file": "zzz_spider_img_keyword.txt",
+      "game_key": "zzz",
+      "game_tag": "zenless_zone_zero",
+      "danbooru_tag": ""
+    },
+    "冯•莱卡恩": {
+      "source_file": "zzz_spider_img_keyword.txt",
+      "game_key": "zzz",
+      "game_tag": "zenless_zone_zero",
+      "danbooru_tag": ""
+    },
+    "简•杜": {
+      "source_file": "zzz_spider_img_keyword.txt",
+      "game_key": "zzz",
+      "game_tag": "zenless_zone_zero",
+      "danbooru_tag": ""
+    },
+    "青衣": {
+      "source_file": "zzz_spider_img_keyword.txt",
+      "game_key": "zzz",
+      "game_tag": "zenless_zone_zero",
+      "danbooru_tag": "qingyi_(zenless_zone_zero)"
+    },
+    "赛斯•洛威尔": {
+      "source_file": "zzz_spider_img_keyword.txt",
+      "game_key": "zzz",
+      "game_tag": "zenless_zone_zero",
+      "danbooru_tag": ""
+    },
+    "朱鸢": {
+      "source_file": "zzz_spider_img_keyword.txt",
+      "game_key": "zzz",
+      "game_tag": "zenless_zone_zero",
+      "danbooru_tag": "zhu_yuan_(zenless_zone_zero)"
+    },
+    "希希芙": {
+      "source_file": "zzz_spider_img_keyword.txt",
+      "game_key": "zzz",
+      "game_tag": "zenless_zone_zero",
+      "danbooru_tag": "...(zenless_zone_zero)"
+    },
+    "星见雅": {
+      "source_file": "zzz_spider_img_keyword.txt",
+      "game_key": "zzz",
+      "game_tag": "zenless_zone_zero",
+      "danbooru_tag": "yanagi_(zenless_zone_zero)"
+    },
+    "苍角": {
+      "source_file": "zzz_spider_img_keyword.txt",
+      "game_key": "zzz",
+      "game_tag": "zenless_zone_zero",
+      "danbooru_tag": "sokaku_(zenless_zone_zero)"
+    },
+    "月城柳": {
+      "source_file": "zzz_spider_img_keyword.txt",
+      "game_key": "zzz",
+      "game_tag": "zenless_zone_zero",
+      "danbooru_tag": "yanagi_(zenless_zone_zero)"
+    },
+    "奥菲丝・马格努森": {
+      "source_file": "zzz_spider_img_keyword.txt",
+      "game_key": "zzz",
+      "game_tag": "zenless_zone_zero",
+      "danbooru_tag": ""
+    },
+    "鬼火": {
+      "source_file": "zzz_spider_img_keyword.txt",
+      "game_key": "zzz",
+      "game_tag": "zenless_zone_zero",
+      "danbooru_tag": ""
+    },
+    "奥菲丝": {
+      "source_file": "zzz_spider_img_keyword.txt",
+      "game_key": "zzz",
+      "game_tag": "zenless_zone_zero",
+      "danbooru_tag": "anby_(zenless_zone_zero)"
+    },
+    "席德": {
+      "source_file": "zzz_spider_img_keyword.txt",
+      "game_key": "zzz",
+      "game_tag": "zenless_zone_zero",
+      "danbooru_tag": ""
+    },
+    "芙罗拉": {
+      "source_file": "zzz_spider_img_keyword.txt",
+      "game_key": "zzz",
+      "game_tag": "zenless_zone_zero",
+      "danbooru_tag": ""
+    },
+    "老席德": {
+      "source_file": "zzz_spider_img_keyword.txt",
+      "game_key": "zzz",
+      "game_tag": "zenless_zone_zero",
+      "danbooru_tag": ""
+    },
+    "11号": {
+      "source_file": "zzz_spider_img_keyword.txt",
+      "game_key": "zzz",
+      "game_tag": "zenless_zone_zero",
+      "danbooru_tag": "soldier_11_(zenless_zone_zero)"
+    },
+    "夏潾": {
+      "source_file": "zzz_spider_img_keyword.txt",
+      "game_key": "zzz",
+      "game_tag": "zenless_zone_zero",
+      "danbooru_tag": ""
+    },
+    "扳机": {
+      "source_file": "zzz_spider_img_keyword.txt",
+      "game_key": "zzz",
+      "game_tag": "zenless_zone_zero",
+      "danbooru_tag": "trigger_(zenless_zone_zero)"
+    },
+    "橘福福": {
+      "source_file": "zzz_spider_img_keyword.txt",
+      "game_key": "zzz",
+      "game_tag": "zenless_zone_zero",
+      "danbooru_tag": "...(zenless_zone_zero)"
+    },
+    "潘引壶": {
+      "source_file": "zzz_spider_img_keyword.txt",
+      "game_key": "zzz",
+      "game_tag": "zenless_zone_zero",
+      "danbooru_tag": "...(zenless_zone_zero)"
+    },
+    "叶瞬光": {
+      "source_file": "zzz_spider_img_keyword.txt",
+      "game_key": "zzz",
+      "game_tag": "zenless_zone_zero",
+      "danbooru_tag": "...(zenless_zone_zero)"
+    },
+    "仪玄": {
+      "source_file": "zzz_spider_img_keyword.txt",
+      "game_key": "zzz",
+      "game_tag": "zenless_zone_zero",
+      "danbooru_tag": "...(zenless_zone_zero)"
+    },
+    "般岳": {
+      "source_file": "zzz_spider_img_keyword.txt",
+      "game_key": "zzz",
+      "game_tag": "zenless_zone_zero",
+      "danbooru_tag": "...(zenless_zone_zero)"
+    },
+    "琉音": {
+      "source_file": "zzz_spider_img_keyword.txt",
+      "game_key": "zzz",
+      "game_tag": "zenless_zone_zero",
+      "danbooru_tag": "...(zenless_zone_zero)"
+    },
+    "普罗米娅": {
+      "source_file": "zzz_spider_img_keyword.txt",
+      "game_key": "zzz",
+      "game_tag": "zenless_zone_zero",
+      "danbooru_tag": ""
+    },
+    "照": {
+      "source_file": "zzz_spider_img_keyword.txt",
+      "game_key": "zzz",
+      "game_tag": "zenless_zone_zero",
+      "danbooru_tag": ""
+    },
+    "耀嘉音": {
+      "source_file": "zzz_spider_img_keyword.txt",
+      "game_key": "zzz",
+      "game_tag": "zenless_zone_zero",
+      "danbooru_tag": ""
+    },
+    "伊芙琳•舒瓦利耶": {
+      "source_file": "zzz_spider_img_keyword.txt",
+      "game_key": "zzz",
+      "game_tag": "zenless_zone_zero",
+      "danbooru_tag": ""
+    },
+    "诺姆・霍洛维尔": {
+      "source_file": "zzz_spider_img_keyword.txt",
+      "game_key": "zzz",
+      "game_tag": "zenless_zone_zero",
+      "danbooru_tag": ""
+    },
+    "维琳娜・艾嘉德": {
+      "source_file": "zzz_spider_img_keyword.txt",
+      "game_key": "zzz",
+      "game_tag": "zenless_zone_zero",
+      "danbooru_tag": ""
+    },
+    "琴": {
+      "source_file": "1_genshin_chinese_spider_img_keyword.txt",
+      "game_key": "genshin",
+      "game_tag": "genshin_impact",
+      "danbooru_tag": "jean_(genshin_impact)"
+    },
+    "安柏": {
+      "source_file": "1_genshin_chinese_spider_img_keyword.txt",
+      "game_key": "genshin",
+      "game_tag": "genshin_impact",
+      "danbooru_tag": "amber_(genshin_impact)"
+    },
+    "丽莎": {
+      "source_file": "1_genshin_chinese_spider_img_keyword.txt",
+      "game_key": "genshin",
+      "game_tag": "genshin_impact",
+      "danbooru_tag": "lisa_(genshin_impact)"
+    },
+    "芭芭拉": {
+      "source_file": "1_genshin_chinese_spider_img_keyword.txt",
+      "game_key": "genshin",
+      "game_tag": "genshin_impact",
+      "danbooru_tag": "barbara_(genshin_impact)"
+    },
+    "可莉": {
+      "source_file": "1_genshin_chinese_spider_img_keyword.txt",
+      "game_key": "genshin",
+      "game_tag": "genshin_impact",
+      "danbooru_tag": "klee_(genshin_impact)"
+    },
+    "诺艾尔": {
+      "source_file": "1_genshin_chinese_spider_img_keyword.txt",
+      "game_key": "genshin",
+      "game_tag": "genshin_impact",
+      "danbooru_tag": "noelle_(genshin_impact)"
+    },
+    "菲谢尔": {
+      "source_file": "1_genshin_chinese_spider_img_keyword.txt",
+      "game_key": "genshin",
+      "game_tag": "genshin_impact",
+      "danbooru_tag": "fischl_(genshin_impact)"
+    },
+    "砂糖": {
+      "source_file": "1_genshin_chinese_spider_img_keyword.txt",
+      "game_key": "genshin",
+      "game_tag": "genshin_impact",
+      "danbooru_tag": "sucrose_(genshin_impact)"
+    },
+    "莫娜": {
+      "source_file": "1_genshin_chinese_spider_img_keyword.txt",
+      "game_key": "genshin",
+      "game_tag": "genshin_impact",
+      "danbooru_tag": "mona_(genshin_impact)"
+    },
+    "迪奥娜": {
+      "source_file": "1_genshin_chinese_spider_img_keyword.txt",
+      "game_key": "genshin",
+      "game_tag": "genshin_impact",
+      "danbooru_tag": "diona_(genshin_impact)"
+    },
+    "罗莎莉亚": {
+      "source_file": "1_genshin_chinese_spider_img_keyword.txt",
+      "game_key": "genshin",
+      "game_tag": "genshin_impact",
+      "danbooru_tag": "rosaria_(genshin_impact)"
+    },
+    "优菈": {
+      "source_file": "1_genshin_chinese_spider_img_keyword.txt",
+      "game_key": "genshin",
+      "game_tag": "genshin_impact",
+      "danbooru_tag": "eula_(genshin_impact)"
+    },
+    "闲云": {
+      "source_file": "1_genshin_chinese_spider_img_keyword.txt",
+      "game_key": "genshin",
+      "game_tag": "genshin_impact",
+      "danbooru_tag": "xianyun_(genshin_impact)"
+    },
+    "瑶瑶": {
+      "source_file": "1_genshin_chinese_spider_img_keyword.txt",
+      "game_key": "genshin",
+      "game_tag": "genshin_impact",
+      "danbooru_tag": "yaoyao_(genshin_impact)"
+    },
+    "夜兰": {
+      "source_file": "1_genshin_chinese_spider_img_keyword.txt",
+      "game_key": "genshin",
+      "game_tag": "genshin_impact",
+      "danbooru_tag": "yelan_(genshin_impact)"
+    },
+    "申鹤": {
+      "source_file": "1_genshin_chinese_spider_img_keyword.txt",
+      "game_key": "genshin",
+      "game_tag": "genshin_impact",
+      "danbooru_tag": "shenhe_(genshin_impact)"
+    },
+    "云堇": {
+      "source_file": "1_genshin_chinese_spider_img_keyword.txt",
+      "game_key": "genshin",
+      "game_tag": "genshin_impact",
+      "danbooru_tag": "yunjin_(genshin_impact)"
+    },
+    "北斗": {
+      "source_file": "1_genshin_chinese_spider_img_keyword.txt",
+      "game_key": "genshin",
+      "game_tag": "genshin_impact",
+      "danbooru_tag": "beidou_(genshin_impact)"
+    },
+    "凝光": {
+      "source_file": "1_genshin_chinese_spider_img_keyword.txt",
+      "game_key": "genshin",
+      "game_tag": "genshin_impact",
+      "danbooru_tag": "ningguang_(genshin_impact)"
+    },
+    "香菱": {
+      "source_file": "1_genshin_chinese_spider_img_keyword.txt",
+      "game_key": "genshin",
+      "game_tag": "genshin_impact",
+      "danbooru_tag": "xiangling_(genshin_impact)"
+    },
+    "刻晴": {
+      "source_file": "1_genshin_chinese_spider_img_keyword.txt",
+      "game_key": "genshin",
+      "game_tag": "genshin_impact",
+      "danbooru_tag": "keqing_(genshin_impact)"
+    },
+    "七七": {
+      "source_file": "1_genshin_chinese_spider_img_keyword.txt",
+      "game_key": "genshin",
+      "game_tag": "genshin_impact",
+      "danbooru_tag": "qiqi_(genshin_impact)"
+    },
+    "辛焱": {
+      "source_file": "1_genshin_chinese_spider_img_keyword.txt",
+      "game_key": "genshin",
+      "game_tag": "genshin_impact",
+      "danbooru_tag": "xinyan_(genshin_impact)"
+    },
+    "胡桃": {
+      "source_file": "1_genshin_chinese_spider_img_keyword.txt",
+      "game_key": "genshin",
+      "game_tag": "genshin_impact",
+      "danbooru_tag": "hu_tao_(genshin_impact)"
+    },
+    "烟绯": {
+      "source_file": "1_genshin_chinese_spider_img_keyword.txt",
+      "game_key": "genshin",
+      "game_tag": "genshin_impact",
+      "danbooru_tag": "yanfei_(genshin_impact)"
+    },
+    "神里绫华": {
+      "source_file": "1_genshin_chinese_spider_img_keyword.txt",
+      "game_key": "genshin",
+      "game_tag": "genshin_impact",
+      "danbooru_tag": "ayaka_(genshin_impact)"
+    },
+    "宵宫": {
+      "source_file": "1_genshin_chinese_spider_img_keyword.txt",
+      "game_key": "genshin",
+      "game_tag": "genshin_impact",
+      "danbooru_tag": "yoimiya_(genshin_impact)"
+    },
+    "早柚": {
+      "source_file": "1_genshin_chinese_spider_img_keyword.txt",
+      "game_key": "genshin",
+      "game_tag": "genshin_impact",
+      "danbooru_tag": "sayu_(genshin_impact)"
+    },
+    "雷电将军": {
+      "source_file": "1_genshin_chinese_spider_img_keyword.txt",
+      "game_key": "genshin",
+      "game_tag": "genshin_impact",
+      "danbooru_tag": "raiden_shogun_(genshin_impact)"
+    },
+    "八重神子": {
+      "source_file": "1_genshin_chinese_spider_img_keyword.txt",
+      "game_key": "genshin",
+      "game_tag": "genshin_impact",
+      "danbooru_tag": "yae_miko_(genshin_impact)"
+    },
+    "九条裟罗": {
+      "source_file": "1_genshin_chinese_spider_img_keyword.txt",
+      "game_key": "genshin",
+      "game_tag": "genshin_impact",
+      "danbooru_tag": "kujou_sara_(genshin_impact)"
+    },
+    "珊瑚宫心海": {
+      "source_file": "1_genshin_chinese_spider_img_keyword.txt",
+      "game_key": "genshin",
+      "game_tag": "genshin_impact",
+      "danbooru_tag": "kokomi_(genshin_impact)"
+    },
+    "娜维娅": {
+      "source_file": "1_genshin_chinese_spider_img_keyword.txt",
+      "game_key": "genshin",
+      "game_tag": "genshin_impact",
+      "danbooru_tag": "navia_(genshin_impact)"
+    },
+    "千织": {
+      "source_file": "1_genshin_chinese_spider_img_keyword.txt",
+      "game_key": "genshin",
+      "game_tag": "genshin_impact",
+      "danbooru_tag": "chiori_(genshin_impact)"
+    },
+    "久岐忍": {
+      "source_file": "1_genshin_chinese_spider_img_keyword.txt",
+      "game_key": "genshin",
+      "game_tag": "genshin_impact",
+      "danbooru_tag": "kuki_shinobu_(genshin_impact)"
+    },
+    "珐露珊": {
+      "source_file": "1_genshin_chinese_spider_img_keyword.txt",
+      "game_key": "genshin",
+      "game_tag": "genshin_impact",
+      "danbooru_tag": "faruzan_(genshin_impact)"
+    },
+    "莱依拉": {
+      "source_file": "1_genshin_chinese_spider_img_keyword.txt",
+      "game_key": "genshin",
+      "game_tag": "genshin_impact",
+      "danbooru_tag": "layla_(genshin_impact)"
+    },
+    "妮露": {
+      "source_file": "1_genshin_chinese_spider_img_keyword.txt",
+      "game_key": "genshin",
+      "game_tag": "genshin_impact",
+      "danbooru_tag": "nilou_(genshin_impact)"
+    },
+    "坎蒂丝": {
+      "source_file": "1_genshin_chinese_spider_img_keyword.txt",
+      "game_key": "genshin",
+      "game_tag": "genshin_impact",
+      "danbooru_tag": "candace_(genshin_impact)"
+    },
+    "多莉": {
+      "source_file": "1_genshin_chinese_spider_img_keyword.txt",
+      "game_key": "genshin",
+      "game_tag": "genshin_impact",
+      "danbooru_tag": "dori_(genshin_impact)"
+    },
+    "柯莱": {
+      "source_file": "1_genshin_chinese_spider_img_keyword.txt",
+      "game_key": "genshin",
+      "game_tag": "genshin_impact",
+      "danbooru_tag": "collei_(genshin_impact)"
+    },
+    "绮良良": {
+      "source_file": "1_genshin_chinese_spider_img_keyword.txt",
+      "game_key": "genshin",
+      "game_tag": "genshin_impact",
+      "danbooru_tag": "kirara_(genshin_impact)"
+    },
+    "迪希雅": {
+      "source_file": "1_genshin_chinese_spider_img_keyword.txt",
+      "game_key": "genshin",
+      "game_tag": "genshin_impact",
+      "danbooru_tag": "dehya_(genshin_impact)"
+    },
+    "迪娜泽黛": {
+      "source_file": "1_genshin_chinese_spider_img_keyword.txt",
+      "game_key": "genshin",
+      "game_tag": "genshin_impact",
+      "danbooru_tag": "dunyarzad_(genshin_impact)"
+    },
+    "派蒙": {
+      "source_file": "1_genshin_chinese_spider_img_keyword.txt",
+      "game_key": "genshin",
+      "game_tag": "genshin_impact",
+      "danbooru_tag": "paimon_(genshin_impact)"
+    },
+    "夏沃蕾": {
+      "source_file": "1_genshin_chinese_spider_img_keyword.txt",
+      "game_key": "genshin",
+      "game_tag": "genshin_impact",
+      "danbooru_tag": "chevreuse_(genshin_impact)"
+    },
+    "夏洛蒂": {
+      "source_file": "1_genshin_chinese_spider_img_keyword.txt",
+      "game_key": "genshin",
+      "game_tag": "genshin_impact",
+      "danbooru_tag": "charlotte_(genshin_impact)"
+    },
+    "琳妮特": {
+      "source_file": "1_genshin_chinese_spider_img_keyword.txt",
+      "game_key": "genshin",
+      "game_tag": "genshin_impact",
+      "danbooru_tag": "lynette_(genshin_impact)"
+    },
+    "希格雯": {
+      "source_file": "1_genshin_chinese_spider_img_keyword.txt",
+      "game_key": "genshin",
+      "game_tag": "genshin_impact",
+      "danbooru_tag": "sigewinne_(genshin_impact)"
+    },
+    "克洛琳德": {
+      "source_file": "1_genshin_chinese_spider_img_keyword.txt",
+      "game_key": "genshin",
+      "game_tag": "genshin_impact",
+      "danbooru_tag": "clorinde_(genshin_impact)"
+    },
+    "莉奈娅": {
+      "source_file": "1_genshin_chinese_spider_img_keyword.txt",
+      "game_key": "genshin",
+      "game_tag": "genshin_impact",
+      "danbooru_tag": "lyney_(genshin_impact)"
+    },
+    "玛拉妮": {
+      "source_file": "1_genshin_chinese_spider_img_keyword.txt",
+      "game_key": "genshin",
+      "game_tag": "genshin_impact",
+      "danbooru_tag": "mualani_(genshin_impact)"
+    },
+    "卡齐娜": {
+      "source_file": "1_genshin_chinese_spider_img_keyword.txt",
+      "game_key": "genshin",
+      "game_tag": "genshin_impact",
+      "danbooru_tag": "kachina_(genshin_impact)"
+    },
+    "希诺宁": {
+      "source_file": "1_genshin_chinese_spider_img_keyword.txt",
+      "game_key": "genshin",
+      "game_tag": "genshin_impact",
+      "danbooru_tag": "xilonen_(genshin_impact)"
+    },
+    "玛薇卡": {
+      "source_file": "1_genshin_chinese_spider_img_keyword.txt",
+      "game_key": "genshin",
+      "game_tag": "genshin_impact",
+      "danbooru_tag": "mavuika_(genshin_impact)"
+    },
+    "伊涅芙": {
+      "source_file": "1_genshin_chinese_spider_img_keyword.txt",
+      "game_key": "genshin",
+      "game_tag": "genshin_impact",
+      "danbooru_tag": "inefuu_(genshin_impact)"
+    },
+    "菈乌玛": {
+      "source_file": "1_genshin_chinese_spider_img_keyword.txt",
+      "game_key": "genshin",
+      "game_tag": "genshin_impact",
+      "danbooru_tag": "la_uma_(genshin_impact)"
+    },
+    "爱诺": {
+      "source_file": "1_genshin_chinese_spider_img_keyword.txt",
+      "game_key": "genshin",
+      "game_tag": "genshin_impact",
+      "danbooru_tag": "aino_(genshin_impact)"
+    },
+    "奈芙尔": {
+      "source_file": "1_genshin_chinese_spider_img_keyword.txt",
+      "game_key": "genshin",
+      "game_tag": "genshin_impact",
+      "danbooru_tag": "nefer_(genshin_impact)"
+    },
+    "雅珂达": {
+      "source_file": "1_genshin_chinese_spider_img_keyword.txt",
+      "game_key": "genshin",
+      "game_tag": "genshin_impact",
+      "danbooru_tag": "yakoda_(genshin_impact)"
+    },
+    "哥伦比娅": {
+      "source_file": "1_genshin_chinese_spider_img_keyword.txt",
+      "game_key": "genshin",
+      "game_tag": "genshin_impact",
+      "danbooru_tag": "columbina_(genshin_impact)"
+    },
+    "桑多涅": {
+      "source_file": "1_genshin_chinese_spider_img_keyword.txt",
+      "game_key": "genshin",
+      "game_tag": "genshin_impact",
+      "danbooru_tag": "sandrone_(genshin_impact)"
+    },
+    "尼可": {
+      "source_file": "1_genshin_chinese_spider_img_keyword.txt",
+      "game_key": "genshin",
+      "game_tag": "genshin_impact",
+      "danbooru_tag": "nico_(genshin_impact)"
+    },
+    "佩佩": {
+      "source_file": "lsxy_spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": "pepe_(love_live)"
+    },
+    "诺诺": {
+      "source_file": "lsxy_spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": "nono_(love_live)"
+    },
+    "忒拉拉": {
+      "source_file": "lsxy_spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": "telara_(love_live)"
+    },
+    "寒悠悠": {
+      "source_file": "lsxy_spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": "han_youyou_(love_live)"
+    },
+    "夏儿": {
+      "source_file": "lsxy_spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": "xiar_(love_live)"
+    },
+    "洛卿": {
+      "source_file": "lsxy_spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": "luoqing_(love_live)"
+    },
+    "埃洛伊": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": "aloy_(horizon_zero_dawn)"
+    },
+    "归终": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": "guizhong_(genshin_impact)"
+    },
+    "萍姥姥": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "留云借风真君": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": "xianyun_(genshin_impact)"
+    },
+    "歌尘浪市真君": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": "ping_(genshin_impact)"
+    },
+    "Jean": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Amber": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Lisa": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Barbara": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Klee": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Noelle": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Fischier": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Sucrose": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Mona": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Diona": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Rosaria": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Eura": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Aloy": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Xianyun": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Yaoyao": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Yelan": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Shenhe": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Yunjin": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Beidou": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Ningguang": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Xiangling": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Keqing": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Qi Qi": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Xin Yan": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Gan Yu": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Hu Tao": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Yanfei": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Ayaka": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Yoimiya": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Sayu": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Raiden Shogun": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Yae Miko": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Kujou Sara": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Kokomi": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Navia": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Furina": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Chiori": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Kuki Shinobu": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Faruzan": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Layla": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Nilou": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Candace": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Dori": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Collei": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "kirara": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Nahida": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Dehya": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Dunyarzad Homayani": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Paimon": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Chevreuse": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Charlotte": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Lynette": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Sigewinne": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Guizhong": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Pinglaolao": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Liuyun Jiefeng Zhenjun": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Gechen Langshi Zhenjun": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Lumine": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "艾丝妲": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": "asta_(honkai:_star_rail)"
+    },
+    "三月七": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": "march_7th_(honkai:_star_rail)"
+    },
+    "希露瓦": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": "serval_(honkai:_star_rail)"
+    },
+    "黑塔": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": "herta_(honkai:_star_rail)"
+    },
+    "银狼": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": "silver_wolf_(honkai:_star_rail)"
+    },
+    "卡芙卡": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": "kafka_(honkai:_star_rail)"
+    },
+    "素裳": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": "sushang_(honkai:_star_rail)"
+    },
+    "姬子": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": "himeko_(honkai:_star_rail)"
+    },
+    "克拉拉": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": "clara_(honkai:_star_rail)"
+    },
+    "佩拉": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": "pela_(honkai:_star_rail)"
+    },
+    "虎克": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": "hook_(honkai:_star_rail)"
+    },
+    "黑天鹅": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": "black_swan_(honkai:_star_rail)"
+    },
+    "阮梅": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": "ruan_mei_(honkai:_star_rail)"
+    },
+    "娜塔莎": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": "natasha_(honkai:_star_rail)"
+    },
+    "寒鸦": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": "hanya_(honkai:_star_rail)"
+    },
+    "镜流": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": "jingliu_(honkai:_star_rail)"
+    },
+    "雪衣": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": "xueyi_(honkai:_star_rail)"
+    },
+    "黄泉": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": "acheron_(honkai:_star_rail)"
+    },
+    "符玄": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": "fu_xuan_(honkai:_star_rail)"
+    },
+    "白露": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": "bailu_(honkai:_star_rail)"
+    },
+    "霍霍": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": "huohuo_(honkai:_star_rail)"
+    },
+    "玲妮": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": "lynx_(honkai:_star_rail)"
+    },
+    "青雀": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": "qingque_(honkai:_star_rail)"
+    },
+    "停云": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": "tingyun_(honkai:_star_rail)"
+    },
+    "托帕": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": "topaz_(honkai:_star_rail)"
+    },
+    "驭空": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": "yukong_(honkai:_star_rail)"
+    },
+    "Asta": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "March 7th": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Serval": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Herta": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Silver Wolf": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Seele": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Kafka": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Su Shang": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Himeko": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Bronya": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Clara": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Hilva": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Peira": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Hook": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Black Swan": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Sparkle": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Ruan Mei": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Natasha": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "han ya": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Jing Liu": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Xue Yi": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Acheron": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Fu Xuan": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "bailu": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "huohuo": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Lynx": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "qingque": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "tingyun": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Topaz": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "yukong": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "艾西莉亚": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Fuhua": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Hire": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Geleiu": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Lita": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Aili Xiya": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Qiyana": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Lei Dian Meiyi": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Shizhi Lǜzhe": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Lei Zhī Lǜzhě": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Kōng Zhī Lǜzhě": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Sishēng Zhī Lǜzhě": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Xīn Yán Zhī Lǜzhě": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Shǐyuán Zhī Lǜzhě": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Rén Zhī Lǜzhě": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Bronya Zayiqieke": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Wuliang Ta Jizi": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Bayong Ying": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Delisha Abokalis": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Kalian Kaslanna": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Lita Losu Weiser": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Hire Fulei": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Luoshaliaya Ailin": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Lilibia Ailin": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Shiyu Qiula": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Prometheus": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Misti Lin Shaniate": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Susana": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Ayi XiubolianΛ": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Lisu Shang": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Weierwei": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Meibiws": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Paduofelis": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Abonia": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Eden": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Karol Peipei": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Biana Youlandeier Altjina": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Shibo Mingriang Ranglei": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Aixilia": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "Natasha Xiora": {
+      "source_file": "spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "阿蕾奇诺": {
+      "source_file": "0307_spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "仆人": {
+      "source_file": "0307_spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "杜布拉": {
+      "source_file": "0307_spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "卡翠娜": {
+      "source_file": "0307_spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "康士坦丝": {
+      "source_file": "0307_spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    },
+    "大丽花": {
+      "source_file": "0307_spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": "dahli_(honkai:_star_rail)"
+    },
+    "小埋": {
+      "source_file": "0307_spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": "umaru_(himouto!_umaru-chan)"
+    },
+    "干物妹": {
+      "source_file": "0307_spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": "umaru_(himouto!_umaru-chan)"
+    },
+    "工作细胞血小板": {
+      "source_file": "0307_spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": "platelet_(hataraku_saibou)"
+    },
+    "蕾姆": {
+      "source_file": "0307_spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": "rem_(re:zero)"
+    },
+    "拉姆": {
+      "source_file": "0307_spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": "ram_(re:zero)"
+    },
+    "翡翠": {
+      "source_file": "new_spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": "jade_(honkai:_star_rail)"
+    },
+    "知更鸟": {
+      "source_file": "new_spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": "robin_(honkai:_star_rail)"
+    },
+    "幽兰黛尔": {
+      "source_file": "new_spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": "durandal_(honkai_impact_3rd)"
+    },
+    "缇宝": {
+      "source_file": "3_star_rail_chinese_spider_img_keyword.txt",
+      "game_key": "star_rail",
+      "game_tag": "honkai:_star_rail",
+      "danbooru_tag": "tribbie_(honkai:_star_rail)"
+    },
+    "真珠": {
+      "source_file": "3_star_rail_chinese_spider_img_keyword.txt",
+      "game_key": "star_rail",
+      "game_tag": "honkai:_star_rail",
+      "danbooru_tag": "pearl_(honkai:_star_rail)"
+    },
+    "火花": {
+      "source_file": "3_star_rail_chinese_spider_img_keyword.txt",
+      "game_key": "star_rail",
+      "game_tag": "honkai:_star_rail",
+      "danbooru_tag": "sparkle_(honkai:_star_rail)"
+    },
+    "云璃": {
+      "source_file": "3_star_rail_chinese_spider_img_keyword.txt",
+      "game_key": "star_rail",
+      "game_tag": "honkai:_star_rail",
+      "danbooru_tag": "yunli_(honkai:_star_rail)"
+    },
+    "阿格莱雅": {
+      "source_file": "3_star_rail_chinese_spider_img_keyword.txt",
+      "game_key": "star_rail",
+      "game_tag": "honkai:_star_rail",
+      "danbooru_tag": "aglaea_(honkai:_star_rail)"
+    },
+    "遐蝶": {
+      "source_file": "3_star_rail_chinese_spider_img_keyword.txt",
+      "game_key": "star_rail",
+      "game_tag": "honkai:_star_rail",
+      "danbooru_tag": "castorice_(honkai:_star_rail)"
+    },
+    "刻律德菈": {
+      "source_file": "3_star_rail_chinese_spider_img_keyword.txt",
+      "game_key": "star_rail",
+      "game_tag": "honkai:_star_rail",
+      "danbooru_tag": "keller_(honkai:_star_rail)"
+    },
+    "赛飞儿": {
+      "source_file": "3_star_rail_chinese_spider_img_keyword.txt",
+      "game_key": "star_rail",
+      "game_tag": "honkai:_star_rail",
+      "danbooru_tag": "sapphire_(honkai:_star_rail)"
+    },
+    "昔涟": {
+      "source_file": "3_star_rail_chinese_spider_img_keyword.txt",
+      "game_key": "star_rail",
+      "game_tag": "honkai:_star_rail",
+      "danbooru_tag": "cyrene_(honkai:_star_rail)"
+    },
+    "风堇": {
+      "source_file": "3_star_rail_chinese_spider_img_keyword.txt",
+      "game_key": "star_rail",
+      "game_tag": "honkai:_star_rail",
+      "danbooru_tag": "husband_(honkai:_star_rail)"
+    },
+    "海瑟音": {
+      "source_file": "3_star_rail_chinese_spider_img_keyword.txt",
+      "game_key": "star_rail",
+      "game_tag": "honkai:_star_rail",
+      "danbooru_tag": "hester_(honkai:_star_rail)"
+    },
+    "绯英": {
+      "source_file": "3_star_rail_chinese_spider_img_keyword.txt",
+      "game_key": "star_rail",
+      "game_tag": "honkai:_star_rail",
+      "danbooru_tag": "scarlet_(honkai:_star_rail)"
+    },
+    "虚照": {
+      "source_file": "3_star_rail_chinese_spider_img_keyword.txt",
+      "game_key": "star_rail",
+      "game_tag": "honkai:_star_rail",
+      "danbooru_tag": "void_(honkai:_star_rail)"
+    },
+    "妮塔": {
+      "source_file": "cbjq_spider_img_keyword.txt",
+      "game_key": "cbjq",
+      "game_tag": "snowbreak",
+      "danbooru_tag": "nita_(snowbreak)"
+    },
+    "威尔·安德森": {
+      "source_file": "cbjq_spider_img_keyword.txt",
+      "game_key": "cbjq",
+      "game_tag": "snowbreak",
+      "danbooru_tag": ""
+    },
+    "肴": {
+      "source_file": "cbjq_spider_img_keyword.txt",
+      "game_key": "cbjq",
+      "game_tag": "snowbreak",
+      "danbooru_tag": "yao_(snowbreak)"
+    },
+    "瑟瑞斯": {
+      "source_file": "cbjq_spider_img_keyword.txt",
+      "game_key": "cbjq",
+      "game_tag": "snowbreak",
+      "danbooru_tag": "seres_(snowbreak)"
+    },
+    "苔丝·科特金": {
+      "source_file": "cbjq_spider_img_keyword.txt",
+      "game_key": "cbjq",
+      "game_tag": "snowbreak",
+      "danbooru_tag": "tess_(snowbreak)"
+    },
+    "芙提雅-缄默": {
+      "source_file": "cbjq_spider_img_keyword.txt",
+      "game_key": "cbjq",
+      "game_tag": "snowbreak",
+      "danbooru_tag": "fritia_(snowbreak)"
+    },
+    "肴-冬至": {
+      "source_file": "cbjq_spider_img_keyword.txt",
+      "game_key": "cbjq",
+      "game_tag": "snowbreak",
+      "danbooru_tag": "yao_(snowbreak)"
+    },
+    "鸣濑晴": {
+      "source_file": "cbjq_spider_img_keyword.txt",
+      "game_key": "cbjq",
+      "game_tag": "snowbreak",
+      "danbooru_tag": "haru_(snowbreak)"
+    },
+    "晴-藏锋": {
+      "source_file": "cbjq_spider_img_keyword.txt",
+      "game_key": "cbjq",
+      "game_tag": "snowbreak",
+      "danbooru_tag": "haru_(snowbreak)"
+    },
+    "辰星-云篆": {
+      "source_file": "cbjq_spider_img_keyword.txt",
+      "game_key": "cbjq",
+      "game_tag": "snowbreak",
+      "danbooru_tag": "chenxing_(snowbreak)"
+    },
+    "凯茜娅·克莱因": {
+      "source_file": "cbjq_spider_img_keyword.txt",
+      "game_key": "cbjq",
+      "game_tag": "snowbreak",
+      "danbooru_tag": "kasia_(snowbreak)"
+    },
+    "茉莉安·安德烈奥蒂": {
+      "source_file": "cbjq_spider_img_keyword.txt",
+      "game_key": "cbjq",
+      "game_tag": "snowbreak",
+      "danbooru_tag": "mariya_(snowbreak)"
+    },
+    "芬妮·戈尔登": {
+      "source_file": "cbjq_spider_img_keyword.txt",
+      "game_key": "cbjq",
+      "game_tag": "snowbreak",
+      "danbooru_tag": "fenni_(snowbreak)"
+    },
+    "琴诺": {
+      "source_file": "cbjq_spider_img_keyword.txt",
+      "game_key": "cbjq",
+      "game_tag": "snowbreak",
+      "danbooru_tag": "qin_(snowbreak)"
+    },
+    "安卡希雅": {
+      "source_file": "cbjq_spider_img_keyword.txt",
+      "game_key": "cbjq",
+      "game_tag": "snowbreak",
+      "danbooru_tag": "ankaxiya_(snowbreak)"
+    },
+    "里芙": {
+      "source_file": "cbjq_spider_img_keyword.txt",
+      "game_key": "cbjq",
+      "game_tag": "snowbreak",
+      "danbooru_tag": "lifu_(snowbreak)"
+    },
+    "莉兹": {
+      "source_file": "cbjq_spider_img_keyword.txt",
+      "game_key": "cbjq",
+      "game_tag": "snowbreak",
+      "danbooru_tag": ""
+    },
+    "梅丽莎": {
+      "source_file": "cbjq_spider_img_keyword.txt",
+      "game_key": "cbjq",
+      "game_tag": "snowbreak",
+      "danbooru_tag": ""
+    },
+    "奥利维亚": {
+      "source_file": "cbjq_spider_img_keyword.txt",
+      "game_key": "cbjq",
+      "game_tag": "snowbreak",
+      "danbooru_tag": ""
+    },
+    "蕾切尔": {
+      "source_file": "cbjq_spider_img_keyword.txt",
+      "game_key": "cbjq",
+      "game_tag": "snowbreak",
+      "danbooru_tag": ""
+    },
+    "索菲娅": {
+      "source_file": "cbjq_spider_img_keyword.txt",
+      "game_key": "cbjq",
+      "game_tag": "snowbreak",
+      "danbooru_tag": ""
+    },
+    "维多利亚": {
+      "source_file": "cbjq_spider_img_keyword.txt",
+      "game_key": "cbjq",
+      "game_tag": "snowbreak",
+      "danbooru_tag": ""
+    },
+    "艾娃": {
+      "source_file": "cbjq_spider_img_keyword.txt",
+      "game_key": "cbjq",
+      "game_tag": "snowbreak",
+      "danbooru_tag": ""
+    },
+    "琳达": {
+      "source_file": "cbjq_spider_img_keyword.txt",
+      "game_key": "cbjq",
+      "game_tag": "snowbreak",
+      "danbooru_tag": ""
+    },
+    "娜塔莉": {
+      "source_file": "cbjq_spider_img_keyword.txt",
+      "game_key": "cbjq",
+      "game_tag": "snowbreak",
+      "danbooru_tag": ""
+    },
+    "伊切尔·豹豹": {
+      "source_file": "cbjq_spider_img_keyword.txt",
+      "game_key": "cbjq",
+      "game_tag": "snowbreak",
+      "danbooru_tag": "yichier_(snowbreak)"
+    },
+    "凯茜娅·蓝闪": {
+      "source_file": "cbjq_spider_img_keyword.txt",
+      "game_key": "cbjq",
+      "game_tag": "snowbreak",
+      "danbooru_tag": "kasia_(snowbreak)"
+    },
+    "晴·藏锋": {
+      "source_file": "cbjq_spider_img_keyword.txt",
+      "game_key": "cbjq",
+      "game_tag": "snowbreak",
+      "danbooru_tag": ""
+    },
+    "辰星·云篆": {
+      "source_file": "cbjq_spider_img_keyword.txt",
+      "game_key": "cbjq",
+      "game_tag": "snowbreak",
+      "danbooru_tag": ""
+    },
+    "猫汐尔": {
+      "source_file": "cbjq_spider_img_keyword.txt",
+      "game_key": "cbjq",
+      "game_tag": "snowbreak",
+      "danbooru_tag": "maoxier_(snowbreak)"
+    },
+    "安卡希雅·辉夜": {
+      "source_file": "cbjq_spider_img_keyword.txt",
+      "game_key": "cbjq",
+      "game_tag": "snowbreak",
+      "danbooru_tag": ""
+    },
+    "晴": {
+      "source_file": "cbjq_spider_img_keyword.txt",
+      "game_key": "cbjq",
+      "game_tag": "snowbreak",
+      "danbooru_tag": "haru_(blue_archive)"
+    },
+    "芙提雅·缄默": {
+      "source_file": "cbjq_spider_img_keyword.txt",
+      "game_key": "cbjq",
+      "game_tag": "snowbreak",
+      "danbooru_tag": ""
+    },
+    "肴·冬至": {
+      "source_file": "cbjq_spider_img_keyword.txt",
+      "game_key": "cbjq",
+      "game_tag": "snowbreak",
+      "danbooru_tag": ""
+    },
+    "里芙·狂猎": {
+      "source_file": "cbjq_spider_img_keyword.txt",
+      "game_key": "cbjq",
+      "game_tag": "snowbreak",
+      "danbooru_tag": ""
+    },
+    "茉莉安": {
+      "source_file": "cbjq_spider_img_keyword.txt",
+      "game_key": "cbjq",
+      "game_tag": "snowbreak",
+      "danbooru_tag": ""
+    },
+    "芬妮": {
+      "source_file": "cbjq_spider_img_keyword.txt",
+      "game_key": "cbjq",
+      "game_tag": "snowbreak",
+      "danbooru_tag": ""
+    },
+    "芙提雅": {
+      "source_file": "cbjq_spider_img_keyword.txt",
+      "game_key": "cbjq",
+      "game_tag": "snowbreak",
+      "danbooru_tag": ""
+    },
+    "恩雅": {
+      "source_file": "cbjq_spider_img_keyword.txt",
+      "game_key": "cbjq",
+      "game_tag": "snowbreak",
+      "danbooru_tag": "enya_(snowbreak)"
+    },
+    "芬妮·咎冠": {
+      "source_file": "cbjq_spider_img_keyword.txt",
+      "game_key": "cbjq",
+      "game_tag": "snowbreak",
+      "danbooru_tag": "fenni_(snowbreak)"
+    },
+    "辰星": {
+      "source_file": "cbjq_spider_img_keyword.txt",
+      "game_key": "cbjq",
+      "game_tag": "snowbreak",
+      "danbooru_tag": "chenxing_(snowbreak)"
+    },
+    "苔丝·魔术师": {
+      "source_file": "cbjq_spider_img_keyword.txt",
+      "game_key": "cbjq",
+      "game_tag": "snowbreak",
+      "danbooru_tag": ""
+    },
+    "猫汐尔·溯影": {
+      "source_file": "cbjq_spider_img_keyword.txt",
+      "game_key": "cbjq",
+      "game_tag": "snowbreak",
+      "danbooru_tag": "maoxier_(snowbreak)"
+    },
+    "茉莉安·雨燕": {
+      "source_file": "cbjq_spider_img_keyword.txt",
+      "game_key": "cbjq",
+      "game_tag": "snowbreak",
+      "danbooru_tag": ""
+    },
+    "阿洛娜": {
+      "source_file": "blda_spider_img_keyword.txt",
+      "game_key": "blda",
+      "game_tag": "blue_archive",
+      "danbooru_tag": "arona_(blue_archive)"
+    },
+    "普拉娜": {
+      "source_file": "blda_spider_img_keyword.txt",
+      "game_key": "blda",
+      "game_tag": "blue_archive",
+      "danbooru_tag": "plana_(blue_archive)"
+    },
+    "日奈": {
+      "source_file": "blda_spider_img_keyword.txt",
+      "game_key": "blda",
+      "game_tag": "blue_archive",
+      "danbooru_tag": "hina_(blue_archive)"
+    },
+    "亚子": {
+      "source_file": "blda_spider_img_keyword.txt",
+      "game_key": "blda",
+      "game_tag": "blue_archive",
+      "danbooru_tag": "ako_(blue_archive)"
+    },
+    "伊织": {
+      "source_file": "blda_spider_img_keyword.txt",
+      "game_key": "blda",
+      "game_tag": "blue_archive",
+      "danbooru_tag": "iori_(blue_archive)"
+    },
+    "伊吕波": {
+      "source_file": "blda_spider_img_keyword.txt",
+      "game_key": "blda",
+      "game_tag": "blue_archive",
+      "danbooru_tag": "iroha_(blue_archive)"
+    },
+    "阿露": {
+      "source_file": "blda_spider_img_keyword.txt",
+      "game_key": "blda",
+      "game_tag": "blue_archive",
+      "danbooru_tag": "aru_(blue_archive)"
+    },
+    "睦月": {
+      "source_file": "blda_spider_img_keyword.txt",
+      "game_key": "blda",
+      "game_tag": "blue_archive",
+      "danbooru_tag": "mutsuki_(blue_archive)"
+    },
+    "佳代子": {
+      "source_file": "blda_spider_img_keyword.txt",
+      "game_key": "blda",
+      "game_tag": "blue_archive",
+      "danbooru_tag": "kayoko_(blue_archive)"
+    },
+    "遥香": {
+      "source_file": "blda_spider_img_keyword.txt",
+      "game_key": "blda",
+      "game_tag": "blue_archive",
+      "danbooru_tag": "haruka_(blue_archive)"
+    },
+    "晴奈": {
+      "source_file": "blda_spider_img_keyword.txt",
+      "game_key": "blda",
+      "game_tag": "blue_archive",
+      "danbooru_tag": "haruna_(blue_archive)"
+    },
+    "淳子": {
+      "source_file": "blda_spider_img_keyword.txt",
+      "game_key": "blda",
+      "game_tag": "blue_archive",
+      "danbooru_tag": "junko_(blue_archive)"
+    },
+    "明里": {
+      "source_file": "blda_spider_img_keyword.txt",
+      "game_key": "blda",
+      "game_tag": "blue_archive",
+      "danbooru_tag": "akari_(blue_archive)"
+    },
+    "泉": {
+      "source_file": "blda_spider_img_keyword.txt",
+      "game_key": "blda",
+      "game_tag": "blue_archive",
+      "danbooru_tag": "izumi_(blue_archive)"
+    },
+    "枫香": {
+      "source_file": "blda_spider_img_keyword.txt",
+      "game_key": "blda",
+      "game_tag": "blue_archive",
+      "danbooru_tag": "fuuka_(blue_archive)"
+    },
+    "朱莉": {
+      "source_file": "blda_spider_img_keyword.txt",
+      "game_key": "blda",
+      "game_tag": "blue_archive",
+      "danbooru_tag": "juri_(blue_archive)"
+    },
+    "濑名": {
+      "source_file": "blda_spider_img_keyword.txt",
+      "game_key": "blda",
+      "game_tag": "blue_archive",
+      "danbooru_tag": "sena_(blue_archive)"
+    },
+    "惠": {
+      "source_file": "blda_spider_img_keyword.txt",
+      "game_key": "blda",
+      "game_tag": "blue_archive",
+      "danbooru_tag": "megumi_(blue_archive)"
+    },
+    "霞": {
+      "source_file": "blda_spider_img_keyword.txt",
+      "game_key": "blda",
+      "game_tag": "blue_archive",
+      "danbooru_tag": "kasumi_(blue_archive)"
+    },
+    "优香": {
+      "source_file": "blda_spider_img_keyword.txt",
+      "game_key": "blda",
+      "game_tag": "blue_archive",
+      "danbooru_tag": "yuuka_(blue_archive)"
+    },
+    "诺亚": {
+      "source_file": "blda_spider_img_keyword.txt",
+      "game_key": "blda",
+      "game_tag": "blue_archive",
+      "danbooru_tag": "noa_(blue_archive)"
+    },
+    "小雪": {
+      "source_file": "blda_spider_img_keyword.txt",
+      "game_key": "blda",
+      "game_tag": "blue_archive",
+      "danbooru_tag": "koyuki_(blue_archive)"
+    },
+    "尼禄": {
+      "source_file": "blda_spider_img_keyword.txt",
+      "game_key": "blda",
+      "game_tag": "blue_archive",
+      "danbooru_tag": "neru_(blue_archive)"
+    },
+    "明日奈": {
+      "source_file": "blda_spider_img_keyword.txt",
+      "game_key": "blda",
+      "game_tag": "blue_archive",
+      "danbooru_tag": "asuna_(blue_archive)"
+    },
+    "花凛": {
+      "source_file": "blda_spider_img_keyword.txt",
+      "game_key": "blda",
+      "game_tag": "blue_archive",
+      "danbooru_tag": "karin_(blue_archive)"
+    },
+    "朱音": {
+      "source_file": "blda_spider_img_keyword.txt",
+      "game_key": "blda",
+      "game_tag": "blue_archive",
+      "danbooru_tag": "akane_(blue_archive)"
+    },
+    "时": {
+      "source_file": "blda_spider_img_keyword.txt",
+      "game_key": "blda",
+      "game_tag": "blue_archive",
+      "danbooru_tag": "toki_(blue_archive)"
+    },
+    "歌原": {
+      "source_file": "blda_spider_img_keyword.txt",
+      "game_key": "blda",
+      "game_tag": "blue_archive",
+      "danbooru_tag": "utaha_(blue_archive)"
+    },
+    "响": {
+      "source_file": "blda_spider_img_keyword.txt",
+      "game_key": "blda",
+      "game_tag": "blue_archive",
+      "danbooru_tag": "hibiki_(blue_archive)"
+    },
+    "柯托莉": {
+      "source_file": "blda_spider_img_keyword.txt",
+      "game_key": "blda",
+      "game_tag": "blue_archive",
+      "danbooru_tag": "kotori_(blue_archive)"
+    },
+    "桃井": {
+      "source_file": "blda_spider_img_keyword.txt",
+      "game_key": "blda",
+      "game_tag": "blue_archive",
+      "danbooru_tag": "momoi_(blue_archive)"
+    },
+    "绿": {
+      "source_file": "blda_spider_img_keyword.txt",
+      "game_key": "blda",
+      "game_tag": "blue_archive",
+      "danbooru_tag": "midori_(blue_archive)"
+    },
+    "爱丽丝": {
+      "source_file": "blda_spider_img_keyword.txt",
+      "game_key": "blda",
+      "game_tag": "blue_archive",
+      "danbooru_tag": "aris_(blue_archive)"
+    },
+    "千寻": {
+      "source_file": "blda_spider_img_keyword.txt",
+      "game_key": "blda",
+      "game_tag": "blue_archive",
+      "danbooru_tag": "chihiro_(blue_archive)"
+    },
+    "真纪": {
+      "source_file": "blda_spider_img_keyword.txt",
+      "game_key": "blda",
+      "game_tag": "blue_archive",
+      "danbooru_tag": "maki_(blue_archive)"
+    },
+    "小玉": {
+      "source_file": "blda_spider_img_keyword.txt",
+      "game_key": "blda",
+      "game_tag": "blue_archive",
+      "danbooru_tag": "kotama_(blue_archive)"
+    },
+    "日鞠": {
+      "source_file": "blda_spider_img_keyword.txt",
+      "game_key": "blda",
+      "game_tag": "blue_archive",
+      "danbooru_tag": "hifumi_(blue_archive)"
+    },
+    "艾米": {
+      "source_file": "blda_spider_img_keyword.txt",
+      "game_key": "blda",
+      "game_tag": "blue_archive",
+      "danbooru_tag": "emi_(blue_archive)"
+    },
+    "菫": {
+      "source_file": "blda_spider_img_keyword.txt",
+      "game_key": "blda",
+      "game_tag": "blue_archive",
+      "danbooru_tag": "sumire_(blue_archive)"
+    },
+    "未花": {
+      "source_file": "blda_spider_img_keyword.txt",
+      "game_key": "blda",
+      "game_tag": "blue_archive",
+      "danbooru_tag": "mika_(blue_archive)"
+    },
+    "渚": {
+      "source_file": "blda_spider_img_keyword.txt",
+      "game_key": "blda",
+      "game_tag": "blue_archive",
+      "danbooru_tag": "nagisa_(blue_archive)"
+    },
+    "鹤城": {
+      "source_file": "blda_spider_img_keyword.txt",
+      "game_key": "blda",
+      "game_tag": "blue_archive",
+      "danbooru_tag": "hoshino_(blue_archive)"
+    },
+    "帕姆": {
+      "source_file": "ll_spider_img_keyword.txt",
+      "game_key": null,
+      "game_tag": null,
+      "danbooru_tag": ""
+    }
+  },
+  "generated_at": "/Users/caozhaoqi/PycharmProjects/anime_role_detect/archived/auto_spider_img/keywords",
+  "total_characters": 572,
+  "total_mapped": 340
+}
