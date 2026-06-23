@@ -6,6 +6,7 @@
 支持环境变量、.env 文件和命令行参数
 """
 
+from pydantic import BaseModel
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import Optional, List
 from pathlib import Path
@@ -18,8 +19,15 @@ class DatabaseSettings(BaseSettings):
     pool_size: int = 20
     max_overflow: int = 50
     pool_timeout: int = 30
-    pool_recycle: int = 1800  # 30分钟
+    pool_recycle: int = 1800
     echo_sql: bool = False
+
+    model_config = SettingsConfigDict(
+        env_file=str(Path(__file__).resolve().parent.parent / ".env"),
+        env_file_encoding="utf-8",
+        env_prefix="DATABASE__",
+        extra="ignore"
+    )
 
 
 class JWTSettings(BaseSettings):
@@ -30,8 +38,14 @@ class JWTSettings(BaseSettings):
     access_token_expire_minutes: int = 30
     refresh_token_expire_days: int = 7
 
-    # 密钥轮换支持 - 允许使用多个密钥进行验证
     additional_secret_keys: List[str] = []
+
+    model_config = SettingsConfigDict(
+        env_file=str(Path(__file__).resolve().parent.parent / ".env"),
+        env_file_encoding="utf-8",
+        env_prefix="JWT__",
+        extra="ignore"
+    )
 
 
 class CorsSettings(BaseSettings):
@@ -41,6 +55,13 @@ class CorsSettings(BaseSettings):
     allow_credentials: bool = True
     allow_methods: List[str] = ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
     allow_headers: List[str] = ["*"]
+
+    model_config = SettingsConfigDict(
+        env_file=str(Path(__file__).resolve().parent.parent / ".env"),
+        env_file_encoding="utf-8",
+        env_prefix="CORS__",
+        extra="ignore"
+    )
 
 
 class LogSettings(BaseSettings):
@@ -55,26 +76,48 @@ class LogSettings(BaseSettings):
     max_file_size_mb: int = 100
     backup_count: int = 5
 
+    model_config = SettingsConfigDict(
+        env_file=str(Path(__file__).resolve().parent.parent / ".env"),
+        env_file_encoding="utf-8",
+        env_prefix="LOG__",
+        extra="ignore"
+    )
+
 
 class RedisSettings(BaseSettings):
     """Redis 配置"""
 
+    enabled: bool = False
     host: str = "localhost"
     port: int = 6379
     db: int = 0
     password: Optional[str] = None
     ssl: bool = False
     prefix: str = "ardc:"
-    cache_ttl_seconds: int = 3600  # 默认缓存1小时
+    cache_ttl_seconds: int = 3600
+
+    model_config = SettingsConfigDict(
+        env_file=str(Path(__file__).resolve().parent.parent / ".env"),
+        env_file_encoding="utf-8",
+        env_prefix="REDIS__",
+        extra="ignore"
+    )
 
 
 class SecuritySettings(BaseSettings):
     """安全配置"""
 
-    cookie_secure: bool = False  # 生产环境应设为 True
+    cookie_secure: bool = False
     cookie_samesite: str = "lax"
     rate_limit_requests: int = 100
     rate_limit_window_seconds: int = 60
+
+    model_config = SettingsConfigDict(
+        env_file=str(Path(__file__).resolve().parent.parent / ".env"),
+        env_file_encoding="utf-8",
+        env_prefix="SECURITY__",
+        extra="ignore"
+    )
 
 
 class ServerSettings(BaseSettings):
@@ -85,6 +128,13 @@ class ServerSettings(BaseSettings):
     reload: bool = False
     workers: int = 1
 
+    model_config = SettingsConfigDict(
+        env_file=str(Path(__file__).resolve().parent.parent / ".env"),
+        env_file_encoding="utf-8",
+        env_prefix="SERVER__",
+        extra="ignore"
+    )
+
 
 class SkillSettings(BaseSettings):
     """技能配置"""
@@ -94,13 +144,23 @@ class SkillSettings(BaseSettings):
     index_path: str = str(Path.home() / ".ardc" / "skill_index.json")
     versions_path: str = str(Path.home() / ".ardc" / "versions")
 
+    model_config = SettingsConfigDict(
+        env_file=str(Path(__file__).resolve().parent.parent / ".env"),
+        env_file_encoding="utf-8",
+        env_prefix="SKILL__",
+        extra="ignore"
+    )
+
 
 class Settings(BaseSettings):
     """综合配置类"""
 
-    # 子配置
+    api_title: str = "ARD Skill Repository API"
+    api_version: str = "2.0.0"
+    api_description: str = "技能仓库 RESTful API - 提供技能管理、用户认证、技能搜索等功能"
+
     database: DatabaseSettings = DatabaseSettings()
-    jwt: JWTSettings
+    jwt: JWTSettings = JWTSettings()
     cors: CorsSettings = CorsSettings()
     log: LogSettings = LogSettings()
     redis: RedisSettings = RedisSettings()
@@ -108,13 +168,8 @@ class Settings(BaseSettings):
     server: ServerSettings = ServerSettings()
     skill: SkillSettings = SkillSettings()
 
-    # API 配置
-    api_title: str = "ARD Skill Repository API"
-    api_version: str = "2.0.0"
-    api_description: str = "技能仓库 RESTful API - 提供技能管理、用户认证、技能搜索等功能"
-
     model_config = SettingsConfigDict(
-        env_file=".env", env_file_encoding="utf-8", env_nested_delimiter="__"
+        extra="ignore"
     )
 
 
@@ -128,14 +183,10 @@ def validate_settings():
     if not settings.jwt.secret_key:
         raise RuntimeError("JWT_SECRET_KEY 环境变量必须设置")
 
-    # 验证数据库 URL
     if not settings.database.url:
         raise RuntimeError("DATABASE_URL 环境变量必须设置")
 
-    # 如果使用 HTTPS，强制使用安全 Cookie
     if settings.security.cookie_secure:
-        # 可以添加更多安全检查
-
         pass
 
     return True

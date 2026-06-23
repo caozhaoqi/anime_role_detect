@@ -5,10 +5,15 @@ API 主入口 - 生产环境优化版
 提供技能仓库 RESTful API，支持请求日志、全局异常处理、版本号比对、缓存优化等
 """
 
+import sys
+from pathlib import Path
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+sys.path.insert(0, str(PROJECT_ROOT))
+
 import uuid
 from datetime import datetime, timezone
 from typing import List, Optional
-from pathlib import Path
 import json
 
 from fastapi import FastAPI, HTTPException, Depends, Query, Request
@@ -43,7 +48,7 @@ app = FastAPI(
 app.include_router(auth_router)
 
 # 包含 v1 版本路由
-app.include_router(v1_router)
+app.include_router(v1_router, prefix="/api")
 
 # CORS 配置 - 使用统一配置
 app.add_middleware(

@@ -83,6 +83,17 @@ docker-compose logs -f <service_name>
 
 # Stop services
 docker-compose down
+
+# k8s deployment
+
+# 1. 构建所有镜像
+./scripts/k8s/build_k8s_images.sh
+
+# 2. 部署到 K8s
+kubectl apply -f deployment/k8s-deploy.yaml
+
+# 3. 查看部署状态
+kubectl get pods -n anime-role-detect
 ```
 
 ### Service Access
