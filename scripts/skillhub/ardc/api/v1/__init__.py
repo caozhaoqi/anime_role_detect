@@ -11,7 +11,7 @@ from .search import router as search_router
 from .metadata import router as metadata_router
 
 # 创建 v1 版本路由
-router = APIRouter(prefix="/v1")
+router = APIRouter(prefix="")
 
 # 注册子路由
 router.include_router(skills_router)

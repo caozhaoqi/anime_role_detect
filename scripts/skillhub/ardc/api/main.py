@@ -48,7 +48,7 @@ app = FastAPI(
 app.include_router(auth_router)
 
 # 包含 v1 版本路由
-app.include_router(v1_router)
+app.include_router(v1_router, prefix="/api")
 
 # CORS 配置 - 使用统一配置
 app.add_middleware(

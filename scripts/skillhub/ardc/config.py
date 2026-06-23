@@ -159,7 +159,7 @@ class Settings(BaseSettings):
     api_description: str = "技能仓库 RESTful API - 提供技能管理、用户认证、技能搜索等功能"
 
     database: DatabaseSettings = DatabaseSettings()
-    jwt: JWTSettings
+    jwt: JWTSettings = JWTSettings()
     cors: CorsSettings = CorsSettings()
     log: LogSettings = LogSettings()
     redis: RedisSettings = RedisSettings()
@@ -168,9 +168,7 @@ class Settings(BaseSettings):
     skill: SkillSettings = SkillSettings()
 
     model_config = SettingsConfigDict(
-        env_file=str(Path(__file__).resolve().parent.parent / ".env"),
-        env_file_encoding="utf-8",
-        env_nested_delimiter="__"
+        extra="ignore"
     )
 
 
