@@ -46,7 +46,7 @@ class SkillRegistry:
                         if isinstance(info.get("metadata"), dict):
                             info["metadata"] = SkillMetadata(**info["metadata"])
                         registry[skill_id][version] = VersionInfo(**info)
-                    return registry
+                return registry
             except Exception as e:
                 logger.error(f"加载注册表失败: {e}")
         return {}
