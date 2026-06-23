@@ -939,6 +939,10 @@ def main():
     parser.add_argument("--max-count", type=int, default=100, help="每个角色目标张数")
     parser.add_argument("--skip-existing", action="store_true",
                         help="跳过已有≥max-count张的角色")
+    parser.add_argument("--skip-db-threshold", type=int, default=100,
+                        help="从数据库查询，跳过已采集>=此阈值的角色（默认100）")
+    parser.add_argument("--skip-training", action="store_true", default=True,
+                        help="从数据库查询 training_dataset 中已有的角色并跳过")
     args = parser.parse_args()
 
     # 确保 final_dataset 目录存在
@@ -950,15 +954,42 @@ def main():
     chinese_names = collect_chinese_names(str(KEYWORD_DIR))
     print(f"   共 {len(chinese_names)} 个不重复角色")
 
-    # 2. 获取 final_dataset 已有状态
+    # 2. 获取 final_dataset 已有状态（本地扫描 + 数据库查询）
     existing_counts = {}
-    for d in FINAL_DATASET_DIR.iterdir():
-        if d.is_dir():
-            count = len([f for f in d.iterdir()
-                         if f.is_file() and f.suffix.lower() in ('.jpg', '.jpeg', '.png', '.webp')])
-            existing_counts[d.name] = count
+
+    # 2a. 从数据库查询已采集角色数据
+    if args.skip_db_threshold > 0:
+        try:
+            print("   从 RDS 查询已采集角色数据...")
+            db_rows = DB._fetchall(
+                "SELECT role_name, training_count, final_count, total_count FROM role_stats"
+            )
+            for row in db_rows:
+                # 使用 total_count 作为判断依据
+                existing_counts[row['role_name']] = row['total_count']
+            print(f"   ✅ 数据库查询成功: {len(db_rows)} 个角色")
+        except Exception as e:
+            print(f"   ⚠️ 数据库查询失败: {e}，回退到本地扫描")
+
+    # 2b. 如果数据库没有，回退到本地扫描
+    if not existing_counts:
+        for d in FINAL_DATASET_DIR.iterdir():
+            if d.is_dir():
+                count = len([f for f in d.iterdir()
+                             if f.is_file() and f.suffix.lower() in ('.jpg', '.jpeg', '.png', '.webp')])
+                existing_counts[d.name] = count
+
+    # 2c. 统计要跳过的角色（根据阈值）
+    skip_threshold = args.skip_db_threshold
+    roles_to_skip = {name: count for name, count in existing_counts.items() if count >= skip_threshold}
 
     print(f"   final_dataset 已有 {len(existing_counts)} 个角色目录，共 {sum(existing_counts.values())} 张")
+    if roles_to_skip:
+        print(f"   ⚠️ 将跳过 {len(roles_to_skip)} 个角色（>= {skip_threshold} 张）:")
+        for name in sorted(roles_to_skip.keys(), key=lambda x: roles_to_skip[x], reverse=True)[:10]:
+            print(f"      {name}: {roles_to_skip[name]} 张")
+        if len(roles_to_skip) > 10:
+            print(f"      ... 及其他 {len(roles_to_skip) - 10} 个角色")
 
     # 2b. 加载全局去重索引（从 SQLite，无需扫描图片）
     print("加载全局跨角色去重索引...")
@@ -1001,6 +1032,14 @@ def main():
 
         # 3c. 检查是否已满足
         existing = existing_counts.get(dir_name, 0)
+
+        # 3c-1. 检查是否超过数据库阈值（从 training_dataset 等来源已有足够数据）
+        if args.skip_db_threshold > 0 and existing >= args.skip_db_threshold:
+            print(f"   ⚠️ {dir_name} 已有 {existing} 张 >= {args.skip_db_threshold}（数据库阈值），跳过采集")
+            total_skip += 1
+            continue
+
+        # 3c-2. 检查是否超过目标数量
         need = args.max_count - existing
         if args.skip_existing and need <= 0:
             print(f"   已有 {existing} ≥ {args.max_count}, 跳过")
@@ -1023,7 +1062,8 @@ def main():
                                                 global_hashes=global_hashes)
             print(f"   ✅ {chinese_name}: 成功={success}, 失败={fail}")
             total_done += 1
-            # 写入 RDS 采集记录
+
+            # 1. 写入 RDS 采集记录
             try:
                 DB.add_collection_record(
                     role_name=chinese_name,
@@ -1032,11 +1072,42 @@ def main():
                     success_count=success,
                     fail_count=fail,
                     total_needed=need,
-                    existing_before=existing_count,
+                    existing_before=existing,
                     new_hashes_added=success,
                 )
-            except Exception:
-                pass  # RDS 写入失败不影响主流程
+            except Exception as e:
+                print(f"   ⚠️ 写入采集记录失败: {e}")
+
+            # 2. 更新角色统计数据到 role_stats 表
+            try:
+                # 重新统计该角色的图片数量
+                new_total = existing + success
+
+                # 检查是否已存在
+                existing_row = DB._fetchone(
+                    "SELECT id, training_count, final_count FROM role_stats WHERE role_name = %s",
+                    (dir_name,)
+                )
+
+                if existing_row:
+                    # 更新现有记录
+                    DB._execute(
+                        "UPDATE role_stats SET final_count=%s, total_count=%s, "
+                        "updated_at=NOW() WHERE role_name=%s",
+                        (new_total, new_total, dir_name)
+                    )
+                else:
+                    # 插入新记录
+                    DB._execute(
+                        "INSERT INTO role_stats (role_name, training_count, final_count, "
+                        "total_count, skip_threshold) VALUES (%s, %s, %s, %s, %s)",
+                        (dir_name, 0, new_total, new_total, 100)
+                    )
+
+                print(f"   💾 已同步角色统计: {dir_name} {existing} → {new_total} 张")
+            except Exception as e:
+                print(f"   ⚠️ 更新角色统计失败: {e}")
+
         except Exception as e:
             print(f"   ❌ {chinese_name} 下载失败: {e}")
 

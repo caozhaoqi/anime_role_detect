@@ -6,40 +6,55 @@
 """
 
 import os
-from dotenv import load_dotenv
-
-load_dotenv()
-
-from sqlalchemy import create_engine
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker, Session
-from sqlalchemy.pool import StaticPool
-from typing import Generator, Optional
+from typing import Generator, Optional, Any
 from src.core.logging.global_logger import get_logger
 
 logger = get_logger("database")
 
-Base = declarative_base()
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    logger.warning("dotenv 模块不可用")
+
+try:
+    from sqlalchemy import create_engine
+    from sqlalchemy.ext.declarative import declarative_base
+    from sqlalchemy.orm import sessionmaker, Session
+    from sqlalchemy.pool import StaticPool
+    HAS_SQLALCHEMY = True
+except ImportError:
+    HAS_SQLALCHEMY = False
+    logger.warning("sqlalchemy 模块不可用，数据库功能将不可用")
+
+if HAS_SQLALCHEMY:
+    Base = declarative_base()
+else:
+    Base = None
+    Session = Any
 
 SQLITE_URL = os.environ.get(
     "SQLITE_URL",
     f"sqlite:///{os.path.abspath('data/recognition.db')}",
 )
 
-from urllib.parse import quote_plus
+if HAS_SQLALCHEMY:
+    from urllib.parse import quote_plus
 
-MYSQL_URL = os.environ.get("MYSQL_URL")
+    MYSQL_URL = os.environ.get("MYSQL_URL")
 
-if not MYSQL_URL:
-    mysql_host = os.environ.get("MYSQL_HOST", "")
-    mysql_port = os.environ.get("MYSQL_PORT", "3306")
-    mysql_user = os.environ.get("MYSQL_USER", "")
-    mysql_password = os.environ.get("MYSQL_PASSWORD", "")
-    mysql_db = os.environ.get("MYSQL_DB", "")
+    if not MYSQL_URL:
+        mysql_host = os.environ.get("MYSQL_HOST", "")
+        mysql_port = os.environ.get("MYSQL_PORT", "3306")
+        mysql_user = os.environ.get("MYSQL_USER", "")
+        mysql_password = os.environ.get("MYSQL_PASSWORD", "")
+        mysql_db = os.environ.get("MYSQL_DB", "")
 
-    if mysql_host and mysql_user and mysql_password:
-        encoded_password = quote_plus(mysql_password)
-        MYSQL_URL = f"mysql+pymysql://{mysql_user}:{encoded_password}@{mysql_host}:{mysql_port}/{mysql_db}?charset=utf8mb4"
+        if mysql_host and mysql_user and mysql_password:
+            encoded_password = quote_plus(mysql_password)
+            MYSQL_URL = f"mysql+pymysql://{mysql_user}:{encoded_password}@{mysql_host}:{mysql_port}/{mysql_db}?charset=utf8mb4"
+else:
+    MYSQL_URL = None
 
 DATABASE_MODE = os.environ.get("DATABASE_MODE", "sqlite").lower()
 
@@ -76,6 +91,10 @@ def init_local_database():
     """初始化本地SQLite数据库"""
     global _local_engine, _local_session
 
+    if not HAS_SQLALCHEMY:
+        logger.warning("sqlalchemy 不可用，无法初始化数据库")
+        return
+
     db_path = LOCAL_DB_URL
     if db_path.startswith("sqlite:///"):
         file_path = db_path[len("sqlite:///"):]
@@ -98,6 +117,10 @@ def init_local_database():
 def init_remote_database():
     """初始化远程MySQL数据库"""
     global _remote_engine, _remote_session
+
+    if not HAS_SQLALCHEMY:
+        logger.warning("sqlalchemy 不可用，无法初始化远程数据库")
+        return
 
     if not REMOTE_DB_URL:
         logger.warning("远程MySQL数据库配置未设置，跳过初始化")
@@ -122,6 +145,10 @@ def init_remote_database():
 
 def init_database(mode: Optional[str] = None):
     """初始化数据库引擎"""
+    if not HAS_SQLALCHEMY:
+        logger.warning("sqlalchemy 不可用，跳过数据库初始化")
+        return
+
     current_mode = mode or DATABASE_MODE
 
     logger.info(f"初始化数据库，模式: {current_mode}")
@@ -134,6 +161,11 @@ def init_database(mode: Optional[str] = None):
 
 def get_local_db() -> Generator[Session, None, None]:
     """获取本地数据库会话"""
+    if not HAS_SQLALCHEMY:
+        logger.warning("sqlalchemy 不可用，无法获取数据库会话")
+        yield None
+        return
+
     global _local_session
 
     if _local_session is None:
@@ -148,6 +180,11 @@ def get_local_db() -> Generator[Session, None, None]:
 
 def get_remote_db() -> Generator[Session, None, None]:
     """获取远程数据库会话"""
+    if not HAS_SQLALCHEMY:
+        logger.warning("sqlalchemy 不可用，无法获取远程数据库会话")
+        yield None
+        return
+
     global _remote_session
 
     if _remote_session is None:
@@ -167,6 +204,11 @@ def get_remote_db() -> Generator[Session, None, None]:
 
 def get_db() -> Generator[Session, None, None]:
     """获取数据库会话（根据模式选择）"""
+    if not HAS_SQLALCHEMY:
+        logger.warning("sqlalchemy 不可用，无法获取数据库会话")
+        yield None
+        return
+
     mode = DATABASE_MODE
 
     if mode == "remote":
@@ -179,6 +221,10 @@ def get_db() -> Generator[Session, None, None]:
 
 def get_db_session(mode: str = "auto") -> Session:
     """获取数据库会话（直接返回）"""
+    if not HAS_SQLALCHEMY:
+        logger.warning("sqlalchemy 不可用，无法获取数据库会话")
+        return None
+
     if mode == "auto":
         mode = DATABASE_MODE
 
@@ -205,6 +251,10 @@ def get_db_session(mode: str = "auto") -> Session:
 
 def get_local_db_session() -> Session:
     """获取本地数据库会话（直接返回）"""
+    if not HAS_SQLALCHEMY:
+        logger.warning("sqlalchemy 不可用，无法获取本地数据库会话")
+        return None
+
     if _local_session is None:
         init_local_database()
     return _local_session()
@@ -212,6 +262,10 @@ def get_local_db_session() -> Session:
 
 def get_remote_db_session() -> Optional[Session]:
     """获取远程数据库会话（直接返回）"""
+    if not HAS_SQLALCHEMY:
+        logger.warning("sqlalchemy 不可用，无法获取远程数据库会话")
+        return None
+
     if _remote_session is None:
         init_remote_database()
     return _remote_session() if _remote_session else None
@@ -219,6 +273,10 @@ def get_remote_db_session() -> Optional[Session]:
 
 def create_tables(engine=None):
     """创建所有表"""
+    if not HAS_SQLALCHEMY or Base is None:
+        logger.warning("sqlalchemy 不可用，无法创建数据库表")
+        return
+
     target_engine = engine or _local_engine
 
     if target_engine is None:
@@ -251,6 +309,10 @@ def create_remote_tables():
 
 def drop_tables(engine=None):
     """删除所有表"""
+    if not HAS_SQLALCHEMY or Base is None:
+        logger.warning("sqlalchemy 不可用，无法删除数据库表")
+        return
+
     target_engine = engine or _local_engine
 
     if target_engine is None:
@@ -270,6 +332,10 @@ def reset_database():
 
 def sync_local_to_remote():
     """同步本地数据到远程数据库"""
+    if not HAS_SQLALCHEMY:
+        logger.warning("sqlalchemy 不可用，无法同步数据")
+        return False
+
     if not is_remote_available() or _remote_session is None:
         logger.warning("远程数据库不可用，无法同步")
         return False
@@ -345,5 +411,6 @@ def get_engine_info() -> dict:
         "remote_available": is_remote_available(),
         "local_engine_exists": _local_engine is not None,
         "remote_engine_exists": _remote_engine is not None,
+        "has_sqlalchemy": HAS_SQLALCHEMY,
     }
     return info

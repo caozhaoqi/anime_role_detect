@@ -104,39 +104,27 @@ def setup_startup_handler(app: FastAPI) -> None:
     @app.on_event("startup")
     async def startup_event():
         """启动事件 - 初始化所有服务"""
-        try:
-            from src.services.support.auth_service import init_auth_service
-            init_auth_service()
-            logger.info("认证服务初始化完成")
+        services_to_init = [
+            ("认证服务", "src.services.support.auth_service", "init_auth_service"),
+            ("缓存管理器", "src.services.cache_service", "init_cache_manager"),
+            ("监控服务", "src.services.support.monitoring_service", "init_monitoring_service"),
+            ("消息队列服务", "src.services.messaging.message_queue_service", "init_message_queue_service"),
+            ("熔断器服务", "src.services.support.circuit_breaker_service", "init_circuit_breaker_service"),
+            ("模型版本服务", "src.services.model.model_version_service", "init_model_version_service"),
+            ("多模型服务", "src.services.model.multi_model_service", "init_multi_model_service"),
+            ("模型加载", "src.services.processor.model_loader", "load_models"),
+        ]
 
-            from src.services.cache_service import init_cache_manager
-            init_cache_manager()
-            logger.info("缓存管理器初始化完成")
-
-            from src.services.support.monitoring_service import init_monitoring_service
-            init_monitoring_service()
-            logger.info("监控服务初始化完成")
-
-            from src.services.messaging.message_queue_service import init_message_queue_service
-            init_message_queue_service()
-            logger.info("消息队列服务初始化完成")
-
-            from src.services.support.circuit_breaker_service import init_circuit_breaker_service
-            init_circuit_breaker_service()
-            logger.info("熔断器服务初始化完成")
-
-            from src.services.model.model_version_service import init_model_version_service
-            init_model_version_service()
-            logger.info("模型版本服务初始化完成")
-
-            from src.services.model.multi_model_service import init_multi_model_service
-            init_multi_model_service()
-            logger.info("多模型服务初始化完成")
-
-            from src.services.processor.model_loader import load_models
-            load_models()
-            logger.info("模型加载完成")
-        except Exception as e:
-            logger.error(f"服务初始化失败: {e}")
+        for service_name, module_path, func_name in services_to_init:
+            try:
+                __import__(module_path, fromlist=[func_name])
+                module = sys.modules[module_path]
+                func = getattr(module, func_name)
+                func()
+                logger.info(f"{service_name}初始化完成")
+            except ImportError as e:
+                logger.warning(f"{service_name}导入失败（可选模块）: {e}")
+            except Exception as e:
+                logger.error(f"{service_name}初始化失败: {e}")
 
     logger.info("启动事件处理程序配置完成")

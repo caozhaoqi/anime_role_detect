@@ -48,7 +48,7 @@ env/
 skillhub/web/node_modules/
 # Config with secrets
 scripts/notification_config.json
-
+scripts/skillhub/web/node_modules
 # Packs / zips
 packs/
 Thumbs.db
@@ -57,7 +57,6 @@ Thumbs.db
 data/
 dataset/
 *.csv
-*.json
 *.parquet
 
 # Models
@@ -125,7 +124,6 @@ config.json
 *.rar
 *.7z
 *.db
-*.json
 *.DS_Store
 Thumbs.db
 
