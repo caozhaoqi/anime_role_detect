@@ -29,11 +29,37 @@ logger = get_logger("application")
 service_registry = get_service_registry()
 
 
+def check_dependencies():
+    """检查并安装依赖"""
+    from src.core.dependency_manager import DependencyManager
+
+    print("\n" + "=" * 60)
+    print("🔍 检查依赖状态")
+    print("=" * 60)
+
+    manager = DependencyManager(mirror_priority=["tsinghua", "aliyun", "douban"])
+
+    # 检查核心依赖
+    if not manager.ensure_essential():
+        print("\n📦 开始自动安装核心依赖...")
+        success, fail = manager.install_core(verbose=True)
+        print(f"\n安装完成: ✅ {success} 个, ❌ {fail} 个")
+
+        if fail > 0:
+            print("\n⚠️  部分依赖安装失败，应用可能无法正常运行")
+            print("   请手动执行: python -m src.core.dependency_manager install-core")
+    else:
+        print("✅ 核心依赖检查通过")
+
+
 def initialize():
     """初始化应用"""
     logger.info("=" * 60)
     logger.info("动漫角色识别系统 - 初始化")
     logger.info("=" * 60)
+
+    # 自动检查并安装依赖
+    check_dependencies()
 
     # 初始化配置
     config = get_config()
