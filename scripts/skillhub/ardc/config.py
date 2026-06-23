@@ -87,6 +87,7 @@ class LogSettings(BaseSettings):
 class RedisSettings(BaseSettings):
     """Redis 配置"""
 
+    enabled: bool = False
     host: str = "localhost"
     port: int = 6379
     db: int = 0
