@@ -4,7 +4,7 @@ import sys
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
-LOG_DIR = Path("/tmp/anime_role_detect_logs")
+LOG_DIR = Path("./anime_role_detect_logs")
 LOG_DIR.mkdir(exist_ok=True)
 
 LOG_FILES = {

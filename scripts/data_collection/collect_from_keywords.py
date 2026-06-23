@@ -723,7 +723,7 @@ def collect_chinese_names(keyword_dir: str) -> Dict[str, str]:
     names = OrderedDict()
     keyword_path = Path(keyword_dir)
     if not keyword_path.exists():
-        print(f"⚠️ keyword 目录不存在: {keyword_dir}")
+        print(f"️ keyword 目录不存在: {keyword_dir}")
         return names
 
     for f in sorted(keyword_path.glob("*.txt")):
@@ -757,7 +757,7 @@ def _load_global_hash_db(db_path: str = None) -> Tuple[set, int]:
     try:
         return DB.load_all_hashes()
     except Exception as e:
-        print(f"  ⚠️ 从 RDS 加载哈希失败，降级到空集合: {e}")
+        print(f"  ️ 从 RDS 加载哈希失败，降级到空集合: {e}")
         return set(), 0
 
 
@@ -771,7 +771,7 @@ def _append_hashes_to_db(new_hashes: Set[str], role_name: str, db_path: str = No
     try:
         DB.append_hashes(new_hashes, role_name)
     except Exception as e:
-        print(f"    ⚠️ 持久化哈希到 RDS 失败: {e}")
+        print(f"    ️ 持久化哈希到 RDS 失败: {e}")
 
 
 # ── 下载函数 ────────────────────────────────────────────────
@@ -915,7 +915,7 @@ def download_character(target_tag: str, save_dir: str,
             total_success += site_success
             total_fail += site_fail
         except Exception as e:
-            print(f"    ⚠️ {site} 失败: {e}")
+            print(f"    ️ {site} 失败: {e}")
 
         remaining = max_count - total_success
         time.sleep(random.uniform(0.5, 1.5))
@@ -950,7 +950,7 @@ def main():
 
     # 1. 读取 keyword 文件
     print("=" * 60)
-    print("📋 读取 keyword 文件...")
+    print(" 读取 keyword 文件...")
     chinese_names = collect_chinese_names(str(KEYWORD_DIR))
     print(f"   共 {len(chinese_names)} 个不重复角色")
 
@@ -967,9 +967,9 @@ def main():
             for row in db_rows:
                 # 使用 total_count 作为判断依据
                 existing_counts[row['role_name']] = row['total_count']
-            print(f"   ✅ 数据库查询成功: {len(db_rows)} 个角色")
+            print(f"    数据库查询成功: {len(db_rows)} 个角色")
         except Exception as e:
-            print(f"   ⚠️ 数据库查询失败: {e}，回退到本地扫描")
+            print(f"   ️ 数据库查询失败: {e}，回退到本地扫描")
 
     # 2b. 如果数据库没有，回退到本地扫描
     if not existing_counts:
@@ -985,7 +985,7 @@ def main():
 
     print(f"   final_dataset 已有 {len(existing_counts)} 个角色目录，共 {sum(existing_counts.values())} 张")
     if roles_to_skip:
-        print(f"   ⚠️ 将跳过 {len(roles_to_skip)} 个角色（>= {skip_threshold} 张）:")
+        print(f"   ️ 将跳过 {len(roles_to_skip)} 个角色（>= {skip_threshold} 张）:")
         for name in sorted(roles_to_skip.keys(), key=lambda x: roles_to_skip[x], reverse=True)[:10]:
             print(f"      {name}: {roles_to_skip[name]} 张")
         if len(roles_to_skip) > 10:
@@ -1019,11 +1019,11 @@ def main():
                     target_tag = resolved
                     print(f"   tag_resolver 解析成功: {target_tag}")
                 else:
-                    print(f"   ⚠️ 无法解析: {chinese_name}，跳过")
+                    print(f"   ️ 无法解析: {chinese_name}，跳过")
                     total_notfound += 1
                     continue
             except Exception as e:
-                print(f"   ⚠️ tag_resolver 异常: {e}，跳过")
+                print(f"   ️ tag_resolver 异常: {e}，跳过")
                 total_notfound += 1
                 continue
 
@@ -1035,7 +1035,7 @@ def main():
 
         # 3c-1. 检查是否超过数据库阈值（从 training_dataset 等来源已有足够数据）
         if args.skip_db_threshold > 0 and existing >= args.skip_db_threshold:
-            print(f"   ⚠️ {dir_name} 已有 {existing} 张 >= {args.skip_db_threshold}（数据库阈值），跳过采集")
+            print(f"   ️ {dir_name} 已有 {existing} 张 >= {args.skip_db_threshold}（数据库阈值），跳过采集")
             total_skip += 1
             continue
 
@@ -1060,7 +1060,7 @@ def main():
             success, fail = download_character(target_tag, save_dir,
                                                 max_count=need,
                                                 global_hashes=global_hashes)
-            print(f"   ✅ {chinese_name}: 成功={success}, 失败={fail}")
+            print(f"    {chinese_name}: 成功={success}, 失败={fail}")
             total_done += 1
 
             # 1. 写入 RDS 采集记录
@@ -1076,7 +1076,7 @@ def main():
                     new_hashes_added=success,
                 )
             except Exception as e:
-                print(f"   ⚠️ 写入采集记录失败: {e}")
+                print(f"   ️ 写入采集记录失败: {e}")
 
             # 2. 更新角色统计数据到 role_stats 表
             try:
@@ -1104,19 +1104,19 @@ def main():
                         (dir_name, 0, new_total, new_total, 100)
                     )
 
-                print(f"   💾 已同步角色统计: {dir_name} {existing} → {new_total} 张")
+                print(f"    已同步角色统计: {dir_name} {existing} → {new_total} 张")
             except Exception as e:
-                print(f"   ⚠️ 更新角色统计失败: {e}")
+                print(f"   ️ 更新角色统计失败: {e}")
 
         except Exception as e:
-            print(f"   ❌ {chinese_name} 下载失败: {e}")
+            print(f"    {chinese_name} 下载失败: {e}")
 
         # 角色间延迟
         time.sleep(random.uniform(1.0, 2.0))
 
     # 4. 汇总
     print("\n" + "=" * 60)
-    print("📊 采集完成汇总")
+    print(" 采集完成汇总")
     print(f"   总角色: {len(chinese_names)}")
     print(f"   已采集/补充: {total_done}")
     print(f"   跳过(已满足): {total_skip}")
