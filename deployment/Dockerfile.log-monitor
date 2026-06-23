@@ -1,0 +1,28 @@
+FROM python:3.9-slim
+
+WORKDIR /app
+
+ARG BUILD_DATE
+ARG BUILD_TAG
+
+LABEL org.opencontainers.image.created=$BUILD_DATE
+LABEL org.opencontainers.image.version=$BUILD_TAG
+
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY .env.example .env
+COPY src/ ./src/
+COPY scripts/ ./scripts/
+
+RUN mkdir -p logs run
+
+ENV PYTHONPATH="/app"
+ENV LOG_LEVEL="INFO"
+
+CMD ["python", "scripts/monitoring/log_monitor.py", "--daemon", "--interval", "10"]

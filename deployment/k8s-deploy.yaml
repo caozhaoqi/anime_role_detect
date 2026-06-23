@@ -1,0 +1,648 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: anime-role-detect
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ardc-config
+  namespace: anime-role-detect
+data:
+  LOG_LEVEL: "INFO"
+  PYTHONPATH: "/app"
+  OMP_NUM_THREADS: "1"
+  MKL_NUM_THREADS: "1"
+  KMP_DUPLICATE_LIB_OK: "TRUE"
+  MKL_THREADING_LAYER: "GNU"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: ardc-secrets
+  namespace: anime-role-detect
+stringData:
+  DATABASE_URL: "postgresql://user:password@postgres:5432/ardc"
+  REDIS_URL: "redis://redis:6379/0"
+---
+# 核心服务
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-service
+  namespace: anime-role-detect
+  labels:
+    app: api-service
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: api-service
+  template:
+    metadata:
+      labels:
+        app: api-service
+    spec:
+      containers:
+      - name: api-service
+        image: harbor.example.com/anime-role-detect/api-service:latest
+        ports:
+        - containerPort: 8000
+        envFrom:
+        - configMapRef:
+            name: ardc-config
+        - secretRef:
+            name: ardc-secrets
+        resources:
+          requests:
+            cpu: "200m"
+            memory: "512Mi"
+          limits:
+            cpu: "1"
+            memory: "2Gi"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 20
+          periodSeconds: 5
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: api-service
+  namespace: anime-role-detect
+spec:
+  selector:
+    app: api-service
+  ports:
+  - port: 80
+    targetPort: 8000
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: model-service
+  namespace: anime-role-detect
+  labels:
+    app: model-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: model-service
+  template:
+    metadata:
+      labels:
+        app: model-service
+    spec:
+      containers:
+      - name: model-service
+        image: harbor.example.com/anime-role-detect/model-service:latest
+        ports:
+        - containerPort: 8000
+        envFrom:
+        - configMapRef:
+            name: ardc-config
+        - secretRef:
+            name: ardc-secrets
+        resources:
+          requests:
+            cpu: "500m"
+            memory: "2Gi"
+          limits:
+            cpu: "4"
+            memory: "8Gi"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 60
+          periodSeconds: 15
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 40
+          periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: model-service
+  namespace: anime-role-detect
+spec:
+  selector:
+    app: model-service
+  ports:
+  - port: 80
+    targetPort: 8000
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  namespace: anime-role-detect
+  labels:
+    app: frontend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: frontend
+  template:
+    metadata:
+      labels:
+        app: frontend
+    spec:
+      containers:
+      - name: frontend
+        image: harbor.example.com/anime-role-detect/frontend:latest
+        ports:
+        - containerPort: 3000
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "128Mi"
+          limits:
+            cpu: "500m"
+            memory: "512Mi"
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 3000
+          initialDelaySeconds: 10
+          periodSeconds: 5
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 3000
+          initialDelaySeconds: 5
+          periodSeconds: 3
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend
+  namespace: anime-role-detect
+spec:
+  selector:
+    app: frontend
+  ports:
+  - port: 80
+    targetPort: 3000
+  type: ClusterIP
+---
+# 网关和服务
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-gateway
+  namespace: anime-role-detect
+  labels:
+    app: api-gateway
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: api-gateway
+  template:
+    metadata:
+      labels:
+        app: api-gateway
+    spec:
+      containers:
+      - name: api-gateway
+        image: harbor.example.com/anime-role-detect/api-gateway:latest
+        ports:
+        - containerPort: 8000
+        envFrom:
+        - configMapRef:
+            name: ardc-config
+        - secretRef:
+            name: ardc-secrets
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "256Mi"
+          limits:
+            cpu: "500m"
+            memory: "1Gi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: api-gateway
+  namespace: anime-role-detect
+spec:
+  selector:
+    app: api-gateway
+  ports:
+  - port: 80
+    targetPort: 8000
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: multimedia-service
+  namespace: anime-role-detect
+  labels:
+    app: multimedia-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: multimedia-service
+  template:
+    metadata:
+      labels:
+        app: multimedia-service
+    spec:
+      containers:
+      - name: multimedia-service
+        image: harbor.example.com/anime-role-detect/multimedia-service:latest
+        ports:
+        - containerPort: 8000
+        envFrom:
+        - configMapRef:
+            name: ardc-config
+        - secretRef:
+            name: ardc-secrets
+        resources:
+          requests:
+            cpu: "200m"
+            memory: "512Mi"
+          limits:
+            cpu: "1"
+            memory: "2Gi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: multimedia-service
+  namespace: anime-role-detect
+spec:
+  selector:
+    app: multimedia-service
+  ports:
+  - port: 80
+    targetPort: 8000
+  type: ClusterIP
+---
+# 搜索服务
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: search-service
+  namespace: anime-role-detect
+  labels:
+    app: search-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: search-service
+  template:
+    metadata:
+      labels:
+        app: search-service
+    spec:
+      containers:
+      - name: search-service
+        image: harbor.example.com/anime-role-detect/search-service:latest
+        ports:
+        - containerPort: 8000
+        envFrom:
+        - configMapRef:
+            name: ardc-config
+        - secretRef:
+            name: ardc-secrets
+        resources:
+          requests:
+            cpu: "200m"
+            memory: "512Mi"
+          limits:
+            cpu: "1"
+            memory: "2Gi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: search-service
+  namespace: anime-role-detect
+spec:
+  selector:
+    app: search-service
+  ports:
+  - port: 80
+    targetPort: 8000
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: search-worker
+  namespace: anime-role-detect
+  labels:
+    app: search-worker
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: search-worker
+  template:
+    metadata:
+      labels:
+        app: search-worker
+    spec:
+      containers:
+      - name: search-worker
+        image: harbor.example.com/anime-role-detect/search-worker:latest
+        envFrom:
+        - configMapRef:
+            name: ardc-config
+        - secretRef:
+            name: ardc-secrets
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "256Mi"
+          limits:
+            cpu: "500m"
+            memory: "1Gi"
+---
+# 推理工作器
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: inference-worker
+  namespace: anime-role-detect
+  labels:
+    app: inference-worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: inference-worker
+  template:
+    metadata:
+      labels:
+        app: inference-worker
+    spec:
+      containers:
+      - name: inference-worker
+        image: harbor.example.com/anime-role-detect/inference-worker:latest
+        envFrom:
+        - configMapRef:
+            name: ardc-config
+        - secretRef:
+            name: ardc-secrets
+        resources:
+          requests:
+            cpu: "500m"
+            memory: "2Gi"
+          limits:
+            cpu: "4"
+            memory: "8Gi"
+---
+# 监控工具
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: monitor-dashboard
+  namespace: anime-role-detect
+  labels:
+    app: monitor-dashboard
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: monitor-dashboard
+  template:
+    metadata:
+      labels:
+        app: monitor-dashboard
+    spec:
+      containers:
+      - name: monitor-dashboard
+        image: harbor.example.com/anime-role-detect/monitor-dashboard:latest
+        envFrom:
+        - configMapRef:
+            name: ardc-config
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "128Mi"
+          limits:
+            cpu: "500m"
+            memory: "512Mi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: monitor-dashboard
+  namespace: anime-role-detect
+spec:
+  selector:
+    app: monitor-dashboard
+  ports:
+  - port: 80
+    targetPort: 8000
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: log-viewer
+  namespace: anime-role-detect
+  labels:
+    app: log-viewer
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: log-viewer
+  template:
+    metadata:
+      labels:
+        app: log-viewer
+    spec:
+      containers:
+      - name: log-viewer
+        image: harbor.example.com/anime-role-detect/log-viewer:latest
+        envFrom:
+        - configMapRef:
+            name: ardc-config
+        resources:
+          requests:
+            cpu: "50m"
+            memory: "64Mi"
+          limits:
+            cpu: "200m"
+            memory: "256Mi"
+---
+# 健康检查和监控
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: health-check
+  namespace: anime-role-detect
+  labels:
+    app: health-check
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: health-check
+  template:
+    metadata:
+      labels:
+        app: health-check
+    spec:
+      containers:
+      - name: health-check
+        image: harbor.example.com/anime-role-detect/health-check:latest
+        envFrom:
+        - configMapRef:
+            name: ardc-config
+        resources:
+          requests:
+            cpu: "50m"
+            memory: "64Mi"
+          limits:
+            cpu: "200m"
+            memory: "256Mi"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: log-monitor
+  namespace: anime-role-detect
+  labels:
+    app: log-monitor
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: log-monitor
+  template:
+    metadata:
+      labels:
+        app: log-monitor
+    spec:
+      containers:
+      - name: log-monitor
+        image: harbor.example.com/anime-role-detect/log-monitor:latest
+        envFrom:
+        - configMapRef:
+            name: ardc-config
+        resources:
+          requests:
+            cpu: "50m"
+            memory: "64Mi"
+          limits:
+            cpu: "200m"
+            memory: "256Mi"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: resource-monitor
+  namespace: anime-role-detect
+  labels:
+    app: resource-monitor
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: resource-monitor
+    template:
+    metadata:
+      labels:
+        app: resource-monitor
+    spec:
+      containers:
+      - name: resource-monitor
+        image: harbor.example.com/anime-role-detect/resource-monitor:latest
+        envFrom:
+        - configMapRef:
+            name: ardc-config
+        resources:
+          requests:
+            cpu: "50m"
+            memory: "64Mi"
+          limits:
+            cpu: "200m"
+            memory: "256Mi"
+---
+# Ingress
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ardc-ingress
+  namespace: anime-role-detect
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+spec:
+  rules:
+  - host: ardc.example.com
+    http:
+      paths:
+      - path: /api
+        pathType: Prefix
+        backend:
+          service:
+            name: api-service
+            port:
+              number: 80
+      - path: /model
+        pathType: Prefix
+        backend:
+          service:
+            name: model-service
+            port:
+              number: 80
+      - path: /gateway
+        pathType: Prefix
+        backend:
+          service:
+            name: api-gateway
+            port:
+              number: 80
+      - path: /multimedia
+        pathType: Prefix
+        backend:
+          service:
+            name: multimedia-service
+            port:
+              number: 80
+      - path: /search
+        pathType: Prefix
+        backend:
+          service:
+            name: search-service
+            port:
+              number: 80
+      - path: /monitor
+        pathType: Prefix
+        backend:
+          service:
+            name: monitor-dashboard
+            port:
+              number: 80
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: frontend
+            port:
+              number: 80

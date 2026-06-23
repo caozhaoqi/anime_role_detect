@@ -544,28 +544,37 @@ class CollectorRunner:
         """
         上传到 OSS → 返回 (oss_url, upload_success)
         清理旧本地包 → 清理对应状态元数据
+        打包完成后删除原图（无论是否上传成功）
         """
         oss_url = None
         upload_success = False
+        max_retries = 3
+        retry_delay = 30
 
-        # 上传到 OSS
+        # 上传到 OSS（带重试机制）
         if self.oss_uploader:
             self.log(f"  ☁️ 正在上传到 OSS...")
-            try:
-                object_name = f"dataset_pack_{pack_no:03d}.zip"
-                oss_url = self.oss_uploader.upload(str(zip_path), object_name, log_func=self.log)
-                upload_success = True
-                self.log(f"  ✅ OSS 上传成功")
+            for attempt in range(max_retries):
+                try:
+                    object_name = f"dataset_pack_{pack_no:03d}.zip"
+                    oss_url = self.oss_uploader.upload(str(zip_path), object_name, log_func=self.log)
+                    upload_success = True
+                    self.log(f"  ✅ OSS 上传成功")
 
-                # 记录 OSS 信息到状态
-                state = self._load_pack_state()
-                key = f"pack_{pack_no}"
-                if key in state:
-                    state[key]["oss_url"] = oss_url
-                    state[key]["oss_object"] = object_name
-                    self._save_pack_state(state)
-            except Exception as e:
-                self.log(f"  ❌ OSS 上传失败: {e}")
+                    state = self._load_pack_state()
+                    key = f"pack_{pack_no}"
+                    if key in state:
+                        state[key]["oss_url"] = oss_url
+                        state[key]["oss_object"] = object_name
+                        self._save_pack_state(state)
+                    break
+                except Exception as e:
+                    if attempt < max_retries - 1:
+                        self.log(f"  ❌ OSS 上传失败 (尝试 {attempt + 1}/{max_retries}): {e}")
+                        self.log(f"  ⏳ {retry_delay}秒后重试...")
+                        time.sleep(retry_delay)
+                    else:
+                        self.log(f"  ❌ OSS 上传失败 (已重试 {max_retries} 次): {e}")
 
         # 清理旧包 + 旧元数据：只保留最近 N 个
         all_zips = sorted(PACK_DIR.glob("dataset_pack_*.zip"), key=lambda p: p.stat().st_mtime)
@@ -573,7 +582,6 @@ class CollectorRunner:
         while len(all_zips) > MAX_LOCAL_PACKS:
             oldest = all_zips.pop(0)
             self.log(f"  🗑️ 清理旧包: {oldest.name} ({oldest.stat().st_size / 1024 / 1024:.1f} MB)")
-            # 记录被删的包号用于清理元数据
             m = re.search(r'pack_(\d+)', oldest.name)
             if m:
                 deleted_packs.add(f"pack_{int(m.group(1))}")
@@ -590,7 +598,6 @@ class CollectorRunner:
                 if k in deleted_packs:
                     del state[k]
                     changed = True
-                # 也清理 oss_object / oss_url 单独字段（如果后来改成顶层字段）
                 if k == f"oss_url_{pack_no}" or k == f"oss_object_{pack_no}":
                     del state[k]
                     changed = True
@@ -598,9 +605,9 @@ class CollectorRunner:
                 self._save_pack_state(state)
                 self.log(f"  🧹 已清理状态元数据: {', '.join(sorted(deleted_packs))}")
 
-        # 上传成功后，清理 final_dataset 中已打包的原图
-        if upload_success:
-            self._clean_packed_data(pack_no)
+        # 打包完成后立即删除 final_dataset 中已打包的原图
+        # 无论是否上传成功，只要打包完成就清理，以释放磁盘空间
+        self._clean_packed_data(pack_no)
 
         return oss_url, upload_success
 

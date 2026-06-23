@@ -1,0 +1,40 @@
+FROM python:3.9-slim
+
+WORKDIR /app
+
+ARG BUILD_DATE
+ARG BUILD_TAG
+
+LABEL org.opencontainers.image.created=$BUILD_DATE
+LABEL org.opencontainers.image.version=$BUILD_TAG
+
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    libgl1 \
+    libglib2.0-0 \
+    libsm6 \
+    libxext6 \
+    libxrender-dev \
+    git \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+COPY requirements.txt .
+COPY requirements-ml.txt .
+RUN pip install --no-cache-dir -r requirements.txt -r requirements-ml.txt
+
+COPY .env.example .env
+COPY src/ ./src/
+
+RUN mkdir -p logs run data/final_dataset packs
+
+ENV PYTHONPATH="/app"
+ENV LOG_LEVEL="INFO"
+ENV OMP_NUM_THREADS="1"
+ENV MKL_NUM_THREADS="1"
+ENV PYTORCH_MPS_DISABLE="1"
+ENV KMP_DUPLICATE_LIB_OK="TRUE"
+
+EXPOSE 8000
+
+CMD ["python", "src/services/model_service/app.py", "--host", "0.0.0.0", "--port", "8000"]

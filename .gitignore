@@ -116,7 +116,7 @@ config.ini
 config.json
 !config/*.example
 !config/*.template
-
+config/
 # Large files
 *.zip
 *.tar
