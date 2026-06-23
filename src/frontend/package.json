@@ -13,10 +13,6 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "@next/swc-darwin-arm64": "^14.2.3",
-    "@next/swc-darwin-x64": "^14.2.3",
-    "@next/swc-linux-x64-gnu": "^14.2.3",
-    "@next/swc-win32-x64-msvc": "^14.2.3",
     "autoprefixer": "^10.4.27",
     "axios": "^1.16.0",
     "lucide-react": "^0.395.0",
@@ -25,6 +21,12 @@
     "react-dom": "18.2.0",
     "react-easy-crop": "^5.5.7",
     "react-window": "^2.2.7"
+  },
+  "optionalDependencies": {
+    "@next/swc-darwin-arm64": "^14.2.3",
+    "@next/swc-darwin-x64": "^14.2.3",
+    "@next/swc-linux-x64-gnu": "^14.2.3",
+    "@next/swc-win32-x64-msvc": "^14.2.3"
   },
   "devDependencies": {
     "@types/node": "20.12.7",

@@ -512,12 +512,12 @@ $ARD_INSTALL_DIR = "$env:USERPROFILE\\.ardc"
 $ARD_BIN_DIR = "$ARD_INSTALL_DIR\\bin"
 $ARD_CLI_URL = "http://47.79.91.89:8888/api/install/cli.py"
 
-Write-Host "🚀 正在安装 ARD Skill Hub CLI 工具..."
+Write-Host "ARD Skill Hub CLI 安装中..."
 
 # 检查 Python
 if (-not (Get-Command python3 -ErrorAction SilentlyContinue)) {
     if (-not (Get-Command python -ErrorAction SilentlyContinue)) {
-        Write-Host "❌ 错误: 未找到 Python 3"
+        Write-Host "错误: 未找到 Python 3"
         exit 1
     }
 }
@@ -526,7 +526,7 @@ if (-not (Get-Command python3 -ErrorAction SilentlyContinue)) {
 New-Item -ItemType Directory -Path $ARD_BIN_DIR -Force | Out-Null
 
 # 下载 CLI
-Write-Host "📥 下载 CLI 工具..."
+Write-Host "下载 CLI 工具..."
 Invoke-WebRequest -Uri $ARD_CLI_URL -OutFile "$ARD_BIN_DIR\\ardc.py"
 
 # 设置 PATH
@@ -535,10 +535,10 @@ if ($path -notlike "*$ARD_BIN_DIR*") {
     [Environment]::SetEnvironmentVariable("Path", "$path;$ARD_BIN_DIR", "User")
 }
 
-Write-Host "✅ 安装完成!"
+Write-Host "安装完成!"
 Write-Host "请重新打开 PowerShell 后运行: ardc --version"
 """
-    return JSONResponse(content=ps_script)
+    return PlainTextResponse(content=ps_script)
 
 
 # ==================== 启动 ====================

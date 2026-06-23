@@ -188,3 +188,43 @@ def check_skill_update(skill_id: str, current_version: str = None):
     except Exception as e:
         logger.error(f"检查更新失败: {skill_id}, 错误: {str(e)}")
         raise HTTPException(status_code=500, detail="检查更新失败")
+
+
+@router.get("/{skill_id}/reviews")
+def get_skill_reviews(skill_id: str):
+    """获取技能评价列表"""
+    skill = registry.get_skill_by_version(skill_id)
+    if not skill:
+        raise HTTPException(status_code=404, detail=f"技能不存在: {skill_id}")
+
+    return {"reviews": [], "total": 0}
+
+
+@router.get("/{skill_id}/rating")
+def get_skill_rating(skill_id: str):
+    """获取技能评分"""
+    skill = registry.get_skill_by_version(skill_id)
+    if not skill:
+        raise HTTPException(status_code=404, detail=f"技能不存在: {skill_id}")
+
+    return {"average": 0.0, "total": 0, "distribution": {"5": 0, "4": 0, "3": 0, "2": 0, "1": 0}}
+
+
+@router.get("/{skill_id}/screenshots")
+def get_skill_screenshots(skill_id: str):
+    """获取技能截图列表"""
+    skill = registry.get_skill_by_version(skill_id)
+    if not skill:
+        raise HTTPException(status_code=404, detail=f"技能不存在: {skill_id}")
+
+    return {"screenshots": []}
+
+
+@router.post("/{skill_id}/install", dependencies=[Depends(get_current_developer)])
+def install_skill(skill_id: str, version: Optional[str] = None):
+    """安装技能"""
+    skill = registry.get_skill_by_version(skill_id, version)
+    if not skill:
+        raise HTTPException(status_code=404, detail=f"技能不存在: {skill_id}")
+
+    return {"message": "技能安装成功", "skill_id": skill_id, "version": skill.version}
