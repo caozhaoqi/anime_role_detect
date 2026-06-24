@@ -1,0 +1,13 @@
+{
+  "id": "ardc-analyzer",
+  "name": "数据分析器",
+  "version": "1.0.0",
+  "description": "数据分析技能，用于分析和可视化动漫数据。支持统计分析、趋势分析、数据可视化、报告生成。",
+  "author": "ARD Team",
+  "category": "utility",
+  "status": "stable",
+  "entry_point": "scripts/analysis/analyze_feature_quality.py",
+  "tags": ["分析", "可视化", "统计", "报告"],
+  "runtime": "python",
+  "dependencies": []
+}

@@ -1,0 +1,13 @@
+{
+  "id": "ardc-cleaner",
+  "name": "数据清洗器",
+  "version": "2.1.0",
+  "description": "数据清洗技能，用于清洗和预处理动漫图片数据。支持图片格式转换、去重、低质量数据过滤、质量评估。",
+  "author": "ARD Team",
+  "category": "data",
+  "status": "stable",
+  "entry_point": "scripts/data_cleaning/clean_final_dataset.py",
+  "tags": ["数据清洗", "图片处理", "去重", "质量评估"],
+  "runtime": "python",
+  "dependencies": ["ardc-organizer"]
+}

@@ -1,0 +1,13 @@
+{
+  "id": "ardc-importer",
+  "name": "数据导入器",
+  "version": "1.0.0",
+  "description": "数据导入技能，用于导入外部数据源到数据库。支持URL导入、批量导入、数据同步。",
+  "author": "ARD Team",
+  "category": "data",
+  "status": "stable",
+  "entry_point": "scripts/data_collection/database/import_all_urls.py",
+  "tags": ["导入", "数据同步", "数据库", "批量"],
+  "runtime": "python",
+  "dependencies": ["ardc-collector"]
+}

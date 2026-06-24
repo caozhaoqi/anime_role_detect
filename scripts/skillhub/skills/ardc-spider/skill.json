@@ -1,0 +1,13 @@
+{
+  "id": "ardc-spider",
+  "name": "爬虫服务",
+  "version": "2.0.0",
+  "description": "单角色爬虫技能，通过API爬取指定角色的图片URL。支持异步爬取、结果缓存、多源采集。",
+  "author": "ARD Team",
+  "category": "data",
+  "status": "stable",
+  "entry_point": "scripts/data_collection/spider_single_role.py",
+  "tags": ["爬虫", "URL采集", "单角色", "API"],
+  "runtime": "python",
+  "dependencies": ["ardc-collector"]
+}

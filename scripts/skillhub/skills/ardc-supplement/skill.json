@@ -1,0 +1,13 @@
+{
+  "id": "ardc-supplement",
+  "name": "数据补充器",
+  "version": "1.1.0",
+  "description": "数据补充技能，自动检测并补充图片数量不足的角色。支持智能补充、优先级调度、增量采集。",
+  "author": "ARD Team",
+  "category": "data",
+  "status": "stable",
+  "entry_point": "scripts/data_collection/supplement_low_count_roles.py",
+  "tags": ["数据补充", "增量采集", "智能调度"],
+  "runtime": "python",
+  "dependencies": ["ardc-collector", "ardc-spider"]
+}

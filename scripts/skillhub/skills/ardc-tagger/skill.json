@@ -1,0 +1,13 @@
+{
+  "id": "ardc-tagger",
+  "name": "标签标注器",
+  "version": "1.0.0",
+  "description": "DeepDanbooru标签标注技能，自动为图片添加内容标签。支持批量标注、标签过滤、角色识别。",
+  "author": "ARD Team",
+  "category": "data",
+  "status": "testing",
+  "entry_point": "scripts/data_cleaning/deepdanbooru_tagger.py",
+  "tags": ["标签", "标注", "DeepDanbooru", "内容识别"],
+  "runtime": "python",
+  "dependencies": ["ardc-cleaner"]
+}

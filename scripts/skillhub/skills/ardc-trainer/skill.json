@@ -1,0 +1,13 @@
+{
+  "id": "ardc-trainer",
+  "name": "模型训练器",
+  "version": "2.0.0",
+  "description": "模型训练技能，用于训练和优化角色检测模型。支持数据集管理、模型训练、超参数调优、模型评估。",
+  "author": "ARD Team",
+  "category": "ai",
+  "status": "stable",
+  "entry_point": "scripts/model_training/train_loli_optimized.py",
+  "tags": ["训练", "AI", "模型", "评估"],
+  "runtime": "python",
+  "dependencies": ["ardc-cleaner"]
+}

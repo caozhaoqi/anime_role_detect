@@ -1,0 +1,13 @@
+{
+  "id": "ardc-evaluator",
+  "name": "模型评估器",
+  "version": "1.0.0",
+  "description": "模型评估技能，用于评估模型性能。支持准确率分析、混淆矩阵、基准测试。",
+  "author": "ARD Team",
+  "category": "ai",
+  "status": "stable",
+  "entry_point": "scripts/model_evaluation/evaluate_model.py",
+  "tags": ["评估", "AI", "基准测试", "准确率"],
+  "runtime": "python",
+  "dependencies": ["ardc-classifier"]
+}

@@ -1,0 +1,37 @@
+{
+  "model_name": "efficientnet_b3_loli_optimized_v2_20260529_133654",
+  "created_at": "2026-05-30T09:18:19.384628",
+  "versions": [
+    {
+      "id": "v2_20260530_091819",
+      "name": "v2",
+      "registered_at": "2026-05-30T09:18:19.384643",
+      "training_config": {
+        "model_name": "efficientnet_b3",
+        "num_classes": 74,
+        "image_size": 224,
+        "batch_size": 32,
+        "learning_rate": 0.0001,
+        "epochs": 80,
+        "weight_decay": 0.0001,
+        "label_smoothing": 0.1,
+        "train_samples": 7523,
+        "val_samples": 1881,
+        "timestamp": "20260529_133654"
+      },
+      "metrics": {
+        "best_accuracy": 0.6900584795321637,
+        "top_1_accuracy": 0.9391891891891891,
+        "top_3_accuracy": 0.9614864864864865,
+        "top_5_accuracy": 0.9689189189189189,
+        "fps": 90.52271677097751
+      },
+      "data_augmentation": [
+        "RandomHorizontalFlip",
+        "ColorJitter",
+        "RandomCrop"
+      ],
+      "notes": "EfficientNet-B3 优化版本，使用标准数据增强"
+    }
+  ]
+}

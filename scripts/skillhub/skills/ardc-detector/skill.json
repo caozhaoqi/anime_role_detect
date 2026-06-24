@@ -1,0 +1,13 @@
+{
+  "id": "ardc-detector",
+  "name": "人脸检测器",
+  "version": "1.0.0",
+  "description": "人脸检测技能，使用YuNet模型检测动漫人脸。支持批量检测、关键点定位、检测优化。",
+  "author": "ARD Team",
+  "category": "ai",
+  "status": "stable",
+  "entry_point": "scripts/detection/run_yunet_detection_optimized.py",
+  "tags": ["人脸检测", "YuNet", "关键点", "动漫"],
+  "runtime": "python",
+  "dependencies": []
+}

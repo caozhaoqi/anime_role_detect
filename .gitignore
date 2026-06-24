@@ -58,9 +58,7 @@ data/
 dataset/
 *.csv
 *.parquet
-
 # Models
-models/
 trained_generators/
 *.onnx
 *.mlpackage

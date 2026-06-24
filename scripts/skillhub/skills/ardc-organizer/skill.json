@@ -1,0 +1,13 @@
+{
+  "id": "ardc-organizer",
+  "name": "数据集组织器",
+  "version": "1.0.0",
+  "description": "数据集组织技能，将下载的图片整理到final_dataset目录。支持格式统一、角色分类、目录同步。",
+  "author": "ARD Team",
+  "category": "data",
+  "status": "stable",
+  "entry_point": "scripts/data_collection/organize_final_dataset.py",
+  "tags": ["数据集", "组织", "格式统一", "目录同步"],
+  "runtime": "python",
+  "dependencies": ["ardc-collector"]
+}

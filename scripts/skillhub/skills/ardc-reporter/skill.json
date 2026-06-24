@@ -1,0 +1,13 @@
+{
+  "id": "ardc-reporter",
+  "name": "报告生成器",
+  "version": "1.0.0",
+  "description": "报告生成技能，生成数据集统计报告和质量分析报告。支持角色分布、质量评估、统计摘要。",
+  "author": "ARD Team",
+  "category": "utility",
+  "status": "stable",
+  "entry_point": "scripts/analysis/generate_final_report.py",
+  "tags": ["报告", "统计", "质量分析", "数据集"],
+  "runtime": "python",
+  "dependencies": ["ardc-analyzer"]
+}

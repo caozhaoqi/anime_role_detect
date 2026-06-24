@@ -1,0 +1,562 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+ - 
+"""
+
+import os
+import sys
+import argparse
+import torch
+import torch.nn as nn
+import torch.optim as optim
+from torch.utils.data import DataLoader, Dataset, random_split
+from torchvision import transforms, models
+from PIL import Image
+from tqdm import tqdm
+import json
+import numpy as np
+import random
+from src.core.logging.global_logger import get_logger
+from models.keypoint_aware_model import get_keypoint_aware_model
+
+# Python
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
+
+# 
+
+logger = get_logger("train_incremental")
+
+
+class CharacterDataset(Dataset):
+    def __init__(
+        self,
+        root_dir,
+        transform=None,
+        target_characters=None,
+        existing_class_to_idx=None,
+        keypoint_annotations=None,
+    ):
+        self.root_dir = root_dir
+        self.transform = transform
+        self.keypoint_annotations = keypoint_annotations
+        self.images = []
+        self.labels = []
+        self.keypoints = []
+        self.class_to_idx = existing_class_to_idx.copy() if existing_class_to_idx else {}
+
+        all_classes = sorted(
+            [d for d in os.listdir(root_dir) if os.path.isdir(os.path.join(root_dir, d))]
+        )
+
+        if target_characters:
+            classes = [c for c in all_classes if any(tc in c for tc in target_characters)]
+        else:
+            classes = all_classes
+
+        # 
+        start_idx = len(self.class_to_idx)
+        for cls in classes:
+            if cls not in self.class_to_idx:
+                self.class_to_idx[cls] = start_idx
+                start_idx += 1
+
+        # 
+        for cls in classes:
+            cls_dir = os.path.join(root_dir, cls)
+            for img_name in os.listdir(cls_dir):
+                if img_name.lower().endswith((".jpg", ".jpeg", ".png", ".bmp", ".webp")):
+                    img_path = os.path.join(cls_dir, img_name)
+                    self.images.append(img_path)
+                    self.labels.append(self.class_to_idx[cls])
+
+                    # 
+                    if self.keypoint_annotations:
+                        # 
+                        keypoint = self._load_keypoint(cls, img_name)
+                        self.keypoints.append(keypoint)
+                    else:
+                        self.keypoints.append(None)
+            logger.info(
+                f" {cls}: {len([f for f in os.listdir(cls_dir) if f.lower().endswith(('.jpg', '.jpeg', '.png', '.bmp', '.webp'))])} "
+            )
+
+        logger.info(
+            f" {len(self.class_to_idx)} {len(self.images)} "
+        )
+        if self.keypoint_annotations:
+            logger.info(
+                f" {sum(1 for k in self.keypoints if k is not None)} "
+            )
+
+    def _load_keypoint(self, cls, img_name):
+        """"""
+        try:
+            # 
+            annotation_file = os.path.join(
+                self.keypoint_annotations, f"{cls.replace('/', '_')}_keypoints.json"
+            )
+            if os.path.exists(annotation_file):
+                with open(annotation_file, "r", encoding="utf-8") as f:
+                    annotations = json.load(f)
+                if img_name in annotations:
+                    return annotations[img_name]["keypoints"]
+        except Exception as e:
+            logger.warning(f": {e}")
+        return None
+
+    def __len__(self):
+        return len(self.images)
+
+    def __getitem__(self, idx):
+        img_path = self.images[idx]
+        image = Image.open(img_path).convert("RGB")
+        label = self.labels[idx]
+        keypoint = self.keypoints[idx]
+
+        if self.transform:
+            image = self.transform(image)
+
+        # 
+        if keypoint:
+            return image, label, keypoint
+        else:
+            return image, label
+
+
+def mixup_data(x, y, alpha=0.4):
+    if alpha > 0:
+        lam = np.random.beta(alpha, alpha)
+    else:
+        lam = 1
+
+    batch_size = x.size()[0]
+    index = torch.randperm(batch_size)
+
+    mixed_x = lam * x + (1 - lam) * x[index, :]
+    y_a, y_b = y, y[index]
+
+    return mixed_x, y_a, y_b, lam
+
+
+def mixup_criterion(criterion, pred, y_a, y_b, lam):
+    return lam * criterion(pred, y_a) + (1 - lam) * criterion(pred, y_b)
+
+
+def get_model(model_type, num_classes, dropout_rate=0.3, checkpoint=None, use_keypoints=False):
+    if use_keypoints:
+        logger.info(f": {model_type} ()")
+        model = get_keypoint_aware_model(model_type, num_classes)
+    else:
+        if model_type == "mobilenet_v2":
+            logger.info(f": MobileNetV2 (dropout={dropout_rate})")
+            model = models.mobilenet_v2(pretrained=not checkpoint)
+
+            # 
+            model.classifier = nn.Sequential(
+                nn.Dropout(p=dropout_rate),
+                nn.Linear(model.classifier[1].in_features, 512),
+                nn.ReLU(inplace=True),
+                nn.BatchNorm1d(512),
+                nn.Dropout(p=dropout_rate * 0.5),
+                nn.Linear(512, num_classes),
+            )
+        elif model_type == "efficientnet_b0":
+            logger.info(f": EfficientNet-B0 (dropout={dropout_rate})")
+            model = models.efficientnet_b0(pretrained=not checkpoint)
+
+            # 
+            model.classifier = nn.Sequential(
+                nn.Dropout(p=dropout_rate),
+                nn.Linear(model.classifier[1].in_features, 512),
+                nn.ReLU(inplace=True),
+                nn.BatchNorm1d(512),
+                nn.Dropout(p=dropout_rate * 0.5),
+                nn.Linear(512, num_classes),
+            )
+        elif model_type == "efficientnet_b3":
+            logger.info(f": EfficientNet-B3 (dropout={dropout_rate})")
+            model = models.efficientnet_b3(pretrained=not checkpoint)
+
+            # 
+            model.classifier = nn.Sequential(
+                nn.Dropout(p=dropout_rate),
+                nn.Linear(model.classifier[1].in_features, 512),
+                nn.ReLU(inplace=True),
+                nn.BatchNorm1d(512),
+                nn.Dropout(p=dropout_rate * 0.5),
+                nn.Linear(512, num_classes),
+            )
+        elif model_type == "resnet50":
+            logger.info(f": ResNet50 (dropout={dropout_rate})")
+            model = models.resnet50(pretrained=not checkpoint)
+
+            # 
+            num_ftrs = model.fc.in_features
+            model.fc = nn.Sequential(
+                nn.Dropout(p=dropout_rate),
+                nn.Linear(num_ftrs, 512),
+                nn.ReLU(inplace=True),
+                nn.BatchNorm1d(512),
+                nn.Dropout(p=dropout_rate * 0.5),
+                nn.Linear(512, num_classes),
+            )
+        else:
+            raise ValueError(f": {model_type}")
+
+    return model
+
+
+def load_existing_model(checkpoint_path, model_type, num_classes, dropout_rate=0.3):
+    """"""
+    logger.info(f": {checkpoint_path}")
+    checkpoint = torch.load(checkpoint_path)
+
+    # 
+    use_keypoints = checkpoint.get("use_keypoints", False)
+
+    # 
+    model = get_model(model_type, num_classes, dropout_rate, use_keypoints=use_keypoints)
+
+    # 
+    if "model_type" in checkpoint and checkpoint["model_type"].startswith(model_type):
+        # 
+        pretrained_dict = checkpoint["model_state_dict"]
+        model_dict = model.state_dict()
+
+        # 
+        if use_keypoints:
+            # keypoint_encoder
+            pretrained_dict = {
+                k: v
+                for k, v in pretrained_dict.items()
+                if not k.startswith("classifier") and not k.startswith("keypoint_encoder")
+            }
+        else:
+            # 
+            pretrained_dict = {
+                k: v
+                for k, v in pretrained_dict.items()
+                if not k.startswith("classifier") and not k.startswith("fc")
+            }
+
+        # 
+        model_dict.update(pretrained_dict)
+        model.load_state_dict(model_dict)
+
+        logger.info("")
+    else:
+        logger.info("")
+
+    return model, checkpoint
+
+
+def train_model(
+    model,
+    train_loader,
+    val_loader,
+    device,
+    num_epochs=50,
+    lr=0.0008,
+    weight_decay=0.0003,
+    output_dir="models/incremental",
+    class_to_idx=None,
+    use_mixup=True,
+    label_smoothing=0.08,
+    checkpoint=None,
+    model_type="mobilenet_v2",
+    use_keypoints=False,
+):
+    logger.info(f": {device}")
+    logger.info(f": {num_epochs}, : {lr}, : {weight_decay}")
+    logger.info(f": Mixup={use_mixup}, ={label_smoothing}")
+    logger.info(f": {use_keypoints}")
+
+    os.makedirs(output_dir, exist_ok=True)
+
+    criterion = nn.CrossEntropyLoss(label_smoothing=label_smoothing)
+    optimizer = optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)
+
+    # 
+    #  checkpoint
+    if checkpoint and "val_acc" in checkpoint:
+        best_val_acc = checkpoint["val_acc"]
+        logger.info(f": {best_val_acc:.2f}%")
+
+    scheduler = optim.lr_scheduler.CosineAnnealingWarmRestarts(
+        optimizer, T_0=10, T_mult=2, eta_min=lr * 0.01
+    )
+
+    train_losses = []
+    val_losses = []
+    train_accuracies = []
+    val_accuracies = []
+    best_val_acc = 0.0
+
+    #  checkpoint
+    if checkpoint and "val_acc" in checkpoint:
+        best_val_acc = checkpoint["val_acc"]
+        logger.info(f": {best_val_acc:.2f}%")
+
+    patience = 30
+    no_improve_count = 0
+
+    for epoch in range(num_epochs):
+        model.train()
+        train_loss = 0.0
+        train_correct = 0
+        train_total = 0
+
+        pbar = tqdm(train_loader, desc=f"Epoch {epoch+1}/{num_epochs} [Train]")
+        for batch in pbar:
+            # 
+            if len(batch) == 3:
+                images, labels, keypoints = batch
+            else:
+                images, labels = batch
+                keypoints = None
+
+            images, labels = images.to(device), labels.to(device)
+
+            if use_mixup and random.random() < 0.5:
+                images, labels_a, labels_b, lam = mixup_data(images, labels, alpha=0.4)
+                optimizer.zero_grad()
+                if use_keypoints and keypoints is not None:
+                    outputs = model(images, keypoints)
+                else:
+                    outputs = model(images)
+                loss = mixup_criterion(criterion, outputs, labels_a, labels_b, lam)
+            else:
+                optimizer.zero_grad()
+                if use_keypoints and keypoints is not None:
+                    outputs = model(images, keypoints)
+                else:
+                    outputs = model(images)
+                loss = criterion(outputs, labels)
+
+            # 
+            # loss += keypoint_loss(keypoints, predicted_keypoints)
+
+            loss.backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+            optimizer.step()
+
+            train_loss += loss.item()
+            _, predicted = torch.max(outputs, 1)
+            train_total += labels.size(0)
+            train_correct += (predicted == labels).sum().item()
+
+            pbar.set_postfix(
+                {"loss": f"{loss.item():.4f}", "lr": f'{optimizer.param_groups[0]["lr"]:.6f}'}
+            )
+
+        scheduler.step()
+
+        train_loss = train_loss / len(train_loader)
+        train_acc = 100 * train_correct / train_total
+        train_losses.append(train_loss)
+        train_accuracies.append(train_acc)
+
+        model.eval()
+        val_loss = 0.0
+        val_correct = 0
+        val_total = 0
+
+        with torch.no_grad():
+            for batch in tqdm(val_loader, desc=f"Epoch {epoch+1}/{num_epochs} [Val]"):
+                # 
+                if len(batch) == 3:
+                    images, labels, keypoints = batch
+                else:
+                    images, labels = batch
+                    keypoints = None
+
+                images, labels = images.to(device), labels.to(device)
+                if use_keypoints and keypoints is not None:
+                    outputs = model(images, keypoints)
+                else:
+                    outputs = model(images)
+                loss = criterion(outputs, labels)
+
+                # 
+                # loss += keypoint_loss(keypoints, predicted_keypoints)
+
+                val_loss += loss.item()
+                _, predicted = torch.max(outputs, 1)
+                val_total += labels.size(0)
+                val_correct += (predicted == labels).sum().item()
+
+        val_loss = val_loss / len(val_loader)
+        val_acc = 100 * val_correct / val_total
+        val_losses.append(val_loss)
+        val_accuracies.append(val_acc)
+
+        logger.info(
+            f"Epoch {epoch+1}/{num_epochs}: "
+            f"Train Loss: {train_loss:.4f}, Train Acc: {train_acc:.2f}%, "
+            f"Val Loss: {val_loss:.4f}, Val Acc: {val_acc:.2f}%, "
+            f'LR: {optimizer.param_groups[0]["lr"]:.6f}'
+        )
+
+        # 
+        torch.save(
+            {
+                "epoch": epoch,
+                "model_state_dict": model.state_dict(),
+                "optimizer_state_dict": optimizer.state_dict(),
+                "val_acc": val_acc,
+                "class_to_idx": class_to_idx,
+                "use_keypoints": use_keypoints,
+            },
+            os.path.join(output_dir, "model_best.pth"),
+        )
+        logger.info(f": {val_acc:.2f}%")
+
+        if val_acc > best_val_acc:
+            best_val_acc = val_acc
+            no_improve_count = 0
+        else:
+            no_improve_count += 1
+
+        if no_improve_count >= patience:
+            logger.info(f": {patience} epoch")
+            break
+
+    results = {
+        "model_type": f"{model_type}_incremental",
+        "num_epochs": num_epochs,
+        "best_val_accuracy": best_val_acc,
+        "final_train_accuracy": train_accuracies[-1],
+        "final_val_accuracy": val_accuracies[-1],
+        "train_losses": train_losses,
+        "val_losses": val_losses,
+        "train_accuracies": train_accuracies,
+        "val_accuracies": val_accuracies,
+        "use_mixup": use_mixup,
+        "label_smoothing": label_smoothing,
+    }
+
+    with open(os.path.join(output_dir, "training_results.json"), "w") as f:
+        json.dump(results, f, indent=2)
+
+    logger.info(f": {best_val_acc:.2f}%")
+    return results
+
+
+def main():
+    parser = argparse.ArgumentParser(description="")
+    parser.add_argument("--data-dir", type=str, default="../../data/train", help="")
+    parser.add_argument(
+        "--model-type",
+        type=str,
+        default="mobilenet_v2",
+        choices=["mobilenet_v2", "efficientnet_b0", "efficientnet_b3", "resnet50"],
+        help="",
+    )
+    parser.add_argument("--checkpoint", type=str, default=None, help="")
+    parser.add_argument("--batch-size", type=int, default=32, help="")
+    parser.add_argument("--epochs", type=int, default=50, help="")
+    parser.add_argument("--lr", type=float, default=0.0008, help="")
+    parser.add_argument("--weight-decay", type=float, default=0.0003, help="")
+    parser.add_argument("--dropout", type=float, default=0.3, help="Dropout")
+    parser.add_argument("--label-smoothing", type=float, default=0.08, help="")
+    parser.add_argument("--use-mixup", action="store_true", help="Mixup")
+    parser.add_argument("--output-dir", type=str, default="models/incremental", help="")
+    parser.add_argument("--keypoint-annotations", type=str, default=None, help="")
+
+    args = parser.parse_args()
+
+    device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
+    logger.info(f": {device}")
+
+    train_transform = transforms.Compose(
+        [
+            transforms.Resize((256, 256)),
+            transforms.RandomCrop((224, 224)),
+            transforms.RandomHorizontalFlip(p=0.5),
+            transforms.RandomVerticalFlip(p=0.1),
+            transforms.RandomRotation(30),
+            transforms.RandomAffine(degrees=0, translate=(0.1, 0.1), scale=(0.9, 1.1)),
+            transforms.ColorJitter(brightness=0.3, contrast=0.3, saturation=0.3, hue=0.1),
+            transforms.RandomGrayscale(p=0.05),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+            transforms.RandomErasing(p=0.2, scale=(0.02, 0.1)),
+        ]
+    )
+
+    val_transform = transforms.Compose(
+        [
+            transforms.Resize((256, 256)),
+            transforms.CenterCrop((224, 224)),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+        ]
+    )
+
+    # 
+    existing_class_to_idx = None
+    checkpoint = None
+
+    if args.checkpoint:
+        checkpoint = torch.load(args.checkpoint)
+        if "class_to_idx" in checkpoint:
+            existing_class_to_idx = checkpoint["class_to_idx"]
+            logger.info(f": {existing_class_to_idx}")
+
+    logger.info("...")
+    full_dataset = CharacterDataset(
+        args.data_dir,
+        transform=train_transform,
+        existing_class_to_idx=existing_class_to_idx,
+        keypoint_annotations=args.keypoint_annotations,
+    )
+
+    train_size = int(0.8 * len(full_dataset))
+    val_size = len(full_dataset) - train_size
+    train_dataset, val_dataset = random_split(full_dataset, [train_size, val_size])
+
+    val_dataset.dataset.transform = val_transform
+
+    logger.info(f": {len(train_dataset)}, : {len(val_dataset)}")
+
+    train_loader = DataLoader(
+        train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=0
+    )
+    val_loader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False, num_workers=0)
+
+    num_classes = len(full_dataset.class_to_idx)
+
+    if args.checkpoint:
+        model, _ = load_existing_model(args.checkpoint, args.model_type, num_classes, args.dropout)
+    else:
+        model = get_model(args.model_type, num_classes, args.dropout)
+
+    model = model.to(device)
+
+    logger.info(f": {num_classes}")
+    logger.info(f": {full_dataset.class_to_idx}")
+
+    results = train_model(
+        model,
+        train_loader,
+        val_loader,
+        device,
+        num_epochs=args.epochs,
+        lr=args.lr,
+        weight_decay=args.weight_decay,
+        output_dir=args.output_dir,
+        class_to_idx=full_dataset.class_to_idx,
+        use_mixup=args.use_mixup,
+        label_smoothing=args.label_smoothing,
+        checkpoint=checkpoint,
+        model_type=args.model_type,
+        use_keypoints=args.keypoint_annotations is not None,
+    )
+
+    logger.info("")
+    logger.info(f': {results["best_val_accuracy"]:.2f}%')
+
+
+if __name__ == "__main__":
+    main()

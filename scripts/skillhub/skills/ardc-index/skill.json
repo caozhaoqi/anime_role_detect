@@ -1,0 +1,13 @@
+{
+  "id": "ardc-index",
+  "name": "FAISS索引构建器",
+  "version": "1.0.0",
+  "description": "向量索引构建技能，使用FAISS构建图片特征索引。支持快速搜索、相似度匹配、索引优化。",
+  "author": "ARD Team",
+  "category": "utility",
+  "status": "stable",
+  "entry_point": "scripts/analysis/build_faiss_index.py",
+  "tags": ["索引", "FAISS", "搜索", "向量"],
+  "runtime": "python",
+  "dependencies": ["ardc-classifier"]
+}

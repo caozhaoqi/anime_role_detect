@@ -1,0 +1,13 @@
+{
+  "id": "ardc-classifier",
+  "name": "角色分类器",
+  "version": "2.0.0",
+  "description": "角色分类识别技能，使用深度学习模型识别动漫角色。支持多分类、特征提取、相似度匹配。",
+  "author": "ARD Team",
+  "category": "ai",
+  "status": "stable",
+  "entry_point": "scripts/classification/classify_collection_local.py",
+  "tags": ["分类", "AI", "深度学习", "识别"],
+  "runtime": "python",
+  "dependencies": ["ardc-trainer"]
+}
