@@ -1,5 +1,6 @@
 # Multi-stage Dockerfile for Model Service
 # Stage 1: Builder stage for installing dependencies
+# syntax=docker/dockerfile:1.4
 
 FROM python:3.9-slim AS builder
 
@@ -9,7 +10,11 @@ WORKDIR /app
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
-    PIP_NO_CACHE_DIR=1
+    PIP_NO_CACHE_DIR=1 \
+    PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
+
+# Use Chinese mirror for faster apt downloads
+RUN sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list.d/debian.sources
 
 # Install system dependencies for building
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -23,17 +28,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 
-# Copy requirements files
-COPY requirements.txt .
-COPY requirements-base.txt .
-COPY requirements-ml.txt .
+# Copy requirements files FIRST (for better layer caching)
+COPY requirements.txt requirements-base.txt requirements-ml.txt ./
 
 # Combine requirements and filter out duplicates
 RUN cat requirements.txt requirements-base.txt requirements-ml.txt | sort | uniq > /tmp/all_requirements.txt
 
-# Install dependencies to a separate directory for later copying
-RUN pip wheel --wheel-dir=/app/wheels -r /tmp/all_requirements.txt
-RUN pip install --no-cache-dir --target=/app/deps -r /tmp/all_requirements.txt
+# Install dependencies with cache mount for faster rebuilds
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --no-cache-dir --target=/app/deps -r /tmp/all_requirements.txt
 
 # Stage 2: Runtime stage with minimal dependencies
 FROM python:3.9-slim AS runtime
@@ -48,7 +51,11 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     KERAS_HOME=/app/cache/keras \
     REDIS_HOST=redis \
     RABBITMQ_HOST=rabbitmq \
-    LOG_LEVEL=INFO
+    LOG_LEVEL=INFO \
+    PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
+
+# Use Chinese mirror for faster apt downloads
+RUN sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list.d/debian.sources
 
 # Install only runtime system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -63,13 +70,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Create non-root user for security
 RUN useradd -m -u 1000 appuser
-USER appuser
 
 # Copy installed dependencies from builder stage
 COPY --from=builder --chown=appuser:appuser /app/deps /home/appuser/.local/lib/python3.9/site-packages
 
-# Copy source files
+# Copy source files LAST (changes frequently)
 COPY --chown=appuser:appuser src/ ./src/
+
+# Switch to non-root user
+USER appuser
 
 # Create necessary directories
 RUN mkdir -p /app/cache/huggingface /app/cache/keras /app/logs /app/models
