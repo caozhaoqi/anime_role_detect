@@ -7,11 +7,15 @@
 
 from typing import Optional, List
 from fastapi import APIRouter, HTTPException, Depends
+from sqlalchemy.orm import Session
+from datetime import datetime, timezone
+from pydantic import BaseModel
 
 from ardc.store.registry import SkillRegistry
 from ardc.store.index import SkillIndex
 from ardc.version.manager import VersionManager
 from ardc.api.auth import get_current_developer, get_current_user
+from ardc.api.database import get_db, SkillReview
 from ardc.utils.logging import get_logger, get_request_logger
 from ardc.cache import cache, CacheKeys, invalidate_cache
 from ardc.api.schemas import SkillCreate
@@ -191,23 +195,87 @@ def check_skill_update(skill_id: str, current_version: str = None):
 
 
 @router.get("/{skill_id}/reviews")
-def get_skill_reviews(skill_id: str):
+def get_skill_reviews(skill_id: str, db: Session = Depends(get_db)):
     """获取技能评价列表"""
     skill = registry.get_skill_by_version(skill_id)
     if not skill:
         raise HTTPException(status_code=404, detail=f"技能不存在: {skill_id}")
 
-    return {"reviews": [], "total": 0}
+    reviews = db.query(SkillReview).filter(
+        SkillReview.skill_id == skill_id
+    ).order_by(SkillReview.created_at.desc()).limit(50).all()
+
+    return {
+        "reviews": [
+            {
+                "id": r.id,
+                "username": r.username,
+                "rating": r.rating,
+                "comment": r.comment or "",
+                "created_at": r.created_at.isoformat() if r.created_at else "",
+            }
+            for r in reviews
+        ],
+        "total": len(reviews),
+    }
 
 
 @router.get("/{skill_id}/rating")
-def get_skill_rating(skill_id: str):
+def get_skill_rating(skill_id: str, db: Session = Depends(get_db)):
     """获取技能评分"""
     skill = registry.get_skill_by_version(skill_id)
     if not skill:
         raise HTTPException(status_code=404, detail=f"技能不存在: {skill_id}")
 
-    return {"average": 0.0, "total": 0, "distribution": {"5": 0, "4": 0, "3": 0, "2": 0, "1": 0}}
+    reviews = db.query(SkillReview).filter(SkillReview.skill_id == skill_id).all()
+    total = len(reviews)
+    average = sum(r.rating for r in reviews) / total if total > 0 else 0.0
+
+    distribution = {"5": 0, "4": 0, "3": 0, "2": 0, "1": 0}
+    for r in reviews:
+        key = str(r.rating)
+        if key in distribution:
+            distribution[key] += 1
+
+    return {"average": round(average, 1), "total": total, "distribution": distribution}
+
+
+class ReviewCreate(BaseModel):
+    rating: int  # 1-5
+    comment: str = ""
+
+
+@router.post("/{skill_id}/review", dependencies=[Depends(get_current_user)])
+def submit_review(skill_id: str, review: ReviewCreate, db: Session = Depends(get_db)):
+    """提交技能评价"""
+    if review.rating < 1 or review.rating > 5:
+        raise HTTPException(status_code=400, detail="评分必须在 1-5 之间")
+
+    skill = registry.get_skill_by_version(skill_id)
+    if not skill:
+        raise HTTPException(status_code=404, detail=f"技能不存在: {skill_id}")
+
+    # 同一用户对同一技能只能评价一次（upsert）
+    existing = db.query(SkillReview).filter(
+        SkillReview.skill_id == skill_id,
+        SkillReview.username == "anonymous",
+    ).first()
+
+    if existing:
+        existing.rating = review.rating
+        existing.comment = review.comment
+        existing.created_at = datetime.now(timezone.utc)
+    else:
+        new_review = SkillReview(
+            skill_id=skill_id,
+            username="anonymous",
+            rating=review.rating,
+            comment=review.comment,
+        )
+        db.add(new_review)
+
+    db.commit()
+    return {"message": "评价提交成功", "rating": review.rating, "comment": review.comment}
 
 
 @router.get("/{skill_id}/screenshots")
