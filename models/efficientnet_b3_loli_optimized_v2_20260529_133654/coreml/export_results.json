@@ -1,0 +1,15 @@
+{
+  "model_name": "efficientnet_b3_loli_optimized_v2_20260529_133654",
+  "original_size_mb": 47.72115135192871,
+  "results": {
+    "coreml_float": {
+      "size_mb": 0.0001220703125,
+      "compression_ratio": 390931.671875
+    },
+    "pytorch_mps": {
+      "avg_time_ms": 10.086421966552734,
+      "fps": 99.14318509735845
+    }
+  },
+  "note": "CoreML \u6a21\u578b\u4f7f\u7528 ANE + GPU + CPU \u52a0\u901f\uff0cPyTorch \u4f7f\u7528 MPS \u52a0\u901f"
+}

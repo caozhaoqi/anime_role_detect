@@ -1,1 +1,4 @@
-sudo python3 /Users/caozhaoqi/PycharmProjects/anime_role_detect/spider_image_system/src/run/sis_main_process.py
+#!/bin/bash
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+exec sudo python3 "$PROJECT_DIR/spider_image_system/src/run/sis_main_process.py"

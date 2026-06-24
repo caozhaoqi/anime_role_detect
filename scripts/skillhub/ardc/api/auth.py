@@ -158,6 +158,7 @@ class RegisterRequest(BaseModel):
     username: str
     email: str
     password: str
+    is_developer: Optional[bool] = False
 
 
 @router.post("/register")
@@ -207,12 +208,22 @@ async def register(request: Request, db: Session = Depends(get_db)):
     # 创建用户
     try:
         hashed_password = get_password_hash(password)
+
+        # 尝试从JSON获取 is_developer 字段
+        is_dev = False
+        try:
+            json_data = await request.json()
+            if isinstance(json_data, dict):
+                is_dev = json_data.get("is_developer", False)
+        except:
+            pass
+
         new_user = DBUser(
             id=str(uuid.uuid4()),
             username=username,
             email=email,
             hashed_password=hashed_password,
-            is_developer=False,
+            is_developer=is_dev,
             created_at=datetime.now(timezone.utc),
             updated_at=datetime.now(timezone.utc),
         )

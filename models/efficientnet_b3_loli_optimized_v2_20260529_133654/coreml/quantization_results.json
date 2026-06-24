@@ -1,0 +1,12 @@
+{
+  "model_name": "efficientnet_b3_loli_optimized_v2_20260529_133654",
+  "original_size_mb": 47.72115135192871,
+  "results": {
+    "fp16": {
+      "size_mb": 0.0001220703125,
+      "compression_ratio": 390931.671875,
+      "avg_time_ms": 0,
+      "fps": 0
+    }
+  }
+}

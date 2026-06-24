@@ -1,0 +1,38 @@
+[
+  {
+    "model_name": "mobilenetv2_aug_best.pth",
+    "model_path": "/Users/caozhaoqi/PycharmProjects/anime_role_detect/models/mobilenetv2_aug_best.pth",
+    "accuracy": 0.5039770216526734,
+    "avg_inference_time": 0.0180927531819948,
+    "fps": 55.27074790337387,
+    "total_samples": 4526,
+    "correct_predictions": 2281
+  },
+  {
+    "model_name": "mobilenetv2_best.pth",
+    "model_path": "/Users/caozhaoqi/PycharmProjects/anime_role_detect/models/mobilenetv2_best.pth",
+    "accuracy": 0.004639858594785683,
+    "avg_inference_time": 0.015337428576509717,
+    "fps": 65.19997762412181,
+    "total_samples": 4526,
+    "correct_predictions": 21
+  },
+  {
+    "model_name": "resnet50_best.pth",
+    "model_path": "/Users/caozhaoqi/PycharmProjects/anime_role_detect/models/resnet50_best.pth",
+    "accuracy": 0.0057445868316394165,
+    "avg_inference_time": 0.02075304111964266,
+    "fps": 48.18570898765793,
+    "total_samples": 4526,
+    "correct_predictions": 26
+  },
+  {
+    "model_name": "model_best.pth",
+    "model_path": "/Users/caozhaoqi/PycharmProjects/anime_role_detect/models/efficientnet_b3_anime_20260616_132028/model_best.pth",
+    "accuracy": 0.011268228015908087,
+    "avg_inference_time": 0.05460938097725452,
+    "fps": 18.311872101544463,
+    "total_samples": 4526,
+    "correct_predictions": 51
+  }
+]
