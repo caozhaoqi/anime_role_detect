@@ -271,7 +271,7 @@ print(json.dumps(kps), flush=True)
                 classifier = Classification(index_path, threshold=0.1)
             else:
                 classifier = Classification(threshold=0.1)
-            model_cache.set(model_name, classifier)
+            model_cache.setdefault(model_name, classifier)
 
         if classifier.index is not None:
             role, similarity = classifier.classify(feature, 5, attributes)
@@ -578,7 +578,7 @@ async def batch_predict_images(
                         classifier = Classification(index_path, threshold=0.1)
                     else:
                         classifier = Classification(threshold=0.1)
-                    model_cache.set(model_name, classifier)
+                    model_cache.setdefault(model_name, classifier)
 
                 if classifier.index is not None:
                     role, similarity = classifier.classify(feature, 5, attributes, threshold=threshold)

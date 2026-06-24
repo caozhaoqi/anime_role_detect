@@ -11,7 +11,7 @@ from fastapi import APIRouter, HTTPException, Depends
 from ardc.store.registry import SkillRegistry
 from ardc.store.index import SkillIndex
 from ardc.version.manager import VersionManager
-from ardc.api.auth import get_current_developer
+from ardc.api.auth import get_current_developer, get_current_user
 from ardc.utils.logging import get_logger, get_request_logger
 from ardc.cache import cache, CacheKeys, invalidate_cache
 from ardc.api.schemas import SkillCreate
@@ -220,7 +220,7 @@ def get_skill_screenshots(skill_id: str):
     return {"screenshots": []}
 
 
-@router.post("/{skill_id}/install", dependencies=[Depends(get_current_developer)])
+@router.post("/{skill_id}/install", dependencies=[Depends(get_current_user)])
 def install_skill(skill_id: str, version: Optional[str] = None):
     """安装技能"""
     skill = registry.get_skill_by_version(skill_id, version)
