@@ -6,7 +6,7 @@
 支持连接池配置，提升并发性能
 """
 
-from sqlalchemy import create_engine, Column, String, Boolean, DateTime
+from sqlalchemy import create_engine, Column, String, Boolean, DateTime, Integer, Float, Text, UniqueConstraint
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from datetime import datetime, timezone
@@ -86,6 +86,23 @@ class TokenBlacklist(Base):
     jti = Column(String, unique=True, index=True, nullable=False)
     expires_at = Column(DateTime, nullable=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+
+class SkillReview(Base):
+    """技能评价模型"""
+
+    __tablename__ = "skill_reviews"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    skill_id = Column(String, index=True, nullable=False)
+    username = Column(String, nullable=False, default="anonymous")
+    rating = Column(Integer, nullable=False)  # 1-5
+    comment = Column(Text, nullable=True, default="")
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+    __table_args__ = (
+        UniqueConstraint("skill_id", "username", name="uq_skill_user_review"),
+    )
 
 
 # 创建所有表
