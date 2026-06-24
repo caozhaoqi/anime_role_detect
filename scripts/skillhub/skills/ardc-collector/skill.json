@@ -1,0 +1,17 @@
+{
+  "id": "ardc-collector",
+  "name": "数据采集器",
+  "version": "1.0.0",
+  "description": "动漫图片数据采集技能，支持从多个站点批量采集角色图片。",
+  "author": "ARD Team",
+  "author_url": null,
+  "category": "collector",
+  "tags": ["采集", "图片", "爬虫"],
+  "entry_point": "scripts/collect_images.py",
+  "runtime": "python",
+  "dependencies": ["requests"],
+  "config_schema": [],
+  "status": "stable",
+  "created_at": "2026-05-20T17:24:56.466052",
+  "updated_at": "2026-05-20T17:24:56.466059"
+}

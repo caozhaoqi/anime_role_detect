@@ -1,0 +1,13 @@
+{
+  "id": "ardc-balance",
+  "name": "数据集平衡器",
+  "version": "1.0.0",
+  "description": "数据集平衡技能，调整各角色图片数量至均衡。支持填充至目标数量、数据增强、采样策略。",
+  "author": "ARD Team",
+  "category": "data",
+  "status": "stable",
+  "entry_point": "scripts/data_cleaning/balance_dataset.py",
+  "tags": ["数据平衡", "采样", "数据增强", "均衡"],
+  "runtime": "python",
+  "dependencies": ["ardc-cleaner"]
+}

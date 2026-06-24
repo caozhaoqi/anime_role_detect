@@ -1,0 +1,13 @@
+{
+  "id": "ardc-deduplicator",
+  "name": "重复检测工具",
+  "version": "1.0.0",
+  "description": "重复图片检测技能，基于内容哈希去重。支持批量去重、相似度匹配、重复组管理。",
+  "author": "ARD Team",
+  "category": "data",
+  "status": "stable",
+  "entry_point": "scripts/data_cleaning/archived/clean_duplicates.py",
+  "tags": ["去重", "哈希", "相似度", "图片处理"],
+  "runtime": "python",
+  "dependencies": []
+}

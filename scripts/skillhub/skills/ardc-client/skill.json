@@ -1,0 +1,17 @@
+{
+  "id": "ardc-client",
+  "name": "ARD 客户端",
+  "version": "1.0.0",
+  "description": "ARD 客户端技能，提供角色检测、员工/部门/岗位查询、API 调用等功能。",
+  "author": "ARD Team",
+  "author_url": null,
+  "category": "utility",
+  "tags": ["客户端", "API", "角色检测"],
+  "entry_point": "scripts/ard_client.py",
+  "runtime": "python",
+  "dependencies": ["requests"],
+  "config_schema": [],
+  "status": "stable",
+  "created_at": "2026-05-20T17:24:56.466052",
+  "updated_at": "2026-05-20T17:24:56.466059"
+}

@@ -1,0 +1,13 @@
+{
+  "id": "ardc-api",
+  "name": "API服务",
+  "version": "1.0.0",
+  "description": "飞书命令服务技能，提供飞书机器人命令接口。支持分类查询、状态查询、命令执行。",
+  "author": "ARD Team",
+  "category": "service",
+  "status": "stable",
+  "entry_point": "scripts/api/feishu_command_server.py",
+  "tags": ["API", "飞书", "机器人", "命令"],
+  "runtime": "python",
+  "dependencies": ["ardc-classifier"]
+}

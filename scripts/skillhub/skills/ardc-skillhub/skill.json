@@ -1,0 +1,13 @@
+{
+  "id": "ardc-skillhub",
+  "name": "技能中心服务",
+  "version": "2.0.0",
+  "description": "技能管理服务，提供技能注册、查询、更新和删除功能。支持技能分类、版本管理、依赖管理。",
+  "author": "ARD Team",
+  "category": "service",
+  "status": "stable",
+  "entry_point": "scripts/skillhub_server.py",
+  "tags": ["技能管理", "API", "注册", "服务"],
+  "runtime": "python",
+  "dependencies": []
+}

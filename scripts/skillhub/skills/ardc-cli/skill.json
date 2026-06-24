@@ -1,0 +1,13 @@
+{
+  "id": "ardc-cli",
+  "name": "命令行工具",
+  "version": "1.0.0",
+  "description": "命令行接口技能，提供终端命令行交互能力。支持命令执行、状态查询、批量操作。",
+  "author": "ARD Team",
+  "category": "service",
+  "status": "stable",
+  "entry_point": "scripts/ardc-cli.py",
+  "tags": ["CLI", "命令行", "终端", "工具"],
+  "runtime": "python",
+  "dependencies": []
+}
