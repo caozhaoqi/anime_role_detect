@@ -1,0 +1,126 @@
+# =============================================================================
+# Anime Role Detect — K8s Ingress
+#
+# 路由说明：
+#   - / → frontend（Next.js + Nginx，内部代理 /api/ → api-gateway）
+#   - /docs, /redoc, /openapi.json → api-gateway（聚合 Swagger 文档）
+#   - 以下路径透传给对应后端，不做 rewrite
+#
+# 注意：
+#   - 将 ardc.example.com 替换为你的域名
+#   - 如使用 TLS，添加 tls section 并配置 cert-manager
+# =============================================================================
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ardc-ingress
+  namespace: anime-role-detect
+  labels:
+    app.kubernetes.io/name: ardc-ingress
+    app.kubernetes.io/part-of: ardc
+  annotations:
+    # 不设置 rewrite-target，路径原样透传给后端
+    # nginx ingress 默认行为就是保留完整路径
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "60"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "60"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
+    # TLS 时取消下面注释：
+    # cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    # nginx.ingress.kubernetes.io/ssl-redirect: "true"
+spec:
+  # TLS 配置（取消注释启用）：
+  # tls:
+  # - hosts:
+  #   - ardc.example.com
+  #   secretName: ardc-tls
+  rules:
+  - host: ardc.example.com  # 替换为你的域名
+    http:
+      paths:
+      # --- 前端（默认路由，放在最后匹配） ---
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: frontend
+            port:
+              number: 3000
+      # --- API Gateway（统一 API 入口 + Swagger 文档） ---
+      - path: /api
+        pathType: Prefix
+        backend:
+          service:
+            name: api-gateway
+            port:
+              number: 8080
+      - path: /docs
+        pathType: Prefix
+        backend:
+          service:
+            name: api-gateway
+            port:
+              number: 8080
+      - path: /redoc
+        pathType: Prefix
+        backend:
+          service:
+            name: api-gateway
+            port:
+              number: 8080
+      - path: /openapi.json
+        pathType: Exact
+        backend:
+          service:
+            name: api-gateway
+            port:
+              number: 8080
+      # --- Model Service（直接访问，用于内部调试） ---
+      - path: /model
+        pathType: Prefix
+        backend:
+          service:
+            name: model-service
+            port:
+              number: 8000
+      # --- Search Service ---
+      - path: /search
+        pathType: Prefix
+        backend:
+          service:
+            name: search-service
+            port:
+              number: 8000
+      # --- Multimedia Service ---
+      - path: /multimedia
+        pathType: Prefix
+        backend:
+          service:
+            name: multimedia-service
+            port:
+              number: 8000
+      # --- Monitor Dashboard ---
+      - path: /monitor
+        pathType: Prefix
+        backend:
+          service:
+            name: monitor-dashboard
+            port:
+              number: 8000
+      # --- Health Check Endpoints ---
+      - path: /health
+        pathType: Prefix
+        backend:
+          service:
+            name: api-gateway
+            port:
+              number: 8080
+      # --- Metrics ---
+      - path: /metrics
+        pathType: Exact
+        backend:
+          service:
+            name: api-service
+            port:
+              number: 8000

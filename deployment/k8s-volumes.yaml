@@ -1,0 +1,136 @@
+# =============================================================================
+# Anime Role Detect — K8s PersistentVolumeClaim
+# 模型文件、日志、缓存、数据库数据持久化
+#
+# 注意：
+#   - 请根据集群 StorageClass 调整 storageClassName
+#   - 生产环境建议使用 ReadWriteMany 的存储（如 NFS/CephFS）供多副本共享
+#   - 如果集群不支持动态供给，需要手动创建 PV
+#   - 模型数据 (model-data) 建议用 OSS/S3 initContainer 同步，或使用 hostPath
+#     PVC 默认 ReadWriteOnce 意味着多节点部署时每节点需要独立 PV
+# =============================================================================
+
+# --- 模型文件（271MB+，可随版本增长） ---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: model-data
+  namespace: anime-role-detect
+  labels:
+    app.kubernetes.io/name: model-data
+    app.kubernetes.io/part-of: ardc-storage
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+  # storageClassName: standard  # 根据集群实际情况修改
+
+---
+# --- 模型缓存（HuggingFace / Keras 缓存） ---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: model-cache
+  namespace: anime-role-detect
+  labels:
+    app.kubernetes.io/name: model-cache
+    app.kubernetes.io/part-of: ardc-storage
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+  # storageClassName: standard
+
+---
+# --- API 缓存 ---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: api-cache
+  namespace: anime-role-detect
+  labels:
+    app.kubernetes.io/name: api-cache
+    app.kubernetes.io/part-of: ardc-storage
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+  # storageClassName: standard
+
+---
+# --- MySQL 数据 ---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mysql-data
+  namespace: anime-role-detect
+  labels:
+    app.kubernetes.io/name: mysql-data
+    app.kubernetes.io/part-of: ardc-storage
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 20Gi
+  # storageClassName: standard
+
+---
+# --- Redis 数据 ---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: redis-data
+  namespace: anime-role-detect
+  labels:
+    app.kubernetes.io/name: redis-data
+    app.kubernetes.io/part-of: ardc-storage
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+  # storageClassName: standard
+
+---
+# --- RabbitMQ 数据 ---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: rabbitmq-data
+  namespace: anime-role-detect
+  labels:
+    app.kubernetes.io/name: rabbitmq-data
+    app.kubernetes.io/part-of: ardc-storage
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+  # storageClassName: standard
+
+---
+# --- 日志 ---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: log-data
+  namespace: anime-role-detect
+  labels:
+    app.kubernetes.io/name: log-data
+    app.kubernetes.io/part-of: ardc-storage
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+  # storageClassName: standard

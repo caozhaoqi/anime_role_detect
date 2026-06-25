@@ -1,0 +1,67 @@
+# =============================================================================
+# Anime Role Detect — K8s PodDisruptionBudget
+# 防止节点维护时所有副本同时被驱逐导致服务中断
+# =============================================================================
+
+# --- Model Service（单副本，不能中断） ---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: model-service-pdb
+  namespace: anime-role-detect
+  labels:
+    app.kubernetes.io/name: model-service-pdb
+    app.kubernetes.io/part-of: ardc
+spec:
+  maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: model-service
+
+---
+# --- API Service（至少保留 1 个副本） ---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: api-service-pdb
+  namespace: anime-role-detect
+  labels:
+    app.kubernetes.io/name: api-service-pdb
+    app.kubernetes.io/part-of: ardc
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: api-service
+
+---
+# --- API Gateway（至少保留 1 个副本） ---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: api-gateway-pdb
+  namespace: anime-role-detect
+  labels:
+    app.kubernetes.io/name: api-gateway-pdb
+    app.kubernetes.io/part-of: ardc
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: api-gateway
+
+---
+# --- Frontend（至少保留 1 个副本） ---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: frontend-pdb
+  namespace: anime-role-detect
+  labels:
+    app.kubernetes.io/name: frontend-pdb
+    app.kubernetes.io/part-of: ardc
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: frontend

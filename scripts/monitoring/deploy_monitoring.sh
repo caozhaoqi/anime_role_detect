@@ -33,7 +33,7 @@ echo ""
 echo "1. 创建monitoring命名空间..."
 kubectl create namespace monitoring --dry-run=client -o yaml | kubectl apply -f -
 
-# 部署Prometheus
+# 部署Prometheus（使用较新版本）
 echo ""
 echo "2. 部署Prometheus..."
 kubectl apply -f - <<EOF
@@ -42,20 +42,22 @@ kind: ConfigMap
 metadata:
   name: prometheus-config
   namespace: monitoring
+  labels:
+    app.kubernetes.io/name: prometheus-config
 data:
   prometheus.yml: |
     global:
       scrape_interval: 15s
       evaluation_interval: 15s
-    
+
     rule_files:
       - /etc/prometheus/rules/*.yaml
-    
+
     alerting:
       alertmanagers:
         - static_configs:
             - targets: []
-    
+
     scrape_configs:
       - job_name: 'kubernetes-pods'
         kubernetes_sd_configs:
@@ -71,7 +73,7 @@ data:
           - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
             action: replace
             regex: ([^:]+)(?::\d+)?;(\d+)
-            replacement: $1:$2
+            replacement: \$1:\$2
             target_label: __address__
           - action: labelmap
             regex: __meta_kubernetes_pod_label_(.+)
@@ -81,14 +83,14 @@ data:
           - source_labels: [__meta_kubernetes_pod_name]
             action: replace
             target_label: kubernetes_pod_name
-      
+
       - job_name: 'kubernetes-nodes'
         kubernetes_sd_configs:
           - role: node
         relabel_configs:
           - action: labelmap
             regex: __meta_kubernetes_node_label_(.+)
-      
+
       - job_name: 'kubernetes-services'
         kubernetes_sd_configs:
           - role: service
@@ -108,6 +110,9 @@ kind: Deployment
 metadata:
   name: prometheus
   namespace: monitoring
+  labels:
+    app: prometheus
+    app.kubernetes.io/name: prometheus
 spec:
   replicas: 1
   selector:
@@ -120,9 +125,16 @@ spec:
     spec:
       containers:
       - name: prometheus
-        image: prom/prometheus:v2.30.0
+        image: prom/prometheus:v2.52.0
         ports:
         - containerPort: 9090
+        resources:
+          requests:
+            cpu: "200m"
+            memory: "512Mi"
+          limits:
+            cpu: "1"
+            memory: "2Gi"
         volumeMounts:
         - name: prometheus-config
           mountPath: /etc/prometheus
@@ -145,6 +157,8 @@ kind: Service
 metadata:
   name: prometheus
   namespace: monitoring
+  labels:
+    app: prometheus
 spec:
   selector:
     app: prometheus
@@ -180,12 +194,16 @@ spec:
     spec:
       containers:
       - name: grafana
-        image: grafana/grafana:8.2.0
+        image: grafana/grafana:10.4.0
         ports:
         - containerPort: 3000
         env:
         - name: GF_SECURITY_ADMIN_PASSWORD
           value: admin
+        - name: GF_SECURITY_ADMIN_USER
+          value: admin
+        - name: GF_INSTALL_PLUGINS
+          value: "grafana-clock-panel,grafana-simple-json-datasource"
         volumeMounts:
         - name: grafana-storage
           mountPath: /var/lib/grafana

@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 从阿里云 OSS 同步数据集包到本地
 
