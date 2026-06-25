@@ -21,14 +21,14 @@ numpy==1.26.4
 pandas==2.2.2
 
 # 特征提取和向量数据库
-faiss-cpu==1.8.0.post1
+faiss-cpu==1.13.0
 sentence-transformers==3.0.1
 
 # YOLO目标检测
 ultralytics==8.2.87
 
 # OCR识别
-easyocr==1.7.1
+easyocr==1.7.2
 
 # 标签生成
 transformers==4.44.2

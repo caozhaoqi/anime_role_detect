@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-系统清理工具 —— 释放磁盘空间，可独立运行或被 collector_runner.py 调用
+系统清理工具 —— 支持 macOS / Windows / Linux，释放磁盘空间
 
 用法:
-    python3 scripts/data_collection/cleanup_system.py                    # 完整清理
-    python3 scripts/data_collection/cleanup_system.py --dry-run          # 仅预览，不执行
-    python3 scripts/data_collection/cleanup_system.py --aggressive       # 更强力清理
+    python3 cleanup_system.py                 # 完整清理
+    python3 cleanup_system.py --dry-run       # 仅预览，不执行
+    python3 cleanup_system.py --aggressive    # 更强力清理
+    python3 cleanup_system.py --scan          # 仅扫描大文件
+    python3 cleanup_system.py --json          # 以 JSON 格式输出
 """
 
 import os
@@ -15,19 +17,38 @@ import sys
 import json
 import shutil
 import subprocess
+import platform
+import tempfile
 import time
 from pathlib import Path
 
-PROJECT_ROOT = Path(__file__).parent.parent.parent
+# ══════════════════════════════════════════════
+#  平台检测
+# ══════════════════════════════════════════════
+
+PLATFORM = platform.system()  # "Windows" / "Darwin" / "Linux"
+IS_WINDOWS = PLATFORM == "Windows"
+IS_MAC = PLATFORM == "Darwin"
+IS_LINUX = PLATFORM == "Linux"
+
+PROJECT_ROOT = Path(__file__).parent
 PACK_DIR = PROJECT_ROOT / "packs"
 LOG_DIR = PROJECT_ROOT / "logs"
 
 
-def run_cmd(cmd: list, timeout: int = 120) -> dict:
-    """运行命令，返回 {"ok", "stdout", "stderr", "freed_mb"}"""
-    result = {"ok": False, "stdout": "", "stderr": "", "freed_mb": 0}
+# ══════════════════════════════════════════════
+#  通用工具
+# ══════════════════════════════════════════════
+
+def run_cmd(cmd: list, timeout: int = 120, shell: bool = False) -> dict:
+    """运行命令，返回 {"ok", "stdout", "stderr"}"""
+    result = {"ok": False, "stdout": "", "stderr": ""}
     try:
-        r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+        r = subprocess.run(
+            cmd, capture_output=True, text=True,
+            timeout=timeout, shell=shell,
+            encoding="utf-8", errors="replace"
+        )
         result["stdout"] = r.stdout.strip()
         result["stderr"] = r.stderr.strip()
         result["ok"] = r.returncode == 0
@@ -40,125 +61,515 @@ def run_cmd(cmd: list, timeout: int = 120) -> dict:
     return result
 
 
-def get_disk_free(path: str = "/") -> float:
-    """获取某路径的可用空间（GB）"""
+def get_disk_free(path: str = None) -> float:
+    """获取路径可用空间（GB）"""
+    if path is None:
+        path = "C:\\" if IS_WINDOWS else "/"
     try:
-        import shutil
         _, _, free = shutil.disk_usage(path)
         return free / (1024 ** 3)
     except Exception:
         return 0
 
 
+def get_dir_size_mb(path: str) -> int:
+    """获取目录大小（MB），跨平台实现"""
+    try:
+        p = Path(path)
+        if not p.exists():
+            return 0
+        total = sum(f.stat().st_size for f in p.rglob("*") if f.is_file())
+        return total // (1024 * 1024)
+    except Exception:
+        return 0
+
+
+def safe_remove_tree(path: str) -> bool:
+    """安全删除目录树"""
+    try:
+        shutil.rmtree(path, ignore_errors=True)
+        return True
+    except Exception:
+        return False
+
+
+def safe_remove_file(path: str) -> bool:
+    """安全删除文件"""
+    try:
+        Path(path).unlink(missing_ok=True)
+        return True
+    except Exception:
+        return False
+
+
+def requires_admin() -> bool:
+    """检查是否具有管理员/root 权限"""
+    if IS_WINDOWS:
+        try:
+            import ctypes
+            return bool(ctypes.windll.shell32.IsUserAnAdmin())
+        except Exception:
+            return False
+    else:
+        return os.geteuid() == 0
+
+
+def sudo_cmd(cmd: list) -> list:
+    """非 root Linux/macOS 下自动加 sudo -n"""
+    if IS_WINDOWS:
+        return cmd
+    if requires_admin():
+        return cmd
+    return ["sudo", "-n"] + cmd
+
+
+# ══════════════════════════════════════════════
+#  macOS 专属清理
+# ══════════════════════════════════════════════
+
+def clean_mac_caches(dry_run: bool = False, aggressive: bool = False) -> dict:
+    """清理 macOS 用户缓存目录"""
+    report = {"name": "macOS 用户缓存", "freed_mb": 0, "ok": True, "detail": ""}
+    freed = 0
+    details = []
+
+    user_cache = Path.home() / "Library" / "Caches"
+    if not user_cache.exists():
+        report["detail"] = "缓存目录不存在"
+        return report
+
+    size_before = get_dir_size_mb(str(user_cache))
+
+    if dry_run:
+        report["detail"] = f"用户缓存: ~{size_before}MB (将清理)"
+        report["freed_mb"] = size_before
+        return report
+
+    # 保守清理：删除各子目录中的文件，保留目录结构
+    cleaned = 0
+    try:
+        for sub in user_cache.iterdir():
+            if sub.is_dir():
+                sub_size = get_dir_size_mb(str(sub))
+                if sub_size > 0:
+                    safe_remove_tree(str(sub))
+                    cleaned += sub_size
+    except Exception as e:
+        report["detail"] = f"部分清理失败: {e}"
+
+    freed = cleaned
+    details.append(f"~/Library/Caches: ~{freed}MB")
+
+    # aggressive: 系统日志
+    if aggressive:
+        log_dirs = [
+            Path.home() / "Library" / "Logs",
+            Path("/Library/Logs"),
+        ]
+        for ld in log_dirs:
+            if ld.exists():
+                sz = get_dir_size_mb(str(ld))
+                for f in ld.rglob("*.log"):
+                    safe_remove_file(str(f))
+                freed += sz
+                details.append(f"{ld}: ~{sz}MB")
+
+    report["freed_mb"] = freed
+    report["detail"] = "; ".join(details) if details else "无需清理"
+    return report
+
+
+def clean_mac_trash(dry_run: bool = False) -> dict:
+    """清空 macOS 回收站"""
+    report = {"name": "macOS 回收站", "freed_mb": 0, "ok": True, "detail": ""}
+    trash = Path.home() / ".Trash"
+    if not trash.exists():
+        report["detail"] = "回收站为空"
+        return report
+
+    sz = get_dir_size_mb(str(trash))
+    if dry_run:
+        report["detail"] = f"回收站: ~{sz}MB (将清空)"
+        report["freed_mb"] = sz
+        return report
+
+    for item in trash.iterdir():
+        if item.is_dir():
+            safe_remove_tree(str(item))
+        else:
+            safe_remove_file(str(item))
+
+    report["freed_mb"] = sz
+    report["detail"] = f"已清空回收站: ~{sz}MB"
+    return report
+
+
+def clean_mac_brew(dry_run: bool = False) -> dict:
+    """清理 Homebrew 缓存"""
+    report = {"name": "Homebrew 缓存", "freed_mb": 0, "ok": True, "detail": "未安装 Homebrew"}
+    if not shutil.which("brew"):
+        return report
+
+    r = run_cmd(["brew", "--cache"], timeout=10)
+    brew_cache = r["stdout"].strip() if r["ok"] else ""
+
+    sz = get_dir_size_mb(brew_cache) if brew_cache else 0
+    if dry_run:
+        report["detail"] = f"Homebrew 缓存: ~{sz}MB (将清理)"
+        report["freed_mb"] = sz
+        return report
+
+    r = run_cmd(["brew", "cleanup", "--prune=all", "-s"], timeout=120)
+    if r["ok"]:
+        # 解析输出中的释放量
+        m = re.search(r'(\d+(?:\.\d+)?)\s*(MB|GB)', r["stdout"])
+        if m:
+            val = float(m.group(1))
+            freed = int(val * 1024) if m.group(2) == "GB" else int(val)
+        else:
+            freed = sz
+        report["freed_mb"] = freed
+        report["detail"] = f"brew cleanup 完成: ~{freed}MB"
+        report["ok"] = True
+    else:
+        report["ok"] = False
+        report["detail"] = f"失败: {r['stderr'][:80]}"
+    return report
+
+
+def clean_mac_xcode(dry_run: bool = False) -> dict:
+    """清理 Xcode 派生数据和归档（如存在）"""
+    report = {"name": "Xcode 派生数据", "freed_mb": 0, "ok": True, "detail": ""}
+    targets = [
+        Path.home() / "Library" / "Developer" / "Xcode" / "DerivedData",
+        Path.home() / "Library" / "Developer" / "Xcode" / "Archives",
+        Path.home() / "Library" / "Developer" / "CoreSimulator" / "Caches",
+    ]
+    freed = 0
+    details = []
+    for t in targets:
+        if t.exists():
+            sz = get_dir_size_mb(str(t))
+            if sz > 0:
+                if dry_run:
+                    details.append(f"{t.name}: ~{sz}MB")
+                else:
+                    safe_remove_tree(str(t))
+                    details.append(f"{t.name}: +{sz}MB")
+                freed += sz
+
+    report["freed_mb"] = freed
+    report["detail"] = "; ".join(details) if details else "无 Xcode 缓存"
+    return report
+
+
+# ══════════════════════════════════════════════
+#  Windows 专属清理
+# ══════════════════════════════════════════════
+
+def clean_windows_temp(dry_run: bool = False, aggressive: bool = False) -> dict:
+    """清理 Windows 临时文件"""
+    report = {"name": "Windows 临时文件", "freed_mb": 0, "ok": True, "detail": ""}
+    freed = 0
+    details = []
+
+    temp_dirs = [
+        os.environ.get("TEMP", ""),
+        os.environ.get("TMP", ""),
+        os.path.join(os.environ.get("SystemRoot", "C:\\Windows"), "Temp"),
+    ]
+    temp_dirs = list({d for d in temp_dirs if d and os.path.exists(d)})
+
+    for td in temp_dirs:
+        sz = get_dir_size_mb(td)
+        if dry_run:
+            if sz > 0:
+                details.append(f"{td}: ~{sz}MB")
+            freed += sz
+            continue
+
+        deleted = 0
+        for item in Path(td).iterdir():
+            try:
+                item_sz = item.stat().st_size if item.is_file() else get_dir_size_mb(str(item)) * 1024 * 1024
+                if item.is_file():
+                    item.unlink(missing_ok=True)
+                    deleted += item_sz
+                elif item.is_dir():
+                    safe_remove_tree(str(item))
+                    deleted += item_sz
+            except PermissionError:
+                pass
+            except Exception:
+                pass
+        freed_mb = deleted // (1024 * 1024)
+        if freed_mb > 0:
+            details.append(f"{td}: ~{freed_mb}MB")
+        freed += freed_mb
+
+    report["freed_mb"] = freed
+    report["detail"] = "; ".join(details) if details else "无需清理"
+    return report
+
+
+def clean_windows_recycle(dry_run: bool = False) -> dict:
+    """清空 Windows 回收站"""
+    report = {"name": "Windows 回收站", "freed_mb": 0, "ok": True, "detail": ""}
+
+    if dry_run:
+        report["detail"] = "回收站 (将清空)"
+        return report
+
+    try:
+        import ctypes
+        # SHEmptyRecycleBin flags: SHERB_NOCONFIRMATION | SHERB_NOPROGRESSUI | SHERB_NOSOUND
+        ret = ctypes.windll.shell32.SHEmptyRecycleBinW(None, None, 0x0007)
+        if ret == 0 or ret == -2147418113:  # S_OK or already empty
+            report["detail"] = "回收站已清空"
+        else:
+            report["detail"] = f"清空完成 (code={ret})"
+        report["ok"] = True
+    except Exception as e:
+        report["ok"] = False
+        report["detail"] = f"失败: {e}"
+    return report
+
+
+def clean_windows_prefetch(dry_run: bool = False) -> dict:
+    """清理 Windows Prefetch 文件（需管理员）"""
+    report = {"name": "Windows Prefetch", "freed_mb": 0, "ok": True, "detail": ""}
+    prefetch = Path(os.environ.get("SystemRoot", "C:\\Windows")) / "Prefetch"
+    if not prefetch.exists():
+        report["detail"] = "Prefetch 目录不存在"
+        return report
+
+    sz = get_dir_size_mb(str(prefetch))
+    if dry_run:
+        report["detail"] = f"Prefetch: ~{sz}MB (需管理员权限)"
+        report["freed_mb"] = sz
+        return report
+
+    if not requires_admin():
+        report["detail"] = "需要管理员权限，跳过"
+        return report
+
+    freed = 0
+    for f in prefetch.glob("*.pf"):
+        try:
+            fz = f.stat().st_size
+            f.unlink()
+            freed += fz
+        except Exception:
+            pass
+    report["freed_mb"] = freed // (1024 * 1024)
+    report["detail"] = f"已清理 Prefetch: ~{report['freed_mb']}MB"
+    return report
+
+
+def clean_windows_browser_cache(dry_run: bool = False) -> dict:
+    """清理常见浏览器缓存（Edge / Chrome / Firefox）"""
+    report = {"name": "浏览器缓存", "freed_mb": 0, "ok": True, "detail": ""}
+    freed = 0
+    details = []
+
+    local_app = os.environ.get("LOCALAPPDATA", "")
+    appdata = os.environ.get("APPDATA", "")
+
+    cache_paths = {
+        "Chrome": os.path.join(local_app, "Google", "Chrome", "User Data", "Default", "Cache"),
+        "Edge":   os.path.join(local_app, "Microsoft", "Edge", "User Data", "Default", "Cache"),
+        "Firefox": os.path.join(appdata, "Mozilla", "Firefox", "Profiles"),
+    }
+
+    for browser, path in cache_paths.items():
+        if not os.path.exists(path):
+            continue
+        sz = get_dir_size_mb(path)
+        if sz == 0:
+            continue
+        if dry_run:
+            details.append(f"{browser}: ~{sz}MB")
+        else:
+            safe_remove_tree(path)
+            details.append(f"{browser}: +{sz}MB")
+        freed += sz
+
+    report["freed_mb"] = freed
+    report["detail"] = "; ".join(details) if details else "无浏览器缓存"
+    return report
+
+
+def clean_windows_delivery_optimization(dry_run: bool = False) -> dict:
+    """清理 Windows Update 传递优化缓存"""
+    report = {"name": "Windows 传递优化缓存", "freed_mb": 0, "ok": True, "detail": ""}
+    do_path = Path(os.environ.get("SystemRoot", "C:\\Windows")) / "ServiceProfiles" \
+              / "NetworkService" / "AppData" / "Local" / "Microsoft" / "Windows" \
+              / "DeliveryOptimization"
+
+    if not do_path.exists():
+        report["detail"] = "不存在"
+        return report
+
+    sz = get_dir_size_mb(str(do_path))
+    if dry_run:
+        report["detail"] = f"传递优化缓存: ~{sz}MB"
+        report["freed_mb"] = sz
+        return report
+
+    if requires_admin():
+        safe_remove_tree(str(do_path))
+        report["freed_mb"] = sz
+        report["detail"] = f"已清理: ~{sz}MB"
+    else:
+        report["detail"] = "需要管理员权限，跳过"
+    return report
+
+
+# ══════════════════════════════════════════════
+#  Linux 专属清理
+# ══════════════════════════════════════════════
+
 def clean_apt(dry_run: bool = False) -> dict:
     """清理 APT 缓存 + 自动移除无用依赖"""
     report = {"name": "APT 缓存 & 无用依赖", "freed_mb": 0, "ok": True, "detail": ""}
+    if not shutil.which("apt"):
+        report["detail"] = "APT 不可用"
+        return report
 
-    # 统计清理前 cache 大小
-    cache_size_before = 0
-    try:
-        r = subprocess.run(["du", "-sm", "/var/cache/apt/archives"],
-                           capture_output=True, text=True, timeout=10)
-        if r.returncode == 0:
-            cache_size_before = int(r.stdout.split()[0])
-    except Exception:
-        pass
-
+    size_before = get_dir_size_mb("/var/cache/apt/archives")
     if dry_run:
-        report["detail"] = f"apt 缓存: {cache_size_before}MB (将清理)"
-        report["freed_mb"] = cache_size_before
+        report["detail"] = f"apt 缓存: ~{size_before}MB (将清理)"
+        report["freed_mb"] = size_before
         return report
 
     steps = []
-
-    # apt clean
-    r = run_cmd(["sudo", "-n", "apt", "clean", "-y"], timeout=60)
+    r = run_cmd(sudo_cmd(["apt", "clean", "-y"]), timeout=60)
     if r["ok"]:
         steps.append("apt clean")
-    else:
-        steps.append(f"apt clean 失败 ({r['stderr'][:60]})")
-
-    # apt autoremove
-    r2 = run_cmd(["sudo", "-n", "apt", "autoremove", "-y"], timeout=120)
+    r2 = run_cmd(sudo_cmd(["apt", "autoremove", "-y"]), timeout=120)
     if r2["ok"]:
         steps.append("autoremove")
-        # 尝试从输出中提取释放空间
-        for line in r2["stdout"].split("\n"):
-            if "freed" in line.lower() or "释放" in line:
-                report["detail"] = line.strip()
-                break
-    else:
-        steps.append(f"autoremove 失败 ({r2['stderr'][:60]})")
 
-    # 计算释放量
-    cache_size_after = 0
-    try:
-        r3 = subprocess.run(["du", "-sm", "/var/cache/apt/archives"],
-                            capture_output=True, text=True, timeout=10)
-        if r3.returncode == 0:
-            cache_size_after = int(r3.stdout.split()[0])
-    except Exception:
-        pass
-
-    freed = cache_size_before - cache_size_after
-    report["freed_mb"] = max(freed, 0)
-    if not report["detail"]:
-        report["detail"] = "清理完成" if steps[0].startswith("apt") else "; ".join(steps)
-    report["ok"] = any("apt" in s for s in steps if "失败" not in s)
+    size_after = get_dir_size_mb("/var/cache/apt/archives")
+    report["freed_mb"] = max(size_before - size_after, 0)
+    report["detail"] = "清理完成: " + ", ".join(steps) if steps else "清理失败"
+    report["ok"] = bool(steps)
     return report
 
 
 def clean_journal(dry_run: bool = False) -> dict:
     """清理 systemd journal 日志，保留 200MB"""
     report = {"name": "Systemd Journal", "freed_mb": 0, "ok": True, "detail": ""}
+    if not shutil.which("journalctl"):
+        report["detail"] = "journalctl 不可用"
+        return report
 
-    # 统计清理前大小
     size_before = 0
     r = run_cmd(["journalctl", "--disk-usage"], timeout=10)
     if r["ok"]:
-        for line in r["stdout"].split("\n"):
-            import re
-            m = re.search(r'(\d+(?:\.\d+)?)\s*(M|G)', line)
-            if m:
-                val = float(m.group(1))
-                size_before = int(val * 1000) if m.group(2) == "G" else int(val)
+        m = re.search(r'(\d+(?:\.\d+)?)\s*(M|G)', r["stdout"])
+        if m:
+            val = float(m.group(1))
+            size_before = int(val * 1000) if m.group(2) == "G" else int(val)
 
     if dry_run:
-        report["detail"] = f"journal 日志: {size_before}MB (将压缩至 200MB)"
+        report["detail"] = f"journal: ~{size_before}MB (将压缩至 200MB)"
         report["freed_mb"] = max(size_before - 200, 0)
         return report
 
-    r = run_cmd(["sudo", "-n", "journalctl", "--vacuum-size=200M"], timeout=60)
+    r = run_cmd(sudo_cmd(["journalctl", "--vacuum-size=200M"]), timeout=60)
     if r["ok"]:
-        for line in r["stdout"].split("\n"):
-            if "freed" in line.lower() or "Deleted" in line or "释放" in line:
-                report["detail"] = line.strip()
-                break
-        if not report["detail"]:
-            report["detail"] = "已压缩至 200MB"
-        # 计算释放量
         size_after = 0
         r2 = run_cmd(["journalctl", "--disk-usage"], timeout=10)
         if r2["ok"]:
-            for line in r2["stdout"].split("\n"):
-                import re
-                m = re.search(r'(\d+(?:\.\d+)?)\s*(M|G)', line)
-                if m:
-                    val = float(m.group(1))
-                    size_after = int(val * 1000) if m.group(2) == "G" else int(val)
+            m = re.search(r'(\d+(?:\.\d+)?)\s*(M|G)', r2["stdout"])
+            if m:
+                val = float(m.group(1))
+                size_after = int(val * 1000) if m.group(2) == "G" else int(val)
         report["freed_mb"] = max(size_before - size_after, 0)
+        report["detail"] = "已压缩至 200MB"
     else:
         report["ok"] = False
         report["detail"] = f"失败: {r['stderr'][:80]}"
-        report["freed_mb"] = 0
     return report
 
 
+def clean_linux_temp(dry_run: bool = False, aggressive: bool = False) -> dict:
+    """清理 /tmp 和 /var/tmp"""
+    report = {"name": "Linux 临时文件", "freed_mb": 0, "ok": True, "detail": ""}
+    freed = 0
+    details = []
+    days = "1" if aggressive else "7"
+
+    for tmp_dir in ["/tmp", "/var/tmp"]:
+        if not os.path.exists(tmp_dir):
+            continue
+        sz = get_dir_size_mb(tmp_dir)
+        if dry_run:
+            if sz > 0:
+                details.append(f"{tmp_dir}: ~{sz}MB")
+            freed += sz
+            continue
+
+        r = run_cmd(sudo_cmd(["find", tmp_dir, "-type", "f",
+                               "-atime", f"+{days}", "-delete"]), timeout=60)
+        if r["ok"]:
+            sz_after = get_dir_size_mb(tmp_dir)
+            freed_tmp = max(sz - sz_after, 0)
+            if freed_tmp > 0:
+                details.append(f"{tmp_dir}: +{freed_tmp}MB")
+            freed += freed_tmp
+
+    report["freed_mb"] = freed
+    report["detail"] = "; ".join(details) if details else "无需清理"
+    return report
+
+
+def clean_snap(dry_run: bool = False) -> dict:
+    """清理 Snap 旧版本"""
+    report = {"name": "Snap 旧版本", "freed_mb": 0, "ok": True, "detail": "未安装 Snap"}
+    if not shutil.which("snap"):
+        return report
+
+    r = run_cmd(["snap", "list", "--all"], timeout=15)
+    if not r["ok"]:
+        report["detail"] = "snap list 失败"
+        return report
+
+    disabled = []
+    for line in r["stdout"].split("\n")[1:]:
+        parts = line.split()
+        if len(parts) >= 6 and "disabled" in parts:
+            disabled.append((parts[0], parts[2]))  # name, revision
+
+    if not disabled:
+        report["detail"] = "无旧版 Snap"
+        return report
+
+    freed = len(disabled) * 100  # 粗估每个 100MB
+    if dry_run:
+        report["detail"] = f"{len(disabled)} 个旧版本 (将移除, 约 {freed}MB)"
+        report["freed_mb"] = freed
+        return report
+
+    removed = 0
+    for name, rev in disabled:
+        r = run_cmd(sudo_cmd(["snap", "remove", name, "--revision", rev]), timeout=60)
+        if r["ok"]:
+            removed += 1
+
+    report["freed_mb"] = removed * 100
+    report["detail"] = f"移除 {removed}/{len(disabled)} 个旧版本"
+    return report
+
+
+# ══════════════════════════════════════════════
+#  跨平台通用清理
+# ══════════════════════════════════════════════
+
 def clean_docker(dry_run: bool = False) -> dict:
     """清理 Docker 残留（无 Docker 则跳过）"""
-    report = {"name": "Docker 残留", "freed_mb": 0, "ok": True, "detail": "未安装 Docker 或 Docker 未运行"}
-
-    # 检查 docker 是否存在
+    report = {"name": "Docker 残留", "freed_mb": 0, "ok": True, "detail": "未安装 Docker"}
     if not shutil.which("docker"):
         return report
 
@@ -169,181 +580,182 @@ def clean_docker(dry_run: bool = False) -> dict:
 
     if dry_run:
         report["detail"] = "Docker 残留 (将 prune)"
-        report["ok"] = True
         return report
-
-    # 统计清理前
-    r = run_cmd(["docker", "system", "df"], timeout=15)
-    size_before_str = ""
-    if r["ok"]:
-        for line in r["stdout"].split("\n"):
-            if "Total" in line or "总计" in line:
-                size_before_str = line.strip()
 
     r = run_cmd(["docker", "system", "prune", "-af", "--volumes"], timeout=120)
     if r["ok"]:
-        for line in r["stdout"].split("\n"):
-            if "freed" in line.lower() or "Total" in line or "释放" in line:
-                report["detail"] = line.strip()
-                break
-            if "Space" in line:
-                report["detail"] = line.strip()
-        if not report["detail"]:
-            report["detail"] = "已清理"
-        # 解析释放空间
-        import re
         m = re.search(r'(\d+(?:\.\d+)?)\s*(MB|GB)', r["stdout"])
         if m:
             val = float(m.group(1))
-            report["freed_mb"] = int(val * 1000) if m.group(2) == "GB" else int(val)
-        report["ok"] = True
+            report["freed_mb"] = int(val * 1024) if m.group(2) == "GB" else int(val)
+        for line in r["stdout"].split("\n"):
+            if "freed" in line.lower() or "Space" in line:
+                report["detail"] = line.strip()
+                break
+        if not report["detail"]:
+            report["detail"] = "已清理"
     else:
         report["detail"] = f"清理失败: {r['stderr'][:80]}"
     return report
 
 
-def clean_temp(dry_run: bool = False, aggressive: bool = False) -> dict:
-    """清理 /tmp 和 /var/tmp"""
-    report = {"name": "临时文件", "freed_mb": 0, "ok": True, "detail": ""}
-    freed = 0
-    details = []
+def clean_pip_cache(dry_run: bool = False) -> dict:
+    """清理 pip 下载缓存（跨平台）"""
+    report = {"name": "pip 缓存", "freed_mb": 0, "ok": True, "detail": ""}
+    if not shutil.which("pip") and not shutil.which("pip3"):
+        report["detail"] = "pip 未安装"
+        return report
 
-    for tmp_dir in ["/tmp", "/var/tmp"]:
-        if not os.path.exists(tmp_dir):
-            continue
-        try:
-            r = run_cmd(["du", "-sm", tmp_dir], timeout=10)
-            size_before = int(r["stdout"].split()[0]) if r["ok"] else 0
-        except Exception:
-            size_before = 0
+    pip_exe = shutil.which("pip3") or shutil.which("pip")
+    r = run_cmd([pip_exe, "cache", "dir"], timeout=10)
+    cache_dir = r["stdout"].strip() if r["ok"] else ""
 
-        if dry_run:
-            if size_before > 0:
-                details.append(f"{tmp_dir}: {size_before}MB")
-            continue
-
-        # 删除 7 天前的临时文件（默认）；aggressive 模式删 1 天前的
-        days = "1" if aggressive else "7"
-        r = run_cmd(["sudo", "-n", "find", tmp_dir, "-type", "f",
-                      "-atime", f"+{days}", "-delete"], timeout=60)
-        if r["ok"]:
-            # 计算释放
-            try:
-                r2 = run_cmd(["du", "-sm", tmp_dir], timeout=10)
-                size_after = int(r2["stdout"].split()[0]) if r2["ok"] else 0
-                freed_tmp = max(size_before - size_after, 0)
-                freed += freed_tmp
-                if freed_tmp > 0:
-                    details.append(f"{tmp_dir}: 释放 {freed_tmp}MB")
-            except Exception:
-                pass
+    if not cache_dir or not os.path.exists(cache_dir):
+        # 回退默认路径
+        if IS_WINDOWS:
+            cache_dir = os.path.join(os.environ.get("LOCALAPPDATA", ""), "pip", "Cache")
+        elif IS_MAC:
+            cache_dir = str(Path.home() / "Library" / "Caches" / "pip")
         else:
-            details.append(f"{tmp_dir}: 清理失败 ({r['stderr'][:40]})")
+            cache_dir = str(Path.home() / ".cache" / "pip")
 
-    report["freed_mb"] = freed
-    report["detail"] = "; ".join(details) if details else "无需清理"
+    if not os.path.exists(cache_dir):
+        report["detail"] = "pip 缓存目录不存在"
+        return report
+
+    sz = get_dir_size_mb(cache_dir)
+    if dry_run:
+        report["detail"] = f"pip 缓存: ~{sz}MB"
+        report["freed_mb"] = sz
+        return report
+
+    r = run_cmd([pip_exe, "cache", "purge"], timeout=30)
+    if r["ok"]:
+        report["freed_mb"] = sz
+        report["detail"] = f"已清理 pip 缓存: ~{sz}MB"
+    else:
+        # 直接删除
+        safe_remove_tree(cache_dir)
+        report["freed_mb"] = sz
+        report["detail"] = f"直接删除缓存目录: ~{sz}MB"
+    return report
+
+
+def clean_npm_cache(dry_run: bool = False) -> dict:
+    """清理 npm 缓存（跨平台）"""
+    report = {"name": "npm 缓存", "freed_mb": 0, "ok": True, "detail": "未安装 npm"}
+    if not shutil.which("npm"):
+        return report
+
+    r = run_cmd(["npm", "config", "get", "cache"], timeout=10)
+    cache_dir = r["stdout"].strip() if r["ok"] else ""
+
+    if not cache_dir or not os.path.exists(cache_dir):
+        report["detail"] = "npm 缓存目录不存在"
+        return report
+
+    sz = get_dir_size_mb(cache_dir)
+    if dry_run:
+        report["detail"] = f"npm 缓存: ~{sz}MB"
+        report["freed_mb"] = sz
+        return report
+
+    r = run_cmd(["npm", "cache", "clean", "--force"], timeout=60)
+    if r["ok"]:
+        report["freed_mb"] = sz
+        report["detail"] = f"已清理 npm 缓存: ~{sz}MB"
+    else:
+        report["ok"] = False
+        report["detail"] = f"失败: {r['stderr'][:80]}"
     return report
 
 
 def clean_project_temp(dry_run: bool = False) -> dict:
-    """清理项目内的 __pycache__ / .pyc / logs 旧文件"""
+    """清理项目内的 __pycache__ / .pyc / 旧日志 / 旧包"""
     report = {"name": "项目缓存 & 旧日志", "freed_mb": 0, "ok": True, "detail": ""}
     freed = 0
     details = []
 
-    # __pycache__
+    # __pycache__ 和 .pyc
     for pycache in PROJECT_ROOT.rglob("__pycache__"):
         if pycache.is_dir():
+            sz = sum(f.stat().st_size for f in pycache.rglob("*") if f.is_file())
             if not dry_run:
-                size = sum(f.stat().st_size for f in pycache.rglob("*") if f.is_file())
                 shutil.rmtree(pycache, ignore_errors=True)
-                freed += size
-            else:
-                try:
-                    r = run_cmd(["du", "-sm", str(pycache)], timeout=5)
-                    if r["ok"]:
-                        freed += int(r["stdout"].split()[0])
-                except Exception:
-                    pass
+            freed += sz
+
+    for pyc in PROJECT_ROOT.rglob("*.pyc"):
+        sz = pyc.stat().st_size
+        if not dry_run:
+            safe_remove_file(str(pyc))
+        freed += sz
 
     # logs 目录保留最近 5 个
     if LOG_DIR.exists():
         log_files = sorted(LOG_DIR.glob("*.log"), key=lambda p: p.stat().st_mtime, reverse=True)
         if len(log_files) > 5:
             for f in log_files[5:]:
+                freed += f.stat().st_size
                 if not dry_run:
-                    freed += f.stat().st_size
-                    f.unlink(missing_ok=True)
-                else:
-                    freed += f.stat().st_size
+                    safe_remove_file(str(f))
             details.append(f"日志: 清理 {len(log_files) - 5} 个旧文件")
 
-    # 多余 packs（保险：最多保留 MAX_LOCAL_PACKS=2 个）
-    max_packs = 2
+    # 旧 packs（保留最近 2 个）
     if PACK_DIR.exists():
         packs = sorted(PACK_DIR.glob("dataset_pack_*.zip"), key=lambda p: p.stat().st_mtime)
-        if len(packs) > max_packs:
-            for p in packs[:-max_packs]:
+        if len(packs) > 2:
+            for p in packs[:-2]:
+                freed += p.stat().st_size
                 if not dry_run:
-                    freed += p.stat().st_size
-                    p.unlink(missing_ok=True)
-                else:
-                    freed += p.stat().st_size
-            details.append(f"旧包: 清理 {len(packs) - max_packs} 个")
+                    safe_remove_file(str(p))
+            details.append(f"旧包: 清理 {len(packs) - 2} 个")
 
     report["freed_mb"] = freed // (1024 * 1024)
     report["detail"] = "; ".join(details) if details else "无需清理"
     return report
 
 
-# ══════════════════════════════════════════════
-#  大文件分析 & 安全清理
-# ══════════════════════════════════════════════
+def clean_browser_cache_cross(dry_run: bool = False) -> dict:
+    """清理浏览器缓存（macOS / Linux）"""
+    report = {"name": "浏览器缓存", "freed_mb": 0, "ok": True, "detail": ""}
+    freed = 0
+    details = []
 
-def analyze_disk_usage(top_n: int = 15) -> list:
-    """
-    扫描系统最大目录，返回 [(size_mb, path), ...]
-    仅扫描 / 下 1 层和常用大目录
-    """
-    targets = ["/var", "/home", "/root", "/opt", "/tmp", "/usr/local"]
-    entries = []
+    home = Path.home()
+    if IS_MAC:
+        cache_paths = {
+            "Chrome":  home / "Library" / "Caches" / "Google" / "Chrome" / "Default" / "Cache",
+            "Firefox": home / "Library" / "Caches" / "Firefox",
+            "Safari":  home / "Library" / "Caches" / "com.apple.Safari",
+        }
+    else:  # Linux
+        cache_paths = {
+            "Chrome":  home / ".cache" / "google-chrome" / "Default" / "Cache",
+            "Chromium": home / ".cache" / "chromium" / "Default" / "Cache",
+            "Firefox": home / ".cache" / "mozilla" / "firefox",
+        }
 
-    for t in targets:
-        if not os.path.exists(t):
+    for browser, path in cache_paths.items():
+        if not path.exists():
             continue
-        r = run_cmd(["du", "-sm", "--exclude=proc", "--exclude=sys", t], timeout=30)
-        if r["ok"]:
-            for line in r["stdout"].split("\n"):
-                parts = line.strip().split("\t")
-                if len(parts) == 2:
-                    try:
-                        entries.append((int(parts[0]), parts[1]))
-                    except ValueError:
-                        pass
+        sz = get_dir_size_mb(str(path))
+        if sz == 0:
+            continue
+        if dry_run:
+            details.append(f"{browser}: ~{sz}MB")
+        else:
+            safe_remove_tree(str(path))
+            details.append(f"{browser}: +{sz}MB")
+        freed += sz
 
-    # 也检查 / 下各顶层目录
-    r2 = run_cmd(["du", "-sm", "--exclude=proc", "--exclude=sys",
-                   "--max-depth=1", "/"], timeout=30)
-    if r2["ok"]:
-        for line in r2["stdout"].split("\n"):
-            parts = line.strip().split("\t")
-            if len(parts) == 2 and parts[1] != "/":
-                try:
-                    mb = int(parts[0])
-                    entries.append((mb, parts[1]))
-                except ValueError:
-                    pass
+    report["freed_mb"] = freed
+    report["detail"] = "; ".join(details) if details else "无浏览器缓存"
+    return report
 
-    entries.sort(reverse=True)
-    seen = set()
-    unique = []
-    for mb, path in entries:
-        if path not in seen:
-            seen.add(path)
-            unique.append((mb, path))
 
-    return unique[:top_n]
-
+# ══════════════════════════════════════════════
+#  磁盘扫描分析
+# ══════════════════════════════════════════════
 
 def analyze_large_safe_targets() -> list:
     """
@@ -352,169 +764,60 @@ def analyze_large_safe_targets() -> list:
     """
     results = []
 
-    # 1. 旧 rotated 日志 (.gz, .1, .2 等)
-    for log_dir in ["/var/log"]:
-        if not os.path.exists(log_dir):
-            continue
-        r = run_cmd(["find", log_dir, "-type", "f", "(", "-name", "*.gz",
-                      "-o", "-name", "*.old", "-o", "-name", "*.1",
-                      "-o", "-name", "*.2", "-o", "-name", "*.3",
-                      "-o", "-name", "*.4", "-o", "-name", "*.5",
-                      "-o", "-name", "*.6", "-o", "-name", "*.7",
-                      "-o", "-name", "*.8", "-o", "-name", "*.9",
-                      ")", "-exec", "du", "-sm", "{}", "+"], timeout=30)
-        if r["ok"] and r["stdout"]:
-            total = 0
-            for line in r["stdout"].split("\n"):
-                parts = line.strip().split("\t")
-                if len(parts) == 2:
-                    try:
-                        total += int(parts[0])
-                    except ValueError:
-                        pass
-            if total > 0:
-                results.append((total, log_dir, "rotated_logs", "已轮转的旧日志文件 (.gz/.1/.2…)"))
+    if IS_WINDOWS:
+        local_app = os.environ.get("LOCALAPPDATA", "")
+        appdata = os.environ.get("APPDATA", "")
+        temp = os.environ.get("TEMP", "")
 
-    # 2. pip 缓存
-    pip_cache_paths = [
-        os.path.expanduser("~/.cache/pip"),
-        "/root/.cache/pip",
-    ]
-    for p in pip_cache_paths:
-        if os.path.exists(p):
-            r = run_cmd(["du", "-sm", p], timeout=10)
-            if r["ok"] and r["stdout"]:
-                try:
-                    mb = int(r["stdout"].split()[0])
-                    if mb > 0:
-                        results.append((mb, p, "pip_cache", "pip 下载缓存"))
-                except ValueError:
-                    pass
+        candidates = [
+            (os.path.join(local_app, "Google", "Chrome", "User Data", "Default", "Cache"),
+             "chrome_cache", "Chrome 缓存"),
+            (os.path.join(local_app, "Microsoft", "Edge", "User Data", "Default", "Cache"),
+             "edge_cache", "Edge 缓存"),
+            (temp, "temp", "Windows 临时文件"),
+        ]
+        for path, cat, desc in candidates:
+            if os.path.exists(path):
+                sz = get_dir_size_mb(path)
+                if sz > 0:
+                    results.append((sz, path, cat, desc))
 
-    # 3. snap 旧版本
-    snap_dir = "/var/lib/snapd/cache"
-    if os.path.exists(snap_dir):
-        r = run_cmd(["du", "-sm", snap_dir], timeout=10)
-        if r["ok"] and r["stdout"]:
-            try:
-                mb = int(r["stdout"].split()[0])
-                if mb > 0:
-                    results.append((mb, snap_dir, "snap_cache", "Snapd 缓存"))
-            except ValueError:
-                pass
+    elif IS_MAC:
+        home = Path.home()
+        candidates = [
+            (str(home / "Library" / "Caches"), "mac_caches", "macOS 用户缓存"),
+            (str(home / ".Trash"), "trash", "回收站"),
+            (str(home / "Library" / "Developer" / "Xcode" / "DerivedData"),
+             "xcode", "Xcode 派生数据"),
+            (str(home / ".cache" / "pip"), "pip_cache", "pip 缓存"),
+        ]
+        for path, cat, desc in candidates:
+            if os.path.exists(path):
+                sz = get_dir_size_mb(path)
+                if sz > 0:
+                    results.append((sz, path, cat, desc))
 
-    # 4. trash
-    trash_paths = [
-        os.path.expanduser("~/.local/share/Trash"),
-        "/root/.local/share/Trash",
-    ]
-    for p in trash_paths:
-        if os.path.exists(p):
-            r = run_cmd(["du", "-sm", p], timeout=10)
-            if r["ok"] and r["stdout"]:
-                try:
-                    mb = int(r["stdout"].split()[0])
-                    if mb > 0:
-                        results.append((mb, p, "trash", "回收站"))
-                except ValueError:
-                    pass
-
-    # 5. 旧内核（保留最近 2 个）
-    if os.path.exists("/boot"):
-        r = run_cmd(["dpkg", "--list", "linux-image-*"], timeout=15)
-        kernels = []
-        if r["ok"]:
-            for line in r["stdout"].split("\n"):
-                if line.startswith("ii") and "linux-image-" in line:
-                    parts = line.split()
-                    if len(parts) >= 3:
-                        kernels.append(parts[2])
-        if len(kernels) > 2:
-            keep = set(kernels[:2])  # dpkg 列表按版本排序，前 2 个最新
-            old_kernels = [k for k in kernels if k not in keep]
-            # 粗略估算大小（每个内核 ~200MB）
-            results.append((len(old_kernels) * 200, "; ".join(old_kernels),
-                           "old_kernels", f"旧内核 ({len(old_kernels)} 个, 估算)"))
+    else:  # Linux
+        candidates = [
+            ("/var/cache/apt/archives", "apt_cache", "APT 缓存"),
+            (str(Path.home() / ".cache" / "pip"), "pip_cache", "pip 缓存"),
+            (str(Path.home() / ".cache"), "user_cache", "用户缓存"),
+            ("/tmp", "tmp", "临时文件"),
+            ("/var/log", "logs", "系统日志"),
+        ]
+        for path, cat, desc in candidates:
+            if os.path.exists(path):
+                sz = get_dir_size_mb(path)
+                if sz > 0:
+                    results.append((sz, path, cat, desc))
 
     results.sort(reverse=True)
     return results
 
 
-def clean_system_clutter(dry_run: bool = False) -> dict:
-    """
-    清理可安全删除的系统残留（旧日志、缓存、回收站等）
-    自动识别并清理，无需用户确认
-    """
-    report = {"name": "系统大文件清理", "freed_mb": 0, "ok": True, "detail": ""}
-    freed = 0
-    details = []
-
-    targets = analyze_large_safe_targets()
-
-    for mb, path, category, desc in targets:
-        if dry_run:
-            details.append(f"{desc} [{path}]: ~{mb}MB")
-            freed += mb
-            continue
-
-        if category == "rotated_logs":
-            r = run_cmd(["sudo", "-n", "find", "/var/log", "-type", "f", "(",
-                          "-name", "*.gz", "-o", "-name", "*.old",
-                          "-o", "-name", "*.1", "-o", "-name", "*.2",
-                          "-o", "-name", "*.3", "-o", "-name", "*.4",
-                          "-o", "-name", "*.5", "-o", "-name", "*.6",
-                          "-o", "-name", "*.7", "-o", "-name", "*.8",
-                          "-o", "-name", "*.9",
-                          ")", "-delete"], timeout=60)
-            if r["ok"]:
-                details.append(f"旋转日志: +{mb}MB")
-                freed += mb
-            else:
-                details.append(f"旋转日志: 清理失败 ({r['stderr'][:40]})")
-
-        elif category == "pip_cache":
-            r = run_cmd(["sudo", "-n", "rm", "-rf", path], timeout=30)
-            if r["ok"] or (not r["ok"] and "No such" in r["stderr"]):
-                details.append(f"pip 缓存: +{mb}MB")
-                freed += mb
-            else:
-                details.append(f"pip 缓存: 清理失败 ({r['stderr'][:40]})")
-
-        elif category == "snap_cache":
-            r = run_cmd(["sudo", "-n", "rm", "-rf", f"{path}/*"], timeout=30)
-            if r["ok"]:
-                details.append(f"Snap 缓存: +{mb}MB")
-                freed += mb
-            else:
-                details.append(f"Snap 缓存: 清理失败 ({r['stderr'][:40]})")
-
-        elif category == "trash":
-            r = run_cmd(["sudo", "-n", "rm", "-rf", path], timeout=30)
-            if r["ok"] or (not r["ok"] and "No such" in r["stderr"]):
-                details.append(f"回收站: +{mb}MB")
-                freed += mb
-            else:
-                details.append(f"回收站: 清理失败 ({r['stderr'][:40]})")
-
-        elif category == "old_kernels":
-            # 只移除列表中的旧内核
-            kernel_names = path.split("; ")
-            for kn in kernel_names:
-                kn = kn.strip()
-                if kn:
-                    r = run_cmd(["sudo", "-n", "apt", "remove", "-y", kn], timeout=60)
-                    if r["ok"]:
-                        details.append(f"旧内核: {kn}")
-                        freed += mb // max(len(kernel_names), 1)
-                    else:
-                        details.append(f"旧内核 {kn}: 移除失败 ({r['stderr'][:40]})")
-            # 再 autoremove 清理残留
-            run_cmd(["sudo", "-n", "apt", "autoremove", "-y"], timeout=60)
-
-    report["freed_mb"] = freed
-    report["detail"] = "; ".join(details) if details else "无可清理系统大文件"
-    return report
-
+# ══════════════════════════════════════════════
+#  主清理流程（按平台分发）
+# ══════════════════════════════════════════════
 
 def run_cleanup(dry_run: bool = False, aggressive: bool = False) -> dict:
     """
@@ -523,32 +826,58 @@ def run_cleanup(dry_run: bool = False, aggressive: bool = False) -> dict:
     Returns:
         {
             "ok": bool,
+            "platform": str,
             "total_freed_mb": int,
             "free_before_gb": float,
             "free_after_gb": float,
             "steps": [report_dict, ...],
-            "large_files": [ ... ]  # 磁盘大文件分析
+            "large_files": [ ... ]
         }
     """
     free_before = get_disk_free()
     steps = []
 
-    steps.append(clean_apt(dry_run))
-    steps.append(clean_journal(dry_run))
-    steps.append(clean_docker(dry_run))
-    steps.append(clean_temp(dry_run, aggressive))
-    steps.append(clean_system_clutter(dry_run))
-    steps.append(clean_project_temp(dry_run))
+    if IS_WINDOWS:
+        steps.append(clean_windows_temp(dry_run, aggressive))
+        steps.append(clean_windows_recycle(dry_run))
+        steps.append(clean_windows_prefetch(dry_run))
+        steps.append(clean_windows_browser_cache(dry_run))
+        steps.append(clean_windows_delivery_optimization(dry_run))
+        steps.append(clean_pip_cache(dry_run))
+        steps.append(clean_npm_cache(dry_run))
+        steps.append(clean_docker(dry_run))
+        steps.append(clean_project_temp(dry_run))
+
+    elif IS_MAC:
+        steps.append(clean_mac_caches(dry_run, aggressive))
+        steps.append(clean_mac_trash(dry_run))
+        steps.append(clean_mac_brew(dry_run))
+        steps.append(clean_mac_xcode(dry_run))
+        steps.append(clean_browser_cache_cross(dry_run))
+        steps.append(clean_pip_cache(dry_run))
+        steps.append(clean_npm_cache(dry_run))
+        steps.append(clean_docker(dry_run))
+        steps.append(clean_project_temp(dry_run))
+
+    else:  # Linux
+        steps.append(clean_apt(dry_run))
+        steps.append(clean_journal(dry_run))
+        steps.append(clean_snap(dry_run))
+        steps.append(clean_linux_temp(dry_run, aggressive))
+        steps.append(clean_browser_cache_cross(dry_run))
+        steps.append(clean_pip_cache(dry_run))
+        steps.append(clean_npm_cache(dry_run))
+        steps.append(clean_docker(dry_run))
+        steps.append(clean_project_temp(dry_run))
 
     free_after = get_disk_free()
     total_freed = sum(s.get("freed_mb", 0) for s in steps)
     all_ok = all(s.get("ok", True) for s in steps)
-
-    # 大文件分析（始终执行，用于报告）
     large_files = analyze_large_safe_targets()
 
     return {
         "ok": all_ok,
+        "platform": PLATFORM,
         "total_freed_mb": total_freed,
         "free_before_gb": round(free_before, 1),
         "free_after_gb": round(free_after, 1),
@@ -559,32 +888,33 @@ def run_cleanup(dry_run: bool = False, aggressive: bool = False) -> dict:
 
 
 def format_report(result: dict) -> str:
-    """格式化清理报告为可推送的文本"""
+    """格式化清理报告"""
+    platform_label = {"Windows": "🪟 Windows", "Darwin": "🍎 macOS", "Linux": "🐧 Linux"}.get(
+        result["platform"], result["platform"]
+    )
+    mode_label = "预览" if result["dry_run"] else "完成"
     lines = [
-        f"🧹 **系统清理{'预览' if result['dry_run'] else '完成'}**",
-        f"",
+        f"🧹 **系统清理{mode_label}** [{platform_label}]",
+        "",
     ]
 
     for s in result["steps"]:
         icon = "✅" if s["ok"] else "⚠️"
-        detail = s["detail"][:120] if s["detail"] else "无需处理"
+        detail = (s["detail"] or "无需处理")[:120]
         freed = s.get("freed_mb", 0)
         freed_str = f" (+{freed}MB)" if freed > 0 else ""
         lines.append(f"{icon} {s['name']}{freed_str}")
         lines.append(f"   └─ {detail}")
 
-    # 大文件预警
     large = result.get("large_files", [])
-    risky = [(mb, path, desc) for mb, path, cat, desc in large
-             if cat not in ("rotated_logs", "pip_cache", "snap_cache", "trash")]
-    if risky:
+    if large:
         lines.append("")
-        lines.append("⚠️ **以下大文件需人工检查：**")
-        for mb, path, desc in risky[:5]:
+        lines.append("📂 **磁盘占用较大的目录：**")
+        for mb, path, cat, desc in large[:5]:
             lines.append(f"   • {desc}: {path} (~{mb}MB)")
 
     lines.append("")
-    lines.append(f"💾 释放空间: **{result['total_freed_mb']} MB**")
+    lines.append(f"💾 预计释放: **{result['total_freed_mb']} MB**")
     lines.append(f"📊 磁盘: {result['free_before_gb']}GB → {result['free_after_gb']}GB 可用")
 
     return "\n".join(lines)
@@ -593,33 +923,49 @@ def format_report(result: dict) -> str:
 # ══════════════════════════════════════════════
 #  CLI 入口
 # ══════════════════════════════════════════════
+
 if __name__ == "__main__":
     import argparse
 
-    parser = argparse.ArgumentParser(description="系统清理工具")
-    parser.add_argument("--dry-run", action="store_true", help="仅预览，不执行")
-    parser.add_argument("--aggressive", action="store_true", help="更强力清理（如 /tmp 删除更早文件）")
-    parser.add_argument("--scan", action="store_true", help="仅扫描大文件分析，不执行清理")
-    parser.add_argument("--json", action="store_true", help="以 JSON 格式输出")
+    parser = argparse.ArgumentParser(
+        description=f"系统清理工具 (当前平台: {PLATFORM})",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+示例:
+  python3 cleanup_system.py --dry-run       # 预览将清理的内容
+  python3 cleanup_system.py                 # 执行清理
+  python3 cleanup_system.py --aggressive    # 更强力清理
+  python3 cleanup_system.py --scan          # 仅扫描大文件
+  python3 cleanup_system.py --json          # JSON 输出
+        """
+    )
+    parser.add_argument("--dry-run", action="store_true", help="仅预览，不执行任何操作")
+    parser.add_argument("--aggressive", action="store_true", help="更强力清理（如临时文件删除范围更广）")
+    parser.add_argument("--scan", action="store_true", help="仅扫描大文件，不执行清理")
+    parser.add_argument("--json", dest="output_json", action="store_true", help="以 JSON 格式输出")
     args = parser.parse_args()
+
+    print(f"🖥  平台: {PLATFORM} | 管理员: {'是' if requires_admin() else '否'}")
+    print()
 
     if args.scan:
         large = analyze_large_safe_targets()
-        print(f"🔍 **系统大文件分析**\n")
+        print("🔍 **可清理大文件分析**\n")
         if not large:
-            print("无可清理的大文件")
+            print("未发现可清理的大文件/目录")
         else:
             for mb, path, cat, desc in large:
-                print(f"  • {desc} [{path}]: ~{mb}MB")
+                print(f"  • {desc}\n    路径: {path}\n    大小: ~{mb}MB\n")
         sys.exit(0)
 
     result = run_cleanup(dry_run=args.dry_run, aggressive=args.aggressive)
 
-    if args.json:
+    if args.output_json:
         print(json.dumps(result, ensure_ascii=False, indent=2))
     else:
         print(format_report(result))
-        print(f"\n{'=' * 40}")
-        print(f"运行: python3 {__file__}  # 实际执行清理")
-        if not args.dry_run:
-            print("已实际执行清理 ✅")
+        print(f"\n{'=' * 50}")
+        if args.dry_run:
+            print(f"预览模式，未实际操作。执行清理请去掉 --dry-run 参数。")
+        else:
+            print("✅ 已实际执行清理")
