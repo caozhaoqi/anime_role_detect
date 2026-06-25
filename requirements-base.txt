@@ -6,7 +6,7 @@
 # Web框架
 fastapi==0.115.0
 uvicorn==0.31.1
-starlette==0.37.2
+starlette==0.49.3
 flask==3.1.3  # 用于链路追踪仪表板
 
 # 数据验证

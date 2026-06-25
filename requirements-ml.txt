@@ -9,7 +9,7 @@ torchvision==0.19.1
 torchaudio==2.4.1
 
 # 计算机视觉
-opencv-python==4.10.0.84
+opencv-python==4.13.0.92
 Pillow==10.4.0
 
 # 模型评估
