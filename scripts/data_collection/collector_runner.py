@@ -501,7 +501,7 @@ class CollectorRunner:
 
         if not new_files:
             self.log(f"  ℹ️ 无可打包的新增图片")
-            return True
+            return False, None, None
 
         # 输出 zip
         PACK_DIR.mkdir(parents=True, exist_ok=True)
@@ -662,7 +662,7 @@ class CollectorRunner:
 
             if img_count - last_packed >= PACK_INTERVAL:
                 pack_ok, zip_path, pack_no = self._do_pack()
-                if pack_ok:
+                if pack_ok and zip_path:
                     # 上传 OSS + 清理旧包 + 清理元数据
                     oss_url, upload_success = self._upload_and_cleanup(zip_path, pack_no)
 
@@ -682,12 +682,20 @@ class CollectorRunner:
                     # 上传结果
                     if self.oss_uploader:
                         if upload_success:
+                            self.log(f"  🧹 OSS 上传: {oss_url} 成功")
+                            self._clean_packed_data(pack_no)
+                            self.log(f"  🧹 原图清理: 已删除 {len(pack_files)} 张 ({freed_mb:.1f} MB 释放) "
+                                     f"— 图片已打包到包 #{pack_no}，原始文件已安全删除")
                             msg_parts.append(f"☁️ **OSS 上传: ✅ 成功**")
                             msg_parts.append(f"🔗 下载链接 (7天有效): {oss_url}")
                         else:
+                            self.log("  ⚠️ OSS 上传失败，保留原图等待重试")
                             msg_parts.append(f"☁️ **OSS 上传: ❌ 失败** — 包仅本地可用")
                             msg_parts.append(f"📂 本地路径: {PACK_DIR / pack_info.get('zip', '')}")
                     else:
+                        self._clean_packed_data(pack_no)
+                        self.log(f"  🧹 原图清理: 已删除 {len(pack_files)} 张 ({freed_mb:.1f} MB 释放) "
+                                     f"— 图片已打包到包 #{pack_no}，原始文件已安全删除")
                         msg_parts.append(f"📂 本地路径: {PACK_DIR / pack_info.get('zip', '')}")
 
                     # 本地保留情况

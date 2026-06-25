@@ -133,8 +133,8 @@ def print_report(stats, output_file=None):
 
 
 def main():
-    data_dir = "data/final_dataset"
-    output_file = "data/final_dataset_report.json"
+    data_dir = "data/training_dataset"
+    output_file = "data/training_dataset_report.json"
 
     print("🚀 开始分析最终数据集...")
     stats = analyze_final_dataset(data_dir)
