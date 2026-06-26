@@ -13,6 +13,10 @@ echo "  Git 仓库: $GIT_REPO"
 echo "  镜像仓库: $REGISTRY"
 echo "  构建标签: $TAG"
 echo "  构建目录: $BUILD_DIR"
+echo ""
+echo "  注意: 此脚本仅构建核心 3 个服务镜像"
+echo "  如需构建全部 13 个镜像，请使用:"
+echo "    scripts/k8s/build_k8s_images.sh"
 echo "========================================"
 
 cleanup() {
@@ -36,24 +40,26 @@ echo "📦 安装依赖..."
 pip install -q -r requirements.txt
 pip install -q uvicorn gunicorn
 
+BUILD_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
 echo ""
 echo "🔧 构建后端 API 镜像..."
 docker build -t "$REGISTRY/api-service:$TAG" \
-    --build-arg BUILD_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ") \
+    --build-arg BUILD_DATE="$BUILD_DATE" \
     -f deployment/Dockerfile.api-service \
     .
 
 echo ""
 echo "🔧 构建模型服务镜像..."
 docker build -t "$REGISTRY/model-service:$TAG" \
-    --build-arg BUILD_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ") \
+    --build-arg BUILD_DATE="$BUILD_DATE" \
     -f deployment/Dockerfile.model-service \
     .
 
 echo ""
 echo "🔧 构建前端镜像..."
 docker build -t "$REGISTRY/frontend:$TAG" \
-    --build-arg BUILD_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ") \
+    --build-arg BUILD_DATE="$BUILD_DATE" \
     -f deployment/Dockerfile.frontend \
     .
 

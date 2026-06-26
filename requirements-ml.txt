@@ -10,15 +10,15 @@ torchaudio==2.4.1
 
 # 计算机视觉
 opencv-python==4.13.0.92
-Pillow==10.4.0
+Pillow==11.3.0
 
 # 模型评估
-scikit-learn==1.5.1
+scikit-learn==1.6.1
 scikit-image==0.24.0
 
 # 数据处理
 numpy==1.26.4
-pandas==2.2.2
+pandas==2.3.3
 
 # 特征提取和向量数据库
 faiss-cpu==1.13.0

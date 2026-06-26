@@ -1,0 +1,193 @@
+# =============================================================================
+# Anime Role Detect — K8s Service 定义
+# 包含基础设施服务（Redis, MySQL, RabbitMQ）和应用服务
+# =============================================================================
+
+# =====================================================================
+# 基础设施 Services
+# =====================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+  namespace: anime-role-detect
+  labels:
+    app: redis
+    app.kubernetes.io/name: redis
+    app.kubernetes.io/part-of: ardc-infrastructure
+spec:
+  selector:
+    app: redis
+  ports:
+  - name: redis
+    port: 6379
+    targetPort: 6379
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysql
+  namespace: anime-role-detect
+  labels:
+    app: mysql
+    app.kubernetes.io/name: mysql
+    app.kubernetes.io/part-of: ardc-infrastructure
+spec:
+  selector:
+    app: mysql
+  ports:
+  - name: mysql
+    port: 3306
+    targetPort: 3306
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rabbitmq
+  namespace: anime-role-detect
+  labels:
+    app: rabbitmq
+    app.kubernetes.io/name: rabbitmq
+    app.kubernetes.io/part-of: ardc-infrastructure
+spec:
+  selector:
+    app: rabbitmq
+  ports:
+  - name: amqp
+    port: 5672
+    targetPort: 5672
+  - name: management
+    port: 15672
+    targetPort: 15672
+  type: ClusterIP
+---
+# =====================================================================
+# 应用 Services
+# =====================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: api-service
+  namespace: anime-role-detect
+  labels:
+    app: api-service
+    app.kubernetes.io/name: api-service
+    app.kubernetes.io/part-of: ardc-app
+spec:
+  selector:
+    app: api-service
+  ports:
+  - name: http
+    port: 8000
+    targetPort: 8000
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: model-service
+  namespace: anime-role-detect
+  labels:
+    app: model-service
+    app.kubernetes.io/name: model-service
+    app.kubernetes.io/part-of: ardc-app
+spec:
+  selector:
+    app: model-service
+  ports:
+  - name: http
+    port: 8000
+    targetPort: 8000
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: api-gateway
+  namespace: anime-role-detect
+  labels:
+    app: api-gateway
+    app.kubernetes.io/name: api-gateway
+    app.kubernetes.io/part-of: ardc-app
+spec:
+  selector:
+    app: api-gateway
+  ports:
+  - name: http
+    port: 8080
+    targetPort: 8000
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: multimedia-service
+  namespace: anime-role-detect
+  labels:
+    app: multimedia-service
+    app.kubernetes.io/name: multimedia-service
+    app.kubernetes.io/part-of: ardc-app
+spec:
+  selector:
+    app: multimedia-service
+  ports:
+  - name: http
+    port: 8000
+    targetPort: 8000
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: search-service
+  namespace: anime-role-detect
+  labels:
+    app: search-service
+    app.kubernetes.io/name: search-service
+    app.kubernetes.io/part-of: ardc-app
+spec:
+  selector:
+    app: search-service
+  ports:
+  - name: http
+    port: 8000
+    targetPort: 8000
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend
+  namespace: anime-role-detect
+  labels:
+    app: frontend
+    app.kubernetes.io/name: frontend
+    app.kubernetes.io/part-of: ardc-app
+spec:
+  selector:
+    app: frontend
+  ports:
+  - name: http
+    port: 3000
+    targetPort: 3000
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: monitor-dashboard
+  namespace: anime-role-detect
+  labels:
+    app: monitor-dashboard
+    app.kubernetes.io/name: monitor-dashboard
+    app.kubernetes.io/part-of: ardc-app
+spec:
+  selector:
+    app: monitor-dashboard
+  ports:
+  - name: http
+    port: 8000
+    targetPort: 8000
+  type: ClusterIP

@@ -1,0 +1,962 @@
+# =============================================================================
+# Anime Role Detect — K8s Deployment 定义
+# 包含基础设施（Redis, MySQL, RabbitMQ）和应用服务
+#
+# 镜像仓库地址：请将 harbor.example.com 替换为实际仓库地址
+# 如使用私有仓库，请取消 imagePullSecrets 注释并创建对应的 Secret
+# =============================================================================
+
+# =====================================================================
+# 基础设施 Deployments
+# =====================================================================
+
+# --- Redis ---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+  namespace: anime-role-detect
+  labels:
+    app: redis
+    app.kubernetes.io/name: redis
+    app.kubernetes.io/part-of: ardc-infrastructure
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+    spec:
+      containers:
+      - name: redis
+        image: redis:7-alpine
+        ports:
+        - containerPort: 6379
+        resources:
+          requests:
+            cpu: "50m"
+            memory: "128Mi"
+          limits:
+            cpu: "500m"
+            memory: "512Mi"
+        livenessProbe:
+          exec:
+            command: ["redis-cli", "ping"]
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        readinessProbe:
+          exec:
+            command: ["redis-cli", "ping"]
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        volumeMounts:
+        - name: redis-data
+          mountPath: /data
+      volumes:
+      - name: redis-data
+        persistentVolumeClaim:
+          claimName: redis-data
+
+---
+# --- MySQL ---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mysql
+  namespace: anime-role-detect
+  labels:
+    app: mysql
+    app.kubernetes.io/name: mysql
+    app.kubernetes.io/part-of: ardc-infrastructure
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mysql
+  template:
+    metadata:
+      labels:
+        app: mysql
+    spec:
+      containers:
+      - name: mysql
+        image: mysql:8.0
+        ports:
+        - containerPort: 3306
+        env:
+        - name: MYSQL_ROOT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: ardc-secrets
+              key: MYSQL_ROOT_PASSWORD
+        - name: MYSQL_DATABASE
+          valueFrom:
+            secretKeyRef:
+              name: ardc-secrets
+              key: MYSQL_DB
+        - name: MYSQL_USER
+          valueFrom:
+            secretKeyRef:
+              name: ardc-secrets
+              key: MYSQL_USER
+        - name: MYSQL_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: ardc-secrets
+              key: MYSQL_PASSWORD
+        resources:
+          requests:
+            cpu: "250m"
+            memory: "512Mi"
+          limits:
+            cpu: "1"
+            memory: "2Gi"
+        livenessProbe:
+          exec:
+            command:
+            - mysqladmin
+            - ping
+            - -h
+            - localhost
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+        readinessProbe:
+          exec:
+            command:
+            - mysqladmin
+            - ping
+            - -h
+            - localhost
+          initialDelaySeconds: 20
+          periodSeconds: 5
+          timeoutSeconds: 3
+        volumeMounts:
+        - name: mysql-data
+          mountPath: /var/lib/mysql
+      volumes:
+      - name: mysql-data
+        persistentVolumeClaim:
+          claimName: mysql-data
+
+---
+# --- RabbitMQ ---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rabbitmq
+  namespace: anime-role-detect
+  labels:
+    app: rabbitmq
+    app.kubernetes.io/name: rabbitmq
+    app.kubernetes.io/part-of: ardc-infrastructure
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: rabbitmq
+  template:
+    metadata:
+      labels:
+        app: rabbitmq
+    spec:
+      containers:
+      - name: rabbitmq
+        image: rabbitmq:3-management-alpine
+        ports:
+        - containerPort: 5672
+          name: amqp
+        - containerPort: 15672
+          name: management
+        env:
+        - name: RABBITMQ_DEFAULT_USER
+          valueFrom:
+            secretKeyRef:
+              name: ardc-secrets
+              key: RABBITMQ_USER
+        - name: RABBITMQ_DEFAULT_PASS
+          valueFrom:
+            secretKeyRef:
+              name: ardc-secrets
+              key: RABBITMQ_PASSWORD
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "256Mi"
+          limits:
+            cpu: "500m"
+            memory: "1Gi"
+        livenessProbe:
+          exec:
+            command: ["rabbitmq-diagnostics", "ping"]
+          initialDelaySeconds: 20
+          periodSeconds: 10
+        readinessProbe:
+          exec:
+            command: ["rabbitmq-diagnostics", "ping"]
+          initialDelaySeconds: 10
+          periodSeconds: 5
+        volumeMounts:
+        - name: rabbitmq-data
+          mountPath: /var/lib/rabbitmq
+      volumes:
+      - name: rabbitmq-data
+        persistentVolumeClaim:
+          claimName: rabbitmq-data
+
+---
+# =====================================================================
+# 核心应用 Deployments
+# =====================================================================
+
+# --- Model Service（模型推理）---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: model-service
+  namespace: anime-role-detect
+  labels:
+    app: model-service
+    app.kubernetes.io/name: model-service
+    app.kubernetes.io/part-of: ardc-app
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate  # 模型服务不支持同时运行多实例（GPU/Memory 冲突）
+  selector:
+    matchLabels:
+      app: model-service
+  template:
+    metadata:
+      labels:
+        app: model-service
+    spec:
+      # imagePullSecrets:
+      # - name: harbor-pull-secret
+      containers:
+      - name: model-service
+        image: harbor.example.com/anime-role-detect/model-service:latest
+        ports:
+        - containerPort: 8000
+          name: http
+        envFrom:
+        - configMapRef:
+            name: ardc-config
+        - secretRef:
+            name: ardc-secrets
+        resources:
+          requests:
+            cpu: "500m"
+            memory: "2Gi"
+          limits:
+            cpu: "4"
+            memory: "8Gi"
+          # GPU 环境取消下面注释:
+          # limits:
+          #   nvidia.com/gpu: 1
+        # 启动探针：模型加载可能需要 120 秒以上
+        startupProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          failureThreshold: 12   # 允许最多 120s (30 + 12*10)
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 15
+          failureThreshold: 5
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          failureThreshold: 3
+        volumeMounts:
+        - name: model-data
+          mountPath: /app/models
+          readOnly: true
+        - name: model-cache
+          mountPath: /app/cache
+      volumes:
+      - name: model-data
+        persistentVolumeClaim:
+          claimName: model-data
+      - name: model-cache
+        persistentVolumeClaim:
+          claimName: model-cache
+
+---
+# --- API Service（业务 API）---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-service
+  namespace: anime-role-detect
+  labels:
+    app: api-service
+    app.kubernetes.io/name: api-service
+    app.kubernetes.io/part-of: ardc-app
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: api-service
+  template:
+    metadata:
+      labels:
+        app: api-service
+    spec:
+      # imagePullSecrets:
+      # - name: harbor-pull-secret
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchLabels:
+                  app: api-service
+              topologyKey: kubernetes.io/hostname
+      containers:
+      - name: api-service
+        image: harbor.example.com/anime-role-detect/api-service:latest
+        ports:
+        - containerPort: 8000
+          name: http
+        envFrom:
+        - configMapRef:
+            name: ardc-config
+        - secretRef:
+            name: ardc-secrets
+        resources:
+          requests:
+            cpu: "200m"
+            memory: "512Mi"
+          limits:
+            cpu: "1"
+            memory: "2Gi"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 20
+          periodSeconds: 10
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          failureThreshold: 3
+        volumeMounts:
+        - name: api-cache
+          mountPath: /app/cache
+      volumes:
+      - name: api-cache
+        persistentVolumeClaim:
+          claimName: api-cache
+
+---
+# --- API Gateway（统一入口）---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-gateway
+  namespace: anime-role-detect
+  labels:
+    app: api-gateway
+    app.kubernetes.io/name: api-gateway
+    app.kubernetes.io/part-of: ardc-app
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: api-gateway
+  template:
+    metadata:
+      labels:
+        app: api-gateway
+    spec:
+      # imagePullSecrets:
+      # - name: harbor-pull-secret
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchLabels:
+                  app: api-gateway
+              topologyKey: kubernetes.io/hostname
+      containers:
+      - name: api-gateway
+        image: harbor.example.com/anime-role-detect/api-gateway:latest
+        ports:
+        - containerPort: 8000
+          name: http
+        envFrom:
+        - configMapRef:
+            name: ardc-config
+        - secretRef:
+            name: ardc-secrets
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "256Mi"
+          limits:
+            cpu: "500m"
+            memory: "1Gi"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 15
+          periodSeconds: 10
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          failureThreshold: 3
+
+---
+# --- Frontend（Next.js 前端）---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  namespace: anime-role-detect
+  labels:
+    app: frontend
+    app.kubernetes.io/name: frontend
+    app.kubernetes.io/part-of: ardc-app
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: frontend
+  template:
+    metadata:
+      labels:
+        app: frontend
+    spec:
+      # imagePullSecrets:
+      # - name: harbor-pull-secret
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchLabels:
+                  app: frontend
+              topologyKey: kubernetes.io/hostname
+      containers:
+      - name: frontend
+        image: harbor.example.com/anime-role-detect/frontend:latest
+        ports:
+        - containerPort: 3000
+          name: http
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "128Mi"
+          limits:
+            cpu: "500m"
+            memory: "512Mi"
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 3000
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 3000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          failureThreshold: 3
+
+---
+# =====================================================================
+# 多媒体 & 搜索服务
+# =====================================================================
+
+# --- Multimedia Service ---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: multimedia-service
+  namespace: anime-role-detect
+  labels:
+    app: multimedia-service
+    app.kubernetes.io/name: multimedia-service
+    app.kubernetes.io/part-of: ardc-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: multimedia-service
+  template:
+    metadata:
+      labels:
+        app: multimedia-service
+    spec:
+      # imagePullSecrets:
+      # - name: harbor-pull-secret
+      containers:
+      - name: multimedia-service
+        image: harbor.example.com/anime-role-detect/multimedia-service:latest
+        ports:
+        - containerPort: 8000
+          name: http
+        envFrom:
+        - configMapRef:
+            name: ardc-config
+        - secretRef:
+            name: ardc-secrets
+        resources:
+          requests:
+            cpu: "200m"
+            memory: "512Mi"
+          limits:
+            cpu: "1"
+            memory: "2Gi"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 20
+          periodSeconds: 10
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          failureThreshold: 3
+
+---
+# --- Search Service ---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: search-service
+  namespace: anime-role-detect
+  labels:
+    app: search-service
+    app.kubernetes.io/name: search-service
+    app.kubernetes.io/part-of: ardc-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: search-service
+  template:
+    metadata:
+      labels:
+        app: search-service
+    spec:
+      # imagePullSecrets:
+      # - name: harbor-pull-secret
+      containers:
+      - name: search-service
+        image: harbor.example.com/anime-role-detect/search-service:latest
+        ports:
+        - containerPort: 8000
+          name: http
+        envFrom:
+        - configMapRef:
+            name: ardc-config
+        - secretRef:
+            name: ardc-secrets
+        resources:
+          requests:
+            cpu: "200m"
+            memory: "512Mi"
+          limits:
+            cpu: "1"
+            memory: "2Gi"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 20
+          periodSeconds: 10
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          failureThreshold: 3
+
+---
+# --- Search Worker ---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: search-worker
+  namespace: anime-role-detect
+  labels:
+    app: search-worker
+    app.kubernetes.io/name: search-worker
+    app.kubernetes.io/part-of: ardc-app
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: search-worker
+  template:
+    metadata:
+      labels:
+        app: search-worker
+    spec:
+      # imagePullSecrets:
+      # - name: harbor-pull-secret
+      containers:
+      - name: search-worker
+        image: harbor.example.com/anime-role-detect/search-worker:latest
+        envFrom:
+        - configMapRef:
+            name: ardc-config
+        - secretRef:
+            name: ardc-secrets
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "256Mi"
+          limits:
+            cpu: "500m"
+            memory: "1Gi"
+        livenessProbe:
+          exec:
+            command:
+            - pgrep
+            - -f
+            - search_worker
+          initialDelaySeconds: 30
+          periodSeconds: 15
+          failureThreshold: 3
+        readinessProbe:
+          exec:
+            command:
+            - pgrep
+            - -f
+            - search_worker
+          initialDelaySeconds: 15
+          periodSeconds: 10
+          failureThreshold: 3
+
+---
+# --- Inference Worker ---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: inference-worker
+  namespace: anime-role-detect
+  labels:
+    app: inference-worker
+    app.kubernetes.io/name: inference-worker
+    app.kubernetes.io/part-of: ardc-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: inference-worker
+  template:
+    metadata:
+      labels:
+        app: inference-worker
+    spec:
+      # imagePullSecrets:
+      # - name: harbor-pull-secret
+      containers:
+      - name: inference-worker
+        image: harbor.example.com/anime-role-detect/inference-worker:latest
+        envFrom:
+        - configMapRef:
+            name: ardc-config
+        - secretRef:
+            name: ardc-secrets
+        resources:
+          requests:
+            cpu: "500m"
+            memory: "2Gi"
+          limits:
+            cpu: "4"
+            memory: "8Gi"
+          # GPU 环境:
+          # limits:
+          #   nvidia.com/gpu: 1
+        livenessProbe:
+          exec:
+            command:
+            - pgrep
+            - -f
+            - worker.py
+          initialDelaySeconds: 60
+          periodSeconds: 15
+          failureThreshold: 5
+        readinessProbe:
+          exec:
+            command:
+            - pgrep
+            - -f
+            - worker.py
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          failureThreshold: 3
+        volumeMounts:
+        - name: model-data
+          mountPath: /app/models
+          readOnly: true
+        - name: model-cache
+          mountPath: /app/cache
+      volumes:
+      - name: model-data
+        persistentVolumeClaim:
+          claimName: model-data
+      - name: model-cache
+        persistentVolumeClaim:
+          claimName: model-cache
+
+---
+# =====================================================================
+# 监控工具 Deployments
+# =====================================================================
+
+# --- Monitor Dashboard ---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: monitor-dashboard
+  namespace: anime-role-detect
+  labels:
+    app: monitor-dashboard
+    app.kubernetes.io/name: monitor-dashboard
+    app.kubernetes.io/part-of: ardc-monitoring
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: monitor-dashboard
+  template:
+    metadata:
+      labels:
+        app: monitor-dashboard
+    spec:
+      containers:
+      - name: monitor-dashboard
+        image: harbor.example.com/anime-role-detect/monitor-dashboard:latest
+        ports:
+        - containerPort: 8000
+          name: http
+        envFrom:
+        - configMapRef:
+            name: ardc-config
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "128Mi"
+          limits:
+            cpu: "500m"
+            memory: "512Mi"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 15
+          periodSeconds: 15
+          failureThreshold: 3
+
+---
+# --- Log Viewer ---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: log-viewer
+  namespace: anime-role-detect
+  labels:
+    app: log-viewer
+    app.kubernetes.io/name: log-viewer
+    app.kubernetes.io/part-of: ardc-monitoring
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: log-viewer
+  template:
+    metadata:
+      labels:
+        app: log-viewer
+    spec:
+      containers:
+      - name: log-viewer
+        image: harbor.example.com/anime-role-detect/log-viewer:latest
+        envFrom:
+        - configMapRef:
+            name: ardc-config
+        resources:
+          requests:
+            cpu: "50m"
+            memory: "64Mi"
+          limits:
+            cpu: "200m"
+            memory: "256Mi"
+        livenessProbe:
+          exec:
+            command:
+            - pgrep
+            - -f
+            - log_viewer
+          initialDelaySeconds: 20
+          periodSeconds: 15
+          failureThreshold: 3
+
+---
+# --- Health Check ---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: health-check
+  namespace: anime-role-detect
+  labels:
+    app: health-check
+    app.kubernetes.io/name: health-check
+    app.kubernetes.io/part-of: ardc-monitoring
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: health-check
+  template:
+    metadata:
+      labels:
+        app: health-check
+    spec:
+      containers:
+      - name: health-check
+        image: harbor.example.com/anime-role-detect/health-check:latest
+        envFrom:
+        - configMapRef:
+            name: ardc-config
+        resources:
+          requests:
+            cpu: "50m"
+            memory: "64Mi"
+          limits:
+            cpu: "200m"
+            memory: "256Mi"
+        livenessProbe:
+          exec:
+            command:
+            - pgrep
+            - -f
+            - health_check
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          failureThreshold: 3
+
+---
+# --- Log Monitor ---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: log-monitor
+  namespace: anime-role-detect
+  labels:
+    app: log-monitor
+    app.kubernetes.io/name: log-monitor
+    app.kubernetes.io/part-of: ardc-monitoring
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: log-monitor
+  template:
+    metadata:
+      labels:
+        app: log-monitor
+    spec:
+      containers:
+      - name: log-monitor
+        image: harbor.example.com/anime-role-detect/log-monitor:latest
+        envFrom:
+        - configMapRef:
+            name: ardc-config
+        resources:
+          requests:
+            cpu: "50m"
+            memory: "64Mi"
+          limits:
+            cpu: "200m"
+            memory: "256Mi"
+        livenessProbe:
+          exec:
+            command:
+            - pgrep
+            - -f
+            - log_monitor
+          initialDelaySeconds: 20
+          periodSeconds: 15
+          failureThreshold: 3
+
+---
+# --- Resource Monitor ---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: resource-monitor
+  namespace: anime-role-detect
+  labels:
+    app: resource-monitor
+    app.kubernetes.io/name: resource-monitor
+    app.kubernetes.io/part-of: ardc-monitoring
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: resource-monitor
+  template:
+    metadata:
+      labels:
+        app: resource-monitor
+    spec:
+      containers:
+      - name: resource-monitor
+        image: harbor.example.com/anime-role-detect/resource-monitor:latest
+        envFrom:
+        - configMapRef:
+            name: ardc-config
+        resources:
+          requests:
+            cpu: "50m"
+            memory: "64Mi"
+          limits:
+            cpu: "200m"
+            memory: "256Mi"
+        livenessProbe:
+          exec:
+            command:
+            - pgrep
+            - -f
+            - resource_monitor
+          initialDelaySeconds: 20
+          periodSeconds: 15
+          failureThreshold: 3

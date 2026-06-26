@@ -22,12 +22,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY .env.example .env
 COPY src/ ./src/
-COPY src/run/sh/start_search_worker.sh ./src/run/sh/
 
 RUN mkdir -p logs run
-RUN chmod +x src/run/sh/start_search_worker.sh
 
 ENV PYTHONPATH="/app"
 ENV LOG_LEVEL="INFO"
 
-CMD ["./src/run/sh/start_search_worker.sh"]
+# 直接调用 Python，不依赖 shell 脚本中的 .venv 路径
+CMD ["python", "src/services/search_service/search_worker.py"]
