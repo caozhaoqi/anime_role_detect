@@ -1,15 +1,35 @@
 #!/bin/bash
 set -e
 
+# Enable BuildKit for faster builds
+export DOCKER_BUILDKIT=1
+
 REGISTRY="harbor.example.com/anime-role-detect"
-TAG=$(git rev-parse --short HEAD 2>/dev/null || echo "latest")
+TAG=$(git rev-parse --short HEAD 2>/dev/null)
 BUILD_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+# Fallback to timestamp if git commit hash is not available
+if [ -z "$TAG" ]; then
+    echo "警告: 无法获取 Git commit hash，将使用时间戳作为镜像标签。"
+    TAG=$(date +%Y%m%d%H%M%S)
+fi
 
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 PROJECT_ROOT=$(dirname "$(dirname "$SCRIPT_DIR")")
 
+# Parse arguments
+SKIP_BASE=false
+for arg in "$@"; do
+    case $arg in
+        --skip-base)
+            SKIP_BASE=true
+            echo "ℹ️  跳过基础镜像构建（使用已有缓存）"
+            ;;
+    esac
+done
+
 echo "========================================"
-echo "  ARD K8s 容器镜像构建脚本"
+echo "  ARD K8s 容器镜像构建脚本 (优化版)"
 echo "========================================"
 echo "  项目根目录: $PROJECT_ROOT"
 echo "  镜像仓库: $REGISTRY"
@@ -19,72 +39,132 @@ echo "========================================"
 
 cd "$PROJECT_ROOT"
 
-build_image() {
-    local service_name=$1
-    local dockerfile=$2
-    local context=$3
-    local image_name="$REGISTRY/$service_name:$TAG"
-    
+BASE_IMAGE="$REGISTRY/base:$TAG"
+ML_BASE_IMAGE="$REGISTRY/ml-base:$TAG"
+
+# ============================================================
+# Phase 1: 构建基础镜像（顺序，ml-base 依赖 base）
+# ============================================================
+if [ "$SKIP_BASE" = false ]; then
     echo ""
-    echo "🔧 构建 $service_name 镜像..."
-    echo "   Dockerfile: $dockerfile"
-    echo "   Context: $context"
-    echo "   Image: $image_name"
-    
-    if docker build -t "$image_name" \
+    echo "📦 Phase 1: 构建基础镜像..."
+
+    echo "  🔧 构建 base 镜像..."
+    docker build \
+        -t "$BASE_IMAGE" \
         --build-arg BUILD_DATE="$BUILD_DATE" \
         --build-arg BUILD_TAG="$TAG" \
-        --file "$dockerfile" \
-        "$context"; then
-        echo "✅ $service_name 构建成功"
-        echo "   推送到镜像仓库..."
-        docker push "$image_name"
-        echo "✅ $service_name 推送成功"
+        -f deployment/Dockerfile.base \
+        .
+
+    echo "  🔧 构建 ml-base 镜像..."
+    docker build \
+        -t "$ML_BASE_IMAGE" \
+        --build-arg BUILD_DATE="$BUILD_DATE" \
+        --build-arg BUILD_TAG="$TAG" \
+        --build-arg BASE_IMAGE="$BASE_IMAGE" \
+        -f deployment/Dockerfile.ml-base \
+        .
+
+    echo "✅ 基础镜像构建完成"
+
+    # Push base images
+    echo "  📤 推送基础镜像..."
+    docker push "$BASE_IMAGE" &
+    docker push "$ML_BASE_IMAGE" &
+    wait
+    echo "✅ 基础镜像推送完成"
+else
+    echo ""
+    echo "ℹ️  跳过基础镜像构建"
+fi
+
+# ============================================================
+# Phase 2: 并行构建服务镜像（9 个，原 13 个 → 合并 5 个监控为 1 个）
+# ============================================================
+echo ""
+echo "📋 Phase 2: 并行构建服务镜像..."
+
+BUILD_TASKS_FILE=$(mktemp)
+BUILD_STATUS=0
+
+# 服务镜像定义: service_name dockerfile base_image
+# 非 ML 服务继承 base，ML 服务继承 ml-base
+echo "api-service deployment/Dockerfile.api-service $BASE_IMAGE" >> "$BUILD_TASKS_FILE"
+echo "model-service deployment/Dockerfile.model-service $ML_BASE_IMAGE" >> "$BUILD_TASKS_FILE"
+echo "frontend deployment/Dockerfile.frontend docker.io" >> "$BUILD_TASKS_FILE"
+echo "api-gateway deployment/Dockerfile.api-gateway $BASE_IMAGE" >> "$BUILD_TASKS_FILE"
+echo "multimedia-service deployment/Dockerfile.multimedia-service $BASE_IMAGE" >> "$BUILD_TASKS_FILE"
+echo "search-service deployment/Dockerfile.search-service $BASE_IMAGE" >> "$BUILD_TASKS_FILE"
+echo "search-worker deployment/Dockerfile.search-worker $BASE_IMAGE" >> "$BUILD_TASKS_FILE"
+echo "inference-worker deployment/Dockerfile.inference-worker $ML_BASE_IMAGE" >> "$BUILD_TASKS_FILE"
+echo "monitoring deployment/Dockerfile.monitoring docker.io" >> "$BUILD_TASKS_FILE"
+
+_build_image_and_push() {
+    local service_name=$1
+    local dockerfile=$2
+    local base_image=$3
+    local image_name="$REGISTRY/$service_name:$TAG"
+    local log_file="/tmp/build_${service_name}_$(date +%s%N).log"
+
+    echo "🔧 开始构建 $service_name 镜像 (日志: $log_file)..."
+
+    local build_args=(
+        --build-arg BUILD_DATE="$BUILD_DATE"
+        --build-arg BUILD_TAG="$TAG"
+        --file "$dockerfile"
+    )
+
+    # frontend 和 monitoring 不使用自定义 base image
+    if [ "$base_image" != "docker.io" ]; then
+        build_args+=(--build-arg BASE_IMAGE="$base_image")
+    fi
+
+    if docker build -t "$image_name" "${build_args[@]}" . > "$log_file" 2>&1; then
+        echo "✅ $service_name 构建成功, 推送中..." >> "$log_file"
+        if docker push "$image_name" >> "$log_file" 2>&1; then
+            echo "✅ $service_name 推送成功."
+            return 0
+        else
+            echo "❌ $service_name 推送失败. 详情: $log_file"
+            return 1
+        fi
     else
-        echo "❌ $service_name 构建失败"
-        exit 1
+        echo "❌ $service_name 构建失败. 详情: $log_file"
+        return 1
     fi
 }
 
-echo ""
-echo "📋 开始构建服务镜像..."
+export -f _build_image_and_push
+export REGISTRY TAG BUILD_DATE
 
-# 核心服务
-build_image "api-service" "deployment/Dockerfile.api-service" "."
-build_image "model-service" "deployment/Dockerfile.model-service" "."
-build_image "frontend" "deployment/Dockerfile.frontend" "."
+cat "$BUILD_TASKS_FILE" | xargs -P 0 -n 3 bash -c '_build_image_and_push "$@"' _
 
-# 网关和服务
-build_image "api-gateway" "deployment/Dockerfile.api-gateway" "."
-build_image "multimedia-service" "deployment/Dockerfile.multimedia-service" "."
+if [ $? -ne 0 ]; then
+    BUILD_STATUS=1
+fi
 
-# 搜索服务
-build_image "search-service" "deployment/Dockerfile.search-service" "."
-build_image "search-worker" "deployment/Dockerfile.search-worker" "."
-
-# 推理工作器
-build_image "inference-worker" "deployment/Dockerfile.inference-worker" "."
-
-# 监控工具
-build_image "monitor-dashboard" "deployment/Dockerfile.monitor-dashboard" "."
-build_image "log-viewer" "deployment/Dockerfile.log-viewer" "."
-
-# 健康检查和监控
-build_image "health-check" "deployment/Dockerfile.health-check" "."
-build_image "log-monitor" "deployment/Dockerfile.log-monitor" "."
-build_image "resource-monitor" "deployment/Dockerfile.resource-monitor" "."
+rm "$BUILD_TASKS_FILE"
 
 echo ""
 echo "========================================"
-echo "✅ 所有镜像构建完成!"
+if [ "$BUILD_STATUS" -eq 0 ]; then
+    echo "✅ 所有镜像构建和推送完成!"
+else
+    echo "❌ 部分镜像构建或推送失败。请检查日志文件。"
+fi
 echo "========================================"
 echo ""
 echo "📊 镜像列表:"
 docker images | grep "$REGISTRY"
 
 echo ""
-echo "💡 使用命令部署到 K8s:"
+echo "💡 部署到 K8s:"
 echo "   kubectl apply -f deployment/k8s-deploy.yaml"
+echo "   kubectl apply -f deployment/k8s-volumes.yaml"
+echo "   kubectl apply -f deployment/k8s-services.yaml"
+echo "   kubectl apply -f deployment/k8s-deployments.yaml"
+echo "   kubectl apply -f deployment/k8s-ingress.yaml"
 echo ""
-echo "📝 环境变量配置:"
-echo "   请修改 deployment/k8s-deploy.yaml 中的数据库和 Redis 连接信息"
+echo "💡 下次构建时跳过基础镜像（依赖未变更时）:"
+echo "   $0 --skip-base"

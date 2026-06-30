@@ -29,14 +29,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && apt-get clean
 
 # Copy requirements files FIRST (for better layer caching)
-COPY requirements.txt requirements-base.txt requirements-ml.txt ./
+COPY requirements-base.txt requirements.txt requirements-ml.txt ./
 
-# Combine requirements and filter out duplicates
-RUN cat requirements.txt requirements-base.txt requirements-ml.txt | sort | uniq > /tmp/all_requirements.txt
-
-# Install dependencies with cache mount for faster rebuilds
+# Install dependencies sequentially — pip resolves overlapping packages naturally
+# Base → core → ML, each layer only installs what's new
 RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install --no-cache-dir --target=/app/deps -r /tmp/all_requirements.txt
+    pip install --no-cache-dir --target=/app/deps \
+    -r requirements-base.txt \
+    -r requirements.txt \
+    -r requirements-ml.txt
 
 # Stage 2: Runtime stage with minimal dependencies
 FROM python:3.9-slim AS runtime

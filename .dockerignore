@@ -1,29 +1,66 @@
+# Git
 .git
-.github
+.gitmodules
 
-.venv
-venv
+# IDEs
+.idea/
+.vscode/
 
-**pycache**
+# Python
+__pycache__/
 *.pyc
 *.pyo
 *.pyd
-
-.pytest_cache
-.mypy_cache
+.venv/
+venv/
+env/
+.Python
+Python/
+pip-log.txt
+pip-delete-this-directory.txt
+.tox/
+.coverage
+.coverage.*
 .cache
+.pytest_cache/
+nosetests.xml
+coverage.xml
+htmlcov/
+.mypy_cache/
+.dmypy.json
+.ruff_cache/
 
-.vscode
-.idea
-
-logs
+# Logs and temporary files
 *.log
+logs/
+temp/
+tmp/
 
-datasets
-data
+# Data and models (if not needed during build)
+data/
+models/
+huggingface_cache/
+clip_cache/
 
-models
-weights
-checkpoints
+# Build artifacts
+dist/
+build/
+*.egg-info/
+.eggs/
 
+# OS generated files
 .DS_Store
+Thumbs.db
+
+# Docker specific
+Dockerfile*
+docker-compose*.yml
+
+# Other
+.claude/
+.github/
+.playwright-cli/
+archived/
+supervisord.conf # If not needed in build context for specific Dockerfiles
+deployment/ # If Dockerfiles are in deployment, no need to send the whole dir again
+scripts/ # If scripts are not needed in build context
