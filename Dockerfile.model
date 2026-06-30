@@ -1,6 +1,5 @@
 # Multi-stage Dockerfile for Model Service
 # Stage 1: Builder stage for installing dependencies
-# syntax=docker/dockerfile:1.4
 
 FROM python:3.9-slim AS builder
 

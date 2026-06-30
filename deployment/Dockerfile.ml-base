@@ -1,4 +1,3 @@
-# syntax=docker/dockerfile:1
 # ARD ML 基础镜像 — 继承 base，额外预装 PyTorch / transformers 等重型 ML 依赖
 # model-service 和 inference-worker 继承此镜像
 

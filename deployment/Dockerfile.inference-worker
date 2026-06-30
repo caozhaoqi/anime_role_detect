@@ -1,4 +1,3 @@
-# syntax=docker/dockerfile:1
 ARG REGISTRY_MIRROR=docker.io
 ARG BASE_IMAGE=ard-ml-base
 FROM ${BASE_IMAGE}
