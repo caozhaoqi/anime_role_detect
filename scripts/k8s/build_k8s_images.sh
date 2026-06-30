@@ -4,7 +4,7 @@ set -e
 # Enable BuildKit for faster builds
 export DOCKER_BUILDKIT=1
 
-REGISTRY="harbor.example.com/anime-role-detect"
+REGISTRY="ardc"
 TAG=$(git rev-parse --short HEAD 2>/dev/null)
 BUILD_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
@@ -19,11 +19,18 @@ PROJECT_ROOT=$(dirname "$(dirname "$SCRIPT_DIR")")
 
 # Parse arguments
 SKIP_BASE=false
+DO_PUSH=false
 for arg in "$@"; do
     case $arg in
         --skip-base)
             SKIP_BASE=true
             echo "ℹ️  跳过基础镜像构建（使用已有缓存）"
+            ;;
+        --push)
+            DO_PUSH=true
+            ;;
+        --registry=*)
+            REGISTRY="${arg#*=}"
             ;;
     esac
 done
@@ -32,9 +39,10 @@ echo "========================================"
 echo "  ARD K8s 容器镜像构建脚本 (优化版)"
 echo "========================================"
 echo "  项目根目录: $PROJECT_ROOT"
-echo "  镜像仓库: $REGISTRY"
+echo "  镜像前缀: $REGISTRY"
 echo "  镜像标签: $TAG"
 echo "  构建日期: $BUILD_DATE"
+echo "  推送到仓库: $DO_PUSH"
 echo "========================================"
 
 cd "$PROJECT_ROOT"
@@ -68,12 +76,13 @@ if [ "$SKIP_BASE" = false ]; then
 
     echo "✅ 基础镜像构建完成"
 
-    # Push base images
-    echo "  📤 推送基础镜像..."
-    docker push "$BASE_IMAGE" &
-    docker push "$ML_BASE_IMAGE" &
-    wait
-    echo "✅ 基础镜像推送完成"
+    if [ "$DO_PUSH" = true ]; then
+        echo "  📤 推送基础镜像..."
+        docker push "$BASE_IMAGE" &
+        docker push "$ML_BASE_IMAGE" &
+        wait
+        echo "✅ 基础镜像推送完成"
+    fi
 else
     echo ""
     echo "ℹ️  跳过基础镜像构建"
@@ -100,7 +109,7 @@ echo "search-worker deployment/Dockerfile.search-worker $BASE_IMAGE" >> "$BUILD_
 echo "inference-worker deployment/Dockerfile.inference-worker $ML_BASE_IMAGE" >> "$BUILD_TASKS_FILE"
 echo "monitoring deployment/Dockerfile.monitoring docker.io" >> "$BUILD_TASKS_FILE"
 
-_build_image_and_push() {
+_build_image() {
     local service_name=$1
     local dockerfile=$2
     local base_image=$3
@@ -121,24 +130,27 @@ _build_image_and_push() {
     fi
 
     if docker build -t "$image_name" "${build_args[@]}" . > "$log_file" 2>&1; then
-        echo "✅ $service_name 构建成功, 推送中..." >> "$log_file"
-        if docker push "$image_name" >> "$log_file" 2>&1; then
-            echo "✅ $service_name 推送成功."
-            return 0
-        else
-            echo "❌ $service_name 推送失败. 详情: $log_file"
-            return 1
+        echo "✅ $service_name 构建成功 → $image_name"
+        if [ "$DO_PUSH" = true ]; then
+            echo "  📤 推送 $image_name ..." >> "$log_file"
+            if docker push "$image_name" >> "$log_file" 2>&1; then
+                echo "✅ $service_name 推送成功."
+            else
+                echo "❌ $service_name 推送失败. 详情: $log_file"
+                return 1
+            fi
         fi
+        return 0
     else
         echo "❌ $service_name 构建失败. 详情: $log_file"
         return 1
     fi
 }
 
-export -f _build_image_and_push
-export REGISTRY TAG BUILD_DATE
+export -f _build_image
+export REGISTRY TAG BUILD_DATE DO_PUSH
 
-cat "$BUILD_TASKS_FILE" | xargs -P 0 -n 3 bash -c '_build_image_and_push "$@"' _
+cat "$BUILD_TASKS_FILE" | xargs -P 0 -n 3 bash -c '_build_image "$@"' _
 
 if [ $? -ne 0 ]; then
     BUILD_STATUS=1
@@ -149,9 +161,9 @@ rm "$BUILD_TASKS_FILE"
 echo ""
 echo "========================================"
 if [ "$BUILD_STATUS" -eq 0 ]; then
-    echo "✅ 所有镜像构建和推送完成!"
+    echo "✅ 所有镜像构建完成!"
 else
-    echo "❌ 部分镜像构建或推送失败。请检查日志文件。"
+    echo "❌ 部分镜像构建失败。请检查日志文件。"
 fi
 echo "========================================"
 echo ""
@@ -159,12 +171,15 @@ echo "📊 镜像列表:"
 docker images | grep "$REGISTRY"
 
 echo ""
-echo "💡 部署到 K8s:"
+echo "💡 部署到 K8s（本地镜像）:"
 echo "   kubectl apply -f deployment/k8s-deploy.yaml"
 echo "   kubectl apply -f deployment/k8s-volumes.yaml"
 echo "   kubectl apply -f deployment/k8s-services.yaml"
 echo "   kubectl apply -f deployment/k8s-deployments.yaml"
 echo "   kubectl apply -f deployment/k8s-ingress.yaml"
+echo ""
+echo "💡 推送到远程仓库:"
+echo "   $0 --push --registry=your-harbor.com/anime-role-detect"
 echo ""
 echo "💡 下次构建时跳过基础镜像（依赖未变更时）:"
 echo "   $0 --skip-base"

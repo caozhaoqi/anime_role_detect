@@ -12,7 +12,7 @@
 #   7. kubectl apply -f k8s-pdb.yaml           # PodDisruptionBudget
 #
 # 注意：
-#   - 请将 harbor.example.com 替换为你的镜像仓库地址
+#   - 默认使用本地镜像前缀 ardc，如需远程仓库请使用 --registry 参数
 #   - 生产环境请使用 Sealed Secrets 或 External Secrets Operator 管理密钥
 #   - 如使用 GPU，请取消 model-service 中 nvidia.com/gpu 的注释
 # =============================================================================

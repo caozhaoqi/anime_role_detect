@@ -2,7 +2,7 @@
 # Anime Role Detect — K8s Deployment 定义
 # 包含基础设施（Redis, MySQL, RabbitMQ）和应用服务
 #
-# 镜像仓库地址：请将 harbor.example.com 替换为实际仓库地址
+# 镜像前缀：ardc（本地构建），如需推送到远程仓库请使用 --registry 参数
 # 如使用私有仓库，请取消 imagePullSecrets 注释并创建对应的 Secret
 # =============================================================================
 
@@ -238,7 +238,7 @@ spec:
       # - name: harbor-pull-secret
       containers:
       - name: model-service
-        image: harbor.example.com/anime-role-detect/model-service:latest
+        image: ardc/model-service:latest
         ports:
         - containerPort: 8000
           name: http
@@ -327,7 +327,7 @@ spec:
               topologyKey: kubernetes.io/hostname
       containers:
       - name: api-service
-        image: harbor.example.com/anime-role-detect/api-service:latest
+        image: ardc/api-service:latest
         ports:
         - containerPort: 8000
           name: http
@@ -399,7 +399,7 @@ spec:
               topologyKey: kubernetes.io/hostname
       containers:
       - name: api-gateway
-        image: harbor.example.com/anime-role-detect/api-gateway:latest
+        image: ardc/api-gateway:latest
         ports:
         - containerPort: 8000
           name: http
@@ -464,7 +464,7 @@ spec:
               topologyKey: kubernetes.io/hostname
       containers:
       - name: frontend
-        image: harbor.example.com/anime-role-detect/frontend:latest
+        image: ardc/frontend:latest
         ports:
         - containerPort: 3000
           name: http
@@ -519,7 +519,7 @@ spec:
       # - name: harbor-pull-secret
       containers:
       - name: multimedia-service
-        image: harbor.example.com/anime-role-detect/multimedia-service:latest
+        image: ardc/multimedia-service:latest
         ports:
         - containerPort: 8000
           name: http
@@ -575,7 +575,7 @@ spec:
       # - name: harbor-pull-secret
       containers:
       - name: search-service
-        image: harbor.example.com/anime-role-detect/search-service:latest
+        image: ardc/search-service:latest
         ports:
         - containerPort: 8000
           name: http
@@ -631,7 +631,7 @@ spec:
       # - name: harbor-pull-secret
       containers:
       - name: search-worker
-        image: harbor.example.com/anime-role-detect/search-worker:latest
+        image: ardc/search-worker:latest
         envFrom:
         - configMapRef:
             name: ardc-config
@@ -688,7 +688,7 @@ spec:
       # - name: harbor-pull-secret
       containers:
       - name: inference-worker
-        image: harbor.example.com/anime-role-detect/inference-worker:latest
+        image: ardc/inference-worker:latest
         envFrom:
         - configMapRef:
             name: ardc-config
@@ -763,7 +763,7 @@ spec:
     spec:
       containers:
       - name: monitor-dashboard
-        image: harbor.example.com/anime-role-detect/monitoring:latest
+        image: ardc/monitoring:latest
         command: ["/entrypoint.sh"]
         args: ["monitor-dashboard"]
         ports:
@@ -810,7 +810,7 @@ spec:
     spec:
       containers:
       - name: log-viewer
-        image: harbor.example.com/anime-role-detect/monitoring:latest
+        image: ardc/monitoring:latest
         command: ["/entrypoint.sh"]
         args: ["log-viewer"]
         envFrom:
@@ -856,7 +856,7 @@ spec:
     spec:
       containers:
       - name: health-check
-        image: harbor.example.com/anime-role-detect/monitoring:latest
+        image: ardc/monitoring:latest
         command: ["/entrypoint.sh"]
         args: ["health-check"]
         envFrom:
@@ -902,7 +902,7 @@ spec:
     spec:
       containers:
       - name: log-monitor
-        image: harbor.example.com/anime-role-detect/monitoring:latest
+        image: ardc/monitoring:latest
         command: ["/entrypoint.sh"]
         args: ["log-monitor"]
         envFrom:
@@ -948,7 +948,7 @@ spec:
     spec:
       containers:
       - name: resource-monitor
-        image: harbor.example.com/anime-role-detect/monitoring:latest
+        image: ardc/monitoring:latest
         command: ["/entrypoint.sh"]
         args: ["resource-monitor"]
         envFrom:
