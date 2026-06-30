@@ -1,4 +1,3 @@
-# syntax=docker/dockerfile:1
 # ARD 共享基础镜像 — 包含通用系统依赖和核心 Python 依赖
 # 所有非 ML 服务继承此镜像，只需 COPY 代码即可
 

@@ -5,9 +5,21 @@ set -e
 export DOCKER_BUILDKIT=1
 
 GIT_REPO="https://github.com/caozhaoqi/anime_role_detect/"
-REGISTRY="harbor.example.com/anime-role-detect"
+REGISTRY="ardc"
 BUILD_DIR="/tmp/ardc-build"
 TAG=$(date +"%Y%m%d_%H%M%S")
+
+DO_PUSH=false
+for arg in "$@"; do
+    case $arg in
+        --push)
+            DO_PUSH=true
+            ;;
+        --registry=*)
+            REGISTRY="${arg#*=}"
+            ;;
+    esac
+done
 
 echo "========================================"
 echo "  ARD 从源代码构建 K8s 镜像（优化版）"
@@ -81,13 +93,15 @@ docker build -t "$REGISTRY/frontend:$TAG" \
     -f deployment/Dockerfile.frontend \
     .
 
-echo ""
-echo "☁️ 推送镜像到仓库..."
-docker push "$REGISTRY/base:$TAG"
-docker push "$REGISTRY/ml-base:$TAG"
-docker push "$REGISTRY/api-service:$TAG"
-docker push "$REGISTRY/model-service:$TAG"
-docker push "$REGISTRY/frontend:$TAG"
+if [ "$DO_PUSH" = true ]; then
+    echo ""
+    echo "☁️ 推送镜像到仓库..."
+    docker push "$REGISTRY/base:$TAG"
+    docker push "$REGISTRY/ml-base:$TAG"
+    docker push "$REGISTRY/api-service:$TAG"
+    docker push "$REGISTRY/model-service:$TAG"
+    docker push "$REGISTRY/frontend:$TAG"
+fi
 
 echo ""
 echo "========================================"

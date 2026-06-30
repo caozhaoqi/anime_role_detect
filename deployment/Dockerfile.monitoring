@@ -1,4 +1,3 @@
-# syntax=docker/dockerfile:1
 # 统一监控镜像 — 合并 health-check / log-monitor / log-viewer /
 # resource-monitor / monitor-dashboard 为单个镜像
 # 通过 CMD 参数区分运行模式

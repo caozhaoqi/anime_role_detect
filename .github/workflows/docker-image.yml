@@ -52,12 +52,13 @@ jobs:
       - name: Run tests
         run: python -c "print('Test environment OK')"
 
-      - name: Build base image (cached)
+      - name: Build base image (cached, load to local)
         uses: docker/build-push-action@v5
         with:
           context: .
           file: deployment/Dockerfile.base
           push: false
+          load: true
           tags: ard-base:ci-test
           cache-from: type=gha
           cache-to: type=gha,mode=max
