@@ -28,9 +28,6 @@ jobs:
           echo "=== After cleanup ==="
           df -h
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -52,28 +49,24 @@ jobs:
       - name: Run tests
         run: python -c "print('Test environment OK')"
 
-      - name: Build base image (cached, load to local)
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: deployment/Dockerfile.base
-          push: false
-          load: true
-          tags: ard-base:ci-test
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+      - name: Build base image
+        env:
+          DOCKER_BUILDKIT: 1
+        run: |
+          docker build \
+            -t ardc/base:ci-test \
+            -f deployment/Dockerfile.base \
+            .
 
-      - name: Build service image (cached)
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: deployment/Dockerfile.api-service
-          push: false
-          tags: ard-api-service:ci-test
-          build-args: |
-            BASE_IMAGE=ard-base:ci-test
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+      - name: Build service image
+        env:
+          DOCKER_BUILDKIT: 1
+        run: |
+          docker build \
+            --build-arg BASE_IMAGE=ardc/base:ci-test \
+            -t ardc/api-service:ci-test \
+            -f deployment/Dockerfile.api-service \
+            .
 
       - name: Disk usage report
         if: always()
