@@ -149,3 +149,4 @@ run/supervisord.pid
 
 .env.rds
 .playwright-cli/
+.qoder/

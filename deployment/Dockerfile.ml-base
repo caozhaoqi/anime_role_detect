@@ -1,0 +1,31 @@
+# syntax=docker/dockerfile:1
+# ARD ML 基础镜像 — 继承 base，额外预装 PyTorch / transformers 等重型 ML 依赖
+# model-service 和 inference-worker 继承此镜像
+
+ARG REGISTRY_MIRROR=docker.io
+ARG BASE_IMAGE=ard-base
+FROM ${BASE_IMAGE}
+
+ARG PIP_INDEX_URL=https://pypi.org/simple/
+ENV PIP_INDEX_URL=${PIP_INDEX_URL}
+
+LABEL org.opencontainers.image.description="ARD ML base image with PyTorch and ML libraries"
+
+# 安装 ML 所需的额外系统依赖
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    libopenblas-dev \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+# 安装 ML Python 依赖（PyTorch 系列 2GB+，BuildKit cache 极大加速）
+COPY requirements-ml.txt /tmp/requirements-ml.txt
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --no-cache-dir -r /tmp/requirements-ml.txt \
+    && rm /tmp/requirements-ml.txt
+
+ENV OMP_NUM_THREADS="1"
+ENV MKL_NUM_THREADS="1"
+ENV KMP_DUPLICATE_LIB_OK="TRUE"
+ENV MKL_THREADING_LAYER="GNU"
+ENV PYTORCH_MPS_DISABLE="1"
