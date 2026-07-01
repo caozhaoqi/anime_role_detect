@@ -1,20 +1,15 @@
 # ==============================================
 # 机器学习专属依赖 - 仅包含 requirements.txt 中没有的 ML 包
-# 重复的包（easyocr, faiss-cpu, pandas, Pillow,
-# scikit-learn, scikit-image, transformers, ultralytics）
-# 已在 requirements.txt 中统一管理，不再重复声明
+# PyTorch 系列使用 CPU 版本（通过 --extra-index-url 指定）
 # ==============================================
 
-# 深度学习框架
-torch==2.8.0
-torchvision==0.19.1
-torchaudio==2.4.1
+# CPU 版 PyTorch（从 pytorch.org CPU wheel 索引安装）
+torch==2.8.0+cpu
+torchvision==0.19.1+cpu
+torchaudio==2.4.1+cpu
 
 # numpy（requirements.txt 中未固定版本，opencv-python-headless 需要 numpy>=2）
 numpy==2.0.2
-
-# opencv-python（requirements.txt 中是 headless 版本，此处补充完整版）
-opencv-python==4.13.0.92
 
 # 向量嵌入
 sentence-transformers==3.0.1

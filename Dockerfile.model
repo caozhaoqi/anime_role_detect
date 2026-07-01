@@ -20,23 +20,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     libgl1 \
     libglib2.0-0 \
-    git \
-    gcc \
-    g++ \
-    cmake \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 
-# Copy requirements files FIRST (for better layer caching)
-COPY requirements-base.txt requirements.txt requirements-ml.txt ./
+# Copy lean requirements (12 packages vs original 153)
+COPY requirements-model-service.txt ./
 
-# Install dependencies sequentially — pip resolves overlapping packages naturally
-# Base → core → ML, each layer only installs what's new
+# Install with CPU-only PyTorch index
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install --no-cache-dir --target=/app/deps \
-    -r requirements-base.txt \
-    -r requirements.txt \
-    -r requirements-ml.txt
+    --extra-index-url https://download.pytorch.org/whl/cpu \
+    -r requirements-model-service.txt
 
 # Stage 2: Runtime stage with minimal dependencies
 FROM python:3.9-slim AS runtime
