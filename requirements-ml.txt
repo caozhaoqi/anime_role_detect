@@ -1,15 +1,15 @@
 # ==============================================
 # 机器学习专属依赖 - 仅包含 requirements.txt 中没有的 ML 包
-# PyTorch 系列使用 CPU 版本（通过 --extra-index-url 指定）
+# PyTorch 生态不锁死版本，由 pip 自动解析兼容组合
 # ==============================================
 
-# CPU 版 PyTorch（从 pytorch.org CPU wheel 索引安装）
-torch==2.8.0+cpu
-torchvision==0.19.1+cpu
-torchaudio==2.4.1+cpu
+# 深度学习框架（CPU 版，让 pip 解析兼容版本组合）
+torch
+torchvision
+torchaudio
 
-# numpy（requirements.txt 中未固定版本，opencv-python-headless 需要 numpy>=2）
-numpy==2.0.2
+# numpy（opencv-python-headless 需要 numpy>=2）
+numpy>=2.0.0
 
 # 向量嵌入
 sentence-transformers==3.0.1
