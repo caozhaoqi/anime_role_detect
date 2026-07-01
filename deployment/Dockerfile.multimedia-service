@@ -2,6 +2,8 @@ ARG REGISTRY_MIRROR=docker.io
 ARG BASE_IMAGE=ard-base
 FROM ${BASE_IMAGE}
 
+RUN sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list.d/debian.sources
+
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     && rm -rf /var/lib/apt/lists/*

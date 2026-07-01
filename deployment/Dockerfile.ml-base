@@ -5,10 +5,13 @@ ARG REGISTRY_MIRROR=docker.io
 ARG BASE_IMAGE=ard-base
 FROM ${BASE_IMAGE}
 
-ARG PIP_INDEX_URL=https://pypi.org/simple/
+ARG PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple/
 ENV PIP_INDEX_URL=${PIP_INDEX_URL}
 
 LABEL org.opencontainers.image.description="ARD ML base image with PyTorch and ML libraries"
+
+# 使用阿里云镜像加速
+RUN sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list.d/debian.sources
 
 # 安装 ML 所需的额外系统依赖
 RUN apt-get update && apt-get install -y --no-install-recommends \
