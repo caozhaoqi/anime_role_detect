@@ -17,10 +17,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 
-# 安装 ML Python 依赖（PyTorch 系列 2GB+，BuildKit cache 极大加速）
+# 安装 ML Python 依赖（CPU 版 PyTorch，BuildKit cache 加速）
 COPY requirements-ml.txt /tmp/requirements-ml.txt
 RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install --no-cache-dir -r /tmp/requirements-ml.txt \
+    pip install --no-cache-dir \
+    --extra-index-url https://download.pytorch.org/whl/cpu \
+    -r /tmp/requirements-ml.txt \
     && rm /tmp/requirements-ml.txt
 
 ENV OMP_NUM_THREADS="1"

@@ -1,0 +1,32 @@
+# ==============================================
+# Model Service 精简依赖
+# 仅包含模型服务实际使用的包（扫描 src/services/model_service/ + src/core/ 确认）
+# 原 requirements.txt 有 153 个包，这里只保留实际需要的 ~15 个
+# ==============================================
+
+# Web 框架
+fastapi==0.115.0
+uvicorn==0.39.0
+pydantic==2.13.4
+
+# 深度学习框架（CPU 版）
+torch==2.8.0+cpu
+torchvision==0.19.1+cpu
+
+# 图像处理
+Pillow==11.3.0
+pillow-heif==0.21.0
+opencv-python-headless==4.13.0.92
+numpy==2.0.2
+
+# OCR
+easyocr==1.7.2
+
+# 标签生成 / CLIP
+transformers==4.57.6
+
+# 数据处理
+pandas==2.3.3
+
+# 配置
+python-dotenv==1.0.1

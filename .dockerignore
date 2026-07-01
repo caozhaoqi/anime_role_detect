@@ -15,7 +15,6 @@ __pycache__/
 venv/
 env/
 .Python
-Python/
 pip-log.txt
 pip-delete-this-directory.txt
 .tox/
@@ -36,11 +35,12 @@ logs/
 temp/
 tmp/
 
-# Data and models (if not needed during build)
+# Data and models (not needed during build, mounted at runtime via PVC)
 data/
 models/
 huggingface_cache/
 clip_cache/
+src/data/
 
 # Build artifacts
 dist/
@@ -52,15 +52,35 @@ build/
 .DS_Store
 Thumbs.db
 
-# Docker specific
+# Node modules (frontend builds inside Docker)
+node_modules/
+.next/
+
+# Model weight files (downloaded/mounted at runtime)
+*.pt
+*.pth
+*.onnx
+*.bin
+*.safetensors
+
+# Platform-specific binaries
+*.dylib
+*.so
+
+# Docker files (not needed inside the image)
 Dockerfile*
 docker-compose*.yml
 
-# Other
+# CI/CD and tooling (not needed inside the image)
 .claude/
 .github/
 .playwright-cli/
 archived/
-supervisord.conf # If not needed in build context for specific Dockerfiles
-deployment/ # If Dockerfiles are in deployment, no need to send the whole dir again
-scripts/ # If scripts are not needed in build context
+
+# Sub-projects (built separately)
+scripts/skillhub/
+
+# Documentation
+docs/
+*.md
+LICENSE
