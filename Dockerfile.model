@@ -65,17 +65,20 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Create non-root user for security
 RUN useradd -m -u 1000 appuser
 
+# Create necessary directories as root before any COPY or USER switch
+RUN mkdir -p /app/cache/huggingface /app/cache/keras /app/logs /app/models
+
 # Copy installed dependencies from builder stage
 COPY --from=builder --chown=appuser:appuser /app/deps /home/appuser/.local/lib/python3.9/site-packages
 
 # Copy source files LAST (changes frequently)
 COPY --chown=appuser:appuser src/ ./src/
 
+# Fix ownership for directories created earlier
+RUN chown -R appuser:appuser /app/cache /app/logs /app/models
+
 # Switch to non-root user
 USER appuser
-
-# Create necessary directories
-RUN mkdir -p /app/cache/huggingface /app/cache/keras /app/logs /app/models
 
 # Expose port (model service uses 8000)
 EXPOSE 8000
