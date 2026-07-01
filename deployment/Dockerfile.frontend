@@ -3,7 +3,7 @@ FROM ${REGISTRY_MIRROR}/library/node:18-alpine AS builder
 
 WORKDIR /app
 
-ARG NPM_CONFIG_REGISTRY=https://registry.npmjs.org/
+ARG NPM_CONFIG_REGISTRY=https://registry.npmmirror.com/
 ENV NPM_CONFIG_REGISTRY=${NPM_CONFIG_REGISTRY}
 
 COPY src/frontend/package.json ./
