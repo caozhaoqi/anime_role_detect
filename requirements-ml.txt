@@ -1,6 +1,8 @@
 # ==============================================
-# 机器学习依赖 - Machine Learning Dependencies
-# 用于模型训练和推理
+# 机器学习专属依赖 - 仅包含 requirements.txt 中没有的 ML 包
+# 重复的包（easyocr, faiss-cpu, pandas, Pillow,
+# scikit-learn, scikit-image, transformers, ultralytics）
+# 已在 requirements.txt 中统一管理，不再重复声明
 # ==============================================
 
 # 深度学习框架
@@ -8,31 +10,17 @@ torch==2.8.0
 torchvision==0.19.1
 torchaudio==2.4.1
 
-# 计算机视觉
-opencv-python==4.13.0.92
-Pillow==11.3.0
-
-# 模型评估
-scikit-learn==1.6.1
-scikit-image==0.24.0
-
-# 数据处理
+# numpy（requirements.txt 中未固定版本，opencv-python-headless 需要 numpy>=2）
 numpy==2.0.2
-pandas==2.3.3
 
-# 特征提取和向量数据库
-faiss-cpu==1.13.0
+# opencv-python（requirements.txt 中是 headless 版本，此处补充完整版）
+opencv-python==4.13.0.92
+
+# 向量嵌入
 sentence-transformers==3.0.1
 
-# YOLO目标检测
-ultralytics==8.4.60
-
-# OCR识别
-easyocr==1.7.2
-
-# 标签生成
-transformers==4.57.6
+# 训练加速
 accelerate==0.34.2
 
-# 日志和监控
+# 实验追踪
 mlflow==2.16.2
