@@ -52,11 +52,11 @@ def get_git_tag() -> str:
         return time.strftime("%Y%m%d%H%M%S")
 
 
-def load_oss_config() -> dict:
-    if not CONFIG_PATH.exists():
-        log(f"❌ 配置文件不存在: {CONFIG_PATH}")
+def load_oss_config(config_path: Path) -> dict:
+    if not config_path.exists():
+        log(f"❌ 配置文件不存在: {config_path}")
         sys.exit(1)
-    with open(CONFIG_PATH, "r", encoding="utf-8") as f:
+    with open(config_path, "r", encoding="utf-8") as f:
         cfg = json.load(f)
     oss_cfg = cfg.get("oss")
     if not oss_cfg:
@@ -203,40 +203,37 @@ def main():
     log("=" * 50)
 
     # 加载 OSS 配置
-    global CONFIG_PATH
-    CONFIG_PATH = Path(args.config)
-    oss_cfg = load_oss_config()
+    config_path = Path(args.config)
+    oss_cfg = load_oss_config(config_path)
     log(f"  OSS Endpoint: {oss_cfg['endpoint']}")
     log(f"  OSS Bucket:   {oss_cfg['bucket']}")
     log("")
 
-    # 查找本地已有镜像
-    log("📋 Phase 1: 检查本地镜像...")
-    images = find_existing_images(args.registry, tag)
-    if not images:
-        log("❌ 没有找到任何本地镜像，请先运行 build_k8s_images.sh")
-        sys.exit(1)
-    log(f"  找到 {len(images)} 个镜像\n")
-
+    # 查找本地镜像或已有 tar.gz
     if args.skip_save:
-        # 直接使用已有的 tar.gz
-        log("📋 Phase 2: 查找已有 tar.gz 文件...")
+        log("📋 Phase 1: 查找已有 tar.gz 文件...")
         tar_files = []
-        for image_name in images:
-            svc_name = image_name.split("/")[1].split(":")[0]
-            tar_name = f"{svc_name}-{tag}.tar.gz"
+        for svc in SERVICES:
+            tar_name = f"{svc}-{tag}.tar.gz"
             tar_path = os.path.join(args.export_dir, tar_name)
             if os.path.exists(tar_path):
+                image_name = f"{args.registry}/{svc}:{tag}"
                 tar_files.append((image_name, tar_path))
                 size_mb = os.path.getsize(tar_path) / 1024 / 1024
                 log(f"  ✅ {tar_name} ({size_mb:.1f} MB)")
             else:
-                log(f"  ⚠️  文件不存在: {tar_path}")
+                log(f"  ⚠️  文件不存在，跳过: {tar_path}")
         if not tar_files:
-            log("❌ 没有找到任何 tar.gz 文件")
+            log(f"❌ 在 {args.export_dir} 中没有找到任何 tar.gz 文件")
             sys.exit(1)
     else:
-        # docker save 导出
+        log("📋 Phase 1: 检查本地 Docker 镜像...")
+        images = find_existing_images(args.registry, tag)
+        if not images:
+            log("❌ 没有找到任何本地镜像，请先运行 build_k8s_images.sh")
+            sys.exit(1)
+        log(f"  找到 {len(images)} 个镜像\n")
+
         log(f"📦 Phase 2: 导出镜像 ({len(images)} 个)...")
         tar_files = save_images(images, tag, args.export_dir)
 
