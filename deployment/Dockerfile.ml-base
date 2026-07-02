@@ -10,27 +10,25 @@ ENV PIP_INDEX_URL=${PIP_INDEX_URL}
 
 LABEL org.opencontainers.image.description="ARD ML base image with PyTorch and ML libraries"
 
-RUN sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list.d/debian.sources
-
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
-    libopenblas-dev \
+       build-essential \
+       libopenblas-dev \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 
 COPY requirements-ml.txt /tmp/requirements-ml.txt
+
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install --no-cache-dir \
-    torch==2.1.0+cpu \
-    torchvision==0.16.0+cpu \
-    torchaudio==2.1.0+cpu \
-    --index-url https://download.pytorch.org/whl/cpu \
-    && pip install --no-cache-dir \
-    -r /tmp/requirements-ml.txt \
+       torch==2.1.0+cpu \
+       torchvision==0.16.0+cpu \
+       torchaudio==2.1.0+cpu \
+       --index-url https://download.pytorch.org/whl/cpu \
+    && pip install --no-cache-dir -r /tmp/requirements-ml.txt \
     && rm /tmp/requirements-ml.txt
 
-ENV OMP_NUM_THREADS="1"
-ENV MKL_NUM_THREADS="1"
-ENV KMP_DUPLICATE_LIB_OK="TRUE"
-ENV MKL_THREADING_LAYER="GNU"
-ENV PYTORCH_MPS_DISABLE="1"
+ENV OMP_NUM_THREADS="1" \
+    MKL_NUM_THREADS="1" \
+    KMP_DUPLICATE_LIB_OK="TRUE" \
+    MKL_THREADING_LAYER="GNU" \
+    PYTORCH_MPS_DISABLE="1"
