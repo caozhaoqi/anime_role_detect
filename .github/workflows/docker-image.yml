@@ -117,8 +117,9 @@ jobs:
           file: deployment/Dockerfile.ml-base
           push: false
           tags: ${{ secrets.DOCKER_REGISTRY }}/ardc/ml-base:${{ steps.meta.outputs.tag }}
-          cache-from: type=local,src=/tmp/.buildx-cache
-          cache-from: type=local,src=/tmp/.buildx-cache-ml
+          cache-from: |
+            type=local,src=/tmp/.buildx-cache
+            type=local,src=/tmp/.buildx-cache-ml
           cache-to: type=local,dest=/tmp/.buildx-cache-ml,mode=max
           build-args: |
             BUILD_DATE=${{ steps.meta.outputs.created }}

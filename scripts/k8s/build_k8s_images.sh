@@ -17,6 +17,7 @@ PROJECT_ROOT=$(dirname "$(dirname "$SCRIPT_DIR")")
 
 SKIP_BASE=false
 DO_PUSH=false
+PUSH_OSS=false
 PARALLEL_JOBS=4
 USE_CACHE=true
 for arg in "$@"; do
@@ -27,6 +28,9 @@ for arg in "$@"; do
             ;;
         --push)
             DO_PUSH=true
+            ;;
+        --push-oss)
+            PUSH_OSS=true
             ;;
         --registry=*)
             REGISTRY="${arg#*=}"
@@ -59,9 +63,6 @@ BASE_IMAGE="$REGISTRY/base:$TAG"
 ML_BASE_IMAGE="$REGISTRY/ml-base:$TAG"
 
 CACHE_ARGS=""
-if [ "$USE_CACHE" = true ]; then
-    CACHE_ARGS="--cache-from=type=registry,ref=$BASE_IMAGE --cache-from=type=registry,ref=$ML_BASE_IMAGE --cache-from=type=local,src=/tmp/docker-cache"
-fi
 
 _build_image() {
     local service_name=$1
@@ -79,7 +80,6 @@ _build_image() {
     )
 
     if [ "$USE_CACHE" = true ]; then
-        build_args+=(--cache-from=type=registry,ref=$image_name)
         build_args+=(--cache-to=type=local,dest=/tmp/docker-cache/$service_name,mode=max)
     fi
 
@@ -116,7 +116,7 @@ if [ "$SKIP_BASE" = false ]; then
     echo "  🔧 构建 base 镜像..."
     BASE_CACHE_ARGS=""
     if [ "$USE_CACHE" = true ]; then
-        BASE_CACHE_ARGS="--cache-from=type=registry,ref=$BASE_IMAGE --cache-to=type=local,dest=/tmp/docker-cache/base,mode=max"
+        BASE_CACHE_ARGS="--cache-to=type=local,dest=/tmp/docker-cache/base,mode=max"
     fi
     if docker build \
         -t "$BASE_IMAGE" \
@@ -134,7 +134,7 @@ if [ "$SKIP_BASE" = false ]; then
     echo "  🔧 构建 ml-base 镜像..."
     ML_CACHE_ARGS=""
     if [ "$USE_CACHE" = true ]; then
-        ML_CACHE_ARGS="--cache-from=type=registry,ref=$ML_BASE_IMAGE --cache-from=type=local,dest=/tmp/docker-cache/base --cache-to=type=local,dest=/tmp/docker-cache/ml-base,mode=max"
+        ML_CACHE_ARGS="--cache-to=type=local,dest=/tmp/docker-cache/ml-base,mode=max"
     fi
     if docker build \
         -t "$ML_BASE_IMAGE" \
@@ -200,6 +200,13 @@ echo ""
 echo "📊 镜像列表:"
 docker images | grep "$REGISTRY"
 
+# Phase 3: 推送到 OSS (可选)
+if [ "$PUSH_OSS" = true ] && [ "$BUILD_STATUS" -eq 0 ]; then
+    echo ""
+    echo "☁️  Phase 3: 推送镜像到阿里云 OSS..."
+    python3 "$SCRIPT_DIR/push_images_to_oss.py" --tag "$TAG" --registry "$REGISTRY"
+fi
+
 echo ""
 echo "💡 部署到 K8s（本地镜像）:"
 echo "   kubectl apply -f deployment/k8s-deploy.yaml"
@@ -210,6 +217,10 @@ echo "   kubectl apply -f deployment/k8s-ingress.yaml"
 echo ""
 echo "💡 推送到远程仓库:"
 echo "   $0 --push --registry=your-harbor.com/anime-role-detect"
+echo ""
+echo "💡 构建后推送到阿里云 OSS:"
+echo "   $0 --push-oss"
+echo "   python3 $SCRIPT_DIR/push_images_to_oss.py  # 独立运行"
 echo ""
 echo "💡 下次构建时跳过基础镜像（依赖未变更时）:"
 echo "   $0 --skip-base"
