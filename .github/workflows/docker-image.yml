@@ -10,13 +10,9 @@ on:
       - main
 
 jobs:
-  build:
+  cleanup:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
       - name: Free disk space
         run: |
           echo "=== Before cleanup ==="
@@ -27,6 +23,13 @@ jobs:
           docker system prune -af || true
           echo "=== After cleanup ==="
           df -h
+
+  test:
+    runs-on: ubuntu-latest
+    needs: cleanup
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -49,27 +52,161 @@ jobs:
       - name: Run tests
         run: python -c "print('Test environment OK')"
 
+  build-base-images:
+    runs-on: ubuntu-latest
+    needs: test
+    outputs:
+      base-image: ${{ steps.build-base.outputs.image }}
+      ml-base-image: ${{ steps.build-ml-base.outputs.image }}
+      tag: ${{ steps.meta.outputs.tag }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ secrets.DOCKER_REGISTRY }}/ardc/base
+          tags: |
+            type=ref,event=branch
+            type=sha,prefix=
+            type=raw,value=latest
+
+      - name: Cache Docker layers
+        uses: actions/cache@v4
+        with:
+          path: /tmp/.buildx-cache
+          key: ${{ runner.os }}-buildx-base-${{ hashFiles('requirements-base.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-base-
+
       - name: Build base image
-        env:
-          DOCKER_BUILDKIT: 1
-        run: |
-          docker build \
-            -t ardc/base:ci-test \
-            -f deployment/Dockerfile.base \
-            .
+        id: build-base
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deployment/Dockerfile.base
+          push: false
+          tags: ${{ secrets.DOCKER_REGISTRY }}/ardc/base:${{ steps.meta.outputs.tag }}
+          cache-from: type=local,src=/tmp/.buildx-cache
+          cache-to: type=local,dest=/tmp/.buildx-cache,mode=max
+          build-args: |
+            BUILD_DATE=${{ steps.meta.outputs.created }}
+            BUILD_TAG=${{ steps.meta.outputs.tag }}
+
+      - name: Cache Docker layers for ML
+        uses: actions/cache@v4
+        with:
+          path: /tmp/.buildx-cache-ml
+          key: ${{ runner.os }}-buildx-ml-${{ hashFiles('requirements-ml.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-ml-
+
+      - name: Build ml-base image
+        id: build-ml-base
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deployment/Dockerfile.ml-base
+          push: false
+          tags: ${{ secrets.DOCKER_REGISTRY }}/ardc/ml-base:${{ steps.meta.outputs.tag }}
+          cache-from: type=local,src=/tmp/.buildx-cache
+          cache-from: type=local,src=/tmp/.buildx-cache-ml
+          cache-to: type=local,dest=/tmp/.buildx-cache-ml,mode=max
+          build-args: |
+            BUILD_DATE=${{ steps.meta.outputs.created }}
+            BUILD_TAG=${{ steps.meta.outputs.tag }}
+            BASE_IMAGE=${{ secrets.DOCKER_REGISTRY }}/ardc/base:${{ steps.meta.outputs.tag }}
+
+  build-service-images:
+    runs-on: ubuntu-latest
+    needs: build-base-images
+    strategy:
+      matrix:
+        service:
+          - name: api-service
+            dockerfile: deployment/Dockerfile.api-service
+            base-image: ardc/base
+          - name: api-gateway
+            dockerfile: deployment/Dockerfile.api-gateway
+            base-image: ardc/base
+          - name: multimedia-service
+            dockerfile: deployment/Dockerfile.multimedia-service
+            base-image: ardc/base
+          - name: search-service
+            dockerfile: deployment/Dockerfile.search-service
+            base-image: ardc/base
+          - name: search-worker
+            dockerfile: deployment/Dockerfile.search-worker
+            base-image: ardc/base
+          - name: model-service
+            dockerfile: deployment/Dockerfile.model-service
+            base-image: ardc/ml-base
+          - name: inference-worker
+            dockerfile: deployment/Dockerfile.inference-worker
+            base-image: ardc/ml-base
+          - name: frontend
+            dockerfile: deployment/Dockerfile.frontend
+            base-image: docker.io
+          - name: monitoring
+            dockerfile: deployment/Dockerfile.monitoring
+            base-image: docker.io
+      fail-fast: false
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ secrets.DOCKER_REGISTRY }}/ardc/${{ matrix.service.name }}
+          tags: |
+            type=ref,event=branch
+            type=sha,prefix=
+            type=raw,value=latest
+
+      - name: Cache Docker layers
+        uses: actions/cache@v4
+        with:
+          path: /tmp/.buildx-cache-${{ matrix.service.name }}
+          key: ${{ runner.os }}-buildx-${{ matrix.service.name }}-${{ hashFiles(matrix.service.dockerfile) }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-${{ matrix.service.name }}-
 
       - name: Build service image
-        env:
-          DOCKER_BUILDKIT: 1
-        run: |
-          docker build \
-            --build-arg BASE_IMAGE=ardc/base:ci-test \
-            -t ardc/api-service:ci-test \
-            -f deployment/Dockerfile.api-service \
-            .
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.service.dockerfile }}
+          push: false
+          tags: ${{ secrets.DOCKER_REGISTRY }}/ardc/${{ matrix.service.name }}:${{ steps.meta.outputs.tag }}
+          cache-from: type=local,src=/tmp/.buildx-cache-${{ matrix.service.name }}
+          cache-to: type=local,dest=/tmp/.buildx-cache-${{ matrix.service.name }},mode=max
+          build-args: |
+            BUILD_DATE=${{ steps.meta.outputs.created }}
+            BUILD_TAG=${{ steps.meta.outputs.tag }}
+            ${{ matrix.service.base-image != 'docker.io' && format('BASE_IMAGE={0}/ardc/{1}:{2}', secrets.DOCKER_REGISTRY, matrix.service.base-image, steps.meta.outputs.tag) || '' }}
 
+  disk-report:
+    runs-on: ubuntu-latest
+    needs: build-service-images
+    if: always()
+    steps:
       - name: Disk usage report
-        if: always()
         run: |
           echo "=== Disk Usage ==="
           df -h

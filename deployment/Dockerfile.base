@@ -14,26 +14,26 @@ LABEL org.opencontainers.image.created=$BUILD_DATE
 LABEL org.opencontainers.image.version=$BUILD_TAG
 LABEL org.opencontainers.image.description="ARD shared base image"
 
-# 使用阿里云镜像加速
-RUN sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list.d/debian.sources
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PIP_NO_CACHE_DIR=1
 
-# 安装通用运行时依赖
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    libgl1 \
-    libglib2.0-0 \
-    libsm6 \
-    libxext6 \
-    libxrender-dev \
+RUN sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list.d/debian.sources \
+    && apt-get update && apt-get install -y --no-install-recommends \
+       libgl1 \
+       libglib2.0-0 \
+       libsm6 \
+       libxext6 \
+       libxrender-dev \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 
-# 安装核心 Python 依赖（BuildKit cache mount 加速重复构建）
 COPY requirements-base.txt /tmp/requirements-base.txt
 RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install --no-cache-dir -r /tmp/requirements-base.txt \
+    pip install -r /tmp/requirements-base.txt \
     && rm /tmp/requirements-base.txt
 
 WORKDIR /app
-
 ENV PYTHONPATH="/app"
 ENV LOG_LEVEL="INFO"

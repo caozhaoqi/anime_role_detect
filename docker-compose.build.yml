@@ -1,0 +1,375 @@
+version: '3.8'
+
+networks:
+  backend:
+    driver: bridge
+    internal: true
+  frontend:
+    driver: bridge
+
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: anime-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - backend
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "0.5"
+
+  mysql:
+    image: mysql:8.0
+    container_name: anime-mysql
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-anime_role_detect}
+      MYSQL_USER: ${MYSQL_USER:-anime_user}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-anime_pass}
+    volumes:
+      - mysql-data:/var/lib/mysql
+    networks:
+      - backend
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: "1.0"
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: anime-rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-admin}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-admin}
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    networks:
+      - backend
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "0.5"
+
+  base:
+    build:
+      context: .
+      dockerfile: deployment/Dockerfile.base
+      cache_from:
+        - ardc/base:latest
+    image: ardc/base:latest
+    networks:
+      - backend
+
+  ml-base:
+    build:
+      context: .
+      dockerfile: deployment/Dockerfile.ml-base
+      cache_from:
+        - ardc/ml-base:latest
+        - ardc/base:latest
+    image: ardc/ml-base:latest
+    networks:
+      - backend
+    depends_on:
+      base:
+        condition: service_completed_successfully
+
+  api-service:
+    build:
+      context: .
+      dockerfile: deployment/Dockerfile.api-service
+      cache_from:
+        - ardc/api-service:latest
+        - ardc/base:latest
+    image: ardc/api-service:latest
+    container_name: anime-api-service
+    ports:
+      - "8001:8000"
+    environment:
+      - PYTHONUNBUFFERED=1
+      - REDIS_HOST=redis
+      - MODEL_SERVICE_HOST=model-service
+      - RABBITMQ_HOST=rabbitmq
+      - DB_HOST=mysql
+      - DB_USER=${MYSQL_USER:-anime_user}
+      - DB_PASSWORD=${MYSQL_PASSWORD:-anime_pass}
+      - DB_NAME=${MYSQL_DATABASE:-anime_role_detect}
+      - LOG_LEVEL=INFO
+    networks:
+      - backend
+    depends_on:
+      base:
+        condition: service_completed_successfully
+      redis:
+        condition: service_started
+      mysql:
+        condition: service_started
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: "1.0"
+
+  model-service:
+    build:
+      context: .
+      dockerfile: deployment/Dockerfile.model-service
+      cache_from:
+        - ardc/model-service:latest
+        - ardc/ml-base:latest
+    image: ardc/model-service:latest
+    container_name: anime-model-service
+    ports:
+      - "8000:8000"
+    environment:
+      - PYTHONUNBUFFERED=1
+      - REDIS_HOST=redis
+      - RABBITMQ_HOST=rabbitmq
+      - LOG_LEVEL=INFO
+    volumes:
+      - ./models:/app/models
+    networks:
+      - backend
+    depends_on:
+      ml-base:
+        condition: service_completed_successfully
+      redis:
+        condition: service_started
+      rabbitmq:
+        condition: service_started
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 8G
+          cpus: "2.0"
+
+  api-gateway:
+    build:
+      context: .
+      dockerfile: deployment/Dockerfile.api-gateway
+      cache_from:
+        - ardc/api-gateway:latest
+        - ardc/base:latest
+    image: ardc/api-gateway:latest
+    container_name: anime-api-gateway
+    ports:
+      - "8080:8000"
+    environment:
+      - PYTHONUNBUFFERED=1
+      - REDIS_HOST=redis
+      - API_SERVICE_HOST=api-service
+      - LOG_LEVEL=INFO
+    networks:
+      - backend
+      - frontend
+    depends_on:
+      base:
+        condition: service_completed_successfully
+      redis:
+        condition: service_started
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "0.5"
+
+  multimedia-service:
+    build:
+      context: .
+      dockerfile: deployment/Dockerfile.multimedia-service
+      cache_from:
+        - ardc/multimedia-service:latest
+        - ardc/base:latest
+    image: ardc/multimedia-service:latest
+    container_name: anime-multimedia-service
+    environment:
+      - PYTHONUNBUFFERED=1
+      - REDIS_HOST=redis
+      - RABBITMQ_HOST=rabbitmq
+      - LOG_LEVEL=INFO
+    volumes:
+      - multimedia-data:/app/data
+    networks:
+      - backend
+    depends_on:
+      base:
+        condition: service_completed_successfully
+      redis:
+        condition: service_started
+      rabbitmq:
+        condition: service_started
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "0.5"
+
+  search-service:
+    build:
+      context: .
+      dockerfile: deployment/Dockerfile.search-service
+      cache_from:
+        - ardc/search-service:latest
+        - ardc/base:latest
+    image: ardc/search-service:latest
+    container_name: anime-search-service
+    environment:
+      - PYTHONUNBUFFERED=1
+      - REDIS_HOST=redis
+      - RABBITMQ_HOST=rabbitmq
+      - LOG_LEVEL=INFO
+    networks:
+      - backend
+    depends_on:
+      base:
+        condition: service_completed_successfully
+      redis:
+        condition: service_started
+      rabbitmq:
+        condition: service_started
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "0.5"
+
+  search-worker:
+    build:
+      context: .
+      dockerfile: deployment/Dockerfile.search-worker
+      cache_from:
+        - ardc/search-worker:latest
+        - ardc/base:latest
+    image: ardc/search-worker:latest
+    container_name: anime-search-worker
+    environment:
+      - PYTHONUNBUFFERED=1
+      - REDIS_HOST=redis
+      - RABBITMQ_HOST=rabbitmq
+      - LOG_LEVEL=INFO
+    networks:
+      - backend
+    depends_on:
+      base:
+        condition: service_completed_successfully
+      redis:
+        condition: service_started
+      rabbitmq:
+        condition: service_started
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+          cpus: "1.0"
+
+  inference-worker:
+    build:
+      context: .
+      dockerfile: deployment/Dockerfile.inference-worker
+      cache_from:
+        - ardc/inference-worker:latest
+        - ardc/ml-base:latest
+    image: ardc/inference-worker:latest
+    container_name: anime-inference-worker
+    environment:
+      - PYTHONUNBUFFERED=1
+      - REDIS_HOST=redis
+      - RABBITMQ_HOST=rabbitmq
+      - LOG_LEVEL=INFO
+    networks:
+      - backend
+    depends_on:
+      ml-base:
+        condition: service_completed_successfully
+      redis:
+        condition: service_started
+      rabbitmq:
+        condition: service_started
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+          cpus: "1.0"
+
+  monitoring:
+    build:
+      context: .
+      dockerfile: deployment/Dockerfile.monitoring
+      cache_from:
+        - ardc/monitoring:latest
+    image: ardc/monitoring:latest
+    container_name: anime-monitoring
+    ports:
+      - "8888:8000"
+    environment:
+      - PYTHONUNBUFFERED=1
+      - REDIS_HOST=redis
+      - LOG_LEVEL=INFO
+    networks:
+      - frontend
+    depends_on:
+      redis:
+        condition: service_started
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "0.25"
+
+  frontend:
+    build:
+      context: .
+      dockerfile: deployment/Dockerfile.frontend
+      cache_from:
+        - ardc/frontend:latest
+    image: ardc/frontend:latest
+    container_name: anime-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - API_URL=http://localhost:8080
+    networks:
+      - frontend
+    depends_on:
+      api-gateway:
+        condition: service_started
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "0.5"
+
+volumes:
+  redis-data:
+    driver: local
+  mysql-data:
+    driver: local
+  rabbitmq-data:
+    driver: local
+  multimedia-data:
+    driver: local
