@@ -10,7 +10,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
     PIP_NO_CACHE_DIR=1 \
-    PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
+    PIP_INDEX_URL=https://mirrors.aliyun.com/pypi/simple/
 
 # Use Chinese mirror for faster apt downloads
 RUN sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list.d/debian.sources
@@ -46,7 +46,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     REDIS_HOST=redis \
     RABBITMQ_HOST=rabbitmq \
     LOG_LEVEL=INFO \
-    PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
+    PIP_INDEX_URL=https://mirrors.aliyun.com/pypi/simple/
 
 # Use Chinese mirror for faster apt downloads
 RUN sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list.d/debian.sources
