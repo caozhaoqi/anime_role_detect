@@ -2,7 +2,7 @@
 # model-service 和 inference-worker 继承此镜像
 
 ARG REGISTRY_MIRROR=docker.io
-ARG BASE_IMAGE=${REGISTRY_MIRROR}/ardc/base:latest
+ARG BASE_IMAGE=ardc/base:latest
 FROM ${BASE_IMAGE}
 
 ARG PIP_INDEX_URL=https://mirrors.aliyun.com/pypi/simple/

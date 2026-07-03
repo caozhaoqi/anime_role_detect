@@ -127,7 +127,7 @@ jobs:
           build-args: |
             BUILD_DATE=${{ steps.meta.outputs.created }}
             BUILD_TAG=${{ steps.meta.outputs.version }}
-            BASE_IMAGE=${{ env.DOCKER_REGISTRY }}/ardc/base:${{ steps.meta.outputs.version }}
+            BASE_IMAGE=ardc/base:${{ steps.meta.outputs.version }}
 
   build-service-images:
     runs-on: ubuntu-latest
@@ -203,7 +203,7 @@ jobs:
           build-args: |
             BUILD_DATE=${{ steps.meta.outputs.created }}
             BUILD_TAG=${{ steps.meta.outputs.version }}
-            ${{ matrix.service.base-image != 'docker.io' && format('BASE_IMAGE={0}/ardc/{1}:{2}', env.DOCKER_REGISTRY, matrix.service.base-image, steps.meta.outputs.version) || '' }}
+            ${{ matrix.service.base-image != 'docker.io' && format('BASE_IMAGE=ardc/{0}:{1}', matrix.service.base-image, steps.meta.outputs.version) || '' }}
 
   disk-report:
     runs-on: ubuntu-latest
