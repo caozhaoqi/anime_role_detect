@@ -32,7 +32,16 @@ info "创建部署目录..."
 mkdir -p /opt/ardc/deployment
 
 info "复制部署文件..."
-cp -rf /home/1150118968_wy/anime_role_detect/deployment/* /opt/ardc/deployment/
+SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+PROJECT_ROOT=$(dirname "$(dirname "$SCRIPT_DIR")")
+DEPLOY_SRC="${PROJECT_ROOT}/deployment"
+
+if [[ -d "$DEPLOY_SRC" ]]; then
+    cp -rf "$DEPLOY_SRC"/* /opt/ardc/deployment/
+else
+    info "未找到项目部署目录，使用当前目录..."
+    cp -rf deployment/* /opt/ardc/deployment/ 2>/dev/null || true
+fi
 
 info "验证部署文件..."
 ls -la /opt/ardc/deployment/
@@ -93,6 +102,12 @@ info "部署 Ingress/HPA/PDB..."
 kubectl apply -f "${DEPLOY_DIR}/deployment/k8s-ingress.yaml" 2>/dev/null || true
 kubectl apply -f "${DEPLOY_DIR}/deployment/k8s-hpa.yaml" 2>/dev/null || true
 kubectl apply -f "${DEPLOY_DIR}/deployment/k8s-pdb.yaml" 2>/dev/null || true
+
+info "部署 Logging (Elasticsearch + Kibana + Filebeat)..."
+info "  设置内核参数 vm.max_map_count..."
+sysctl -w vm.max_map_count=262144 2>/dev/null || true
+echo "vm.max_map_count=262144" >> /etc/sysctl.conf 2>/dev/null || true
+kubectl apply -f "${DEPLOY_DIR}/deployment/k8s-logging.yaml"
 
 ok "K8s 资源部署完成"
 echo ""

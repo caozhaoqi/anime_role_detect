@@ -21,8 +21,8 @@ services:
     deploy:
       resources:
         limits:
-          memory: 512M
-          cpus: "0.5"
+          memory: 256M      # 压缩：512M -> 256M
+          cpus: "0.2"
 
   mysql:
     image: mysql:8.0
@@ -42,8 +42,8 @@ services:
     deploy:
       resources:
         limits:
-          memory: 2G
-          cpus: "1.0"
+          memory: 1G        # 压缩：2G -> 1G
+          cpus: "0.5"
 
   rabbitmq:
     image: rabbitmq:3-management-alpine
@@ -59,11 +59,18 @@ services:
     networks:
       - backend
     restart: unless-stopped
+    # 优化：采用轻量级 TCP 探测，替换消耗内存的 rabbitmq-diagnostics
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "5672"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     deploy:
       resources:
         limits:
-          memory: 1G
-          cpus: "0.5"
+          memory: 512M      # 压缩：1G -> 512M
+          cpus: "0.25"
 
   base:
     build:
@@ -97,6 +104,7 @@ services:
         - ardc/api-service:latest
         - ardc/base:latest
     image: ardc/api-service:latest
+    pull_policy: if_not_present   # 优化：优先使用本地构建的镜像
     container_name: anime-api-service
     ports:
       - "8001:8000"
@@ -123,8 +131,8 @@ services:
     deploy:
       resources:
         limits:
-          memory: 2G
-          cpus: "1.0"
+          memory: 1G        # 压缩：2G -> 1G
+          cpus: "0.5"
 
   model-service:
     build:
@@ -134,6 +142,7 @@ services:
         - ardc/model-service:latest
         - ardc/ml-base:latest
     image: ardc/model-service:latest
+    pull_policy: if_not_present   # 优化：优先使用本地构建的镜像
     container_name: anime-model-service
     ports:
       - "8000:8000"
@@ -157,8 +166,8 @@ services:
     deploy:
       resources:
         limits:
-          memory: 8G
-          cpus: "2.0"
+          memory: 4G        # 压缩：8G -> 4G（深度学习模型，保留最大的一块）
+          cpus: "1.5"
 
   api-gateway:
     build:
@@ -168,6 +177,7 @@ services:
         - ardc/api-gateway:latest
         - ardc/base:latest
     image: ardc/api-gateway:latest
+    pull_policy: if_not_present
     container_name: anime-api-gateway
     ports:
       - "8080:8000"
@@ -188,8 +198,8 @@ services:
     deploy:
       resources:
         limits:
-          memory: 1G
-          cpus: "0.5"
+          memory: 512M      # 压缩：1G -> 512M
+          cpus: "0.25"
 
   multimedia-service:
     build:
@@ -199,6 +209,7 @@ services:
         - ardc/multimedia-service:latest
         - ardc/base:latest
     image: ardc/multimedia-service:latest
+    pull_policy: if_not_present
     container_name: anime-multimedia-service
     environment:
       - PYTHONUNBUFFERED=1
@@ -220,8 +231,8 @@ services:
     deploy:
       resources:
         limits:
-          memory: 1G
-          cpus: "0.5"
+          memory: 512M      # 压缩：1G -> 512M
+          cpus: "0.25"
 
   search-service:
     build:
@@ -231,6 +242,7 @@ services:
         - ardc/search-service:latest
         - ardc/base:latest
     image: ardc/search-service:latest
+    pull_policy: if_not_present
     container_name: anime-search-service
     environment:
       - PYTHONUNBUFFERED=1
@@ -250,8 +262,8 @@ services:
     deploy:
       resources:
         limits:
-          memory: 1G
-          cpus: "0.5"
+          memory: 512M      # 压缩：1G -> 512M
+          cpus: "0.25"
 
   search-worker:
     build:
@@ -261,6 +273,7 @@ services:
         - ardc/search-worker:latest
         - ardc/base:latest
     image: ardc/search-worker:latest
+    pull_policy: if_not_present
     container_name: anime-search-worker
     environment:
       - PYTHONUNBUFFERED=1
@@ -280,8 +293,8 @@ services:
     deploy:
       resources:
         limits:
-          memory: 4G
-          cpus: "1.0"
+          memory: 1.5G      # 压缩：4G -> 1.5G
+          cpus: "0.5"
 
   inference-worker:
     build:
@@ -291,6 +304,7 @@ services:
         - ardc/inference-worker:latest
         - ardc/ml-base:latest
     image: ardc/inference-worker:latest
+    pull_policy: if_not_present
     container_name: anime-inference-worker
     environment:
       - PYTHONUNBUFFERED=1
@@ -310,8 +324,8 @@ services:
     deploy:
       resources:
         limits:
-          memory: 4G
-          cpus: "1.0"
+          memory: 1.5G      # 压缩：4G -> 1.5G
+          cpus: "0.5"
 
   monitoring:
     build:
@@ -320,6 +334,7 @@ services:
       cache_from:
         - ardc/monitoring:latest
     image: ardc/monitoring:latest
+    pull_policy: if_not_present
     container_name: anime-monitoring
     ports:
       - "8888:8000"
@@ -336,8 +351,8 @@ services:
     deploy:
       resources:
         limits:
-          memory: 512M
-          cpus: "0.25"
+          memory: 256M      # 压缩：512M -> 256M
+          cpus: "0.1"
 
   frontend:
     build:
@@ -346,6 +361,7 @@ services:
       cache_from:
         - ardc/frontend:latest
     image: ardc/frontend:latest
+    pull_policy: if_not_present
     container_name: anime-frontend
     ports:
       - "3000:3000"
@@ -361,8 +377,8 @@ services:
     deploy:
       resources:
         limits:
-          memory: 1G
-          cpus: "0.5"
+          memory: 512M      # 压缩：1G -> 512M
+          cpus: "0.25"
 
 volumes:
   redis-data:
