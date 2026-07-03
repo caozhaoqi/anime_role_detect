@@ -62,6 +62,8 @@ jobs:
         with:
           context: .
           file: deployment/Dockerfile.ml-base
+          build-contexts: |
+            ardc/base:latest=docker-image://ardc/base:latest
           push: false
           tags: |
             ardc/ml-base:${{ steps.meta.outputs.version }}
