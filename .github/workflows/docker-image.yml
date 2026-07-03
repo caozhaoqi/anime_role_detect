@@ -9,6 +9,9 @@ on:
     branches:
       - main
 
+env:
+  DOCKER_REGISTRY: ${{ secrets.DOCKER_REGISTRY || 'ardc' }}
+
 jobs:
   cleanup:
     runs-on: ubuntu-latest
@@ -58,7 +61,7 @@ jobs:
     outputs:
       base-image: ${{ steps.build-base.outputs.image }}
       ml-base-image: ${{ steps.build-ml-base.outputs.image }}
-      tag: ${{ steps.meta.outputs.tag }}
+      tag: ${{ steps.meta.outputs.version }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -73,7 +76,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ secrets.DOCKER_REGISTRY }}/ardc/base
+          images: ${{ env.DOCKER_REGISTRY }}/ardc/base
           tags: |
             type=ref,event=branch
             type=sha,prefix=
@@ -94,12 +97,12 @@ jobs:
           context: .
           file: deployment/Dockerfile.base
           push: false
-          tags: ${{ secrets.DOCKER_REGISTRY }}/ardc/base:${{ steps.meta.outputs.tag }}
+          tags: ${{ env.DOCKER_REGISTRY }}/ardc/base:${{ steps.meta.outputs.version }}
           cache-from: type=local,src=/tmp/.buildx-cache
           cache-to: type=local,dest=/tmp/.buildx-cache,mode=max
           build-args: |
             BUILD_DATE=${{ steps.meta.outputs.created }}
-            BUILD_TAG=${{ steps.meta.outputs.tag }}
+            BUILD_TAG=${{ steps.meta.outputs.version }}
 
       - name: Cache Docker layers for ML
         uses: actions/cache@v4
@@ -116,15 +119,15 @@ jobs:
           context: .
           file: deployment/Dockerfile.ml-base
           push: false
-          tags: ${{ secrets.DOCKER_REGISTRY }}/ardc/ml-base:${{ steps.meta.outputs.tag }}
+          tags: ${{ env.DOCKER_REGISTRY }}/ardc/ml-base:${{ steps.meta.outputs.version }}
           cache-from: |
             type=local,src=/tmp/.buildx-cache
             type=local,src=/tmp/.buildx-cache-ml
           cache-to: type=local,dest=/tmp/.buildx-cache-ml,mode=max
           build-args: |
             BUILD_DATE=${{ steps.meta.outputs.created }}
-            BUILD_TAG=${{ steps.meta.outputs.tag }}
-            BASE_IMAGE=${{ secrets.DOCKER_REGISTRY }}/ardc/base:${{ steps.meta.outputs.tag }}
+            BUILD_TAG=${{ steps.meta.outputs.version }}
+            BASE_IMAGE=${{ env.DOCKER_REGISTRY }}/ardc/base:${{ steps.meta.outputs.version }}
 
   build-service-images:
     runs-on: ubuntu-latest
@@ -174,7 +177,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ secrets.DOCKER_REGISTRY }}/ardc/${{ matrix.service.name }}
+          images: ${{ env.DOCKER_REGISTRY }}/ardc/${{ matrix.service.name }}
           tags: |
             type=ref,event=branch
             type=sha,prefix=
@@ -194,13 +197,13 @@ jobs:
           context: .
           file: ${{ matrix.service.dockerfile }}
           push: false
-          tags: ${{ secrets.DOCKER_REGISTRY }}/ardc/${{ matrix.service.name }}:${{ steps.meta.outputs.tag }}
+          tags: ${{ env.DOCKER_REGISTRY }}/ardc/${{ matrix.service.name }}:${{ steps.meta.outputs.version }}
           cache-from: type=local,src=/tmp/.buildx-cache-${{ matrix.service.name }}
           cache-to: type=local,dest=/tmp/.buildx-cache-${{ matrix.service.name }},mode=max
           build-args: |
             BUILD_DATE=${{ steps.meta.outputs.created }}
-            BUILD_TAG=${{ steps.meta.outputs.tag }}
-            ${{ matrix.service.base-image != 'docker.io' && format('BASE_IMAGE={0}/ardc/{1}:{2}', secrets.DOCKER_REGISTRY, matrix.service.base-image, steps.meta.outputs.tag) || '' }}
+            BUILD_TAG=${{ steps.meta.outputs.version }}
+            ${{ matrix.service.base-image != 'docker.io' && format('BASE_IMAGE={0}/ardc/{1}:{2}', env.DOCKER_REGISTRY, matrix.service.base-image, steps.meta.outputs.version) || '' }}
 
   disk-report:
     runs-on: ubuntu-latest
