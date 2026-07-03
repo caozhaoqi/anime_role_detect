@@ -62,199 +62,100 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
       - name: Docker meta
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.DOCKER_REGISTRY }}/ardc/base
+          images: ardc/base
           tags: |
             type=ref,event=branch
             type=sha,prefix=
             type=raw,value=latest
 
-      - name: Cache Docker layers for base
-        uses: actions/cache@v4
-        with:
-          path: /tmp/.buildx-cache-base
-          key: ${{ runner.os }}-buildx-base-${{ hashFiles('requirements-base.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-buildx-base-
-
       - name: Build base image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: deployment/Dockerfile.base
-          push: false
-          load: true
-          tags: |
-            ardc/base:${{ steps.meta.outputs.version }}
-            ardc/base:latest
-          cache-from: type=local,src=/tmp/.buildx-cache-base
-          cache-to: type=local,dest=/tmp/.buildx-cache-base,mode=max
-          build-args: |
-            BUILD_DATE=${{ steps.meta.outputs.created }}
-            BUILD_TAG=${{ steps.meta.outputs.version }}
-
-      - name: Cache Docker layers for ML
-        uses: actions/cache@v4
-        with:
-          path: /tmp/.buildx-cache-ml
-          key: ${{ runner.os }}-buildx-ml-${{ hashFiles('requirements-ml.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-buildx-ml-
+        run: |
+          docker build -t ardc/base:${{ steps.meta.outputs.version }} -t ardc/base:latest \
+            --build-arg BUILD_DATE=${{ steps.meta.outputs.created }} \
+            --build-arg BUILD_TAG=${{ steps.meta.outputs.version }} \
+            -f deployment/Dockerfile.base .
 
       - name: Build ml-base image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: deployment/Dockerfile.ml-base
-          push: false
-          load: true
-          tags: |
-            ardc/ml-base:${{ steps.meta.outputs.version }}
-            ardc/ml-base:latest
-          cache-from: |
-            type=local,src=/tmp/.buildx-cache-base
-            type=local,src=/tmp/.buildx-cache-ml
-          cache-to: type=local,dest=/tmp/.buildx-cache-ml,mode=max
-          build-args: |
-            BUILD_DATE=${{ steps.meta.outputs.created }}
-            BUILD_TAG=${{ steps.meta.outputs.version }}
-            BASE_IMAGE=ardc/base:${{ steps.meta.outputs.version }}
+        run: |
+          docker build -t ardc/ml-base:${{ steps.meta.outputs.version }} -t ardc/ml-base:latest \
+            --build-arg BUILD_DATE=${{ steps.meta.outputs.created }} \
+            --build-arg BUILD_TAG=${{ steps.meta.outputs.version }} \
+            --build-arg BASE_IMAGE=ardc/base:${{ steps.meta.outputs.version }} \
+            -f deployment/Dockerfile.ml-base .
 
       - name: Build api-service image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: deployment/Dockerfile.api-service
-          push: false
-          load: true
-          tags: |
-            ardc/api-service:${{ steps.meta.outputs.version }}
-            ardc/api-service:latest
-          build-args: |
-            BUILD_DATE=${{ steps.meta.outputs.created }}
-            BUILD_TAG=${{ steps.meta.outputs.version }}
-            BASE_IMAGE=ardc/base:${{ steps.meta.outputs.version }}
+        run: |
+          docker build -t ardc/api-service:${{ steps.meta.outputs.version }} -t ardc/api-service:latest \
+            --build-arg BUILD_DATE=${{ steps.meta.outputs.created }} \
+            --build-arg BUILD_TAG=${{ steps.meta.outputs.version }} \
+            --build-arg BASE_IMAGE=ardc/base:${{ steps.meta.outputs.version }} \
+            -f deployment/Dockerfile.api-service .
 
       - name: Build api-gateway image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: deployment/Dockerfile.api-gateway
-          push: false
-          load: true
-          tags: |
-            ardc/api-gateway:${{ steps.meta.outputs.version }}
-            ardc/api-gateway:latest
-          build-args: |
-            BUILD_DATE=${{ steps.meta.outputs.created }}
-            BUILD_TAG=${{ steps.meta.outputs.version }}
-            BASE_IMAGE=ardc/base:${{ steps.meta.outputs.version }}
+        run: |
+          docker build -t ardc/api-gateway:${{ steps.meta.outputs.version }} -t ardc/api-gateway:latest \
+            --build-arg BUILD_DATE=${{ steps.meta.outputs.created }} \
+            --build-arg BUILD_TAG=${{ steps.meta.outputs.version }} \
+            --build-arg BASE_IMAGE=ardc/base:${{ steps.meta.outputs.version }} \
+            -f deployment/Dockerfile.api-gateway .
 
       - name: Build model-service image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: deployment/Dockerfile.model-service
-          push: false
-          load: true
-          tags: |
-            ardc/model-service:${{ steps.meta.outputs.version }}
-            ardc/model-service:latest
-          build-args: |
-            BUILD_DATE=${{ steps.meta.outputs.created }}
-            BUILD_TAG=${{ steps.meta.outputs.version }}
-            BASE_IMAGE=ardc/ml-base:${{ steps.meta.outputs.version }}
+        run: |
+          docker build -t ardc/model-service:${{ steps.meta.outputs.version }} -t ardc/model-service:latest \
+            --build-arg BUILD_DATE=${{ steps.meta.outputs.created }} \
+            --build-arg BUILD_TAG=${{ steps.meta.outputs.version }} \
+            --build-arg BASE_IMAGE=ardc/ml-base:${{ steps.meta.outputs.version }} \
+            -f deployment/Dockerfile.model-service .
 
       - name: Build multimedia-service image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: deployment/Dockerfile.multimedia-service
-          push: false
-          load: true
-          tags: |
-            ardc/multimedia-service:${{ steps.meta.outputs.version }}
-            ardc/multimedia-service:latest
-          build-args: |
-            BUILD_DATE=${{ steps.meta.outputs.created }}
-            BUILD_TAG=${{ steps.meta.outputs.version }}
-            BASE_IMAGE=ardc/base:${{ steps.meta.outputs.version }}
+        run: |
+          docker build -t ardc/multimedia-service:${{ steps.meta.outputs.version }} -t ardc/multimedia-service:latest \
+            --build-arg BUILD_DATE=${{ steps.meta.outputs.created }} \
+            --build-arg BUILD_TAG=${{ steps.meta.outputs.version }} \
+            --build-arg BASE_IMAGE=ardc/base:${{ steps.meta.outputs.version }} \
+            -f deployment/Dockerfile.multimedia-service .
 
       - name: Build search-service image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: deployment/Dockerfile.search-service
-          push: false
-          load: true
-          tags: |
-            ardc/search-service:${{ steps.meta.outputs.version }}
-            ardc/search-service:latest
-          build-args: |
-            BUILD_DATE=${{ steps.meta.outputs.created }}
-            BUILD_TAG=${{ steps.meta.outputs.version }}
-            BASE_IMAGE=ardc/base:${{ steps.meta.outputs.version }}
+        run: |
+          docker build -t ardc/search-service:${{ steps.meta.outputs.version }} -t ardc/search-service:latest \
+            --build-arg BUILD_DATE=${{ steps.meta.outputs.created }} \
+            --build-arg BUILD_TAG=${{ steps.meta.outputs.version }} \
+            --build-arg BASE_IMAGE=ardc/base:${{ steps.meta.outputs.version }} \
+            -f deployment/Dockerfile.search-service .
 
       - name: Build search-worker image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: deployment/Dockerfile.search-worker
-          push: false
-          load: true
-          tags: |
-            ardc/search-worker:${{ steps.meta.outputs.version }}
-            ardc/search-worker:latest
-          build-args: |
-            BUILD_DATE=${{ steps.meta.outputs.created }}
-            BUILD_TAG=${{ steps.meta.outputs.version }}
-            BASE_IMAGE=ardc/base:${{ steps.meta.outputs.version }}
+        run: |
+          docker build -t ardc/search-worker:${{ steps.meta.outputs.version }} -t ardc/search-worker:latest \
+            --build-arg BUILD_DATE=${{ steps.meta.outputs.created }} \
+            --build-arg BUILD_TAG=${{ steps.meta.outputs.version }} \
+            --build-arg BASE_IMAGE=ardc/base:${{ steps.meta.outputs.version }} \
+            -f deployment/Dockerfile.search-worker .
 
       - name: Build inference-worker image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: deployment/Dockerfile.inference-worker
-          push: false
-          load: true
-          tags: |
-            ardc/inference-worker:${{ steps.meta.outputs.version }}
-            ardc/inference-worker:latest
-          build-args: |
-            BUILD_DATE=${{ steps.meta.outputs.created }}
-            BUILD_TAG=${{ steps.meta.outputs.version }}
-            BASE_IMAGE=ardc/ml-base:${{ steps.meta.outputs.version }}
+        run: |
+          docker build -t ardc/inference-worker:${{ steps.meta.outputs.version }} -t ardc/inference-worker:latest \
+            --build-arg BUILD_DATE=${{ steps.meta.outputs.created }} \
+            --build-arg BUILD_TAG=${{ steps.meta.outputs.version }} \
+            --build-arg BASE_IMAGE=ardc/ml-base:${{ steps.meta.outputs.version }} \
+            -f deployment/Dockerfile.inference-worker .
 
       - name: Build monitoring image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: deployment/Dockerfile.monitoring
-          push: false
-          load: true
-          tags: |
-            ardc/monitoring:${{ steps.meta.outputs.version }}
-            ardc/monitoring:latest
+        run: |
+          docker build -t ardc/monitoring:${{ steps.meta.outputs.version }} -t ardc/monitoring:latest \
+            --build-arg BUILD_DATE=${{ steps.meta.outputs.created }} \
+            --build-arg BUILD_TAG=${{ steps.meta.outputs.version }} \
+            -f deployment/Dockerfile.monitoring .
 
       - name: Build frontend image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: deployment/Dockerfile.frontend
-          push: false
-          load: true
-          tags: |
-            ardc/frontend:${{ steps.meta.outputs.version }}
-            ardc/frontend:latest
+        run: |
+          docker build -t ardc/frontend:${{ steps.meta.outputs.version }} -t ardc/frontend:latest \
+            --build-arg BUILD_DATE=${{ steps.meta.outputs.created }} \
+            --build-arg BUILD_TAG=${{ steps.meta.outputs.version }} \
+            -f deployment/Dockerfile.frontend .
 
       - name: List all images
         run: |
