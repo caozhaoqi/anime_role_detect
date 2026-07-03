@@ -7,4 +7,6 @@ COPY src/ ./src/
 
 RUN mkdir -p logs run
 
+RUN pip install Pillow
+
 CMD ["python", "src/services/search_service/search_worker.py"]

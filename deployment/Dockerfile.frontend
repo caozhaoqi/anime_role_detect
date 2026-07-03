@@ -1,5 +1,5 @@
 ARG REGISTRY_MIRROR=docker.io
-FROM ${REGISTRY_MIRROR}/library/node:18-alpine AS builder
+FROM ${REGISTRY_MIRROR}/library/node:18 AS builder
 
 WORKDIR /app
 
@@ -9,7 +9,7 @@ ENV NPM_CONFIG_REGISTRY=${NPM_CONFIG_REGISTRY}
 COPY src/frontend/package.json ./
 COPY src/frontend/package-lock.json ./
 
-RUN npm ci
+RUN npm ci --legacy-peer-deps
 
 COPY src/frontend/ ./
 
