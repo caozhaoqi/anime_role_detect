@@ -1,0 +1,136 @@
+#!/bin/bash
+# =============================================================================
+# ARD K8s 最终部署脚本
+# =============================================================================
+
+set -euo pipefail
+
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+CYAN='\033[0;36m'
+NC='\033[0m'
+
+info()  { echo -e "${CYAN}[INFO]${NC} $1"; }
+ok()    { echo -e "${GREEN}[OK]${NC} $1"; }
+warn()  { echo -e "${YELLOW}[WARN]${NC} $1"; }
+err()   { echo -e "${RED}[ERROR]${NC} $1"; exit 1; }
+
+TAG="c8cd26b"
+REGISTRY="ardc"
+DEPLOY_DIR="/opt/ardc"
+EXPORT_DIR="/tmp/docker-images-export"
+
+echo ""
+echo "========================================="
+echo "  ARD K8s 最终部署"
+echo "========================================="
+echo ""
+
+echo "--- Step 1: 准备部署目录 ---"
+info "创建部署目录..."
+mkdir -p /opt/ardc/deployment
+
+info "复制部署文件..."
+cp -rf /home/1150118968_wy/anime_role_detect/deployment/* /opt/ardc/deployment/
+
+info "验证部署文件..."
+ls -la /opt/ardc/deployment/
+ok "部署目录准备完成"
+echo ""
+
+echo "--- Step 2: 加载镜像 ---"
+info "加载所有 Docker 镜像..."
+
+for file in "${EXPORT_DIR}"/*.tar.gz; do
+    if [[ ! -f "$file" ]]; then
+        continue
+    fi
+    
+    image_name=$(basename "$file" .tar.gz)
+    info "  加载 ${image_name}..."
+    
+    if docker load -i "$file" >/dev/null 2>&1; then
+        ok "  ${image_name} 加载成功"
+    else
+        warn "  ${image_name} 加载失败"
+    fi
+done
+
+info "添加 latest 标签..."
+for svc in base ml-base api-service model-service frontend api-gateway \
+           multimedia-service search-service search-worker inference-worker monitoring; do
+    image_name="${REGISTRY}/${svc}:${TAG}"
+    if docker image inspect "$image_name" &>/dev/null; then
+        docker tag "$image_name" "${REGISTRY}/${svc}:latest" &>/dev/null || true
+    fi
+done
+
+info "验证已加载的镜像..."
+docker images | grep "${REGISTRY}/"
+ok "镜像加载完成"
+echo ""
+
+echo "--- Step 3: 部署 K8s 资源 ---"
+export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
+
+info "创建 Namespace..."
+kubectl create namespace anime-role-detect --dry-run=client -o yaml | kubectl apply -f -
+
+info "部署 ConfigMap/Secret..."
+kubectl apply -f "${DEPLOY_DIR}/deployment/k8s-deploy.yaml"
+
+info "部署 PVC..."
+kubectl apply -f "${DEPLOY_DIR}/deployment/k8s-volumes.yaml"
+
+info "部署 Services..."
+kubectl apply -f "${DEPLOY_DIR}/deployment/k8s-services.yaml"
+
+info "部署 Deployments..."
+kubectl apply -f "${DEPLOY_DIR}/deployment/k8s-deployments.yaml"
+
+info "部署 Ingress/HPA/PDB..."
+kubectl apply -f "${DEPLOY_DIR}/deployment/k8s-ingress.yaml" 2>/dev/null || true
+kubectl apply -f "${DEPLOY_DIR}/deployment/k8s-hpa.yaml" 2>/dev/null || true
+kubectl apply -f "${DEPLOY_DIR}/deployment/k8s-pdb.yaml" 2>/dev/null || true
+
+ok "K8s 资源部署完成"
+echo ""
+
+echo "--- Step 4: 等待 Pod 就绪 ---"
+info "等待 Pod 启动 (60秒)..."
+sleep 60
+
+echo ""
+echo "========================================="
+echo "  部署状态"
+echo "========================================="
+echo ""
+
+echo "--- Pods ---"
+kubectl -n anime-role-detect get pods -o wide
+echo ""
+
+echo "--- Services ---"
+kubectl -n anime-role-detect get svc
+echo ""
+
+echo "--- PVC ---"
+kubectl -n anime-role-detect get pvc
+echo ""
+
+gateway_ip=$(kubectl -n anime-role-detect get svc api-gateway -o jsonpath='{.spec.clusterIP}' 2>/dev/null || echo "N/A")
+frontend_ip=$(kubectl -n anime-role-detect get svc frontend -o jsonpath='{.spec.clusterIP}' 2>/dev/null || echo "N/A")
+
+echo "========================================="
+echo "  访问地址"
+echo "========================================="
+echo "  API Gateway:  http://${gateway_ip}:8080"
+echo "  Frontend:     http://${frontend_ip}:3000"
+echo ""
+echo "  端口转发到本机:"
+echo "    kubectl -n anime-role-detect port-forward svc/api-gateway 8080:8080 &"
+echo "    kubectl -n anime-role-detect port-forward svc/frontend 3000:3000 &"
+echo ""
+echo "  然后访问: http://localhost:3000"
+echo "========================================="

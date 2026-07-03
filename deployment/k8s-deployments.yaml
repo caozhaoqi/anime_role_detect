@@ -239,6 +239,7 @@ spec:
       containers:
       - name: model-service
         image: ardc/model-service:latest
+        imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8000
           name: http
@@ -328,6 +329,7 @@ spec:
       containers:
       - name: api-service
         image: ardc/api-service:latest
+        imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8000
           name: http
@@ -400,6 +402,7 @@ spec:
       containers:
       - name: api-gateway
         image: ardc/api-gateway:latest
+        imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8000
           name: http
@@ -465,6 +468,7 @@ spec:
       containers:
       - name: frontend
         image: ardc/frontend:latest
+        imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 3000
           name: http
@@ -520,6 +524,7 @@ spec:
       containers:
       - name: multimedia-service
         image: ardc/multimedia-service:latest
+        imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8000
           name: http
@@ -576,6 +581,7 @@ spec:
       containers:
       - name: search-service
         image: ardc/search-service:latest
+        imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8000
           name: http
@@ -632,6 +638,7 @@ spec:
       containers:
       - name: search-worker
         image: ardc/search-worker:latest
+        imagePullPolicy: IfNotPresent
         envFrom:
         - configMapRef:
             name: ardc-config
@@ -689,6 +696,7 @@ spec:
       containers:
       - name: inference-worker
         image: ardc/inference-worker:latest
+        imagePullPolicy: IfNotPresent
         envFrom:
         - configMapRef:
             name: ardc-config
@@ -764,6 +772,7 @@ spec:
       containers:
       - name: monitor-dashboard
         image: ardc/monitoring:latest
+        imagePullPolicy: IfNotPresent
         command: ["/entrypoint.sh"]
         args: ["monitor-dashboard"]
         ports:
@@ -811,6 +820,7 @@ spec:
       containers:
       - name: log-viewer
         image: ardc/monitoring:latest
+        imagePullPolicy: IfNotPresent
         command: ["/entrypoint.sh"]
         args: ["log-viewer"]
         envFrom:
@@ -857,6 +867,7 @@ spec:
       containers:
       - name: health-check
         image: ardc/monitoring:latest
+        imagePullPolicy: IfNotPresent
         command: ["/entrypoint.sh"]
         args: ["health-check"]
         envFrom:
@@ -903,6 +914,7 @@ spec:
       containers:
       - name: log-monitor
         image: ardc/monitoring:latest
+        imagePullPolicy: IfNotPresent
         command: ["/entrypoint.sh"]
         args: ["log-monitor"]
         envFrom:
@@ -949,6 +961,7 @@ spec:
       containers:
       - name: resource-monitor
         image: ardc/monitoring:latest
+        imagePullPolicy: IfNotPresent
         command: ["/entrypoint.sh"]
         args: ["resource-monitor"]
         envFrom:
