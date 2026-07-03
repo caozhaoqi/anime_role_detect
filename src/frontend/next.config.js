@@ -3,15 +3,10 @@ const nextConfig = {
   reactStrictMode: true,
   images: {
     domains: ['localhost'],
+    unoptimized: true,
   },
-  async rewrites() {
-    return [
-      {
-        source: '/api/:path*',
-        destination: 'http://127.0.0.1:8080/api/:path*',
-      }
-    ];
-  },
+  output: 'export',
+  distDir: 'out',
 }
 
 module.exports = nextConfig
