@@ -5,8 +5,8 @@ ARG REGISTRY_MIRROR=docker.io
 ARG BASE_IMAGE=ardc/base:latest
 FROM ${BASE_IMAGE}
 
-ARG PIP_INDEX_URL=https://mirrors.aliyun.com/pypi/simple/
-ENV PIP_INDEX_URL=${PIP_INDEX_URL}
+# ARG PIP_INDEX_URL=https://mirrors.aliyun.com/pypi/simple/
+# ENV PIP_INDEX_URL=${PIP_INDEX_URL}
 
 LABEL org.opencontainers.image.description="ARD ML base image with PyTorch and ML libraries"
 

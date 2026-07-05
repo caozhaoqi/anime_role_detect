@@ -130,6 +130,8 @@ src/frontend/node_modules/
 
 src/frontend/.next/
 
+src/frontend/out/
+
 dump.rdb
 huggingface_cache/
 coreml_models/
