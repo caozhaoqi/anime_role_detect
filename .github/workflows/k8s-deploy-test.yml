@@ -193,7 +193,8 @@ jobs:
           mkdir -p /tmp/images
           for img in $(docker images --format '{{.Repository}}:{{.Tag}}' | grep ardc); do
             echo "Saving $img..."
-            docker save "$img" -o "/tmp/images/$(echo "$img" | tr '/' '-').tar"
+            safe_name=$(echo "$img" | tr '/' '-' | tr ':' '-')
+            docker save "$img" -o "/tmp/images/${safe_name}.tar"
           done
           ls -la /tmp/images/
 
