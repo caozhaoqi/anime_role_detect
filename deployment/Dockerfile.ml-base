@@ -5,12 +5,19 @@ ARG REGISTRY_MIRROR=docker.io
 ARG BASE_IMAGE=ardc/base:latest
 FROM ${BASE_IMAGE}
 
-# ARG PIP_INDEX_URL=https://mirrors.aliyun.com/pypi/simple/
-# ENV PIP_INDEX_URL=${PIP_INDEX_URL}
+ARG PIP_INDEX_URL=https://mirrors.aliyun.com/pypi/simple/
+ENV PIP_INDEX_URL=${PIP_INDEX_URL}
 
 LABEL org.opencontainers.image.description="ARD ML base image with PyTorch and ML libraries"
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PIP_TIMEOUT=300 \
+    PIP_DEFAULT_TIMEOUT=300
+
+RUN sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list.d/debian.sources \
+    && apt-get update && apt-get install -y --no-install-recommends \
        build-essential \
        libopenblas-dev \
     && rm -rf /var/lib/apt/lists/* \
@@ -19,12 +26,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY requirements-ml.txt /tmp/requirements-ml.txt
 
 RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install --no-cache-dir \
-       torch==2.1.0+cpu \
-       torchvision==0.16.0+cpu \
-       torchaudio==2.1.0+cpu \
-       --index-url https://download.pytorch.org/whl/cpu \
-    && pip install --no-cache-dir -r /tmp/requirements-ml.txt \
+    pip install torch==2.1.0+cpu torchvision==0.16.0+cpu torchaudio==2.1.0+cpu \
+       --index-url https://mirrors.tuna.tsinghua.edu.cn/anaconda/cloud/pytorch/linux-64/ \
+       --extra-index-url https://mirrors.tuna.tsinghua.edu.cn/anaconda/pkgs/main/linux-64/ \
+       --extra-index-url https://mirrors.tuna.tsinghua.edu.cn/anaconda/pkgs/r/linux-64/ \
+       --timeout=300 --retries=5 --no-cache-dir \
+    && pip install --timeout=120 --retries=3 -r /tmp/requirements-ml.txt \
     && rm /tmp/requirements-ml.txt
 
 ENV OMP_NUM_THREADS="1" \
