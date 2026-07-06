@@ -18,8 +18,9 @@ PROJECT_ROOT=$(dirname "$(dirname "$SCRIPT_DIR")")
 SKIP_BASE=false
 DO_PUSH=false
 PUSH_OSS=false
-PARALLEL_JOBS=4
+PARALLEL_JOBS=8
 USE_CACHE=true
+PRE_DOWNLOAD=false
 for arg in "$@"; do
     case $arg in
         --skip-base)
@@ -42,6 +43,10 @@ for arg in "$@"; do
             USE_CACHE=false
             echo "ℹ️  禁用构建缓存"
             ;;
+        --pre-download)
+            PRE_DOWNLOAD=true
+            echo "ℹ️  启用 ML 依赖预下载（加速首次构建）"
+            ;;
     esac
 done
 
@@ -55,9 +60,20 @@ echo "  构建日期: $BUILD_DATE"
 echo "  推送到仓库: $DO_PUSH"
 echo "  并行任务数: $PARALLEL_JOBS"
 echo "  使用缓存: $USE_CACHE"
+echo "  预下载ML依赖: $PRE_DOWNLOAD"
 echo "========================================"
 
 cd "$PROJECT_ROOT"
+
+if [ "$PRE_DOWNLOAD" = true ]; then
+    echo ""
+    echo "📥 Phase 0: 预下载 ML 依赖..."
+    if bash "$SCRIPT_DIR/pre_download_ml_deps.sh"; then
+        echo "✅ ML 依赖预下载完成"
+    else
+        echo "⚠️  ML 依赖预下载部分失败，将在构建时通过 pip 下载"
+    fi
+fi
 
 BASE_IMAGE="$REGISTRY/base:$TAG"
 ML_BASE_IMAGE="$REGISTRY/ml-base:$TAG"
@@ -90,7 +106,7 @@ _build_image() {
         build_args+=(--build-arg BASE_IMAGE="$base_image")
     fi
 
-    if docker build -t "$image_name" "${build_args[@]}" . > "$log_file" 2>&1; then
+    if docker build --pull=false -t "$image_name" "${build_args[@]}" . > "$log_file" 2>&1; then
         echo "✅ $service_name 构建成功 → $image_name"
         if [ "$DO_PUSH" = true ]; then
             echo "  📤 推送 $image_name ..." >> "$log_file"
@@ -124,7 +140,7 @@ if [ "$SKIP_BASE" = false ]; then
         fi
         BASE_CACHE_ARGS="$BASE_CACHE_ARGS--cache-to=type=local,dest=/tmp/docker-cache/base,mode=max"
     fi
-    if docker build \
+    if docker build --pull=false \
         -t "$BASE_IMAGE" \
         $BASE_CACHE_ARGS \
         --build-arg BUILD_DATE="$BUILD_DATE" \
@@ -145,7 +161,7 @@ if [ "$SKIP_BASE" = false ]; then
         fi
         ML_CACHE_ARGS="$ML_CACHE_ARGS--cache-to=type=local,dest=/tmp/docker-cache/ml-base,mode=max"
     fi
-    if docker build \
+    if docker build --pull=false \
         -t "$ML_BASE_IMAGE" \
         $ML_CACHE_ARGS \
         --build-arg BUILD_DATE="$BUILD_DATE" \
