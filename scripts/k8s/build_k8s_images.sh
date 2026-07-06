@@ -106,7 +106,7 @@ _build_image() {
         build_args+=(--build-arg BASE_IMAGE="$base_image")
     fi
 
-    if docker build --pull=false -t "$image_name" "${build_args[@]}" . > "$log_file" 2>&1; then
+    if docker buildx build --pull=never --load -t "$image_name" "${build_args[@]}" . > "$log_file" 2>&1; then
         echo "✅ $service_name 构建成功 → $image_name"
         if [ "$DO_PUSH" = true ]; then
             echo "  📤 推送 $image_name ..." >> "$log_file"
@@ -140,7 +140,7 @@ if [ "$SKIP_BASE" = false ]; then
         fi
         BASE_CACHE_ARGS="$BASE_CACHE_ARGS--cache-to=type=local,dest=/tmp/docker-cache/base,mode=max"
     fi
-    if docker build --pull=false \
+    if docker buildx build --pull=never --load \
         -t "$BASE_IMAGE" \
         $BASE_CACHE_ARGS \
         --build-arg BUILD_DATE="$BUILD_DATE" \
@@ -161,7 +161,7 @@ if [ "$SKIP_BASE" = false ]; then
         fi
         ML_CACHE_ARGS="$ML_CACHE_ARGS--cache-to=type=local,dest=/tmp/docker-cache/ml-base,mode=max"
     fi
-    if docker build --pull=false \
+    if docker buildx build --pull=never --load \
         -t "$ML_BASE_IMAGE" \
         $ML_CACHE_ARGS \
         --build-arg BUILD_DATE="$BUILD_DATE" \
