@@ -1,5 +1,5 @@
 ARG REGISTRY_MIRROR=docker.io
-ARG BASE_IMAGE=ard-base
+ARG BASE_IMAGE=ardc/base:latest
 FROM ${BASE_IMAGE}
 
 COPY .env.example .env

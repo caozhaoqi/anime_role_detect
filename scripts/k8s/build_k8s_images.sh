@@ -80,6 +80,9 @@ _build_image() {
     )
 
     if [ "$USE_CACHE" = true ]; then
+        if [ -d "/tmp/docker-cache/$service_name" ]; then
+            build_args+=(--cache-from=type=local,src=/tmp/docker-cache/$service_name)
+        fi
         build_args+=(--cache-to=type=local,dest=/tmp/docker-cache/$service_name,mode=max)
     fi
 
@@ -116,7 +119,10 @@ if [ "$SKIP_BASE" = false ]; then
     echo "  🔧 构建 base 镜像..."
     BASE_CACHE_ARGS=""
     if [ "$USE_CACHE" = true ]; then
-        BASE_CACHE_ARGS="--cache-to=type=local,dest=/tmp/docker-cache/base,mode=max"
+        if [ -d "/tmp/docker-cache/base" ]; then
+            BASE_CACHE_ARGS="--cache-from=type=local,src=/tmp/docker-cache/base "
+        fi
+        BASE_CACHE_ARGS="$BASE_CACHE_ARGS--cache-to=type=local,dest=/tmp/docker-cache/base,mode=max"
     fi
     if docker build \
         -t "$BASE_IMAGE" \
@@ -134,7 +140,10 @@ if [ "$SKIP_BASE" = false ]; then
     echo "  🔧 构建 ml-base 镜像..."
     ML_CACHE_ARGS=""
     if [ "$USE_CACHE" = true ]; then
-        ML_CACHE_ARGS="--cache-to=type=local,dest=/tmp/docker-cache/ml-base,mode=max"
+        if [ -d "/tmp/docker-cache/ml-base" ]; then
+            ML_CACHE_ARGS="--cache-from=type=local,src=/tmp/docker-cache/ml-base "
+        fi
+        ML_CACHE_ARGS="$ML_CACHE_ARGS--cache-to=type=local,dest=/tmp/docker-cache/ml-base,mode=max"
     fi
     if docker build \
         -t "$ML_BASE_IMAGE" \

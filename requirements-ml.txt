@@ -1,10 +1,11 @@
 # ==============================================
 # 机器学习专属依赖 - 仅包含 requirements.txt 中没有的 ML 包
 # PyTorch 在 Dockerfile.ml-base 中单独安装（CPU 版本）
+# numpy==1.26.4 兼容 Windows + Python 3.14
 # ==============================================
 
-# numpy（opencv-python-headless 需要 numpy>=2）
-numpy>=2.0.0
+# numpy（兼容 Windows + Python 3.14，与 opencv-python-headless 兼容）
+numpy==1.26.4
 
 # 向量嵌入
 sentence-transformers==3.0.1

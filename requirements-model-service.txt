@@ -1,7 +1,7 @@
 # ==============================================
 # Model Service 精简依赖
 # 仅包含模型服务实际使用的包（扫描 src/services/model_service/ + src/core/ 确认）
-# PyTorch 生态不锁死版本，由 pip 自动解析兼容组合
+# PyTorch 版本与 Dockerfile.ml-base 保持一致
 # ==============================================
 
 # Web 框架
@@ -9,15 +9,15 @@ fastapi==0.115.0
 uvicorn==0.39.0
 pydantic==2.13.4
 
-# 深度学习框架（CPU 版，让 pip 解析兼容的 torch/torchvision 版本组合）
-torch
-torchvision
+# 深度学习框架（CPU 版，与 Dockerfile.ml-base 一致）
+torch==2.1.0+cpu
+torchvision==0.16.0+cpu
 
 # 图像处理
 Pillow==11.3.0
 pillow-heif==0.21.0
 opencv-python-headless==4.13.0.92
-numpy>=2.0.0
+numpy==1.26.4
 
 # OCR
 easyocr==1.7.2
