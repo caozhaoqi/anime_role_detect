@@ -27,10 +27,8 @@ COPY requirements-ml.txt /tmp/requirements-ml.txt
 
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install torch==2.1.0+cpu torchvision==0.16.0+cpu torchaudio==2.1.0+cpu \
-       --index-url https://mirrors.tuna.tsinghua.edu.cn/anaconda/cloud/pytorch/linux-64/ \
-       --extra-index-url https://mirrors.tuna.tsinghua.edu.cn/anaconda/pkgs/main/linux-64/ \
-       --extra-index-url https://mirrors.tuna.tsinghua.edu.cn/anaconda/pkgs/r/linux-64/ \
-       --timeout=300 --retries=5 --no-cache-dir \
+       --index-url https://download.pytorch.org/whl/cpu \
+       --timeout=300 --retries=5 \
     && pip install --timeout=120 --retries=3 -r /tmp/requirements-ml.txt \
     && rm /tmp/requirements-ml.txt
 
