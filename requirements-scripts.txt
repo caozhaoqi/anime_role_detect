@@ -1,0 +1,27 @@
+# ==============================================
+# 脚本专用依赖 - Scripts Dependencies
+# 仅用于 scripts/ 目录下的辅助脚本，非核心服务依赖
+# 使用方式: pip install -r requirements-scripts.txt
+# ==============================================
+
+# Web UI 调试 (scripts/api/web_ui.py)
+streamlit==1.50.0
+
+# 数据可视化 (scripts/evaluation/benchmark_model.py)
+matplotlib==3.9.4
+seaborn==0.13.2
+
+# 中文拼音转换 (scripts/data_cleaning/check_missing_roles.py)
+pypinyin==0.55.0
+
+# 认证相关 (scripts/skillhub/ardc/api/auth.py)
+python-jose[cryptography]==3.4.0
+passlib[sha256_crypt]==1.7.4
+
+# PDF 处理（如需使用时取消注释）
+# pdfminer.six==20251107
+# pdfplumber==0.11.8
+
+# 爬虫相关（如需使用时取消注释）
+# selenium==4.36.0
+# beautifulsoup4==4.12.3
