@@ -5,8 +5,8 @@
 ARG REGISTRY_MIRROR=docker.io
 FROM ${REGISTRY_MIRROR}/library/python:3.9-slim
 
-# ARG PIP_INDEX_URL=https://mirrors.aliyun.com/pypi/simple/
-# ENV PIP_INDEX_URL=${PIP_INDEX_URL}
+ARG PIP_INDEX_URL=https://mirrors.aliyun.com/pypi/simple/
+ENV PIP_INDEX_URL=${PIP_INDEX_URL}
 
 ARG BUILD_DATE
 ARG BUILD_TAG

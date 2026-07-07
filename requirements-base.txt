@@ -31,3 +31,6 @@ redis==7.0.1
 
 # 配置管理
 python-dotenv==1.0.1
+
+# 日志
+loguru==0.7.2
