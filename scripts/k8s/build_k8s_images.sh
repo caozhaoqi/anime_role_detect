@@ -131,6 +131,8 @@ _build_image() {
 
     if docker buildx build --load -t "$image_name" "${build_args[@]}" . > "$log_file" 2>&1; then
         echo "✅ $service_name 构建成功 → $image_name"
+        echo "  🏷️  添加 latest 标签..."
+        docker tag "$image_name" "$REGISTRY/$service_name:latest" 2>/dev/null || true
         if [ "$DO_PUSH" = true ]; then
             echo "  📤 推送 $image_name ..." >> "$log_file"
             if docker push "$image_name" >> "$log_file" 2>&1; then
@@ -139,6 +141,8 @@ _build_image() {
                 echo "❌ $service_name 推送失败. 详情: $log_file"
                 return 1
             fi
+            echo "  📤 推送 ${REGISTRY}/${service_name}:latest ..." >> "$log_file"
+            docker push "${REGISTRY}/${service_name}:latest" >> "$log_file" 2>&1 || true
         fi
         return 0
     else
@@ -171,6 +175,8 @@ if [ "$SKIP_BASE" = false ]; then
         -f deployment/Dockerfile.base \
         .; then
         echo "✅ base 镜像构建成功"
+        echo "  🏷️  添加 latest 标签..."
+        docker tag "$BASE_IMAGE" "${REGISTRY}/base:latest" 2>/dev/null || true
     else
         echo "❌ base 镜像构建失败"
         exit 1
@@ -195,6 +201,8 @@ if [ "$SKIP_BASE" = false ]; then
         -f deployment/Dockerfile.ml-base \
         .; then
         echo "✅ ml-base 镜像构建成功"
+        echo "  🏷️  添加 latest 标签..."
+        docker tag "$ML_BASE_IMAGE" "${REGISTRY}/ml-base:latest" 2>/dev/null || true
     else
         echo "❌ ml-base 镜像构建失败"
         exit 1

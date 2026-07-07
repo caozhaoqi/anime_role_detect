@@ -2,11 +2,18 @@ ARG REGISTRY_MIRROR=docker.io
 ARG BASE_IMAGE=ardc/base:latest
 FROM ${BASE_IMAGE}
 
+ARG PIP_INDEX_URL=https://mirrors.aliyun.com/pypi/simple/
+ENV PIP_INDEX_URL=${PIP_INDEX_URL}
+
 RUN sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list.d/debian.sources
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
+    libgl1 \
+    libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/*
+
+RUN pip install opencv-python-headless==4.10.0.84 --timeout=120 --retries=3
 
 COPY .env.example .env
 COPY src/ ./src/
