@@ -51,7 +51,7 @@ for arg in "$@"; do
 done
 
 echo "========================================"
-echo "  ARD K8s 容器镜像构建脚本 (加速优化版)"
+echo "  ARD K8s 容器镜像构建脚本 (自动空间清理版)"
 echo "========================================"
 echo "  项目根目录: $PROJECT_ROOT"
 echo "  镜像前缀: $REGISTRY"
@@ -61,6 +61,25 @@ echo "  推送到仓库: $DO_PUSH"
 echo "  并行任务数: $PARALLEL_JOBS"
 echo "  使用缓存: $USE_CACHE"
 echo "  预下载ML依赖: $PRE_DOWNLOAD"
+echo "========================================"
+
+# ======================== Phase 0.1: 自动空间清理 ========================
+echo ""
+echo "🧹 Phase 0.1: 自动清理垃圾并释放物理磁盘空间..."
+echo "  [清理前] 磁盘空间状态:"
+df -h /var/lib/docker 2>/dev/null || df -h /
+
+# 1. 深度清理未使用的容器、镜像、无用卷和本地构建缓存
+echo "  正在执行 Docker 深度清理 (System Prune)..."
+docker system prune -a --volumes -f || true
+docker buildx prune -f || true
+
+# 2. 清理临时目录下的旧构建日志
+echo "  清理历史临时日志..."
+rm -f /tmp/build_*.log || true
+
+echo "  [清理后] 磁盘空间状态:"
+df -h /var/lib/docker 2>/dev/null || df -h /
 echo "========================================"
 
 cd "$PROJECT_ROOT"
@@ -103,10 +122,14 @@ _build_image() {
     fi
 
     if [ "$base_image" != "docker.io" ]; then
-        build_args+=(--build-arg BASE_IMAGE="$base_image")
+        local base_name="${base_image%%:*}"
+        build_args+=(
+            --build-arg BASE_IMAGE="$base_image"
+            --build-context "$base_name=docker-image://$base_image"
+        )
     fi
 
-    if docker buildx build --pull=never --load -t "$image_name" "${build_args[@]}" . > "$log_file" 2>&1; then
+    if docker buildx build --load -t "$image_name" "${build_args[@]}" . > "$log_file" 2>&1; then
         echo "✅ $service_name 构建成功 → $image_name"
         if [ "$DO_PUSH" = true ]; then
             echo "  📤 推送 $image_name ..." >> "$log_file"
@@ -140,7 +163,7 @@ if [ "$SKIP_BASE" = false ]; then
         fi
         BASE_CACHE_ARGS="$BASE_CACHE_ARGS--cache-to=type=local,dest=/tmp/docker-cache/base,mode=max"
     fi
-    if docker buildx build --pull=never --load \
+    if docker buildx build --load \
         -t "$BASE_IMAGE" \
         $BASE_CACHE_ARGS \
         --build-arg BUILD_DATE="$BUILD_DATE" \
@@ -161,12 +184,14 @@ if [ "$SKIP_BASE" = false ]; then
         fi
         ML_CACHE_ARGS="$ML_CACHE_ARGS--cache-to=type=local,dest=/tmp/docker-cache/ml-base,mode=max"
     fi
-    if docker buildx build --pull=never --load \
+    BASE_NAME="${BASE_IMAGE%%:*}"
+    if docker buildx build --load \
         -t "$ML_BASE_IMAGE" \
         $ML_CACHE_ARGS \
         --build-arg BUILD_DATE="$BUILD_DATE" \
         --build-arg BUILD_TAG="$TAG" \
         --build-arg BASE_IMAGE="$BASE_IMAGE" \
+        --build-context "$BASE_NAME=docker-image://$BASE_IMAGE" \
         -f deployment/Dockerfile.ml-base \
         .; then
         echo "✅ ml-base 镜像构建成功"

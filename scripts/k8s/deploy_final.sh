@@ -49,20 +49,31 @@ ok "部署目录准备完成"
 echo ""
 
 echo "--- Step 2: 加载镜像 ---"
-info "加载所有 Docker 镜像..."
+info "检查并使用 docker images 中的本地镜像..."
 
-for file in "${EXPORT_DIR}"/*.tar.gz; do
-    if [[ ! -f "$file" ]]; then
-        continue
-    fi
+local loaded=0
+local existing=0
+
+for svc in base ml-base api-service model-service frontend api-gateway \
+           multimedia-service search-service search-worker inference-worker monitoring; do
+    local image_name="${REGISTRY}/${svc}:${TAG}"
     
-    image_name=$(basename "$file" .tar.gz)
-    info "  加载 ${image_name}..."
-    
-    if docker load -i "$file" >/dev/null 2>&1; then
-        ok "  ${image_name} 加载成功"
+    if docker image inspect "$image_name" &>/dev/null; then
+        info "  镜像已存在: ${image_name}"
+        ((existing++))
     else
-        warn "  ${image_name} 加载失败"
+        local tar_path="${EXPORT_DIR}/${svc}-${TAG}.tar.gz"
+        if [[ -f "$tar_path" ]]; then
+            info "  加载 ${svc}-${TAG}.tar.gz → ${image_name}..."
+            if docker load -i "$tar_path" >/dev/null 2>&1; then
+                ok "  ${image_name} 加载成功"
+                ((loaded++))
+            else
+                warn "  ${image_name} 加载失败"
+            fi
+        else
+            warn "  镜像 ${image_name} 不存在，tar.gz 文件也不存在"
+        fi
     fi
 done
 
@@ -77,7 +88,7 @@ done
 
 info "验证已加载的镜像..."
 docker images | grep "${REGISTRY}/"
-ok "镜像加载完成"
+ok "镜像加载完成 (${existing} 个已存在, ${loaded} 个从 tar.gz 加载)"
 echo ""
 
 echo "--- Step 3: 部署 K8s 资源 ---"

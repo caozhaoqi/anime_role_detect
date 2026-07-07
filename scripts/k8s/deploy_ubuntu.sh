@@ -251,19 +251,26 @@ load_images() {
     local missing=0
 
     for svc in "${SERVICES[@]}"; do
-        local tar_name="${svc}-${TAG}.tar.gz"
-        local tar_path="${EXPORT_DIR}/${tar_name}"
         local image_name="${REGISTRY}/${svc}:${TAG}"
-
-        if [[ ! -f "$tar_path" ]]; then
-            warn "  文件不存在，跳过: ${tar_path}"
-            ((missing++))
-            continue
-        fi
 
         if docker image inspect "$image_name" &>/dev/null; then
             info "  镜像已存在: ${image_name}"
             ((existing++))
+            continue
+        fi
+
+        if [[ "$LOCAL_MODE" == true ]]; then
+            warn "  本地镜像 ${image_name} 不存在，请先构建镜像"
+            ((missing++))
+            continue
+        fi
+
+        local tar_name="${svc}-${TAG}.tar.gz"
+        local tar_path="${EXPORT_DIR}/${tar_name}"
+
+        if [[ ! -f "$tar_path" ]]; then
+            warn "  文件不存在，跳过: ${tar_path}"
+            ((missing++))
             continue
         fi
 
@@ -281,10 +288,10 @@ load_images() {
         err "没有成功加载任何镜像，也没有已存在的镜像"
     fi
 
-    if [[ $missing -eq ${#SERVICES[@]} ]]; then
-        warn "所有镜像文件都不存在于 ${EXPORT_DIR}"
-        warn "请确保镜像 tar.gz 文件已放置在 ${EXPORT_DIR} 目录"
-        warn "或移除 --local 参数从 OSS 下载"
+    if [[ "$LOCAL_MODE" == true && $missing -gt 0 ]]; then
+        warn "部分本地镜像不存在于 docker images 中"
+        warn "请先执行构建脚本: bash scripts/k8s/build_k8s_images.sh"
+        warn "或使用 docker images 查看已有的镜像"
     fi
 
     ok "共加载 ${loaded} 个镜像，${existing} 个已存在，${missing} 个缺失"
