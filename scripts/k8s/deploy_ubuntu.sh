@@ -70,7 +70,7 @@ done
 
 [[ -z "$TAG" ]] && err "请指定 --tag 参数，例如: --tag c8cd26b"
 
-SERVICES=(base ml-base api-service model-service frontend api-gateway
+SERVICES=(api-service model-service frontend api-gateway
           multimedia-service search-service search-worker inference-worker monitoring)
 
 # ======================== Phase 1: 安装 Docker ========================
@@ -246,64 +246,37 @@ download_from_oss() {
 
 load_images() {
     info "加载镜像到容器运行时..."
-    local loaded=0
     local existing=0
-    local missing=0
+    local retagged=0
 
     for svc in "${SERVICES[@]}"; do
         local image_name="${REGISTRY}/${svc}:${TAG}"
+        local latest_image="${REGISTRY}/${svc}:latest"
 
-        if docker image inspect "$image_name" &>/dev/null; then
+        local tag_count=$(docker images "${REGISTRY}/${svc}" --format "{{.Tag}}" | grep -c "^${TAG}$" || true)
+        local latest_count=$(docker images "${REGISTRY}/${svc}" --format "{{.Tag}}" | grep -c "^latest$" || true)
+
+        if [[ $tag_count -gt 0 ]]; then
             info "  镜像已存在: ${image_name}"
             ((existing++))
+            if [[ $latest_count -eq 0 ]]; then
+                info "  添加 latest 标签..."
+                docker tag "$image_name" "$latest_image" 2>/dev/null || true
+            fi
             continue
         fi
 
-        if [[ "$LOCAL_MODE" == true ]]; then
-            warn "  本地镜像 ${image_name} 不存在，请先构建镜像"
-            ((missing++))
+        if [[ $latest_count -gt 0 ]]; then
+            info "  发现 latest 镜像，重新打 ${TAG} 标签: ${latest_image}"
+            docker tag "$latest_image" "$image_name" 2>/dev/null || true
+            ((retagged++))
             continue
         fi
 
-        local tar_name="${svc}-${TAG}.tar.gz"
-        local tar_path="${EXPORT_DIR}/${tar_name}"
-
-        if [[ ! -f "$tar_path" ]]; then
-            warn "  文件不存在，跳过: ${tar_path}"
-            ((missing++))
-            continue
-        fi
-
-        info "  加载 ${tar_name} → ${image_name}..."
-        if docker load -i "$tar_path" 2>/dev/null; then
-            ok "  ${image_name} 加载成功"
-            ((loaded++))
-        else
-            warn "  ${tar_name} 加载失败，尝试带错误信息重试..."
-            docker load -i "$tar_path" 2>&1 || true
-        fi
+        warn "  镜像 ${image_name} 不存在，跳过"
     done
 
-    if [[ $loaded -eq 0 && $existing -eq 0 ]]; then
-        err "没有成功加载任何镜像，也没有已存在的镜像"
-    fi
-
-    if [[ "$LOCAL_MODE" == true && $missing -gt 0 ]]; then
-        warn "部分本地镜像不存在于 docker images 中"
-        warn "请先执行构建脚本: bash scripts/k8s/build_k8s_images.sh"
-        warn "或使用 docker images 查看已有的镜像"
-    fi
-
-    ok "共加载 ${loaded} 个镜像，${existing} 个已存在，${missing} 个缺失"
-
-    info "为镜像追加 latest 标签（K8s Deployment 默认引用 latest）..."
-    for svc in "${SERVICES[@]}"; do
-        local image_name="${REGISTRY}/${svc}:${TAG}"
-        if docker image inspect "$image_name" &>/dev/null; then
-            docker tag "$image_name" "${REGISTRY}/${svc}:latest" 2>/dev/null || true
-        fi
-    done
-    ok "latest 标签已就绪"
+    ok "共 ${existing} 个镜像已存在，${retagged} 个重新打标签"
 }
 
 # ======================== Phase 4: 部署 K8s ========================

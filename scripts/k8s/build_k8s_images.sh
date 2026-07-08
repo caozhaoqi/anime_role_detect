@@ -232,9 +232,9 @@ echo "api-service deployment/Dockerfile.api-service $BASE_IMAGE" >> "$BUILD_TASK
 echo "model-service deployment/Dockerfile.model-service $ML_BASE_IMAGE" >> "$BUILD_TASKS_FILE"
 echo "frontend deployment/Dockerfile.frontend docker.io" >> "$BUILD_TASKS_FILE"
 echo "api-gateway deployment/Dockerfile.api-gateway $BASE_IMAGE" >> "$BUILD_TASKS_FILE"
-echo "multimedia-service deployment/Dockerfile.multimedia-service $BASE_IMAGE" >> "$BUILD_TASKS_FILE"
-echo "search-service deployment/Dockerfile.search-service $BASE_IMAGE" >> "$BUILD_TASKS_FILE"
-echo "search-worker deployment/Dockerfile.search-worker $BASE_IMAGE" >> "$BUILD_TASKS_FILE"
+echo "multimedia-service deployment/Dockerfile.multimedia-service $ML_BASE_IMAGE" >> "$BUILD_TASKS_FILE"
+echo "search-service deployment/Dockerfile.search-service $ML_BASE_IMAGE" >> "$BUILD_TASKS_FILE"
+echo "search-worker deployment/Dockerfile.search-worker $ML_BASE_IMAGE" >> "$BUILD_TASKS_FILE"
 echo "inference-worker deployment/Dockerfile.inference-worker $ML_BASE_IMAGE" >> "$BUILD_TASKS_FILE"
 echo "monitoring deployment/Dockerfile.monitoring docker.io" >> "$BUILD_TASKS_FILE"
 
