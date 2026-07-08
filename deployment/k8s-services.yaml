@@ -81,7 +81,7 @@ spec:
   ports:
   - name: http
     port: 8000
-    targetPort: 8000
+    targetPort: 8001
   type: ClusterIP
 ---
 apiVersion: v1
@@ -117,7 +117,7 @@ spec:
   ports:
   - name: http
     port: 8080
-    targetPort: 8000
+    targetPort: 8080
   type: ClusterIP
 ---
 apiVersion: v1
@@ -153,7 +153,7 @@ spec:
   ports:
   - name: http
     port: 8000
-    targetPort: 8000
+    targetPort: 8003
   type: ClusterIP
 ---
 apiVersion: v1

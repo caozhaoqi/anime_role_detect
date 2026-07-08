@@ -51,18 +51,18 @@ echo ""
 echo "--- Step 2: 加载镜像 ---"
 info "检查并使用 docker images 中的本地镜像..."
 
-local loaded=0
-local existing=0
+loaded=0
+existing=0
 
 for svc in base ml-base api-service model-service frontend api-gateway \
            multimedia-service search-service search-worker inference-worker monitoring; do
-    local image_name="${REGISTRY}/${svc}:${TAG}"
+    image_name="${REGISTRY}/${svc}:${TAG}"
     
     if docker image inspect "$image_name" &>/dev/null; then
         info "  镜像已存在: ${image_name}"
         ((existing++))
     else
-        local tar_path="${EXPORT_DIR}/${svc}-${TAG}.tar.gz"
+        tar_path="${EXPORT_DIR}/${svc}-${TAG}.tar.gz"
         if [[ -f "$tar_path" ]]; then
             info "  加载 ${svc}-${TAG}.tar.gz → ${image_name}..."
             if docker load -i "$tar_path" >/dev/null 2>&1; then
