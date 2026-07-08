@@ -17,7 +17,7 @@ accelerate==0.34.2
 mlflow==2.16.2
 
 # CLIP 模型（用于搜索和去重）
-clip-by-openai==2.8.0
+git+https://github.com/openai/CLIP.git
 
 # 向量索引（用于搜索）
 faiss-cpu==1.8.0
