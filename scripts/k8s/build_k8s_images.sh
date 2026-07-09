@@ -120,16 +120,15 @@ _build_image() {
         fi
         build_args+=(--cache-to=type=local,dest=/tmp/docker-cache/$service_name,mode=max)
     fi
-
+    
     if [ "$base_image" != "docker.io" ]; then
-        local base_name="${base_image%%:*}"
         build_args+=(
             --build-arg BASE_IMAGE="$base_image"
-            --build-context "$base_name=docker-image://$base_image"
+            --build-context "$base_image=docker-image://$base_image"
         )
     fi
 
-    if docker buildx build --load -t "$image_name" "${build_args[@]}" . > "$log_file" 2>&1; then
+    if docker buildx build --pull=false --load -t "$image_name" "${build_args[@]}" . > "$log_file" 2>&1; then
         echo "✅ $service_name 构建成功 → $image_name"
         echo "  🏷️  添加 latest 标签..."
         docker tag "$image_name" "$REGISTRY/$service_name:latest" 2>/dev/null || true
@@ -160,20 +159,19 @@ if [ "$SKIP_BASE" = false ]; then
     echo "📦 Phase 1: 构建基础镜像..."
 
     echo "  🔧 构建 base 镜像..."
-    BASE_CACHE_ARGS=""
-    if [ "$USE_CACHE" = true ]; then
-        if [ -d "/tmp/docker-cache/base" ]; then
-            BASE_CACHE_ARGS="--cache-from=type=local,src=/tmp/docker-cache/base "
-        fi
-        BASE_CACHE_ARGS="$BASE_CACHE_ARGS--cache-to=type=local,dest=/tmp/docker-cache/base,mode=max"
-    fi
-    if docker buildx build --load \
+    log_file="/tmp/build_base_$(date +%s%N).log"
+    if docker buildx build --pull=false --load \
         -t "$BASE_IMAGE" \
-        $BASE_CACHE_ARGS \
+        $(if [ "$USE_CACHE" = true ]; then \
+            if [ -d "/tmp/docker-cache/base" ]; then \
+                echo "--cache-from=type=local,src=/tmp/docker-cache/base"; \
+            fi; \
+            echo "--cache-to=type=local,dest=/tmp/docker-cache/base,mode=max"; \
+        fi) \
         --build-arg BUILD_DATE="$BUILD_DATE" \
         --build-arg BUILD_TAG="$TAG" \
         -f deployment/Dockerfile.base \
-        .; then
+        . > "$log_file" 2>&1; then
         echo "✅ base 镜像构建成功"
         echo "  🏷️  添加 latest 标签..."
         docker tag "$BASE_IMAGE" "${REGISTRY}/base:latest" 2>/dev/null || true
@@ -183,23 +181,22 @@ if [ "$SKIP_BASE" = false ]; then
     fi
 
     echo "  🔧 构建 ml-base 镜像..."
-    ML_CACHE_ARGS=""
-    if [ "$USE_CACHE" = true ]; then
-        if [ -d "/tmp/docker-cache/ml-base" ]; then
-            ML_CACHE_ARGS="--cache-from=type=local,src=/tmp/docker-cache/ml-base "
-        fi
-        ML_CACHE_ARGS="$ML_CACHE_ARGS--cache-to=type=local,dest=/tmp/docker-cache/ml-base,mode=max"
-    fi
     BASE_NAME="${BASE_IMAGE%%:*}"
-    if docker buildx build --load \
+    log_file="/tmp/build_ml-base_$(date +%s%N).log"
+    if docker buildx build --pull=false --load \
         -t "$ML_BASE_IMAGE" \
-        $ML_CACHE_ARGS \
+        $(if [ "$USE_CACHE" = true ]; then \
+            if [ -d "/tmp/docker-cache/ml-base" ]; then \
+                echo "--cache-from=type=local,src=/tmp/docker-cache/ml-base"; \
+            fi; \
+            echo "--cache-to=type=local,dest=/tmp/docker-cache/ml-base,mode=max"; \
+        fi) \
         --build-arg BUILD_DATE="$BUILD_DATE" \
         --build-arg BUILD_TAG="$TAG" \
         --build-arg BASE_IMAGE="$BASE_IMAGE" \
         --build-context "$BASE_NAME=docker-image://$BASE_IMAGE" \
         -f deployment/Dockerfile.ml-base \
-        .; then
+        . > "$log_file" 2>&1; then
         echo "✅ ml-base 镜像构建成功"
         echo "  🏷️  添加 latest 标签..."
         docker tag "$ML_BASE_IMAGE" "${REGISTRY}/ml-base:latest" 2>/dev/null || true

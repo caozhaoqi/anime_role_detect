@@ -70,9 +70,9 @@ zipp==3.23.1
 
 # 机器学习依赖 (包含 requirements-ml.txt)
 numpy==1.26.4
-sentence-transformers==3.0.1
-accelerate==0.34.2
-mlflow==2.16.2
+sentence-transformers==2.2.2
+accelerate==0.24.1
+mlflow==2.10.2
 
 # PyTorch (CPU版本，与 Dockerfile.ml-base 一致)
 torch==2.1.0+cpu
@@ -86,7 +86,7 @@ opencv-python-headless==4.13.0.92
 easyocr==1.7.2
 
 # 深度学习框架
-transformers==4.57.6
+transformers==4.34.0
 ultralytics==8.4.60
 ultralytics-thop==2.0.19
 timm==1.0.27

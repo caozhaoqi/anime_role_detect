@@ -80,7 +80,7 @@ spec:
     app: api-service
   ports:
   - name: http
-    port: 8000
+    port: 8001
     targetPort: 8001
   type: ClusterIP
 ---
@@ -118,7 +118,8 @@ spec:
   - name: http
     port: 8080
     targetPort: 8080
-  type: ClusterIP
+    nodePort: 30080
+  type: NodePort
 ---
 apiVersion: v1
 kind: Service
@@ -152,7 +153,7 @@ spec:
     app: search-service
   ports:
   - name: http
-    port: 8000
+    port: 8003
     targetPort: 8003
   type: ClusterIP
 ---
@@ -172,7 +173,8 @@ spec:
   - name: http
     port: 3000
     targetPort: 3000
-  type: ClusterIP
+    nodePort: 30000
+  type: NodePort
 ---
 apiVersion: v1
 kind: Service
@@ -191,3 +193,45 @@ spec:
     port: 8000
     targetPort: 8000
   type: ClusterIP
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: elasticsearch
+  namespace: anime-role-detect
+  labels:
+    app: elasticsearch
+    app.kubernetes.io/name: elasticsearch
+    app.kubernetes.io/part-of: ardc-monitoring
+spec:
+  selector:
+    app: elasticsearch
+  ports:
+  - name: http
+    port: 9200
+    targetPort: 9200
+  - name: transport
+    port: 9300
+    targetPort: 9300
+  type: ClusterIP
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kibana
+  namespace: anime-role-detect
+  labels:
+    app: kibana
+    app.kubernetes.io/name: kibana
+    app.kubernetes.io/part-of: ardc-monitoring
+spec:
+  selector:
+    app: kibana
+  ports:
+  - name: http
+    port: 5601
+    targetPort: 5601
+    nodePort: 30561
+  type: NodePort

@@ -332,6 +332,57 @@ deploy_infra_only() {
 }
 
 # ======================== Phase 5: 状态检查 ========================
+wait_for_pods() {
+    export KUBECONFIG=${KUBECONFIG:-/etc/rancher/k3s/k3s.yaml}
+    
+    info "等待关键服务 Pod 就绪..."
+    
+    local services=(frontend api-gateway api-service)
+    local timeout=300
+    local interval=5
+    local elapsed=0
+    
+    while [[ $elapsed -lt $timeout ]]; do
+        local ready_count=0
+        local total_count=${#services[@]}
+        
+        for svc in "${services[@]}"; do
+            local pod_status=$(kubectl -n anime-role-detect get pods -l app=${svc} -o jsonpath='{.items[0].status.conditions[?(@.type=="Ready")].status}' 2>/dev/null)
+            if [[ "$pod_status" == "True" ]]; then
+                ((ready_count++))
+            fi
+        done
+        
+        if [[ $ready_count -eq $total_count ]]; then
+            ok "所有关键服务就绪 (${ready_count}/${total_count})"
+            return
+        fi
+        
+        info "等待中... 就绪: ${ready_count}/${total_count} (已等待 ${elapsed}s)"
+        sleep $interval
+        elapsed=$((elapsed + interval))
+    done
+    
+    warn "等待超时 (${timeout}s)，部分服务可能未就绪"
+}
+
+get_node_ip() {
+    export KUBECONFIG=${KUBECONFIG:-/etc/rancher/k3s/k3s.yaml}
+    
+    local node_ip
+    node_ip=$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="ExternalIP")].address}' 2>/dev/null)
+    
+    if [[ -z "$node_ip" ]]; then
+        node_ip=$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}' 2>/dev/null)
+    fi
+    
+    if [[ -z "$node_ip" ]]; then
+        node_ip=$(hostname -I | awk '{print $1}')
+    fi
+    
+    echo "$node_ip"
+}
+
 show_status() {
     export KUBECONFIG=${KUBECONFIG:-/etc/rancher/k3s/k3s.yaml}
 
@@ -353,22 +404,31 @@ show_status() {
     kubectl -n anime-role-detect get pvc 2>/dev/null || echo "  (无资源或命名空间未创建)"
     echo ""
 
-    local gateway_ip
-    gateway_ip=$(kubectl -n anime-role-detect get svc api-gateway -o jsonpath='{.spec.clusterIP}' 2>/dev/null || echo "N/A")
-    local frontend_ip
-    frontend_ip=$(kubectl -n anime-role-detect get svc frontend -o jsonpath='{.spec.clusterIP}' 2>/dev/null || echo "N/A")
+    local node_ip=$(get_node_ip)
+    local frontend_port="30000"
+    local gateway_port="30080"
 
     echo "========================================="
-    echo "  访问地址"
+    echo "  🌐 直接访问地址（浏览器打开）"
     echo "========================================="
-    echo "  API Gateway:  http://${gateway_ip}:8080"
-    echo "  Frontend:     http://${frontend_ip}:3000"
     echo ""
-    echo "  端口转发到本机（推荐）:"
-    echo "    kubectl -n anime-role-detect port-forward svc/api-gateway 8080:8080 &"
-    echo "    kubectl -n anime-role-detect port-forward svc/frontend 3000:3000 &"
+    echo "  🎨 前端应用:"
+    echo "     http://${node_ip}:${frontend_port}"
     echo ""
-    echo "  然后访问: http://localhost:3000"
+    echo "  🔌 API 网关:"
+    echo "     http://${node_ip}:${gateway_port}"
+    echo "     http://${node_ip}:${gateway_port}/docs    (API 文档)"
+    echo "     http://${node_ip}:${gateway_port}/redoc   (API 文档)"
+    echo ""
+    echo "  📝 访问说明:"
+    echo "     1. 确保服务器 ${node_ip} 的 ${frontend_port} 和 ${gateway_port} 端口已开放"
+    echo "     2. 在浏览器中直接访问上述地址即可"
+    echo "     3. 如果无法访问，请检查防火墙规则"
+    echo ""
+    echo "  🔧 常用命令:"
+    echo "     kubectl -n anime-role-detect get pods          # 查看 Pod 状态"
+    echo "     kubectl -n anime-role-detect logs <pod-name>   # 查看日志"
+    echo "     kubectl -n anime-role-detect port-forward svc/frontend 3000:3000 &  # 端口转发"
     echo "========================================="
 }
 
@@ -409,6 +469,5 @@ deploy_k8s
 echo ""
 
 echo "--- Phase 5: 状态检查 ---"
-info "等待 Pod 启动 (30s)..."
-sleep 30
+wait_for_pods
 show_status
