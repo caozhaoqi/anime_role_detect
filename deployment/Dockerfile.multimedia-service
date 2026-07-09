@@ -20,6 +20,6 @@ COPY src/ ./src/
 
 RUN mkdir -p logs run
 
-EXPOSE 8000
+EXPOSE 8002
 
 CMD ["python", "src/services/multimedia_service/multimedia_service_app.py"]

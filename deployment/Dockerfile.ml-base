@@ -20,6 +20,7 @@ RUN sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list.d/debia
     && apt-get update && apt-get install -y --no-install-recommends \
        build-essential \
        libopenblas-dev \
+       git \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 

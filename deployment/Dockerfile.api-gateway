@@ -7,6 +7,6 @@ COPY src/ ./src/
 
 RUN mkdir -p logs run
 
-EXPOSE 8000
+EXPOSE 8080
 
 CMD ["python", "src/services/api_gateway/app.py"]
