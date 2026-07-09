@@ -29,7 +29,6 @@ class ServiceHealthChecker:
 
     def __init__(self):
         self.supervisor_config = project_root / "supervisord.conf"
-        # .venv/bin/supervisorctl
         self.supervisorctl = project_root / ".venv" / "bin" / "supervisorctl"
         self.services = {
             "api-service": {"port": 8001, "endpoint": "/api/health", "timeout": 5},
@@ -45,6 +44,17 @@ class ServiceHealthChecker:
             "cpu_percent": 90,     # CPU使用率阈值
             "response_time": 10,   # 响应时间阈值（秒）
         }
+        self.is_kubernetes = self._detect_kubernetes()
+
+    def _detect_kubernetes(self) -> bool:
+        """检测是否在 Kubernetes 环境中运行"""
+        return os.path.exists("/var/run/secrets/kubernetes.io/serviceaccount/token")
+
+    def _get_service_host(self, service_name: str) -> str:
+        """获取服务主机名（K8s环境使用服务名，本地使用localhost）"""
+        if self.is_kubernetes:
+            return f"{service_name}.anime-role-detect.svc.cluster.local"
+        return "localhost"
 
     def check_service_status(self, service_name: str) -> Dict[str, any]:
         """检查单个服务的状态"""
@@ -60,30 +70,27 @@ class ServiceHealthChecker:
         }
 
         try:
-            # 1. 检查Supervisor进程状态（仅非Windows平台）
-            if sys.platform != "win32":
-                supervisor_status = self._get_supervisor_status(service_name)
-                if supervisor_status != "RUNNING":
-                    result["status"] = "stopped"
-                    result["error"] = f"Supervisor status: {supervisor_status}"
+            if not self.is_kubernetes:
+                if sys.platform != "win32":
+                    supervisor_status = self._get_supervisor_status(service_name)
+                    if supervisor_status != "RUNNING":
+                        result["status"] = "stopped"
+                        result["error"] = f"Supervisor status: {supervisor_status}"
+                        return result
+
+                port_info = self._check_port(service_name)
+                if not port_info:
+                    result["status"] = "port_not_listening"
+                    result["error"] = f"Port {self.services[service_name]['port']} not listening"
                     return result
 
-            # 2. 检查端口是否监听
-            port_info = self._check_port(service_name)
-            if not port_info:
-                result["status"] = "port_not_listening"
-                result["error"] = f"Port {self.services[service_name]['port']} not listening"
-                return result
+                result["port"] = self.services[service_name]["port"]
 
-            result["port"] = self.services[service_name]["port"]
+                process_info = self._get_process_info(service_name)
+                if process_info:
+                    result["memory_percent"] = process_info["memory_percent"]
+                    result["cpu_percent"] = process_info["cpu_percent"]
 
-            # 3. 获取进程资源使用情况
-            process_info = self._get_process_info(service_name)
-            if process_info:
-                result["memory_percent"] = process_info["memory_percent"]
-                result["cpu_percent"] = process_info["cpu_percent"]
-
-            # 4. 检查HTTP健康端点
             health_check = self._check_http_endpoint(service_name)
             if not health_check["success"]:
                 result["status"] = "health_check_failed"
@@ -92,6 +99,8 @@ class ServiceHealthChecker:
 
             result["status"] = "healthy"
             result["response_time"] = health_check["response_time"]
+            if not self.is_kubernetes:
+                result["port"] = self.services[service_name]["port"]
 
         except Exception as e:
             result["status"] = "error"
@@ -171,7 +180,8 @@ class ServiceHealthChecker:
 
         try:
             config = self.services[service_name]
-            url = f"http://localhost:{config['port']}{config['endpoint']}"
+            host = self._get_service_host(service_name)
+            url = f"http://{host}:{config['port']}{config['endpoint']}"
 
             start_time = time.time()
             response = requests.get(url, timeout=config["timeout"])
@@ -202,7 +212,10 @@ class ServiceHealthChecker:
 
     def restart_service(self, service_name: str) -> bool:
         """重启服务"""
-        # Windows平台不支持supervisorctl，返回False
+        if self.is_kubernetes:
+            logger.info(f"Kubernetes环境下，服务 {service_name} 将由K8s自动重启，跳过手动重启")
+            return False
+
         if sys.platform == "win32":
             logger.warning(f"Windows平台不支持通过supervisor重启服务: {service_name}")
             return False

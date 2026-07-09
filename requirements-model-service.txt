@@ -22,8 +22,8 @@ numpy==1.26.4
 # OCR
 easyocr==1.7.2
 
-# 标签生成 / CLIP
-transformers==4.57.6
+# 标签生成 / CLIP（与 torch==2.1.0+cpu 兼容）
+transformers==4.34.0
 
 # 数据处理
 pandas==2.3.3
