@@ -9,6 +9,6 @@ COPY supervisord.conf .
 
 RUN mkdir -p logs run data/final_dataset packs
 
-EXPOSE 8000
+EXPOSE 8001
 
 CMD ["python", "src/api/app.py"]

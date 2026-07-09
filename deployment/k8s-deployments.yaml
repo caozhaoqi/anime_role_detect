@@ -331,7 +331,7 @@ spec:
         image: ardc/api-service:latest
         imagePullPolicy: IfNotPresent
         ports:
-        - containerPort: 8000
+        - containerPort: 8001
           name: http
         envFrom:
         - configMapRef:
@@ -348,14 +348,14 @@ spec:
         livenessProbe:
           httpGet:
             path: /health
-            port: 8000
+            port: 8001
           initialDelaySeconds: 20
           periodSeconds: 10
           failureThreshold: 3
         readinessProbe:
           httpGet:
             path: /health
-            port: 8000
+            port: 8001
           initialDelaySeconds: 10
           periodSeconds: 5
           failureThreshold: 3
@@ -404,7 +404,7 @@ spec:
         image: ardc/api-gateway:latest
         imagePullPolicy: IfNotPresent
         ports:
-        - containerPort: 8000
+        - containerPort: 8080
           name: http
         envFrom:
         - configMapRef:
@@ -421,14 +421,14 @@ spec:
         livenessProbe:
           httpGet:
             path: /health
-            port: 8000
+            port: 8080
           initialDelaySeconds: 15
           periodSeconds: 10
           failureThreshold: 3
         readinessProbe:
           httpGet:
             path: /health
-            port: 8000
+            port: 8080
           initialDelaySeconds: 10
           periodSeconds: 5
           failureThreshold: 3
@@ -526,7 +526,7 @@ spec:
         image: ardc/multimedia-service:latest
         imagePullPolicy: IfNotPresent
         ports:
-        - containerPort: 8000
+        - containerPort: 8002
           name: http
         envFrom:
         - configMapRef:
@@ -543,14 +543,14 @@ spec:
         livenessProbe:
           httpGet:
             path: /health
-            port: 8000
+            port: 8002
           initialDelaySeconds: 20
           periodSeconds: 10
           failureThreshold: 3
         readinessProbe:
           httpGet:
             path: /health
-            port: 8000
+            port: 8002
           initialDelaySeconds: 10
           periodSeconds: 5
           failureThreshold: 3
@@ -583,7 +583,7 @@ spec:
         image: ardc/search-service:latest
         imagePullPolicy: IfNotPresent
         ports:
-        - containerPort: 8000
+        - containerPort: 8003
           name: http
         envFrom:
         - configMapRef:
@@ -600,14 +600,14 @@ spec:
         livenessProbe:
           httpGet:
             path: /health
-            port: 8000
+            port: 8003
           initialDelaySeconds: 20
           periodSeconds: 10
           failureThreshold: 3
         readinessProbe:
           httpGet:
             path: /health
-            port: 8000
+            port: 8003
           initialDelaySeconds: 10
           periodSeconds: 5
           failureThreshold: 3
