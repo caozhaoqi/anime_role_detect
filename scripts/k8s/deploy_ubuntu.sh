@@ -39,6 +39,9 @@ EXPORT_DIR="/tmp/docker-images-export"
 OSS_BUCKET="colllect-zip"
 OSS_ENDPOINT="oss-cn-wulanchabu.aliyuncs.com"
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
+
 while [[ $# -gt 0 ]]; do
     case $1 in
         --tag=*)        TAG="${1#*=}"; shift ;;
@@ -248,21 +251,30 @@ load_images() {
     info "加载镜像到容器运行时..."
     local existing=0
     local retagged=0
+    local imported=0
+
+    local old_errexit=$(set +o | grep errexit | awk '{print $2}')
+    set +e
 
     for svc in "${SERVICES[@]}"; do
         local image_name="${REGISTRY}/${svc}:${TAG}"
         local latest_image="${REGISTRY}/${svc}:latest"
 
-        local tag_count=$(docker images "${REGISTRY}/${svc}" --format "{{.Tag}}" | grep -c "^${TAG}$" || true)
-        local latest_count=$(docker images "${REGISTRY}/${svc}" --format "{{.Tag}}" | grep -c "^latest$" || true)
+        local tag_count=$(docker images "${REGISTRY}/${svc}" --format "{{.Tag}}" 2>/dev/null | grep -c "^${TAG}$" || echo 0)
+        local latest_count=$(docker images "${REGISTRY}/${svc}" --format "{{.Tag}}" 2>/dev/null | grep -c "^latest$" || echo 0)
 
         if [[ $tag_count -gt 0 ]]; then
-            info "  镜像已存在: ${image_name}"
+            info "  Docker 镜像已存在: ${image_name}"
             ((existing++))
             if [[ $latest_count -eq 0 ]]; then
                 info "  添加 latest 标签..."
                 docker tag "$image_name" "$latest_image" 2>/dev/null || true
             fi
+            
+            info "  导入到 containerd..."
+            docker save "$image_name" | ctr -n k8s.io images import -
+            docker save "$latest_image" | ctr -n k8s.io images import - 2>/dev/null || true
+            ((imported++))
             continue
         fi
 
@@ -270,23 +282,37 @@ load_images() {
             info "  发现 latest 镜像，重新打 ${TAG} 标签: ${latest_image}"
             docker tag "$latest_image" "$image_name" 2>/dev/null || true
             ((retagged++))
+            
+            info "  导入到 containerd..."
+            docker save "$image_name" | ctr -n k8s.io images import -
+            docker save "$latest_image" | ctr -n k8s.io images import - 2>/dev/null || true
+            ((imported++))
             continue
         fi
 
         warn "  镜像 ${image_name} 不存在，跳过"
     done
 
-    ok "共 ${existing} 个镜像已存在，${retagged} 个重新打标签"
+    if [[ "$old_errexit" == "on" ]]; then
+        set -e
+    fi
+
+    ok "共 ${existing} 个镜像已存在，${retagged} 个重新打标签，${imported} 个导入到 containerd"
 }
 
 # ======================== Phase 4: 部署 K8s ========================
 deploy_k8s() {
-    local manifest_dir="${DEPLOY_DIR}/deployment"
+    local manifest_dir="${PROJECT_DIR}/deployment"
 
     if [[ ! -d "$manifest_dir" ]]; then
-        err "部署文件目录不存在: $manifest_dir\n  请先将项目代码复制到 $DEPLOY_DIR"
+        manifest_dir="${DEPLOY_DIR}/deployment"
     fi
 
+    if [[ ! -d "$manifest_dir" ]]; then
+        err "部署文件目录不存在: $manifest_dir\n  请先将项目代码复制到 $DEPLOY_DIR 或在项目目录下运行脚本"
+    fi
+
+    info "使用部署文件目录: $manifest_dir"
     export KUBECONFIG=${KUBECONFIG:-/etc/rancher/k3s/k3s.yaml}
 
     info "创建 Namespace..."
