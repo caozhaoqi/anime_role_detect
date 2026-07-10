@@ -154,7 +154,19 @@ _build_image() {
 export -f _build_image
 export REGISTRY TAG BUILD_DATE DO_PUSH USE_CACHE
 
-if [ "$SKIP_BASE" = false ]; then
+check_base_images() {
+    local base_exists=$(docker images "$BASE_IMAGE" --format "{{.ID}}" 2>/dev/null | head -1)
+    local ml_base_exists=$(docker images "$ML_BASE_IMAGE" --format "{{.ID}}" 2>/dev/null | head -1)
+    
+    if [ -z "$base_exists" ] || [ -z "$ml_base_exists" ]; then
+        echo "⚠️  基础镜像不存在，自动回退到构建模式..."
+        return 1
+    fi
+    echo "ℹ️  基础镜像已存在，跳过构建"
+    return 0
+}
+
+if [ "$SKIP_BASE" = false ] || ! check_base_images; then
     echo ""
     echo "📦 Phase 1: 构建基础镜像..."
 
@@ -177,6 +189,8 @@ if [ "$SKIP_BASE" = false ]; then
         docker tag "$BASE_IMAGE" "${REGISTRY}/base:latest" 2>/dev/null || true
     else
         echo "❌ base 镜像构建失败"
+        echo "📜 详细日志:"
+        cat "$log_file"
         exit 1
     fi
 
