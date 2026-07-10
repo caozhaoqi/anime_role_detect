@@ -95,6 +95,11 @@ async def shutdown_event():
     logger.info("API网关服务已关闭")
 
 
+@app.get("/health")
+async def health_check():
+    return {"status": "healthy", "service": "api-gateway"}
+
+
 # --- 文档聚合核心逻辑 ---
 
 

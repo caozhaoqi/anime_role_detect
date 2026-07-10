@@ -263,21 +263,21 @@ spec:
         # 启动探针：模型加载可能需要 120 秒以上
         startupProbe:
           httpGet:
-            path: /health
+            path: /api/health
             port: 8000
           initialDelaySeconds: 30
           periodSeconds: 10
           failureThreshold: 12   # 允许最多 120s (30 + 12*10)
         livenessProbe:
           httpGet:
-            path: /health
+            path: /api/health
             port: 8000
           initialDelaySeconds: 30
           periodSeconds: 15
           failureThreshold: 5
         readinessProbe:
           httpGet:
-            path: /health
+            path: /api/health
             port: 8000
           initialDelaySeconds: 10
           periodSeconds: 10
@@ -349,14 +349,14 @@ spec:
             memory: "2Gi"
         livenessProbe:
           httpGet:
-            path: /health
+            path: /api/health
             port: 8001
           initialDelaySeconds: 20
           periodSeconds: 10
           failureThreshold: 3
         readinessProbe:
           httpGet:
-            path: /health
+            path: /api/health
             port: 8001
           initialDelaySeconds: 10
           periodSeconds: 5
@@ -601,14 +601,14 @@ spec:
             memory: "2Gi"
         livenessProbe:
           httpGet:
-            path: /health
+            path: /api/health
             port: 8003
           initialDelaySeconds: 20
           periodSeconds: 10
           failureThreshold: 3
         readinessProbe:
           httpGet:
-            path: /health
+            path: /api/health
             port: 8003
           initialDelaySeconds: 10
           periodSeconds: 5
@@ -1009,7 +1009,7 @@ spec:
     spec:
       containers:
       - name: elasticsearch
-        image: docker.elastic.co/elasticsearch/elasticsearch:8.15.0
+        image: elasticsearch:8.15.0
         ports:
         - containerPort: 9200
           name: http
@@ -1074,7 +1074,7 @@ spec:
     spec:
       containers:
       - name: kibana
-        image: docker.elastic.co/kibana/kibana:8.15.0
+        image: kibana:8.15.0
         ports:
         - containerPort: 5601
           name: http

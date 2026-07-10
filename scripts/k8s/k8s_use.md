@@ -13,3 +13,9 @@ sudo kubectl -n anime-role-detect get pods -o wide
 ```sh
 sudo kubectl -n anime-role-detect logs <pod-name>
 ```
+
+- get svc
+
+```sh
+kubectl -n anime-role-detect get svc
+```
