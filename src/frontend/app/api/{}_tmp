@@ -1,0 +1,577 @@
+import { NextRequest, NextResponse } from 'next/server';
+export const dynamic = "force-dynamic";
+
+export async function POST(request: NextRequest) {
+  console.log('前端API路由接收到视频识别POST请求');
+  try {
+    const formData = await request.formData();
+    const file = formData.get('file') as File;
+    const frameInterval = formData.get('frame_interval') as string;
+    const confidenceThreshold = formData.get('confidence_threshold') as string;
+
+    console.log('请求参数:', {
+      hasFile: !!file,
+      frameInterval: frameInterval,
+      confidenceThreshold: confidenceThreshold
+    });
+
+    if (!file) {
+      console.error('没有提供文件');
+      return NextResponse.json({ error: 'No file provided' }, { status: 400 });
+    }
+
+    const backendUrl = 'http://127.0.0.1:8080/api/video/recognize';
+    console.log('准备转发请求到后端API:', backendUrl);
+
+    const backendFormData = new FormData();
+    backendFormData.append('file', file);
+    if (frameInterval) {
+      backendFormData.append('frame_interval', frameInterval);
+    }
+    if (confidenceThreshold) {
+      backendFormData.append('confidence_threshold', confidenceThreshold);
+    }
+
+    const authHeader = request.headers.get('authorization');
+    const headers: HeadersInit = {};
+    if (authHeader) {
+      headers['Authorization'] = authHeader;
+    }
+
+    console.log('开始发送请求到后端API...');
+    try {
+      const response = await fetch(backendUrl, {
+        method: 'POST',
+        body: backendFormData,
+        headers: headers,
+      });
+      console.log('后端API响应状态:', response.status);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('后端API返回错误:', response.status, errorText);
+        return NextResponse.json({ error: 'Backend API error' }, { status: response.status });
+      }
+
+      const result = await response.json();
+      console.log('后端API返回结果:', result);
+
+      return NextResponse.json(result, { status: 200 });
+    } catch (fetchError) {
+      console.error('发送请求到后端API失败:', fetchError);
+      return NextResponse.json({ error: 'Failed to connect to backend API' }, { status: 500 });
+    }
+  } catch (error) {
+    console.error('视频识别失败:', error);
+    return NextResponse.json({ error: 'Video recognition failed' }, { status: 500 });
+  }
+}
+import { NextRequest, NextResponse } from 'next/server';
+export const dynamic = "force-dynamic";
+
+export async function POST(request: NextRequest) {
+  console.log('前端API路由接收到多角色检测POST请求');
+  try {
+    console.log('开始处理多角色检测请求...');
+    const formData = await request.formData();
+    console.log('FormData解析完成');
+    const file = formData.get('file') as File;
+    const useCoreML = formData.get('use_coreml') as string;
+    const useModel = formData.get('use_model') as string;
+    const useAttributes = formData.get('use_attributes') as string;
+    const modelName = formData.get('model_name') as string;
+    const cacheBypass = formData.get('cache_bypass') as string;
+
+    console.log('请求参数:', {
+      hasFile: !!file,
+      useCoreML: useCoreML,
+      useModel: useModel,
+      useAttributes: useAttributes,
+      modelName: modelName,
+      cacheBypass: cacheBypass
+    });
+
+    if (!file) {
+      console.error('没有提供文件');
+      return NextResponse.json({ error: 'No file provided' }, { status: 400 });
+    }
+
+    console.log('收到多角色检测请求:', {
+      fileName: file.name,
+      fileSize: file.size,
+      useCoreML: useCoreML,
+      useModel: useModel,
+      useAttributes: useAttributes,
+      modelName: modelName,
+      cacheBypass: cacheBypass
+    });
+
+    const backendUrl = 'http://127.0.0.1:8080/api/classify/multi-role';
+    console.log('准备转发请求到后端API:', backendUrl);
+    const backendFormData = new FormData();
+    backendFormData.append('file', file);
+
+    if (useCoreML === 'true') {
+      backendFormData.append('use_coreml', 'true');
+    }
+
+    if (useModel === 'true') {
+      backendFormData.append('use_model', 'true');
+    }
+
+    if (useAttributes === 'true') {
+      backendFormData.append('use_attributes', 'true');
+    }
+
+    if (modelName) {
+      backendFormData.append('model_name', modelName);
+    }
+
+    if (cacheBypass === 'true') {
+      backendFormData.append('cache_bypass', 'true');
+    }
+
+    console.log('开始发送请求到后端API...');
+    try {
+      // 提取并转发Authorization头
+      const authHeader = request.headers.get('authorization');
+      console.log('接收到的Authorization头:', authHeader);
+      
+      const headers: HeadersInit = {};
+      if (authHeader) {
+        headers['Authorization'] = authHeader;
+        console.log('转发Authorization头到后端');
+      }
+      
+      const response = await fetch(backendUrl, {
+        method: 'POST',
+        body: backendFormData,
+        headers: headers,
+      });
+      console.log('后端API响应状态:', response.status);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('后端API返回错误:', response.status, errorText);
+        return NextResponse.json({ error: 'Backend API error' }, { status: response.status });
+      }
+
+      const result = await response.json();
+      console.log('后端API返回结果:', result);
+
+      // 将后端响应包装成前端期望的格式
+      const wrappedResult = {
+        data: result
+      };
+
+      return NextResponse.json(wrappedResult, { status: 200 });
+    } catch (fetchError) {
+      console.error('发送请求到后端API失败:', fetchError);
+      return NextResponse.json({ error: 'Failed to connect to backend API' }, { status: 500 });
+    }
+  } catch (error) {
+    console.error('多角色检测失败:', error);
+    return NextResponse.json({ error: 'Multi-role classification failed' }, { status: 500 });
+  }
+}
+import { NextRequest, NextResponse } from 'next/server';
+export const dynamic = "force-dynamic";
+
+export async function POST(request: NextRequest) {
+  console.log('YOLO多目标检测API路由接收到POST请求');
+  try {
+    const formData = await request.formData();
+    const file = formData.get('file') as File;
+    const yoloModel = formData.get('yolo_model') as string || 'yolov8n.pt';
+    const personConfThreshold = parseFloat(formData.get('person_conf_threshold') as string) || 0.5;
+    const maxDetections = parseInt(formData.get('max_detections') as string) || 10;
+
+    if (!file) {
+      console.error('没有提供文件');
+      return NextResponse.json({ error: 'No file provided' }, { status: 400 });
+    }
+
+    console.log('YOLO检测请求:', {
+      fileName: file.name,
+      fileSize: file.size,
+      yoloModel,
+      personConfThreshold,
+      maxDetections,
+    });
+
+    const backendUrl = 'http://127.0.0.1:8080/api/model/detect-yolo';
+    console.log('转发请求到后端API:', backendUrl);
+
+    const backendFormData = new FormData();
+    backendFormData.append('file', file);
+    backendFormData.append('yolo_model', yoloModel);
+    backendFormData.append('person_conf_threshold', personConfThreshold.toString());
+    backendFormData.append('max_detections', maxDetections.toString());
+
+    const authHeader = request.headers.get('authorization');
+    const headers: HeadersInit = {};
+    if (authHeader) {
+      headers['Authorization'] = authHeader;
+    }
+
+    const response = await fetch(backendUrl, {
+      method: 'POST',
+      body: backendFormData,
+      headers: headers,
+    });
+
+    console.log('后端API响应状态:', response.status);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('后端API返回错误:', response.status, errorText);
+      return NextResponse.json(
+        { error: 'YOLO detection failed', details: errorText },
+        { status: response.status }
+      );
+    }
+
+    const result = await response.json();
+    console.log('YOLO检测结果:', result);
+
+    return NextResponse.json({
+      data: result,
+      success: true,
+    }, { status: 200 });
+
+  } catch (error) {
+    console.error('YOLO多目标检测失败:', error);
+    return NextResponse.json(
+      { error: 'YOLO multi-target detection failed', details: String(error) },
+      { status: 500 }
+    );
+  }
+}
+import { NextRequest, NextResponse } from 'next/server';
+export const dynamic = "force-dynamic";
+
+export async function POST(request: NextRequest) {
+  console.log('前端API路由接收到POST请求');
+  try {
+    console.log('开始处理请求...');
+    const formData = await request.formData();
+    console.log('FormData解析完成');
+    const file = formData.get('file') as File;
+
+    console.log('请求参数:', {
+      hasFile: !!file
+    });
+
+    if (!file) {
+      console.error('没有提供文件');
+      return NextResponse.json({ error: 'No file provided' }, { status: 400 });
+    }
+
+    console.log('收到分类请求:', {
+      fileName: file.name,
+      fileSize: file.size
+    });
+
+    const backendUrl = 'http://127.0.0.1:8080/api/classify';
+    console.log('准备转发请求到后端API:', backendUrl);
+
+    const backendFormData = new FormData();
+    backendFormData.append('file', file);
+    backendFormData.append('model_name', formData.get('model_name') as string || 'efficientnet_b3_loli_optimized_v2_20260529_133654');
+    backendFormData.append('use_coreml', formData.get('use_coreml') as string || 'false');
+    backendFormData.append('use_model', formData.get('use_model') as string || 'true');
+    backendFormData.append('use_attributes', formData.get('use_attributes') as string || 'true');
+    backendFormData.append('cache_bypass', 'false');
+    backendFormData.append('multi_role', formData.get('multi_role') as string || 'false');
+    backendFormData.append('use_deepdanbooru', formData.get('use_deepdanbooru') as string || 'true');
+
+    const authHeader = request.headers.get('authorization');
+    const headers: HeadersInit = {};
+    if (authHeader) {
+      headers['Authorization'] = authHeader;
+    }
+
+    console.log('开始发送请求到后端API...');
+    try {
+      const response = await fetch(backendUrl, {
+        method: 'POST',
+        body: backendFormData,
+        headers: headers,
+      });
+      console.log('后端API响应状态:', response.status);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('后端API返回错误:', response.status, errorText);
+        
+        // 处理认证失败
+        if (response.status === 401) {
+          let errorMessage = '认证失败，请登录';
+          try {
+            const errorData = JSON.parse(errorText);
+            errorMessage = errorData.detail || errorData.error || errorData.message || '认证失败，请登录';
+          } catch {
+            errorMessage = errorText || '认证失败，请登录';
+          }
+          return NextResponse.json({ 
+            error: errorMessage,
+            code: 'UNAUTHORIZED',
+            message: '请登录后再试'
+          }, { status: 401 });
+        }
+        
+        return NextResponse.json({ error: 'Backend API error' }, { status: response.status });
+      }
+
+      const result = await response.json();
+      console.log('后端API返回结果:', result);
+
+      // 将后端响应包装成前端期望的格式
+      const wrappedResult = {
+        data: result
+      };
+
+      return NextResponse.json(wrappedResult, { status: 200 });
+    } catch (fetchError) {
+      console.error('发送请求到后端API失败:', fetchError);
+      return NextResponse.json({ error: 'Failed to connect to backend API' }, { status: 500 });
+    }
+  } catch (error) {
+    console.error('分类失败:', error);
+    return NextResponse.json({ error: 'Classification failed' }, { status: 500 });
+  }
+}
+import { NextResponse } from 'next/server';
+export const dynamic = "force-dynamic";
+
+export async function GET() {
+  const config = {
+    ui: {
+      theme: "light",
+      enableDarkMode: true,
+      animateTransitions: true,
+      showPlatformInfo: true,
+      enableNotifications: true
+    },
+    features: {
+      enableModelSelection: true,
+      enableCoremlSwitch: true,
+      enableAttributesSwitch: true,
+      enableMultiRoleSwitch: true,
+      enableHistoryPanel: true,
+      enableDragDrop: true,
+      enableCopyDownload: true,
+      enableImagePreview: true
+    },
+    api: {
+      baseUrl: "/api",
+      timeout: 30000,
+      retryCount: 3,
+      retryDelay: 1000
+    },
+    messages: {
+      welcomeMessage: "你好！我是动漫角色识别助手。请上传一张动漫角色图片，我将尝试识别出这个角色。",
+      processingMessage: "正在识别...",
+      errorMessage: "识别过程中出现错误，请重试。",
+      successMessage: "识别完成！",
+      loginSuccessMessage: "登录成功！",
+      loginErrorMessage: "登录失败，请检查用户名和密码。"
+    },
+    validation: {
+      maxImageSize: 10 * 1024 * 1024,
+      allowedFormats: ["jpg", "jpeg", "png", "webp"],
+      minImageDimension: 64
+    },
+    appearance: {
+      primaryColor: "#3b82f6",
+      secondaryColor: "#6366f1",
+      accentColor: "#8b5cf6",
+      successColor: "#10b981",
+      warningColor: "#f59e0b",
+      errorColor: "#ef4444",
+      fontFamily: "system-ui, -apple-system, sans-serif",
+      borderRadius: "0.5rem",
+      shadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)"
+    },
+    layout: {
+      sidebarWidth: "16rem",
+      headerHeight: "4rem",
+      footerHeight: "3rem",
+      contentPadding: "1.5rem"
+    },
+    animations: {
+      duration: 300,
+      easing: "ease-in-out",
+      enableHoverEffects: true,
+      enableLoadingAnimations: true
+    }
+  };
+
+  return NextResponse.json(config);
+}
+import { NextRequest, NextResponse } from 'next/server';
+
+export const dynamic = 'force-dynamic';
+
+export async function GET(request: NextRequest) {
+  try {
+    const backendUrl = 'http://127.0.0.1:8001/api/models';
+    console.log('Fetching models from backend:', backendUrl);
+    
+    // Authorization
+    const authHeader = request.headers.get('authorization');
+    console.log('Authorization:', authHeader);
+    
+    const headers: HeadersInit = {};
+    if (authHeader) {
+      headers['Authorization'] = authHeader;
+      console.log('Authorization');
+    }
+    
+    const response = await fetch(backendUrl, {
+      headers: headers
+    });
+
+    console.log('Backend response status:', response.status);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Backend API error:', response.status, errorText);
+      return NextResponse.json({ success: false, models: [], default_model: "default" }, { status: 200 });
+    }
+
+    const result = await response.json();
+    console.log('Backend response:', result);
+
+    return NextResponse.json(result, { status: 200 });
+  } catch (error) {
+    console.error('Failed to load models:', error);
+    return NextResponse.json({ success: false, models: [], default_model: "default" }, { status: 200 });
+  }
+}
+import { NextRequest, NextResponse } from 'next/server';
+export const dynamic = "force-dynamic";
+
+export async function POST(request: NextRequest) {
+  console.log('前端API路由接收到图片搜索POST请求');
+  try {
+    const formData = await request.formData();
+    const file = formData.get('file') as File;
+    const topK = formData.get('top_k') as string;
+
+    console.log('请求参数:', {
+      hasFile: !!file,
+      topK: topK
+    });
+
+    if (!file) {
+      console.error('没有提供文件');
+      return NextResponse.json({ error: 'No file provided' }, { status: 400 });
+    }
+
+    const backendUrl = 'http://127.0.0.1:8080/api/search/image';
+    console.log('准备转发请求到后端API:', backendUrl);
+
+    const backendFormData = new FormData();
+    backendFormData.append('file', file);
+    if (topK) {
+      backendFormData.append('top_k', topK);
+    }
+
+    const authHeader = request.headers.get('authorization');
+    const headers: HeadersInit = {};
+    if (authHeader) {
+      headers['Authorization'] = authHeader;
+    }
+
+    console.log('开始发送请求到后端API...');
+    try {
+      const response = await fetch(backendUrl, {
+        method: 'POST',
+        body: backendFormData,
+        headers: headers,
+      });
+      console.log('后端API响应状态:', response.status);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('后端API返回错误:', response.status, errorText);
+        return NextResponse.json({ error: 'Backend API error' }, { status: response.status });
+      }
+
+      const result = await response.json();
+      console.log('后端API返回结果:', result);
+
+      return NextResponse.json(result, { status: 200 });
+    } catch (fetchError) {
+      console.error('发送请求到后端API失败:', fetchError);
+      return NextResponse.json({ error: 'Failed to connect to backend API' }, { status: 500 });
+    }
+  } catch (error) {
+    console.error('图片搜索失败:', error);
+    return NextResponse.json({ error: 'Image search failed' }, { status: 500 });
+  }
+}
+import { NextRequest, NextResponse } from 'next/server';
+export const dynamic = "force-dynamic";
+
+// 历史记录API路由
+// 用于处理历史记录相关的请求，转发到后端API
+
+export async function GET(request: NextRequest) {
+  try {
+    const authHeader = request.headers.get('authorization');
+    const headers: HeadersInit = {};
+    
+    if (authHeader) {
+      headers['Authorization'] = authHeader;
+    }
+    
+    const response = await fetch('http://127.0.0.1:8001/api/history', {
+      method: 'GET',
+      headers: headers,
+    });
+    
+    const data = await response.json();
+    return NextResponse.json(data);
+  } catch (error) {
+    console.error('获取历史记录失败:', error);
+    return NextResponse.json(
+      { success: false, message: '获取历史记录失败' },
+      { status: 500 }
+    );
+  }
+}
+
+
+import { NextRequest, NextResponse } from 'next/server';
+export const dynamic = "force-dynamic";
+
+// 修改点 1：将 params 的类型定义修改为 Promise<{ id: string }>
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    // 修改点 2：使用 await 异步解析出 id
+    const { id } = await params;
+    
+    const authHeader = request.headers.get('authorization');
+    const headers: HeadersInit = {};
+    
+    if (authHeader) {
+      headers['Authorization'] = authHeader;
+    }
+    
+    const response = await fetch(`http://127.0.0.1:8001/api/history/${id}`, {
+      method: 'DELETE',
+      headers: headers,
+    });
+    
+    const data = await response.json();
+    return NextResponse.json(data);
+  } catch (error) {
+    console.error('删除历史记录失败:', error);
+    return NextResponse.json(
+      { success: false, message: '删除历史记录失败' },
+      { status: 500 }
+    );
+  }
+}

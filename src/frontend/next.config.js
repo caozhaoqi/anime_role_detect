@@ -5,8 +5,7 @@ const nextConfig = {
     domains: ['localhost'],
     unoptimized: true,
   },
-  output: 'export', // 👈 启用静态 HTML 导出，运行 build 时会自动生成真实的 out/ 目录
-  // distDir: 'out',
+  output: 'standalone',
 }
 
 module.exports = nextConfig
