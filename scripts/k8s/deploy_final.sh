@@ -16,7 +16,7 @@ ok()    { echo -e "${GREEN}[OK]${NC} $1"; }
 warn()  { echo -e "${YELLOW}[WARN]${NC} $1"; }
 err()   { echo -e "${RED}[ERROR]${NC} $1"; exit 1; }
 
-TAG="c8cd26b"
+TAG=$(git rev-parse --short HEAD 2>/dev/null || date +%Y%m%d%H%M%S)
 REGISTRY="ardc"
 DEPLOY_DIR="/opt/ardc"
 EXPORT_DIR="/tmp/docker-images-export"
