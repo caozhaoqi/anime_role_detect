@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+export const dynamic = "force-dynamic";
 
 // 修改点 1：将 params 的类型定义修改为 Promise<{ id: string }>
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {

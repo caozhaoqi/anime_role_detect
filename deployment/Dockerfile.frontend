@@ -16,11 +16,14 @@ COPY src/frontend/ ./
 RUN npm run build
 
 ARG REGISTRY_MIRROR
-FROM ${REGISTRY_MIRROR}/library/nginx:alpine
+FROM ${REGISTRY_MIRROR}/library/node:20-slim
 
-COPY deployment/nginx.conf /etc/nginx/nginx.conf
-COPY --from=builder /app/out /usr/share/nginx/html
+WORKDIR /app
+
+COPY --from=builder /app/.next/standalone ./
+COPY --from=builder /app/.next/static ./.next/static
+COPY --from=builder /app/public ./public
 
 EXPOSE 3000
 
-CMD ["nginx", "-g", "daemon off;"]
+CMD ["node", "server.js"]

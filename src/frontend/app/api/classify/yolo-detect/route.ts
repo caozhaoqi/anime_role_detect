@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest) {
   console.log('YOLO多目标检测API路由接收到POST请求');

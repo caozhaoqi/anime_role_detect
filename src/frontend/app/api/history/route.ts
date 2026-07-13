@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+export const dynamic = "force-dynamic";
 
 // 历史记录API路由
 // 用于处理历史记录相关的请求，转发到后端API
