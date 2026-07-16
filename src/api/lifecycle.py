@@ -18,14 +18,17 @@ logger = get_logger("api.middleware")
 def setup_middlewares(app: FastAPI) -> None:
     """配置所有中间件"""
 
-    # 1. CORS
+    # 1. CORS - 生产环境应指定具体 origins，allow_credentials=True 与 origins=["*"] 不兼容
+    allowed_origins = os.environ.get("CORS_ALLOWED_ORIGINS", "").split(",") if os.environ.get("CORS_ALLOWED_ORIGINS") else ["*"]
+    allow_credentials = False if allowed_origins == ["*"] else True
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
-        allow_credentials=True,
+        allow_origins=allowed_origins,
+        allow_credentials=allow_credentials,
         allow_methods=["*"],
         allow_headers=["*"],
     )
+    logger.info(f"CORS配置: origins={allowed_origins}, allow_credentials={allow_credentials}")
 
     # 2. 监控中间件
     try:
@@ -100,31 +103,36 @@ def setup_routers(app: FastAPI) -> None:
 
 
 def setup_startup_handler(app: FastAPI) -> None:
-    """配置启动事件"""
+    """配置启动事件（已迁移到 lifespan，保留兼容）"""
     @app.on_event("startup")
     async def startup_event():
         """启动事件 - 初始化所有服务"""
-        services_to_init = [
-            ("认证服务", "src.services.support.auth_service", "init_auth_service"),
-            ("缓存管理器", "src.services.cache_service", "init_cache_manager"),
-            ("监控服务", "src.services.support.monitoring_service", "init_monitoring_service"),
-            ("消息队列服务", "src.services.messaging.message_queue_service", "init_message_queue_service"),
-            ("熔断器服务", "src.services.support.circuit_breaker_service", "init_circuit_breaker_service"),
-            ("模型版本服务", "src.services.model.model_version_service", "init_model_version_service"),
-            ("多模型服务", "src.services.model.multi_model_service", "init_multi_model_service"),
-            ("模型加载", "src.services.processor.model_loader", "load_models"),
-        ]
+        await _init_services()
 
-        for service_name, module_path, func_name in services_to_init:
-            try:
-                __import__(module_path, fromlist=[func_name])
-                module = sys.modules[module_path]
-                func = getattr(module, func_name)
-                func()
-                logger.info(f"{service_name}初始化完成")
-            except ImportError as e:
-                logger.warning(f"{service_name}导入失败（可选模块）: {e}")
-            except Exception as e:
-                logger.error(f"{service_name}初始化失败: {e}")
+    logger.info("启动事件处理程序配置完成（兼容模式，建议迁移到 lifespan）")
 
-    logger.info("启动事件处理程序配置完成")
+
+async def _init_services():
+    """初始化所有服务"""
+    services_to_init = [
+        ("认证服务", "src.services.support.auth_service", "init_auth_service"),
+        ("缓存管理器", "src.services.cache_service", "init_cache_manager"),
+        ("监控服务", "src.services.support.monitoring_service", "init_monitoring_service"),
+        ("消息队列服务", "src.services.messaging.message_queue_service", "init_message_queue_service"),
+        ("熔断器服务", "src.services.support.circuit_breaker_service", "init_circuit_breaker_service"),
+        ("模型版本服务", "src.services.model.model_version_service", "init_model_version_service"),
+        ("多模型服务", "src.services.model.multi_model_service", "init_multi_model_service"),
+        ("模型加载", "src.services.processor.model_loader", "load_models"),
+    ]
+
+    for service_name, module_path, func_name in services_to_init:
+        try:
+            __import__(module_path, fromlist=[func_name])
+            module = sys.modules[module_path]
+            func = getattr(module, func_name)
+            func()
+            logger.info(f"{service_name}初始化完成")
+        except ImportError as e:
+            logger.warning(f"{service_name}导入失败（可选模块）: {e}")
+        except Exception as e:
+            logger.error(f"{service_name}初始化失败: {e}")

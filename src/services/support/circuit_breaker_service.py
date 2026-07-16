@@ -182,10 +182,17 @@ class CircuitBreakerService:
         circuit_breaker = self.get_circuit_breaker(name)
 
         try:
-            return await circuit_breaker.execute(func, *args, **kwargs)
+            # CircuitBreaker.execute() 是同步函数，需要在线程池中执行以避免阻塞事件循环
+            import asyncio
+            result = await asyncio.to_thread(circuit_breaker.execute, func, *args, **kwargs)
+            return result
         except Exception as e:
             logger.warning(f"执行 {name} 失败，使用降级策略: {e}")
-            return await fallback(*args, **kwargs)
+            # 降级函数可能是同步或异步的
+            if asyncio.iscoroutinefunction(fallback):
+                return await fallback(*args, **kwargs)
+            else:
+                return await asyncio.to_thread(fallback, *args, **kwargs)
 
     def get_all_stats(self) -> Dict[str, Dict[str, Any]]:
         """获取所有熔断器的统计信息"""

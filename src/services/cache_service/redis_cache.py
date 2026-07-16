@@ -146,7 +146,7 @@ class RedisCache:
 
     def clear(self, pattern: str = "*") -> int:
         """
-        清除缓存
+        清除缓存（使用 SCAN 替代 KEYS，避免阻塞 Redis）
 
         Args:
             pattern: 键模式
@@ -158,10 +158,15 @@ class RedisCache:
             return 0
 
         try:
-            keys = self.redis_client.keys(pattern)
-            if keys:
-                return self.redis_client.delete(*keys)
-            return 0
+            deleted_count = 0
+            cursor = 0
+            while True:
+                cursor, keys = self.redis_client.scan(cursor, match=pattern, count=100)
+                if keys:
+                    deleted_count += self.redis_client.delete(*keys)
+                if cursor == 0:
+                    break
+            return deleted_count
         except Exception as e:
             logger.error(f"Redis清除失败: {e}")
             return 0

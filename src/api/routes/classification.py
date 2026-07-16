@@ -209,21 +209,13 @@ async def batch_classify_images(
 ):
     """批量分类图像中的角色"""
     try:
-        from src.services.cache_service import init_cache_manager
-        from src.services.support.monitoring_service import init_monitoring_service
-        from src.services.messaging.message_queue_service import init_message_queue_service
-        from src.services.support.circuit_breaker_service import init_circuit_breaker_service
-        from src.services.model.model_version_service import init_model_version_service
-        from src.services.model.multi_model_service import init_multi_model_service
-        from src.services.processor.model_loader import load_models
-
-        init_cache_manager()
-        init_monitoring_service()
-        init_message_queue_service()
-        init_circuit_breaker_service()
-        init_model_version_service()
-        init_multi_model_service()
-        load_models()
+        # 服务已在 startup 事件中初始化，无需每次请求重复初始化 7 个服务
+        # 仅检查模型是否就绪作为轻量级保活检查
+        from src.services.processor.model_loader import _model_cache
+        if not _model_cache:
+            logger.warning("模型缓存为空，尝试加载")
+            from src.services.processor.model_loader import load_models
+            load_models()
 
         max_concurrency = max(1, min(max_concurrency, 10))
         results = await process_batch_images(

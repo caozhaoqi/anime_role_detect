@@ -339,8 +339,8 @@ class FeatureExtraction:
 
         except Exception as e:
             logger.error(f"特征提取失败: {e}")
-            # 返回随机特征向量作为降级方案
-            return np.random.rand(512).astype(np.float32)
+            # 抛出异常而非返回随机向量，随机向量会导致误分类
+            raise RuntimeError(f"特征提取失败: {e}")
 
     def _extract_features_efficientnet(self, img):
         """使用EfficientNet-B3模型提取特征"""
