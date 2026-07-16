@@ -11,7 +11,7 @@ class ServiceConfig(BaseSettings):
     )
 
     API_HOST: str = "0.0.0.0"
-    API_PORT: int = 8000
+    API_PORT: int = 8001
 
     MODEL_SERVICE_HOST: str = "localhost"
     MODEL_SERVICE_PORT: int = 8000

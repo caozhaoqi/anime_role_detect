@@ -53,6 +53,40 @@ async def health_check():
     return {"status": "healthy", "service": "Model Service"}
 
 
+@router.get("/live")
+async def liveness_check():
+    """K8s liveness 端点 - 进程存活检查"""
+    return {"status": "alive"}
+
+
+@router.get("/ready")
+async def readiness_check():
+    """K8s readiness 端点 - 模型就绪检查"""
+    checks = {"model_service": True}
+    ready = True
+
+    # 检查预处理器是否已初始化
+    if preprocessor is None:
+        checks["preprocessor"] = False
+        ready = False
+    else:
+        checks["preprocessor"] = True
+
+    # 检查特征提取器是否已初始化
+    if feature_extractor is None:
+        checks["feature_extractor"] = False
+        ready = False
+    else:
+        checks["feature_extractor"] = True
+
+    status_code = 200 if ready else 503
+    from fastapi.responses import JSONResponse
+    return JSONResponse(
+        status_code=status_code,
+        content={"status": "ready" if ready else "not_ready", "checks": checks},
+    )
+
+
 @router.get("/model_service")
 async def root():
     return {"message": "Model Service", "docs": "/docs"}

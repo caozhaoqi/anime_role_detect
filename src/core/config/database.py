@@ -35,7 +35,7 @@ else:
 
 SQLITE_URL = os.environ.get(
     "SQLITE_URL",
-    f"sqlite:///{os.path.abspath('data/recognition.db')}",
+    f"sqlite:///{os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))), 'data', 'recognition.db')}",
 )
 
 if HAS_SQLALCHEMY:

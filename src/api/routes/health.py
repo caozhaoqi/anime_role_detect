@@ -29,6 +29,51 @@ async def health_check():
     }
 
 
+@router.get("/live")
+async def liveness_check():
+    """K8s liveness 端点 - 进程存活检查，只要进程在就返回 OK"""
+    return {"status": "alive"}
+
+
+@router.get("/ready")
+async def readiness_check():
+    """K8s readiness 端点 - 服务就绪检查，只有核心依赖就绪才返回 OK"""
+    checks = {"api": True}
+    ready = True
+
+    # 检查模型是否已加载
+    try:
+        from src.services.processor.model_loader import _model_cache
+        checks["model"] = bool(_model_cache)
+        if not _model_cache:
+            ready = False
+    except Exception:
+        checks["model"] = False
+        ready = False
+
+    # 检查数据库是否可用
+    try:
+        from src.core.config.database import _local_session
+        checks["database"] = _local_session is not None
+    except Exception:
+        checks["database"] = False
+
+    # 检查缓存是否可用（降级模式也算就绪）
+    try:
+        from src.services.cache_service import get_cache_manager
+        cache_manager = get_cache_manager()
+        checks["cache"] = cache_manager is not None
+    except Exception:
+        checks["cache"] = False
+
+    status_code = 200 if ready else 503
+    from fastapi.responses import JSONResponse
+    return JSONResponse(
+        status_code=status_code,
+        content={"status": "ready" if ready else "not_ready", "checks": checks},
+    )
+
+
 @router.get("/api/health/detailed")
 async def detailed_health_check():
     """详细健康检查"""

@@ -4,6 +4,7 @@ Anime Role Detect API 主入口
 """
 import sys
 import os
+from contextlib import asynccontextmanager
 
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
 sys.path.insert(0, project_root)
@@ -23,6 +24,21 @@ os.environ["KERAS_HOME"] = config.KERAS_CACHE_DIR
 os.makedirs(config.HF_CACHE_DIR, exist_ok=True)
 os.makedirs(config.KERAS_CACHE_DIR, exist_ok=True)
 
+
+# lifespan 上下文管理器（替代废弃的 on_event("startup")）
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """应用生命周期管理"""
+    # Startup
+    from src.api.lifecycle import _init_services
+    logger.info("应用启动 - 初始化服务")
+    await _init_services()
+    logger.info("所有服务初始化完成")
+    yield
+    # Shutdown
+    logger.info("应用关闭 - 清理资源")
+
+
 # 创建FastAPI应用实例
 app = FastAPI(
     title="Anime Role Detect API",
@@ -31,15 +47,15 @@ app = FastAPI(
     docs_url="/api/docs",
     redoc_url="/api/redoc",
     openapi_url="/api/openapi.json",
+    lifespan=lifespan,
 )
 
-# 配置中间件、异常处理器、路由和启动事件
-from src.api.lifecycle import setup_middlewares, setup_exception_handlers, setup_routers, setup_startup_handler
+# 配置中间件、异常处理器、路由（启动事件已迁移到 lifespan）
+from src.api.lifecycle import setup_middlewares, setup_exception_handlers, setup_routers
 
 setup_exception_handlers(app)
 setup_middlewares(app)
 setup_routers(app)
-setup_startup_handler(app)
 
 
 # Prometheus 指标端点（保持在此处因为它是基础设施入口）

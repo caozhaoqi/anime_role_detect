@@ -44,6 +44,7 @@ sys.path.insert(0, project_root)
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
+from contextlib import asynccontextmanager
 import uvicorn
 
 from src.core.config.service_config import get_service_config
@@ -59,10 +60,36 @@ try:
 except ImportError:
     pass
 
-# 创建应用
-app = FastAPI(title="Model Service", description="Anime Role Detect Model Service", version="1.0.0")
 
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
+@asynccontextmanager
+async def model_service_lifespan(app: FastAPI):
+    """模型服务生命周期管理"""
+    global logger, Image, preprocessor, feature_extractor, tagger
+    from src.core.logging.global_logger import get_logger as gl
+    from PIL import Image as Img
+
+    Image = Img
+    logger = gl("model_service")
+    logger.info("启动模型服务")
+    set_globals(preprocessor, feature_extractor, tagger, OPTIMAL_DEVICE)
+    await init_models()
+    logger.info("模型服务启动完成")
+    yield
+    logger.info("模型服务关闭")
+
+
+# 创建应用
+app = FastAPI(
+    title="Model Service",
+    description="Anime Role Detect Model Service",
+    version="1.0.0",
+    lifespan=model_service_lifespan,
+)
+
+# CORS - 同主 API 一样，allow_credentials=True 与 origins=["*"] 不兼容
+allowed_origins = os.environ.get("CORS_ALLOWED_ORIGINS", "").split(",") if os.environ.get("CORS_ALLOWED_ORIGINS") else ["*"]
+allow_credentials = False if allowed_origins == ["*"] else True
+app.add_middleware(CORSMiddleware, allow_origins=allowed_origins, allow_credentials=allow_credentials, allow_methods=["*"], allow_headers=["*"])
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 # 路由
@@ -151,22 +178,6 @@ async def warmup_models():
     except Exception as e:
         logger.error(f"模型预热失败: {e}")
 
-
-@app.on_event("startup")
-async def startup_event():
-    """启动事件"""
-    global logger
-    from src.core.logging.global_logger import get_logger as gl
-    from PIL import Image as Img
-
-    global Image
-    Image = Img
-
-    logger = gl("model_service")
-    logger.info("启动模型服务")
-    set_globals(preprocessor, feature_extractor, tagger, OPTIMAL_DEVICE)
-    await init_models()
-    logger.info("模型服务启动完成")
 
 
 if __name__ == "__main__":

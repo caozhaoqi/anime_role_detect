@@ -30,26 +30,22 @@ service_registry = get_service_registry()
 
 
 def check_dependencies():
-    """检查并安装依赖"""
-    from src.core.dependency_manager import DependencyManager
+    """检查依赖状态（仅检查，不自动安装）"""
+    # 在 K8s 容器环境中，依赖应预装在镜像中，不在运行时安装
+    if os.environ.get("SKIP_DEPENDENCY_CHECK", "").lower() in ("1", "true", "yes"):
+        logger.info("跳过依赖检查（SKIP_DEPENDENCY_CHECK=true）")
+        return
 
-    print("\n" + "=" * 60)
-    print("🔍 检查依赖状态")
-    print("=" * 60)
+    from src.core.dependency_manager import DependencyManager
 
     manager = DependencyManager(mirror_priority=["tsinghua", "aliyun", "douban"])
 
-    # 检查核心依赖
+    # 仅检查核心依赖是否已安装，不执行 pip install
     if not manager.ensure_essential():
-        print("\n📦 开始自动安装核心依赖...")
-        success, fail = manager.install_core(verbose=True)
-        print(f"\n安装完成: ✅ {success} 个, ❌ {fail} 个")
-
-        if fail > 0:
-            print("\n⚠️  部分依赖安装失败，应用可能无法正常运行")
-            print("   请手动执行: python -m src.core.dependency_manager install-core")
+        logger.warning("部分核心依赖缺失，应用可能无法正常运行")
+        logger.warning("请手动执行: python -m src.core.dependency_manager install-core")
     else:
-        print("✅ 核心依赖检查通过")
+        logger.info("核心依赖检查通过")
 
 
 def initialize():
