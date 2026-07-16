@@ -14,7 +14,7 @@ sudo kubectl -n anime-role-detect get pods -o wide
 sudo kubectl -n anime-role-detect logs <pod-name>
 ```
 
-- get svc
+- get svc ip and port forward config list
 
 ```sh
 kubectl -n anime-role-detect get svc

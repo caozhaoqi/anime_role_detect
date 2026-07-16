@@ -252,14 +252,11 @@ spec:
             name: ardc-secrets
         resources:
           requests:
-            cpu: "500m"
-            memory: "2Gi"
+            cpu: "250m"
+            memory: "1Gi"
           limits:
-            cpu: "4"
-            memory: "8Gi"
-          # GPU 环境取消下面注释:
-          # limits:
-          #   nvidia.com/gpu: 1
+            cpu: "2"
+            memory: "4Gi"
         # 启动探针：模型加载可能需要 120 秒以上
         startupProbe:
           httpGet:
@@ -308,7 +305,7 @@ metadata:
     app.kubernetes.io/name: api-service
     app.kubernetes.io/part-of: ardc-app
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: api-service
@@ -319,15 +316,6 @@ spec:
     spec:
       # imagePullSecrets:
       # - name: harbor-pull-secret
-      affinity:
-        podAntiAffinity:
-          preferredDuringSchedulingIgnoredDuringExecution:
-          - weight: 100
-            podAffinityTerm:
-              labelSelector:
-                matchLabels:
-                  app: api-service
-              topologyKey: kubernetes.io/hostname
       containers:
       - name: api-service
         image: ardc/api-service:latest
@@ -626,10 +614,7 @@ metadata:
     app.kubernetes.io/name: search-worker
     app.kubernetes.io/part-of: ardc-app
 spec:
-  replicas: 2
-  selector:
-    matchLabels:
-      app: search-worker
+  replicas: 1
   template:
     metadata:
       labels:
@@ -706,14 +691,11 @@ spec:
             name: ardc-secrets
         resources:
           requests:
-            cpu: "500m"
-            memory: "2Gi"
+            cpu: "250m"
+            memory: "1Gi"
           limits:
-            cpu: "4"
-            memory: "8Gi"
-          # GPU 环境:
-          # limits:
-          #   nvidia.com/gpu: 1
+            cpu: "2"
+            memory: "4Gi"
         livenessProbe:
           exec:
             command:
