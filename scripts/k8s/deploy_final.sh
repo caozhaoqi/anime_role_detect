@@ -58,14 +58,14 @@ for svc in base ml-base api-service model-service frontend api-gateway \
            multimedia-service search-service search-worker inference-worker monitoring; do
     image_name="${REGISTRY}/${svc}:${TAG}"
     
-    if docker image inspect "$image_name" &>/dev/null; then
+    if sudo docker image inspect "$image_name" &>/dev/null; then
         info "  镜像已存在: ${image_name}"
         ((existing++))
     else
         tar_path="${EXPORT_DIR}/${svc}-${TAG}.tar.gz"
         if [[ -f "$tar_path" ]]; then
             info "  加载 ${svc}-${TAG}.tar.gz → ${image_name}..."
-            if docker load -i "$tar_path" >/dev/null 2>&1; then
+            if sudo docker load -i "$tar_path" >/dev/null 2>&1; then
                 ok "  ${image_name} 加载成功"
                 ((loaded++))
             else
@@ -81,13 +81,13 @@ info "添加 latest 标签..."
 for svc in base ml-base api-service model-service frontend api-gateway \
            multimedia-service search-service search-worker inference-worker monitoring; do
     image_name="${REGISTRY}/${svc}:${TAG}"
-    if docker image inspect "$image_name" &>/dev/null; then
-        docker tag "$image_name" "${REGISTRY}/${svc}:latest" &>/dev/null || true
+    if sudo docker image inspect "$image_name" &>/dev/null; then
+        sudo docker tag "$image_name" "${REGISTRY}/${svc}:latest" &>/dev/null || true
     fi
 done
 
 info "验证已加载的镜像..."
-docker images | grep "${REGISTRY}/"
+sudo docker images | grep "${REGISTRY}/"
 ok "镜像加载完成 (${existing} 个已存在, ${loaded} 个从 tar.gz 加载)"
 echo ""
 

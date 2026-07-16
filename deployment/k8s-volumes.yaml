@@ -22,10 +22,10 @@ metadata:
 spec:
   accessModes:
   - ReadWriteOnce
+  storageClassName: local-path
   resources:
     requests:
       storage: 10Gi
-  # storageClassName: standard  # 根据集群实际情况修改
 
 ---
 # --- 模型缓存（HuggingFace / Keras 缓存） ---
@@ -40,10 +40,10 @@ metadata:
 spec:
   accessModes:
   - ReadWriteOnce
+  storageClassName: local-path
   resources:
     requests:
       storage: 10Gi
-  # storageClassName: standard
 
 ---
 # --- API 缓存 ---
@@ -58,10 +58,10 @@ metadata:
 spec:
   accessModes:
   - ReadWriteOnce
+  storageClassName: local-path
   resources:
     requests:
       storage: 5Gi
-  # storageClassName: standard
 
 ---
 # --- MySQL 数据 ---
@@ -76,10 +76,10 @@ metadata:
 spec:
   accessModes:
   - ReadWriteOnce
+  storageClassName: local-path
   resources:
     requests:
       storage: 20Gi
-  # storageClassName: standard
 
 ---
 # --- Redis 数据 ---
@@ -94,10 +94,10 @@ metadata:
 spec:
   accessModes:
   - ReadWriteOnce
+  storageClassName: local-path
   resources:
     requests:
       storage: 5Gi
-  # storageClassName: standard
 
 ---
 # --- RabbitMQ 数据 ---
@@ -112,10 +112,10 @@ metadata:
 spec:
   accessModes:
   - ReadWriteOnce
+  storageClassName: local-path
   resources:
     requests:
       storage: 5Gi
-  # storageClassName: standard
 
 ---
 # --- 日志 ---
@@ -130,10 +130,10 @@ metadata:
 spec:
   accessModes:
   - ReadWriteOnce
+  storageClassName: local-path
   resources:
     requests:
       storage: 10Gi
-  # storageClassName: standard
 
 ---
 # --- Elasticsearch 数据 ---
@@ -148,7 +148,7 @@ metadata:
 spec:
   accessModes:
   - ReadWriteOnce
+  storageClassName: local-path
   resources:
     requests:
       storage: 20Gi
-  # storageClassName: standard
