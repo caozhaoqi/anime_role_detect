@@ -4,11 +4,8 @@
 批量采集蔚蓝档案角色数据
 """
 import os
-import sys
 
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-
-from safebooru.collector import collect_from_safebooru
+from src.data.collection.safebooru.collector import collect_from_safebooru
 
 # 蔚蓝档案角色列表（使用英文标签）
 BLUE_ARCHIVE_CHARACTERS = [

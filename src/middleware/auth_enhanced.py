@@ -28,6 +28,7 @@ from src.services.support.auth_service import verify_token, get_user, get_auth_s
 logger = get_logger("auth_middleware")
 
 security = HTTPBearer()
+_optional_security = HTTPBearer(auto_error=False)
 
 # 速率限制配置
 RATE_LIMIT_MAX_REQUESTS = int(os.environ.get("RATE_LIMIT_MAX_REQUESTS", "100"))
@@ -248,7 +249,7 @@ async def get_current_user_with_role(required_role: str):
 
 
 async def get_optional_current_user(
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(_optional_security),
 ) -> Optional[dict]:
     """获取当前用户（可选） - 如果未认证返回None，不抛出异常"""
     if credentials is None:
@@ -291,8 +292,7 @@ async def auth_middleware(request: Request, call_next):
         "/api/feedback",
         "/api/config",
         "/api/cleaning",
-        # ONNX 推理 API（如果有独立的认证）
-        "/api/v1/onnx",
+        "/api/classify",
         # Swagger UI
         "/docs",
         "/redoc",

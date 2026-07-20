@@ -7,7 +7,6 @@
 import sys
 from pathlib import Path
 
-sys.path.insert(0, '.')
 
 from src.data_pipeline.cleaners import (
     CLIPDeduplicator,

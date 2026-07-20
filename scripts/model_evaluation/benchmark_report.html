@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>Anime Role Detect - 模型基准测试报告</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", Arial, sans-serif;
+    margin: 0; padding: 32px; background: #f7f8fa; color: #1f2329; line-height: 1.6;
+  }
+  .container { max-width: 1180px; margin: 0 auto; }
+  h1 { font-size: 28px; margin: 0 0 4px 0; }
+  h2 { font-size: 22px; margin: 32px 0 12px 0; border-left: 4px solid #4f7cff; padding-left: 10px; }
+  h3 { font-size: 16px; margin: 20px 0 8px 0; color: #4f7cff; }
+  .meta { color: #8a8f99; font-size: 13px; margin-bottom: 24px; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin: 16px 0; }
+  .card {
+    background: #fff; border-radius: 10px; padding: 16px 18px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05); border: 1px solid #eef0f3;
+  }
+  .card .label { font-size: 12px; color: #8a8f99; margin-bottom: 6px; }
+  .card .value { font-size: 22px; font-weight: 600; color: #1f2329; }
+  .card .sub { font-size: 12px; color: #8a8f99; margin-top: 4px; }
+  .card.accent .value { color: #4f7cff; }
+  .card.good .value { color: #16a34a; }
+  .card.warn .value { color: #d97706; }
+  .card.bad .value { color: #dc2626; }
+  table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 10px; overflow: hidden;
+           box-shadow: 0 1px 3px rgba(0,0,0,0.05); border: 1px solid #eef0f3; font-size: 13px; }
+  th, td { padding: 9px 12px; text-align: left; border-bottom: 1px solid #f0f1f3; }
+  th { background: #fafbfc; font-weight: 600; color: #4f5b66; }
+  tr:last-child td { border-bottom: none; }
+  .chart-box { background: #fff; border-radius: 10px; padding: 18px; border: 1px solid #eef0f3;
+                box-shadow: 0 1px 3px rgba(0,0,0,0.05); margin: 12px 0; }
+  .chart-box canvas { max-height: 420px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 768px) { .grid2 { grid-template-columns: 1fr; } }
+  .tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; background: #eef2ff; color: #4f7cff; }
+  .err { background: #fef2f2; color: #b91c1c; padding: 10px 14px; border-radius: 8px; font-size: 13px; }
+  footer { margin-top: 32px; color: #8a8f99; font-size: 12px; text-align: center; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>Anime Role Detect · 模型基准测试报告</h1>
+  <div class="meta">生成时间：2026-07-20 10:50:15 · 项目：anime_role_detect</div>
+
+  <!-- ============ EfficientNet-B3 ============ -->
+  <h2>① EfficientNet-B3 分类模型</h2>
+
+  <div class="cards">
+    <div class="card accent"><div class="label">Top-1 准确率</div><div class="value">84.00%</div><div class="sub">1275 样本</div></div>
+    <div class="card accent"><div class="label">Top-5 准确率</div><div class="value">93.96%</div><div class="sub">51 类别</div></div>
+    <div class="card"><div class="label">Macro-F1</div><div class="value">0.84</div><div class="sub">P=0.85 R=0.84</div></div>
+    <div class="card"><div class="label">单张延迟</div><div class="value">21.63 ms</div><div class="sub">46.23 FPS</div></div>
+    <div class="card"><div class="label">Batch(32) 吞吐</div><div class="value">87.54 FPS</div><div class="sub">326.39 ms/batch</div></div>
+    <div class="card"><div class="label">参数量</div><div class="value">11,917,403</div><div class="sub">可训练 11,917,403</div></div>
+    <div class="card"><div class="label">模型大小</div><div class="value">45.99 MB</div><div class="sub">权重内存 45.46 MB</div></div>
+    <div class="card"><div class="label">进程内存 (RSS)</div><div class="value">795.09 MB</div><div class="sub">设备: mps</div></div>
+  </div>
+
+  <h3>每类准确率分布（最弱 15 + 最强 15，共 30 类）</h3>
+  <div class="chart-box"><canvas id="perClassChart"></canvas></div>
+
+  <div class="grid2">
+    <div>
+      <h3>✅ 表现最佳的 5 个类别</h3>
+      <table>
+        <thead><tr><th>类别</th><th>正确/总数</th><th>准确率</th></tr></thead>
+        <tbody>
+          <tr><td>Kachina</td><td>25/25</td><td>100.00%</td></tr>
+          <tr><td>Yaoyao</td><td>24/25</td><td>96.00%</td></tr>
+          <tr><td>qingque</td><td>24/25</td><td>96.00%</td></tr>
+          <tr><td>rosaria</td><td>24/25</td><td>96.00%</td></tr>
+          <tr><td>sushang</td><td>24/25</td><td>96.00%</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div>
+      <h3>⚠️ 表现最差的 5 个类别</h3>
+      <table>
+        <thead><tr><th>类别</th><th>正确/总数</th><th>准确率</th></tr></thead>
+        <tbody>
+          <tr><td>Klee</td><td>17/25</td><td>68.00%</td></tr>
+          <tr><td>aglaea</td><td>17/25</td><td>68.00%</td></tr>
+          <tr><td>clorinde</td><td>17/25</td><td>68.00%</td></tr>
+          <tr><td>kafka</td><td>17/25</td><td>68.00%</td></tr>
+          <tr><td>silver_wolf</td><td>16/25</td><td>64.00%</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <h3>🔀 最易混淆的类别对（真实 → 预测）</h3>
+  <table>
+    <thead><tr><th>#</th><th>真实类别</th><th>被误判为</th><th>次数</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>clorinde</td><td>Furina</td><td>3</td></tr>
+      <tr><td>2</td><td>ako</td><td>asuna</td><td>2</td></tr>
+      <tr><td>3</td><td>charlotte</td><td>Kachina</td><td>2</td></tr>
+      <tr><td>4</td><td>topaz</td><td>ako</td><td>2</td></tr>
+      <tr><td>5</td><td>Hina</td><td>pearl</td><td>2</td></tr>
+      <tr><td>6</td><td>natasha</td><td>ako</td><td>2</td></tr>
+      <tr><td>7</td><td>ako</td><td>silver_wolf</td><td>2</td></tr>
+      <tr><td>8</td><td>noelle</td><td>charlotte</td><td>2</td></tr>
+      <tr><td>9</td><td>kafka</td><td>black_swan</td><td>2</td></tr>
+      <tr><td>10</td><td>silver_wolf</td><td>Furina</td><td>2</td></tr>
+    </tbody>
+  </table>
+
+  <h3>⚡ 推理性能对比</h3>
+  <div class="chart-box"><canvas id="speedChart"></canvas></div>
+
+  <h2>② YOLOv8n 检测模型</h2>
+
+  <div class="cards">
+    <div class="card accent"><div class="label">平均延迟</div><div class="value">164.15 ms</div><div class="sub">单张图像</div></div>
+    <div class="card accent"><div class="label">吞吐</div><div class="value">6.09 FPS</div><div class="sub">200 样本</div></div>
+    <div class="card"><div class="label">参数量</div><div class="value">3,151,904</div><div class="sub">YOLOv8n 预训练</div></div>
+    <div class="card"><div class="label">模型大小</div><div class="value">6.25 MB</div><div class="sub">yolov8n.pt</div></div>
+    <div class="card"><div class="label">加载耗时</div><div class="value">0.03 s</div><div class="sub">设备: mps</div></div>
+    <div class="card"><div class="label">平均检测数/图</div><div class="value">1.23</div><div class="sub">平均置信度 0.44</div></div>
+  </div>
+
+  <h2>③ 关键发现与建议</h2>
+  <div class="cards">
+    <div class="card good"><div class="label">分类准确率</div><div class="value">良好</div><div class="sub">Top-1 ≥ 70%。</div></div>
+    <div class="card good"><div class="label">推理延迟</div><div class="value">实时</div><div class="sub">单张 &lt; 50 ms，满足实时场景。</div></div>
+    <div class="card"><div class="label">主要混淆</div><div class="value">clorinde → Furina</div><div class="sub">最常误判对（3 次），建议针对性增补样本。</div></div>
+  </div>
+
+  <footer>由 scripts/model_evaluation/generate_benchmark_report.py 自动生成 · 数据来源：benchmark_results.json</footer>
+</div>
+
+<script>
+const ctx1 = document.getElementById('perClassChart');
+if (ctx1) {
+  new Chart(ctx1, {
+    type: 'bar',
+    data: {
+      labels: ["silver_wolf", "Klee", "aglaea", "clorinde", "kafka", "Aru", "charlotte", "topaz", "ako", "asuna", "dunyarzad", "kokomi", "yunli", "Hina", "collei", "Kachina", "sushang", "rosaria", "qingque", "Yaoyao", "yukong", "yanfei", "serval", "sandrone", "mona", "lucia", "kujou_sara", "faruzan", "Kayoko", "Firefly"],
+      datasets: [{
+        label: '准确率 (%)',
+        data: [64.0, 68.0, 68.0, 68.0, 68.0, 72.0, 72.0, 72.0, 76.0, 76.0, 76.0, 76.0, 76.0, 80.0, 80.0, 100.0, 96.0, 96.0, 96.0, 96.0, 92.0, 92.0, 92.0, 92.0, 92.0, 92.0, 92.0, 92.0, 92.0, 92.0],
+        backgroundColor: ["#16a34a", "#16a34a", "#16a34a", "#16a34a", "#16a34a", "#16a34a", "#16a34a", "#16a34a", "#16a34a", "#16a34a", "#16a34a", "#16a34a", "#16a34a", "#16a34a", "#16a34a", "#16a34a", "#16a34a", "#16a34a", "#16a34a", "#16a34a", "#16a34a", "#16a34a", "#16a34a", "#16a34a", "#16a34a", "#16a34a", "#16a34a", "#16a34a", "#16a34a", "#16a34a"],
+        borderRadius: 3,
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: function(ctx) {
+              const i = ctx.dataIndex;
+              return '准确率 ' + ctx.parsed.x + '%  (' + [16, 17, 17, 17, 17, 18, 18, 18, 19, 19, 19, 19, 19, 20, 20, 25, 24, 24, 24, 24, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23][i] + '/' + [25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25][i] + ')';
+            }
+          }
+        }
+      },
+      scales: {
+        x: { beginAtZero: true, max: 100, title: { display: true, text: '准确率 (%)' } },
+        y: { ticks: { font: { size: 10 } } }
+      }
+    }
+  });
+}
+
+const ctx2 = document.getElementById('speedChart');
+if (ctx2) {
+  new Chart(ctx2, {
+    type: 'bar',
+    data: {
+      labels: ['单张延迟 (ms)', 'Batch(32) 延迟 (ms)', '单张吞吐 (FPS)', 'Batch 吞吐 (FPS)'],
+      datasets: [{
+        data: [21.63, 326.39, 46.23, 87.54],
+        backgroundColor: ['#4f7cff', '#4f7cff', '#16a34a', '#16a34a'],
+        borderRadius: 4,
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { display: false } },
+      scales: { y: { beginAtZero: true } }
+    }
+  });
+}
+</script>
+</body>
+</html>

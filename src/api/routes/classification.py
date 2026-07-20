@@ -5,14 +5,13 @@ import sys
 import os
 
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.."))
-sys.path.insert(0, project_root)
 
 import time
 from fastapi import APIRouter, UploadFile, File, Form, Depends, HTTPException
 from typing import Optional
 
 from src.core.logging.global_logger import get_logger
-from src.middleware.auth_enhanced import get_current_user
+from src.middleware.auth_enhanced import get_current_user, get_optional_current_user
 from src.services.processor.image_processor import (
     process_single_image,
     process_batch_images,
@@ -36,7 +35,7 @@ async def classify_image(
     cache_bypass: bool = Form(False),
     multi_role: bool = Form(False),
     use_deepdanbooru: bool = Form(True),
-    current_user: Optional[dict] = Depends(get_current_user),
+    current_user: Optional[dict] = Depends(get_optional_current_user),
 ):
     """分类图像中的角色"""
     try:

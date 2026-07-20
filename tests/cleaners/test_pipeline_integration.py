@@ -8,7 +8,6 @@ import sys
 import shutil
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from src.data_pipeline.cleaning_pipeline import CleaningPipeline, CleaningConfig
 

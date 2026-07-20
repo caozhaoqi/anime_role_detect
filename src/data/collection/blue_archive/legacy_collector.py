@@ -4,13 +4,9 @@
 使用标准Booru标签格式，确保下载到准确的角色图片
 """
 import os
-import sys
 import shutil
 
-# 添加项目根目录到Python路径
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-
-from tests.collect_test_data import collect_single_character_data
+from tests.data.collect_test_data import collect_single_character_data
 
 
 def collect_blue_archive_characters(output_base_dir, image_limit=6):

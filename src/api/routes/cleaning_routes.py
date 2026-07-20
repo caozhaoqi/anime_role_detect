@@ -14,7 +14,6 @@ import logging
 # __file__ = src/api/routes/cleaning_routes.py -> 需要上溯4层到项目根目录
 _current_file = Path(__file__).resolve()
 project_root = _current_file.parent.parent.parent.parent
-sys.path.insert(0, str(project_root))
 
 logger = logging.getLogger(__name__)
 

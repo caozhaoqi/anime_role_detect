@@ -12,6 +12,7 @@ import asyncio
 import aiohttp
 import numpy as np
 from src.core.logging.global_logger import get_logger
+from src.core.utils.utils import safe_temp_path as _safe_temp_path
 from src.services.processor.model_loader import (
     get_preprocessor,
     get_keypoint_detector,
@@ -25,6 +26,44 @@ from .model_loader import load_trained_model
 from .feature_processor import process_image_features
 
 logger = get_logger("image_processor")
+
+
+class HttpClientManager:
+    """aiohttp.ClientSession 全局单例管理器（P1-4）
+
+    禁止在业务代码中新建 aiohttp.ClientSession，
+    所有 HTTP 调用应通过 HttpClientManager.get_session() 获取复用的 session。
+    """
+
+    _session: aiohttp.ClientSession = None
+    _base_url: str = ""
+
+    @classmethod
+    def init_session(cls, base_url: str = "") -> None:
+        """初始化全局 aiohttp.ClientSession
+
+        Args:
+            base_url: 可选的基础 URL
+        """
+        if cls._session is None or cls._session.closed:
+            cls._session = aiohttp.ClientSession()
+            cls._base_url = base_url
+            logger.info("HttpClientManager session 已初始化")
+
+    @classmethod
+    def get_session(cls) -> aiohttp.ClientSession:
+        """获取全局 aiohttp.ClientSession（如未初始化则自动创建）"""
+        if cls._session is None or cls._session.closed:
+            cls._session = aiohttp.ClientSession()
+        return cls._session
+
+    @classmethod
+    async def close_session(cls) -> None:
+        """关闭全局 aiohttp.ClientSession"""
+        if cls._session is not None and not cls._session.closed:
+            await cls._session.close()
+            logger.info("HttpClientManager session 已关闭")
+        cls._session = None
 
 # 使用统一配置
 from src.core.config.service_config import get_service_config
@@ -79,26 +118,25 @@ async def _call_model_service(file, content, model_name, multi_role=False):
 
         logger.info(f"请求文件: {file.filename}, 大小: {len(content)}字节, 类型: {content_type}")
 
-        # 使用aiohttp进行异步HTTP调用
-        async with aiohttp.ClientSession() as session:
-            # 构建multipart/form-data请求
-            form = aiohttp.FormData()
-            form.add_field("file", content, filename=file.filename, content_type=content_type)
-            form.add_field("model_name", model_name)
-            form.add_field("use_attributes", "true")
+        # P1-4: 使用全局单例 aiohttp.ClientSession，避免每次请求创建新连接
+        session = HttpClientManager.get_session()
+        # 构建multipart/form-data请求
+        form = aiohttp.FormData()
+        form.add_field("file", content, filename=file.filename, content_type=content_type)
+        form.add_field("model_name", model_name)
+        form.add_field("use_attributes", "true")
 
-            logger.info(f"准备发送请求到模型服务")
-            async with session.post(endpoint, data=form, timeout=30) as response:
-                logger.info(f"模型服务响应状态码: {response.status}")
-                response.raise_for_status()
-                model_result = await response.json()
-                logger.info(f"模型服务返回数据: {model_result}")
+        logger.info(f"准备发送请求到模型服务")
+        async with session.post(endpoint, data=form, timeout=30) as response:
+            logger.info(f"模型服务响应状态码: {response.status}")
+            response.raise_for_status()
+            model_result = await response.json()
+            logger.info(f"模型服务返回数据: {model_result}")
 
         if multi_role:
             # 处理多角色结果
             roles = model_result.get("roles", [])
             count = model_result.get("count", 0)
-            nsfw = model_result.get("nsfw", {"is_nsfw": False, "details": {}})
 
             # 处理角色信息，确保numpy类型转换为Python原生类型
             processed_roles = []
@@ -124,18 +162,36 @@ async def _call_model_service(file, content, model_name, multi_role=False):
                     }
                 )
 
-            # 保存临时文件用于其他处理
-            temp_path = f"temp/temp_{int(time.time())}_{file.filename}"
-            with open(temp_path, "wb") as f:
-                f.write(content)
+            # T03: 优先使用 Model Service 返回的 OCR + NSFW 结果，避免重复推理
+            text_detections = model_result.get("text_detections", None)
+            nsfw_result = model_result.get("nsfw", None)
+            keypoints = model_result.get("keypoints", [])
+            ai_predicted_role = "unknown"
 
-            # 处理图像特征
-            text_detections, keypoints, ai_predicted_role = process_image_features(
-                temp_path, file.content_type, []
-            )
+            # 向后兼容：如果 Model Service 未返回 text_detections 或 nsfw，降级到本地处理
+            if text_detections is None or nsfw_result is None:
+                temp_path = _safe_temp_path(file.filename, "multi")
+                with open(temp_path, "wb") as f:
+                    f.write(content)
 
-            # 执行NSFW检测
-            nsfw_result = detect_nsfw(temp_path)
+                if text_detections is None:
+                    text_detections, kp, ai_predicted_role = process_image_features(
+                        temp_path, file.content_type, []
+                    )
+                    if not keypoints:
+                        keypoints = kp
+                else:
+                    # 仍需 keypoints 和 ai_predicted_role
+                    _, local_kp, ai_predicted_role = process_image_features(
+                        temp_path, file.content_type, []
+                    )
+                    if not keypoints:
+                        keypoints = local_kp
+
+                if nsfw_result is None:
+                    nsfw_result = detect_nsfw(temp_path)
+            else:
+                logger.info("使用 Model Service 返回的 OCR + NSFW 结果，跳过本地重复推理")
 
             # 构建结果
             result = {
@@ -159,8 +215,14 @@ async def _call_model_service(file, content, model_name, multi_role=False):
                 f"模型服务返回结果: role={role}, similarity={similarity}, has_feature={feature is not None}"
             )
 
-            # 保存临时文件用于其他处理
-            temp_path = f"temp/temp_{int(time.time())}_{file.filename}"
+            # T03: 优先使用 Model Service 返回的 OCR + NSFW 结果
+            ms_text_detections = model_result.get("text_detections", None)
+            ms_nsfw = model_result.get("nsfw", None)
+            keypoints = model_result.get("keypoints", [])
+            ai_predicted_role = "unknown"
+
+            # 保存临时文件（用于本地模型分类或降级处理）
+            temp_path = _safe_temp_path(file.filename, "single")
             with open(temp_path, "wb") as f:
                 f.write(content)
 
@@ -201,13 +263,19 @@ async def _call_model_service(file, content, model_name, multi_role=False):
                         f"本地模型分类结果: {role} -> {chinese_role}, 相似度: {similarity:.4f}"
                     )
 
-            # 处理图像特征
-            text_detections, keypoints, ai_predicted_role = process_image_features(
-                temp_path, file.content_type, attributes
-            )
-
-            # 执行NSFW检测
-            nsfw_result = detect_nsfw(temp_path)
+            # T03: 如果 Model Service 已返回 text_detections 和 nsfw，直接使用，跳过重复推理
+            if ms_text_detections is not None and ms_nsfw is not None:
+                text_detections = ms_text_detections
+                nsfw_result = ms_nsfw
+                logger.info("使用 Model Service 返回的 OCR + NSFW 结果，跳过本地重复推理")
+            else:
+                # 向后兼容：Model Service 未返回 text_detections 或 nsfw，降级到本地处理
+                text_detections, local_kp, ai_predicted_role = process_image_features(
+                    temp_path, file.content_type, attributes
+                )
+                if not keypoints:
+                    keypoints = local_kp
+                nsfw_result = detect_nsfw(temp_path)
 
             # 使用AI预测的角色名作为主要角色（如果模型服务返回unknown）
             final_role = role if role != "unknown" else ai_predicted_role or "unknown"
@@ -309,7 +377,7 @@ async def process_with_local_model(file, content, model_name):
         logger.info(f"使用本地模型: {model_name}")
 
         # 保存临时文件
-        temp_path = f"temp/temp_{int(time.time())}_{file.filename}"
+        temp_path = _safe_temp_path(file.filename, "local")
         with open(temp_path, "wb") as f:
             f.write(content)
 

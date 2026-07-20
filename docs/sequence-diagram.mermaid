@@ -1,0 +1,33 @@
+sequenceDiagram
+    participant Client
+    participant Route as routes.py
+    participant Classifier as EfficientNetClassifier
+    participant WorkerPool as KeypointWorkerPool
+    participant Device as DeviceManager
+
+    Client->>Route: POST /api/model/predict (use_keypoints=true)
+    Route->>Route: 读取文件 + Redis 缓存检查
+
+    alt 缓存命中
+        Route-->>Client: 返回缓存结果
+    else 缓存未命中
+        Route->>Route: 图像预处理 (preprocessor.preprocess)
+        
+        par 关键点检测（并行）
+            Route->>WorkerPool: detect_keypoints(image)
+            WorkerPool->>WorkerPool: 提交到常驻 worker 进程
+            WorkerPool-->>Route: keypoints (≤50ms)
+        and EfficientNet 分类（并行）
+            Route->>Device: get_device()
+            Device-->>Route: "cuda" / "mps" / "cpu"
+            Route->>Classifier: classify_with_features(image)
+            Classifier->>Classifier: transform + to_device(tensor)
+            Classifier->>Classifier: model.forward() [GPU]
+            Classifier->>Classifier: _projection(加载训练权重)
+            Classifier-->>Route: role, confidence, feature
+        end
+
+        Route->>Route: 组装结果 + 写 Redis 缓存
+        Route->>Route: 写识别记录 (scoped session)
+        Route-->>Client: 返回 JSON 结果
+    end

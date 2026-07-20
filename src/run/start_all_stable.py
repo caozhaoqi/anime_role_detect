@@ -17,7 +17,6 @@ import signal
 import psutil
 
 project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-sys.path.insert(0, project_root)
 
 # 直接读取配置文件内容
 import importlib.util

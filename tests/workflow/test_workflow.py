@@ -12,8 +12,6 @@ import time
 import json
 from pathlib import Path
 
-# 添加项目根目录到Python路径
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from src.data_collection.keyword_based_collector import KeywordBasedDataCollector
 from src.utils.image_utils import ImageUtils

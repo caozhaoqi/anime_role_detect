@@ -1,0 +1,85 @@
+classDiagram
+    class DeviceManager {
+        -str _device
+        -bool _initialized
+        +get_device() str
+        +detect_device() str
+        +to_device(model, device) Model
+        +is_gpu_available() bool
+        -_check_cuda() bool
+        -_check_mps() bool
+    }
+
+    class KeypointWorkerPool {
+        -ProcessPoolExecutor _pool
+        -int _num_workers
+        -bool _initialized
+        +start(num_workers: int) void
+        +detect_keypoints(image: PIL.Image) list
+        +shutdown() void
+        -_worker_entry(img_b64: str) str
+    }
+
+    class EfficientNetClassifier {
+        -Model model
+        -dict idx_to_class
+        -Transform transform
+        -Linear _projection
+        -str _device
+        +get_instance() EfficientNetClassifier
+        +classify(image: PIL.Image) tuple
+        +classify_with_features(image: PIL.Image) tuple
+        +classify_batch(images: list) list
+        -_load_projection_weights() void
+    }
+
+    class FeatureExtraction {
+        -Model efficientnet_model
+        -Linear efficientnet_projection
+        -Transform efficientnet_transform
+        -str _device
+        +extract_features(image: PIL.Image) ndarray
+        +extract_features_batch(images: list) ndarray
+        -_load_projection_weights() void
+    }
+
+    class HttpClientManager {
+        -ClientSession _session
+        -str _base_url
+        +get_session() ClientSession
+        +init_session(base_url: str) void
+        +close_session() void
+    }
+
+    class DatabaseSessionManager {
+        -sessionmaker _session_factory
+        -scoped_session _scoped_session
+        +get_session() Session
+        +get_scoped_session() Session
+        +remove_session() void
+        +configure_pool(engine: Engine) void
+    }
+
+    class RecognitionRecordDB {
+        +create(db, record_id, ...) RecognitionRecordModel
+        +get_by_id(db, record_id) RecognitionRecordModel
+        +delete_by_user(db, user_id) int
+        +delete_batch(db, ids: list) int
+    }
+
+    class ServiceConfig {
+        +int INFERENCE_BATCH_SIZE
+        +str FORCE_DEVICE
+        +int KEYPOINT_WORKER_COUNT
+        +int UVICORN_LIMIT_CONCURRENCY
+        +int DB_POOL_SIZE
+        +int DB_MAX_OVERFLOW
+    }
+
+    DeviceManager --> EfficientNetClassifier : provides device
+    DeviceManager --> FeatureExtraction : provides device
+    KeypointWorkerPool --> EfficientNetClassifier : parallel detection
+    ServiceConfig --> DeviceManager : configures
+    ServiceConfig --> KeypointWorkerPool : configures workers
+    ServiceConfig --> DatabaseSessionManager : configures pool
+    HttpClientManager --> ServiceConfig : reads base_url

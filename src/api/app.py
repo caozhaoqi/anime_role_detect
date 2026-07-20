@@ -7,7 +7,6 @@ import os
 from contextlib import asynccontextmanager
 
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
-sys.path.insert(0, project_root)
 
 from fastapi import FastAPI
 from fastapi.responses import Response
@@ -30,13 +29,14 @@ os.makedirs(config.KERAS_CACHE_DIR, exist_ok=True)
 async def lifespan(app: FastAPI):
     """应用生命周期管理"""
     # Startup
-    from src.api.lifecycle import _init_services
+    from src.api.lifecycle import _init_services, _shutdown_services
     logger.info("应用启动 - 初始化服务")
     await _init_services()
     logger.info("所有服务初始化完成")
     yield
     # Shutdown
     logger.info("应用关闭 - 清理资源")
+    await _shutdown_services()
 
 
 # 创建FastAPI应用实例

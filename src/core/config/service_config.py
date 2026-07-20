@@ -55,6 +55,28 @@ class ServiceConfig(BaseSettings):
     MYSQL_PASSWORD: Optional[str] = None
     MYSQL_DB: Optional[str] = None
 
+    # ==================== 性能优化配置 ====================
+    # 推理批处理大小（默认 8，可根据 GPU 显存调整）
+    INFERENCE_BATCH_SIZE: int = int(os.getenv("INFERENCE_BATCH_SIZE", "8"))
+    # 强制设备: None=自动检测, "cuda"/"mps"/"cpu"=强制指定
+    FORCE_DEVICE: Optional[str] = os.getenv("FORCE_DEVICE", None)
+    # 关键点检测 worker 进程数
+    KEYPOINT_WORKER_COUNT: int = int(os.getenv("KEYPOINT_WORKER_COUNT", "2"))
+    # Uvicorn 并发连接数限制
+    UVICORN_LIMIT_CONCURRENCY: int = int(os.getenv("UVICORN_LIMIT_CONCURRENCY", "64"))
+    # 数据库连接池大小
+    DB_POOL_SIZE: int = int(os.getenv("DB_POOL_SIZE", "5"))
+    # 数据库连接池最大溢出
+    DB_MAX_OVERFLOW: int = int(os.getenv("DB_MAX_OVERFLOW", "10"))
+
+    # ==================== 基础设施降级 & 模型镜像配置 ====================
+    # HuggingFace 镜像端点（国内加速）
+    HF_ENDPOINT: str = os.getenv("HF_ENDPOINT", "https://hf-mirror.com")
+    # OCR 超时时间（秒）
+    OCR_TIMEOUT: int = int(os.getenv("OCR_TIMEOUT", "10"))
+    # Redis 重连间隔（秒）
+    REDIS_RECONNECT_INTERVAL: int = int(os.getenv("REDIS_RECONNECT_INTERVAL", "30"))
+
     @property
     def MODEL_SERVICE_URL(self) -> str:
         return f"http://{self.MODEL_SERVICE_HOST}:{self.MODEL_SERVICE_PORT}"

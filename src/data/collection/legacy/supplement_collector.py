@@ -11,8 +11,6 @@ import argparse
 import logging
 import sys
 
-# 添加项目根目录到Python路径
-sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 from src.data.collection.keyword_based_collector import KeywordBasedDataCollector
 
 # 配置日志

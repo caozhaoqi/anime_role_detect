@@ -74,9 +74,13 @@ sentence-transformers==2.2.2
 accelerate==0.24.1
 mlflow==2.10.2
 
-# PyTorch (CPU版本，与 Dockerfile.ml-base 一致)
-torch==2.1.0+cpu
-torchvision==0.16.0+cpu
+# PyTorch
+# 注意：此处使用通用版本号，不再锁定 +cpu 后缀
+# Linux 生产环境（CUDA 12.1）: pip install torch==2.1.0 --index-url https://download.pytorch.org/whl/cu121
+# macOS（CPU 或 MPS）: pip install torch==2.1.0
+# Windows（CPU）: pip install torch==2.1.0
+torch==2.1.0
+torchvision==0.16.0
 
 # 图像处理
 Pillow==11.3.0
@@ -92,7 +96,7 @@ ultralytics-thop==2.0.19
 timm==1.0.27
 
 # 向量检索
-faiss-cpu==1.13.0
+faiss-cpu==1.9.0
 
 # 数据处理
 pandas==2.3.3
@@ -114,7 +118,7 @@ ftfy==6.3.1
 pycparser==2.23
 cffi==2.0.0
 frozenlist==1.8.0
-pyyaml==26.2.1
+PyYAML==6.0.3
 pypdfium2==5.9.0
 protobuf==6.33.6
 propcache==0.4.1

@@ -6,22 +6,15 @@
 """
 
 import os
-import sys
 
-# 添加 src/ 到Python路径
-_current_dir = os.path.dirname(os.path.abspath(__file__))            # .../src/run/monitor/
-_src_dir = os.path.dirname(os.path.dirname(_current_dir))            # .../src/
-sys.path.insert(0, _src_dir)
-
-# 导入拆分后的模块（同在 monitor/ 目录下，Python 自动添加该目录到 sys.path）
-from dashboard_backend import (
+from src.run.monitor.dashboard_backend import (
     get_all_services_status,
     get_tracing_stats,
     get_recent_traces,
     get_trace_details,
     get_topology_data,
 )
-from dashboard_templates import (
+from src.run.monitor.dashboard_templates import (
     generate_service_monitor_html,
     generate_tracing_html,
     generate_topology_html,

@@ -11,12 +11,40 @@ import numpy as np
 from PIL import Image
 import logging
 import json
+import tempfile
+import uuid
+import re
 
 # 配置日志
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger("utils")
+
+# 统一临时目录（位于系统临时目录下）
+TEMP_DIR = os.path.join(tempfile.gettempdir(), "anime_role_detect")
+
+
+def safe_temp_path(filename: str, prefix: str = "temp") -> str:
+    """安全创建临时文件路径，防止路径注入攻击。
+
+    仅保留文件名中的字母数字和中文字符，其余字符替换为下划线。
+    使用 uuid 确保唯一性，路径限定在系统临时目录下。
+
+    Args:
+        filename: 原始文件名
+        prefix: 临时文件前缀
+
+    Returns:
+        str: 安全的临时文件绝对路径
+    """
+    os.makedirs(TEMP_DIR, exist_ok=True)
+    # 提取安全的文件名部分（去除路径分隔符和特殊字符）
+    safe_name = re.sub(r"[^a-zA-Z0-9\u4e00-\u9fff._-]", "_", filename or "unknown")
+    # 限制文件名长度
+    if len(safe_name) > 100:
+        safe_name = safe_name[:100]
+    return os.path.join(TEMP_DIR, f"{prefix}_{uuid.uuid4().hex[:8]}_{safe_name}")
 
 
 def calculate_hash(image, hash_size=8):

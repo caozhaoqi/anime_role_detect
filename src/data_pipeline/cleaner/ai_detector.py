@@ -11,7 +11,6 @@ from pathlib import Path
 from typing import Tuple, Dict
 
 project_root = Path(__file__).parent.parent.parent.parent
-sys.path.insert(0, str(project_root))
 
 # Mac平台不强制禁用CUDA，允许MPS加速
 # 注意：Mac没有NVIDIA GPU，所以CUDA不会影响MPS

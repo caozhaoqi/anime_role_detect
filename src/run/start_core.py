@@ -11,7 +11,6 @@ import subprocess
 import time
 
 project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-sys.path.insert(0, project_root)
 
 # 核心服务配置（最小化内存占用）
 CORE_SERVICES = [

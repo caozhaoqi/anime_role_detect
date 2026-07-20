@@ -15,8 +15,6 @@ from typing import Dict, List, Optional
 project_root = os.path.dirname(
     os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 )
-sys.path.insert(0, project_root)
-
 
 class ModelVersionManager:
     """模型版本管理器"""

@@ -5,7 +5,6 @@ import sys
 import os
 
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
-sys.path.insert(0, project_root)
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -114,6 +113,14 @@ def setup_startup_handler(app: FastAPI) -> None:
 
 async def _init_services():
     """初始化所有服务"""
+    # P1-4: 初始化全局 HttpClientManager（aiohttp.ClientSession 单例）
+    try:
+        from src.services.processor.model_processor import HttpClientManager
+        HttpClientManager.init_session()
+        logger.info("HttpClientManager 初始化完成")
+    except Exception as e:
+        logger.warning(f"HttpClientManager 初始化失败（可选）: {e}")
+
     services_to_init = [
         ("认证服务", "src.services.support.auth_service", "init_auth_service"),
         ("缓存管理器", "src.services.cache_service", "init_cache_manager"),
@@ -136,3 +143,13 @@ async def _init_services():
             logger.warning(f"{service_name}导入失败（可选模块）: {e}")
         except Exception as e:
             logger.error(f"{service_name}初始化失败: {e}")
+
+
+async def _shutdown_services():
+    """关闭所有服务（P1-4: 清理 HttpClientManager）"""
+    try:
+        from src.services.processor.model_processor import HttpClientManager
+        await HttpClientManager.close_session()
+        logger.info("HttpClientManager session 已关闭")
+    except Exception as e:
+        logger.warning(f"HttpClientManager 关闭失败: {e}")

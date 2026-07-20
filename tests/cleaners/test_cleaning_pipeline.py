@@ -11,7 +11,6 @@ from pathlib import Path
 
 # 设置项目根目录
 project_root = Path(__file__).parent.parent.parent
-sys.path.insert(0, str(project_root))
 os.chdir(project_root)
 
 # 导入清洗流水线

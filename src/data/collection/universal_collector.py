@@ -4,15 +4,12 @@
 整合多个数据源进行数据采集
 """
 import os
-import sys
 import argparse
 import time
 
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-
-from safebooru.collector import collect_from_safebooru
-from pixiv.collector import collect_from_pixiv_api
-from danbooru.collector import collect_from_danbooru
+from src.data.collection.safebooru.collector import collect_from_safebooru
+from src.data.collection.pixiv.collector import collect_from_pixiv_api
+from src.data.collection.danbooru.collector import collect_from_danbooru
 
 
 def collect_character(

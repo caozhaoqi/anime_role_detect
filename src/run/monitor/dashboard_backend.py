@@ -7,20 +7,12 @@
 """
 
 import os
-import sys
 import time
 import requests
 from datetime import datetime
 from typing import List
 
-# 添加 src/ 和 src/run/ 到Python路径
-_current_dir = os.path.dirname(os.path.abspath(__file__))         # .../src/run/monitor/
-_src_dir = os.path.dirname(os.path.dirname(_current_dir))         # .../src/
-_run_dir = os.path.dirname(_current_dir)                           # .../src/run/
-sys.path.insert(0, _src_dir)
-sys.path.insert(0, _run_dir)
-
-from services_config import SERVICES
+from src.run.services_config import SERVICES
 
 # 追踪存储服务（延迟导入）
 _trace_storage_service = None

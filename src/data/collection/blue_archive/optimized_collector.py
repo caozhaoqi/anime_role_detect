@@ -4,13 +4,9 @@
 为分类效果差的角色收集更多更准确的图片样本
 """
 import os
-import sys
 import shutil
 
-# 添加项目根目录到Python路径
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-
-from tests.collect_test_data import collect_single_character_data
+from tests.data.collect_test_data import collect_single_character_data
 
 
 def collect_optimized_blue_archive(output_base_dir):

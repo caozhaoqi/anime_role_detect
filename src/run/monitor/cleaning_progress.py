@@ -14,7 +14,6 @@ from typing import Dict, Any
 # 添加项目路径
 _current_dir = os.path.dirname(os.path.abspath(__file__))
 _src_dir = os.path.dirname(os.path.dirname(_current_dir))
-sys.path.insert(0, _src_dir)
 
 # 进度数据文件
 PROGRESS_FILE = os.path.join(_src_dir, "data", "cleaning_progress.json")

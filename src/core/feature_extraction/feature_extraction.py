@@ -17,6 +17,7 @@ CLIPModel = None
 
 # 使用全局日志系统
 from src.core.logging.global_logger import get_logger, log_system, log_error
+from src.core.config.device_manager import DeviceManager
 
 logger = get_logger("feature_extraction")
 
@@ -115,24 +116,12 @@ class FeatureExtraction:
         logger.info(f"特征提取模块初始化完成，模式: {mode}, FP16: {self._use_fp16}")
     
     def _select_device(self):
-        """选择最佳计算设备（延迟导入torch）"""
-        global torch
-        if torch is None:
-            # 只有在真正需要时才导入torch
-            try:
-                import torch
-            except ImportError:
-                logger.warning("PyTorch不可用，使用CPU模式")
-                return "cpu"
-        
-        if torch.backends.mps.is_available():
-            return "mps"
-        elif torch.cuda.is_available():
-            return "cuda"
-        else:
+        """选择最佳计算设备（委托给 DeviceManager，保持 CUDA→MPS→CPU 检测顺序）"""
+        device = DeviceManager.get_device()
+        if device == "cpu":
             # CPU上不建议使用FP16
             self._use_fp16 = False
-            return "cpu"
+        return device
 
     def _load_model(self):
         """延迟加载CLIP模型"""
@@ -195,7 +184,8 @@ class FeatureExtraction:
             )
 
             # 加载模型
-            model = torch.load(model_full_path, map_location="cpu", weights_only=False)
+            model = torch.load(model_full_path, map_location=DeviceManager.get_device(), weights_only=False)
+            model = model.to(self.device)
             model.eval()
 
             # 创建特征提取hook
@@ -210,9 +200,28 @@ class FeatureExtraction:
                 logger.warning("EfficientNet模型没有avgpool层，回退到简单方法")
                 return
 
-            # 创建线性投影层 1536 → 512，使用Xavier初始化
+            # 创建线性投影层 1536 → 512
+            # P2-7: 尝试从训练好的权重文件加载投影层
+            projection_weights_path = os.path.join(
+                os.path.dirname(EFFICIENTNET_MODEL_DIR), "efficientnet_b3", "projection_weights.pth"
+            )
             projection = torch.nn.Linear(1536, 512, bias=False)
-            torch.nn.init.xavier_normal_(projection.weight)
+            if os.path.exists(projection_weights_path):
+                try:
+                    state_dict = torch.load(projection_weights_path, map_location=self.device)
+                    projection.load_state_dict(state_dict)
+                    logger.info(f"投影层权重已加载: {projection_weights_path}")
+                except Exception as e:
+                    logger.warning(f"加载投影层权重失败: {e}，使用 Xavier 初始化")
+                    torch.nn.init.xavier_normal_(projection.weight)
+            else:
+                # P2-7: 权重文件不存在，使用 Xavier 初始化并记录 warning
+                torch.nn.init.xavier_normal_(projection.weight)
+                logger.warning(
+                    "投影层权重文件 models/efficientnet_b3/projection_weights.pth 不存在，"
+                    "使用随机 Xavier 初始化。建议训练投影层权重以提升 FAISS 检索质量。"
+                )
+            projection = projection.to(self.device)
             projection.eval()
 
             # 创建图像预处理transform
@@ -251,7 +260,7 @@ class FeatureExtraction:
         import torch
         try:
             dummy_img = Image.new('RGB', (224, 224), color=(128, 128, 128))
-            dummy_tensor = self.efficientnet_transform(dummy_img).unsqueeze(0)
+            dummy_tensor = self.efficientnet_transform(dummy_img).unsqueeze(0).to(self.device)
             with torch.no_grad():
                 _ = self.efficientnet_model(dummy_tensor)
                 if self._efficientnet_features:
@@ -348,7 +357,7 @@ class FeatureExtraction:
 
         try:
             # 预处理图像
-            input_tensor = self.efficientnet_transform(img).unsqueeze(0)
+            input_tensor = self.efficientnet_transform(img).unsqueeze(0).to(self.device)
 
             # 清空hook缓存
             self._efficientnet_features = []
@@ -373,7 +382,7 @@ class FeatureExtraction:
             if norm > 0:
                 projected = projected / norm
 
-            features = projected.numpy().astype(np.float32)
+            features = projected.cpu().numpy().astype(np.float32)
 
             logger.debug(f"EfficientNet特征提取完成，特征形状: {features.shape}")
             return features

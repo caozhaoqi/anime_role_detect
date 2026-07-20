@@ -18,8 +18,6 @@ import numpy as np
 project_root = os.path.dirname(
     os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 )
-sys.path.insert(0, project_root)
-
 
 class AmbiguousSampleRecorder:
     """模糊样本记录器"""

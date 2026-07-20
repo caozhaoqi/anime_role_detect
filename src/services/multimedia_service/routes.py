@@ -13,7 +13,6 @@ from fastapi import APIRouter, UploadFile, File, HTTPException, Query
 from fastapi.responses import FileResponse
 
 project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-sys.path.insert(0, project_root)
 
 from src.services.search_service.simple_search_service import SimpleImageSearchService
 from src.services.multimedia_service.video_renderer import render_result_video

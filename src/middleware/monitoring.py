@@ -1,5 +1,6 @@
 import time
 from fastapi import Request, Response
+from starlette.responses import StreamingResponse
 from prometheus_client import Gauge, Summary
 
 from src.core.logging.global_logger import get_logger
@@ -33,15 +34,26 @@ async def monitoring_middleware(request: Request, call_next):
 
     try:
         # 处理请求
-        # 注意：不读取 request.body()，避免干扰文件上传
         response = await call_next(request)
 
-        # 记录响应大小
-        if hasattr(response, "body") and callable(getattr(response, "body", None)):
-            body = b""
-            async for chunk in response.body_iterator:
-                body += chunk
-            RESPONSE_SIZE.observe(len(body))
+        # P1-2: 包装 body_iterator 透传 chunk 的同时增量统计大小
+        # 不再全量消费 body + 重建 Response，避免大响应体的内存拷贝开销
+        original_body_iterator = response.body_iterator
+
+        async def _wrap_body_iterator(body_iterator):
+            """透传 chunk 并统计总字节数"""
+            total = 0
+            async for chunk in body_iterator:
+                total += len(chunk)
+                yield chunk
+            RESPONSE_SIZE.observe(total)
+
+        response = StreamingResponse(
+            _wrap_body_iterator(original_body_iterator),
+            status_code=response.status_code,
+            headers=dict(response.headers),
+            media_type=response.media_type,
+        )
 
         # 记录请求信息
         endpoint = request.url.path

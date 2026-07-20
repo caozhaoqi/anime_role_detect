@@ -150,7 +150,7 @@
     *   提供视频播放和结果可视化界面。
 
 ### 2.11 API 服务模块 (API Service Module)
-*   **实现文件**: `src/backend/api/app.py`
+*   **实现文件**: `src/api/app.py`
 *   **核心功能**:
     *   **RESTful API**: 提供图像分类的 RESTful 接口，支持单张和批量分类。
     *   **文件处理**: 处理上传的图像文件，支持多种格式。

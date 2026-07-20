@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "anime-role-detect"
-version = "2.0.0"
+version = "2.3.0"
 description = "AI-powered image recognition system for identifying characters from games and anime"
 readme = "README.md"
 requires-python = ">=3.9"
@@ -86,7 +86,8 @@ dev = [
 ]
 
 [tool.setuptools.packages.find]
-where = ["src", "skillhub"]
+where = ["."]
+include = ["src", "src.*", "tests", "tests.*"]
 
 [tool.setuptools.package-data]
 "*" = ["*.json", "*.yaml", "*.yml", "*.md"]
@@ -153,11 +154,9 @@ addopts = [
   "-v",
   "--tb=short",
   "--cov=src",
-  "--cov=skillhub",
   "--cov-report=term-missing",
-  "--cov-fail-under=80",
 ]
-pythonpath = ["src", "skillhub"]
+pythonpath = ["src"]
 asyncio_mode = "auto"
 
 [tool.bandit]

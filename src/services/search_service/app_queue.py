@@ -26,7 +26,6 @@ logger = logging.getLogger(__name__)
 project_root = os.path.dirname(
     os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 )
-sys.path.insert(0, project_root)
 
 # 队列目录
 QUEUE_DIR = "data/search_queue"

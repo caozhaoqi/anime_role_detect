@@ -18,7 +18,6 @@ from PIL import Image
 project_root = os.path.dirname(
     os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 )
-sys.path.insert(0, project_root)
 
 # 延迟导入分类服务，避免启动时的锁竞争
 classify_image = None

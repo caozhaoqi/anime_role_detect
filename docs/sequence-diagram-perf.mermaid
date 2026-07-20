@@ -1,0 +1,36 @@
+sequenceDiagram
+    participant User
+    participant API as API Service (8001)
+    participant MS as Model Service (8000)
+    participant Redis as Redis Cache
+    participant EN as EfficientNet
+    participant Tagger as WD ViT Tagger
+    participant OCR as EasyOCR
+    participant NSFW as NSFW Detector
+
+    User->>API: POST /api/classify (image)
+    API->>MS: HTTP POST /api/model/predict
+    MS->>Redis: Check cache (image_hash)
+    alt Cache Hit
+        Redis-->>MS: cached_result
+        MS-->>API: cached_result
+    else Cache Miss
+        MS->>EN: classify_with_features(image)
+        EN-->>MS: role, confidence, feature
+        alt confidence >= 0.3
+            MS->>Tagger: generate_tags(image) [preloaded]
+            Tagger-->>MS: attributes
+        else confidence < 0.3
+            MS->>Tagger: generate_tags(image) [preloaded]
+            Tagger-->>MS: attributes
+            Note over MS: FAISS search (if index available)
+        end
+        MS->>OCR: detect_text(image) [preloaded, ready]
+        OCR-->>MS: text_detections
+        MS->>NSFW: detect_nsfw(image)
+        NSFW-->>MS: nsfw_result
+        MS->>Redis: Set cache (image_hash, result)
+        MS-->>API: {role, attributes, tags, text_detections, nsfw, ...}
+    end
+    Note over API: No re-processing needed!<br/>Directly assemble final result
+    API-->>User: Final result

@@ -1,61 +1,56 @@
 #!/usr/bin/env python3
 """
-测试类别映射修复
+测试类别映射
 """
 import json
 import os
+import pytest
+
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../"))
 
 # 加载类别映射
-mapping_path = os.path.join("../models", "character_classifier_best_improved_class_mapping.json")
-idx_to_class = None
+mapping_path = os.path.join(PROJECT_ROOT, "models", "efficientnet_b3", "character_classifier_best_improved_class_mapping.json")
 
-if os.path.exists(mapping_path):
+
+@pytest.fixture(scope="module")
+def idx_to_class():
+    """加载类别映射，若文件不存在则跳过所有测试"""
+    if not os.path.exists(mapping_path):
+        pytest.skip(f"类别映射文件不存在: {mapping_path}")
     with open(mapping_path, "r") as f:
         mapping = json.load(f)
-        idx_to_class = mapping["idx_to_class"]
-    print(f"✅ 类别映射加载成功，包含 {len(idx_to_class)} 个类别")
-else:
-    print("❌ 类别映射文件不存在")
-    exit(1)
-
-# 测试不同索引
-print("\n=== 测试类别映射 ===")
-test_indices = [127, 0, 73, 130]
-
-for idx in test_indices:
-    # 测试修复前的方法（整数查找）
-    old_method = None
-    try:
-        old_method = idx_to_class[idx]
-        print(f"索引 {idx}（整数查找）: {old_method}")
-    except KeyError:
-        print(f"索引 {idx}（整数查找）: KeyError")
-
-    # 测试修复后的方法（字符串查找）
-    new_method = None
-    try:
-        new_method = idx_to_class[str(idx)]
-        print(f"索引 {idx}（字符串查找）: {new_method}")
-    except KeyError:
-        print(f"索引 {idx}（字符串查找）: KeyError")
-
-# 测试修复后的完整逻辑
-print("\n=== 测试修复后的完整逻辑 ===")
+    return mapping["idx_to_class"]
 
 
-def get_role_name(predicted_idx, idx_to_class):
-    if idx_to_class:
-        # 尝试将predicted_idx转换为字符串查找
-        if str(predicted_idx) in idx_to_class:
-            return idx_to_class[str(predicted_idx)]
-        else:
-            return f"类别_{predicted_idx}"
-    else:
+def test_mapping_loaded(idx_to_class):
+    """验证类别映射已加载"""
+    assert idx_to_class is not None
+    assert len(idx_to_class) > 0
+    print(f"类别映射加载成功，包含 {len(idx_to_class)} 个类别")
+
+
+@pytest.mark.parametrize("idx", [127, 0, 73, 130])
+def test_index_lookup(idx_to_class, idx):
+    """测试不同索引的查找"""
+    # 字符串查找
+    str_value = idx_to_class.get(str(idx))
+    assert str_value is not None, f"索引 {idx}（字符串查找）无结果"
+    assert isinstance(str_value, str), f"索引 {idx} 结果不是字符串: {type(str_value)}"
+
+
+def test_get_role_name_function(idx_to_class):
+    """测试角色名获取函数"""
+
+    def get_role_name(predicted_idx, mapping):
+        if mapping:
+            if str(predicted_idx) in mapping:
+                return mapping[str(predicted_idx)]
+            else:
+                return f"类别_{predicted_idx}"
         return f"类别_{predicted_idx}"
 
-
-for idx in test_indices:
-    role = get_role_name(idx, idx_to_class)
-    print(f"索引 {idx}: {role}")
-
-print("\n🎉 测试完成！")
+    test_indices = [127, 0, 73, 130]
+    for idx in test_indices:
+        role = get_role_name(idx, idx_to_class)
+        assert role is not None
+        assert isinstance(role, str)

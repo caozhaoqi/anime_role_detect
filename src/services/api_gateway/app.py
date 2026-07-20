@@ -17,7 +17,6 @@ import httpx
 
 # 路径配置
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.."))
-sys.path.insert(0, project_root)
 
 from src.core.config.service_config import get_service_config
 
@@ -63,11 +62,23 @@ app = FastAPI(
     redoc_url=None,
 )
 
+# CORS 配置：生产环境应通过 CORS_ORIGINS 环境变量限定，默认仅允许本地开发
+_cors_origins_env = os.getenv("CORS_ORIGINS", "")
+if _cors_origins_env:
+    allowed_origins = [o.strip() for o in _cors_origins_env.split(",") if o.strip()]
+else:
+    allowed_origins = [
+        "http://localhost:3000",
+        "http://localhost:8080",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:8080",
+    ]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=allowed_origins,
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     allow_headers=["*"],
 )
 

@@ -12,7 +12,7 @@ from src.services.processor.model_loader import (
     get_tagger,
     get_role_predictor,
 )
-from src.core.ocr.easyocr_detector import detect_text as ocr_detect_text
+from src.core.ocr.easyocr_detector import detect_text as ocr_detect_text, get_ocr_detector
 
 logger = get_logger("image_processor")
 
@@ -152,8 +152,13 @@ def process_image_features(image_source, content_type, attributes):
 
         # OCR 文字检测
         try:
-            text_detections = ocr_detect_text(image_source)
-            logger.info(f"OCR 文字检测完成，检测到 {len(text_detections)} 个文本区域")
+            ocr_detector = get_ocr_detector()
+            if ocr_detector.is_ready():
+                text_detections = ocr_detect_text(image_source)
+                logger.info(f"OCR 文字检测完成，检测到 {len(text_detections)} 个文本区域")
+            else:
+                logger.warning("[DEGRADE] OCR 检测器未就绪，跳过文字检测")
+                text_detections = []
         except Exception as e:
             logger.error(f"OCR 文字检测失败: {e}")
 

@@ -18,8 +18,6 @@ from tqdm import tqdm
 import json
 import time
 
-# 添加项目根目录到Python路径
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../../..")))
 from src.core.classification.models import get_model, get_model_with_attributes
 
 # 配置日志

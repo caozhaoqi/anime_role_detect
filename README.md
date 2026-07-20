@@ -259,7 +259,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-**Version**: v2.2 | **Last Updated**: June 2026 | **Maintainer**: ARD Team
+**Version**: v2.3 | **Last Updated**: July 2026 | **Maintainer**: ARD Team
 
 ---
 

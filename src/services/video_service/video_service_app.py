@@ -20,7 +20,6 @@ os.environ["OBJC_DISABLE_INITIALIZE_FORK_SAFETY"] = "YES"
 project_root = os.path.dirname(
     os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 )
-sys.path.insert(0, project_root)
 
 # 延迟导入
 from src.services.search_service.simple_search_service import SimpleImageSearchService

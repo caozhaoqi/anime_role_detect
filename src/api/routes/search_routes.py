@@ -13,7 +13,6 @@ from PIL import Image
 
 # 添加项目根目录到Python路径
 project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-sys.path.insert(0, project_root)
 
 from src.core.logging.global_logger import get_logger
 from src.services.search_service.search_client import get_search_client

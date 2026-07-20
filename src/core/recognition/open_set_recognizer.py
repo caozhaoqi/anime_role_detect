@@ -16,8 +16,6 @@ from typing import List, Tuple, Optional
 project_root = os.path.dirname(
     os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 )
-sys.path.insert(0, project_root)
-
 
 class OpenSetRecognizer:
     """Open-set 角色识别器"""
