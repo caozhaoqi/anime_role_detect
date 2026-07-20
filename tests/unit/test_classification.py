@@ -13,8 +13,6 @@ current_file = os.path.abspath(__file__)
 tests_dir = os.path.dirname(current_file)
 src_dir = os.path.join(tests_dir, "..", "..", "src")
 project_root = os.path.join(tests_dir, "..", "..")
-sys.path.insert(0, project_root)
-sys.path.insert(0, src_dir)
 
 from src.core.classification.classification import Classification
 

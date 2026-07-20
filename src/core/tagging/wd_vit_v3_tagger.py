@@ -61,6 +61,9 @@ os.environ["HF_HOME"] = os.path.join(
     os.path.dirname(__file__), "..", "..", "..", "huggingface_cache"
 )
 
+# 设置 HF 镜像端点（国内加速），在进程启动早期设置
+os.environ.setdefault("HF_ENDPOINT", "https://hf-mirror.com")
+
 # ==================== 【第二步：平台检测与加速方案选择】 ====================
 # macOS (Apple Silicon) 使用 CoreML，其他平台使用 PyTorch
 # 只有非 macOS 平台才需要导入 torch 并封锁 MPS
@@ -465,11 +468,13 @@ class WDViTV3Tagger:
             
             snapshots = sorted(os.listdir(snapshots_dir)) if os.path.isdir(snapshots_dir) else []
             if not snapshots:
+                logger.info("从 HF 镜像下载 WD Tagger 模型...")
                 from huggingface_hub import hf_hub_download
                 safetensors_path = hf_hub_download(model_name, "model.safetensors")
                 config_path = hf_hub_download(model_name, "config.json")
                 csv_path = hf_hub_download(model_name, "selected_tags.csv")
             else:
+                logger.info("WD Tagger 模型已本地缓存，跳过下载")
                 snapshot = snapshots[-1]
                 snapshot_dir = os.path.join(snapshots_dir, snapshot)
                 safetensors_path = os.path.join(snapshot_dir, "model.safetensors")

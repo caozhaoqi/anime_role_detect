@@ -8,8 +8,6 @@ import shutil
 import numpy as np
 from pathlib import Path
 
-# 添加项目根目录到Python路径
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from tests.collect_test_data import collect_single_character_data
 from src.core.preprocessing.preprocessing import Preprocessing

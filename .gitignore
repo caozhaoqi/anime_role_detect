@@ -133,6 +133,8 @@ src/frontend/.next/
 src/frontend/out/
 
 dump.rdb
+data/dump.rdb
+models/yolov8n.pt
 huggingface_cache/
 coreml_models/
 
@@ -153,3 +155,7 @@ run/supervisord.pid
 .playwright-cli/
 .qoder/
 .claude/
+.workbuddy/
+models/
+.gstack/
+deliverables/

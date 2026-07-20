@@ -1,4 +1,5 @@
 import time
+import asyncio
 import statistics
 from typing import Optional, Callable, Any, Dict
 
@@ -182,11 +183,42 @@ class CircuitBreakerService:
         circuit_breaker = self.get_circuit_breaker(name)
 
         try:
-            # CircuitBreaker.execute() 是同步函数，需要在线程池中执行以避免阻塞事件循环
-            import asyncio
-            result = await asyncio.to_thread(circuit_breaker.execute, func, *args, **kwargs)
+            # 检查熔断器状态（同步操作）
+            if circuit_breaker.state == CircuitState.OPEN:
+                if circuit_breaker._is_recovered():
+                    circuit_breaker.state = CircuitState.HALF_OPEN
+                    logger.info(f"熔断器 {name} 从 OPEN 状态转为 HALF_OPEN 状态")
+                else:
+                    logger.warning(f"熔断器 {name} 处于 OPEN 状态，拒绝请求")
+                    raise CircuitBreakerOpenException(f"Circuit breaker {name} is open")
+
+            # 直接 await async 函数（不通过线程池，避免 coroutine 泄漏）
+            start_time = time.time()
+            result = await func(*args, **kwargs)
+            duration = time.time() - start_time
+
+            # 记录成功
+            circuit_breaker._record_request_time(duration)
+            circuit_breaker._calculate_error_rate(True)
+
+            if circuit_breaker.state == CircuitState.HALF_OPEN:
+                circuit_breaker.success_count += 1
+                if circuit_breaker._should_close():
+                    circuit_breaker._reset()
+                    logger.info(f"熔断器 {name} 从 HALF_OPEN 状态转为 CLOSED 状态")
+            else:
+                circuit_breaker.failure_count = 0
+
             return result
         except Exception as e:
+            # 记录失败
+            circuit_breaker.failure_count += 1
+            circuit_breaker.last_failure_time = time.time()
+
+            if circuit_breaker._should_open():
+                circuit_breaker.state = CircuitState.OPEN
+                logger.warning(f"熔断器 {name} 打开")
+
             logger.warning(f"执行 {name} 失败，使用降级策略: {e}")
             # 降级函数可能是同步或异步的
             if asyncio.iscoroutinefunction(fallback):

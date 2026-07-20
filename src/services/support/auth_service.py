@@ -5,8 +5,10 @@
 """
 
 import os
+import hashlib
 import time
 import secrets
+import concurrent.futures
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any, List
 from datetime import datetime
@@ -27,7 +29,7 @@ try:
     HAS_BCRYPT = True
 except ImportError:
     HAS_BCRYPT = False
-    logger.warning("bcrypt 模块不可用，使用简单密码验证")
+    logger.warning("bcrypt 模块不可用，回退到 SHA-256 加盐哈希")
 
 try:
     from src.core.config.database import get_db, init_database, create_tables
@@ -43,6 +45,28 @@ class AuthService:
 
     _instance: Optional["AuthService"] = None
 
+    # ========== 密码哈希 ==========
+    @staticmethod
+    def _hash_password(password: str) -> str:
+        """哈希密码，优先 bcrypt，回退 SHA-256 加盐"""
+        if HAS_BCRYPT:
+            return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+        salt = secrets.token_hex(16)
+        return f"sha256${salt}${hashlib.sha256((password + salt).encode()).hexdigest()}"
+
+    @staticmethod
+    def _verify_password(plain_password: str, hashed_password: str) -> bool:
+        """验证密码"""
+        if hashed_password.startswith("sha256$"):
+            parts = hashed_password.split("$")
+            if len(parts) != 3:
+                return False
+            _, salt, stored_hash = parts
+            return hashlib.sha256((plain_password + salt).encode()).hexdigest() == stored_hash
+        if HAS_BCRYPT:
+            return bcrypt.checkpw(plain_password.encode("utf-8"), hashed_password.encode("utf-8"))
+        return False
+
     def __new__(cls):
         if cls._instance is None:
             cls._instance = super().__new__(cls)
@@ -55,7 +79,10 @@ class AuthService:
         self.initialized = True
 
         # 配置
-        self.SECRET_KEY = os.environ.get("SECRET_KEY", "your-secret-key-here-for-development")
+        self.SECRET_KEY = os.environ.get(
+            "SECRET_KEY",
+            secrets.token_hex(32)  # 每次启动生成临时密钥，生产环境必须通过环境变量注入
+        )
         self.ALGORITHM = os.environ.get("ALGORITHM", "HS256")
         self.ACCESS_TOKEN_EXPIRE_MINUTES = int(os.environ.get("ACCESS_TOKEN_EXPIRE_MINUTES", "30"))
         self.REFRESH_TOKEN_EXPIRE_DAYS = int(os.environ.get("REFRESH_TOKEN_EXPIRE_DAYS", "7"))
@@ -68,20 +95,29 @@ class AuthService:
             try:
                 init_database()
                 create_tables()
-                self._ensure_default_users()
-                logger.info("认证服务初始化完成（数据库模式）")
+                # 使用超时保护 _ensure_default_users，防止 RDS 连接超时阻塞启动
+                try:
+                    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                        future = executor.submit(self._ensure_default_users)
+                        future.result(timeout=10)
+                    logger.info("认证服务初始化完成（数据库模式）")
+                except concurrent.futures.TimeoutError:
+                    logger.warning("[DEGRADE] _ensure_default_users 超时(10s)，回退到内存模式")
+                    self.use_database = False
+                except Exception as e:
+                    logger.warning(f"[DEGRADE] 创建默认用户失败，回退到内存模式: {e}")
+                    self.use_database = False
             except Exception as e:
                 logger.warning(f"数据库初始化失败，回退到内存模式: {e}")
                 self.use_database = False
 
-        # 如果不使用数据库，初始化内存用户
+        # 如果不使用数据库，初始化内存用户（密码已哈希）
         if not self.use_database:
-            # 使用简单密码存储（不使用bcrypt）
             self.users = {
-                "admin": {"password": "admin123", "role": "admin"},
-                "user": {"password": "user123", "role": "user"},
+                "admin": {"password": self._hash_password("admin123"), "role": "admin"},
+                "user": {"password": self._hash_password("user123"), "role": "user"},
             }
-            logger.info("认证服务初始化完成（内存模式）")
+            logger.info("认证服务初始化完成（内存模式，密码已哈希）")
 
     def _ensure_default_users(self):
         """确保默认用户存在"""
@@ -263,14 +299,12 @@ class AuthService:
                     self._update_user_login_info(user, success=False)
                     return None
 
-        # 回退到内存模式（简单密码验证）
+        # 回退到内存模式
         user_data = self.users.get(username)
         if not user_data:
             return None
 
-        # 简单密码比对（不使用bcrypt）
-        stored_password = user_data.get("password")
-        if stored_password == password:
+        if self._verify_password(password, user_data.get("password", "")):
             return {
                 "id": username,
                 "username": username,

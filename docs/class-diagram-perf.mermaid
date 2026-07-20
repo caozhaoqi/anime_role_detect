@@ -1,0 +1,61 @@
+classDiagram
+    class RedisCache {
+        -redis_client: redis.Redis
+        -available: bool
+        -_last_retry_time: float
+        -_local_fallback: dict
+        +try_reconnect() bool
+        +get(key) Optional~Any~
+        +set(key, value, ttl) bool
+    }
+
+    class EasyOCRDetector {
+        -reader: easyocr.Reader
+        -_ready: bool
+        -_loading: bool
+        +preload() void
+        +is_ready() bool
+        +detect_text(image_source) list
+    }
+
+    class WDViTV3Tagger {
+        -_instance: WDViTV3Tagger
+        -_loaded: bool
+        -wd_model: Any
+        +load_model(model_name) bool
+        +generate_tags(image, threshold) list
+        +is_loaded() bool
+    }
+
+    class ModelServiceApp {
+        +warmup_models() void
+        -_preload_tagger() void
+        -_preload_ocr() void
+    }
+
+    class ModelProcessor {
+        +process_with_model_service(file, content, model_name) dict
+        +process_with_local_model(file, content, model_name) dict
+        -_call_model_service(file, content, model_name) dict
+    }
+
+    class FeatureProcessor {
+        +process_image_features(image_source, content_type, attributes) tuple
+    }
+
+    class DatabaseService {
+        +get_db_service() Session
+    }
+
+    class AuthService {
+        -_ensure_default_users() void
+        +init_auth_service() void
+    }
+
+    RedisCache ..> ModelProcessor : provides cache
+    EasyOCRDetector ..> FeatureProcessor : provides OCR
+    WDViTV3Tagger ..> FeatureProcessor : provides tags
+    ModelServiceApp ..> WDViTV3Tagger : preloads
+    ModelServiceApp ..> EasyOCRDetector : preloads
+    ModelProcessor ..> FeatureProcessor : delegates features
+    DatabaseService ..> AuthService : provides session

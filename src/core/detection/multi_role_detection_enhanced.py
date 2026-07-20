@@ -7,21 +7,15 @@
 """
 
 import os
-import sys
 import cv2
 import numpy as np
 from PIL import Image
 from typing import List, Dict, Any, Tuple, Optional
 
-project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-src_root = os.path.dirname(project_root)
-sys.path.insert(0, src_root)
-sys.path.insert(0, project_root)
-
-from core.logging.global_logger import get_logger
-from core.feature_extraction.feature_extraction import FeatureExtraction
-from core.recognition.open_set_recognizer import OpenSetRecognizer
-from core.feedback.ambiguous_sample_recorder import AmbiguousSampleRecorder
+from src.core.logging.global_logger import get_logger
+from src.core.feature_extraction.feature_extraction import FeatureExtraction
+from src.core.recognition.open_set_recognizer import OpenSetRecognizer
+from src.core.feedback.ambiguous_sample_recorder import AmbiguousSampleRecorder
 
 import torch
 import torchvision.transforms as transforms

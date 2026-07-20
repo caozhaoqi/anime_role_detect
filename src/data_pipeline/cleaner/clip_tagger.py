@@ -11,7 +11,6 @@ from pathlib import Path
 from typing import List, Dict, Tuple
 
 project_root = Path(__file__).parent.parent.parent.parent
-sys.path.insert(0, str(project_root))
 
 # Mac平台允许MPS加速
 

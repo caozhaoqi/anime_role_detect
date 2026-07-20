@@ -10,7 +10,7 @@ from datetime import datetime
 from typing import List, Optional, Dict, Any
 from sqlalchemy.orm import Session
 from sqlalchemy import desc, asc
-from src.core.config.database import get_db, init_database, create_tables
+from src.core.config.database import get_db, get_db_session, init_database, create_tables
 from src.core.logging.global_logger import get_logger
 from src.models.database_models import RecognitionRecordModel, UserFeedbackModel, CleaningRecordModel
 
@@ -20,17 +20,18 @@ _db_session = None
 
 
 def get_db_service() -> Session:
-    """获取数据库会话（根据DATABASE_MODE选择）"""
-    global _db_session
-    if _db_session is None:
-        init_database()
-        create_tables()
-        _db_session = next(get_db())
-    return _db_session
+    """获取数据库会话（根据DATABASE_MODE选择）
+
+    P2-2: 不再使用全局单例 session，每次调用返回新的 session，
+    调用方负责 close。推荐使用 get_db() 配合 FastAPI Depends。
+    """
+    init_database()
+    create_tables()
+    return get_db_session()
 
 
 def close_db_service():
-    """关闭数据库会话"""
+    """关闭数据库会话（兼容旧接口，新代码请直接 close 返回的 session）"""
     global _db_session
     if _db_session:
         _db_session.close()
@@ -132,13 +133,12 @@ class RecognitionRecordDB:
 
     @staticmethod
     def delete_by_user(db: Session, user_id: str) -> int:
-        """删除用户的所有识别记录"""
-        records = (
-            db.query(RecognitionRecordModel).filter(RecognitionRecordModel.user_id == user_id).all()
+        """删除用户的所有识别记录（P2-3: 批量删除，避免 N+1）"""
+        count = (
+            db.query(RecognitionRecordModel)
+            .filter(RecognitionRecordModel.user_id == user_id)
+            .delete(synchronize_session=False)
         )
-        count = len(records)
-        for record in records:
-            db.delete(record)
         db.commit()
         logger.info(f"数据库删除用户 {user_id} 的 {count} 条识别记录")
         return count
@@ -340,13 +340,12 @@ class CleaningRecordDB:
 
     @staticmethod
     def delete_by_user(db: Session, user_id: str) -> int:
-        """删除用户的所有数据清洗记录"""
-        records = (
-            db.query(CleaningRecordModel).filter(CleaningRecordModel.user_id == user_id).all()
+        """删除用户的所有数据清洗记录（P2-3: 批量删除，避免 N+1）"""
+        count = (
+            db.query(CleaningRecordModel)
+            .filter(CleaningRecordModel.user_id == user_id)
+            .delete(synchronize_session=False)
         )
-        count = len(records)
-        for record in records:
-            db.delete(record)
         db.commit()
         logger.info(f"数据库删除用户 {user_id} 的 {count} 条数据清洗记录")
         return count

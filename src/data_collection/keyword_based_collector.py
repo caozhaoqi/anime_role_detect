@@ -14,9 +14,7 @@ import urllib.parse
 from bs4 import BeautifulSoup
 from concurrent.futures import ThreadPoolExecutor
 
-# 添加src目录到Python路径
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-from core.logging.global_logger import get_logger
+from src.core.logging.global_logger import get_logger
 
 logger = get_logger("keyword_based_collector")
 

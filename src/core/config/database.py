@@ -21,7 +21,7 @@ try:
     from sqlalchemy import create_engine
     from sqlalchemy.ext.declarative import declarative_base
     from sqlalchemy.orm import sessionmaker, Session
-    from sqlalchemy.pool import StaticPool
+    from sqlalchemy.pool import StaticPool, QueuePool
     HAS_SQLALCHEMY = True
 except ImportError:
     HAS_SQLALCHEMY = False
@@ -103,10 +103,24 @@ def init_local_database():
             os.makedirs(db_dir, exist_ok=True)
         logger.info(f"SQLite数据库路径: {file_path}")
 
+    # P1-3: 从 ServiceConfig 读取连接池参数
+    try:
+        from src.core.config.service_config import get_service_config
+        _svc_config = get_service_config()
+        _db_pool_size = _svc_config.DB_POOL_SIZE
+        _db_max_overflow = _svc_config.DB_MAX_OVERFLOW
+    except Exception:
+        _db_pool_size = 5
+        _db_max_overflow = 10
+
+    # P1-3: SQLite 使用 QueuePool 替代 StaticPool，支持连接池化
     _local_engine = create_engine(
         LOCAL_DB_URL,
         connect_args={"check_same_thread": False, "timeout": 30},
-        poolclass=StaticPool,
+        poolclass=QueuePool,
+        pool_size=_db_pool_size,
+        max_overflow=_db_max_overflow,
+        pool_pre_ping=True,
         echo=False,
     )
     logger.info(f"本地SQLite数据库初始化: {LOCAL_DB_URL}")
@@ -127,11 +141,22 @@ def init_remote_database():
         return
 
     try:
+        # P1-3: 从 ServiceConfig 读取连接池参数
+        try:
+            from src.core.config.service_config import get_service_config
+            _svc_config = get_service_config()
+            _mysql_pool_size = _svc_config.DB_POOL_SIZE
+            _mysql_max_overflow = _svc_config.DB_MAX_OVERFLOW
+        except Exception:
+            _mysql_pool_size = 5
+            _mysql_max_overflow = 10
+
         _remote_engine = create_engine(
             REMOTE_DB_URL,
             pool_pre_ping=True,
-            pool_size=10,
-            max_overflow=20,
+            pool_size=_mysql_pool_size,
+            max_overflow=_mysql_max_overflow,
+            connect_args={"connect_timeout": 10},
             echo=False,
         )
         logger.info(f"远程MySQL数据库初始化: {REMOTE_DB_URL}")

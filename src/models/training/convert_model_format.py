@@ -131,7 +131,6 @@ def convert_to_torchscript(model_path, output_path):
     num_classes = len(class_to_idx) if class_to_idx else 131
 
     # 导入模型定义
-    sys.path.insert(
         0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "src", "core"))
     )
     from general_classification import CharacterClassifier

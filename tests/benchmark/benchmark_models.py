@@ -15,8 +15,6 @@ import numpy as np
 from tqdm import tqdm
 from sklearn.metrics import accuracy_score, confusion_matrix, classification_report
 
-# 添加项目根目录到Python路径
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from src.core.general_classification import GeneralClassification
 from tests.collect_test_data import collect_single_character_data

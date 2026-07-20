@@ -22,7 +22,6 @@ from pathlib import Path
 # 添加当前目录到系统路径
 import sys
 
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 # 导入配置工具
 from src.utils.config_utils import (

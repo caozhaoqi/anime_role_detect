@@ -14,7 +14,6 @@ os.environ["CUDA_VISIBLE_DEVICES"] = ""  # 禁用CUDA
 from pathlib import Path
 
 project_root = Path(__file__).parent.parent.parent
-sys.path.insert(0, str(project_root))
 
 import unittest
 import platform
@@ -28,9 +27,10 @@ class TestQualityFilter(unittest.TestCase):
         from src.data_pipeline.cleaner import QualityFilter
         filter = QualityFilter()
         self.assertIsNotNone(filter)
-        self.assertEqual(filter.min_resolution, 256)
-        self.assertEqual(filter.min_aspect_ratio, 0.1)
-        self.assertEqual(filter.max_aspect_ratio, 10.0)
+        self.assertEqual(filter.min_width, 256)
+        self.assertEqual(filter.min_height, 256)
+        self.assertEqual(filter.min_ratio, 0.1)
+        self.assertEqual(filter.max_ratio, 10.0)
         print("✅ QualityFilter初始化测试通过")
 
     def test_filter_with_invalid_path(self):
@@ -39,7 +39,8 @@ class TestQualityFilter(unittest.TestCase):
         filter = QualityFilter()
         ok, info = filter.filter("invalid/path/to/image.jpg")
         self.assertFalse(ok)
-        self.assertIn('error', info)
+        self.assertIn('reason', info)
+        self.assertIn(info['check'], ('resolution', 'format'))
         print("✅ QualityFilter无效路径测试通过")
 
 
@@ -72,10 +73,12 @@ class TestAnimeClassifier(unittest.TestCase):
         from src.data_pipeline.cleaner import AnimeClassifier
         classifier = AnimeClassifier()
         
-        self.assertIn('anime', classifier.prompts)
-        self.assertIn('non_anime', classifier.prompts)
-        self.assertIsInstance(classifier.prompts['anime'], list)
-        self.assertIsInstance(classifier.prompts['non_anime'], list)
+        self.assertIsNotNone(classifier.anime_prompts)
+        self.assertIsNotNone(classifier.non_anime_prompts)
+        self.assertIsInstance(classifier.anime_prompts, list)
+        self.assertIsInstance(classifier.non_anime_prompts, list)
+        self.assertGreater(len(classifier.anime_prompts), 0)
+        self.assertGreater(len(classifier.non_anime_prompts), 0)
         print(f"✅ AnimeClassifier提示词定义测试通过")
 
 

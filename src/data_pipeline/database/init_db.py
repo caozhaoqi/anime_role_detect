@@ -8,7 +8,6 @@ from pathlib import Path
 
 # 添加项目根目录到路径
 project_root = Path(__file__).parent.parent.parent.parent
-sys.path.insert(0, str(project_root))
 
 from sqlalchemy import create_engine, Column, Integer, String, Float, Boolean, JSON, DateTime, ForeignKey
 from sqlalchemy.ext.declarative import declarative_base

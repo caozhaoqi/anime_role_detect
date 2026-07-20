@@ -13,7 +13,6 @@ from typing import Optional
 
 # 添加项目根目录到Python路径
 project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-sys.path.insert(0, project_root)
 print(f"添加到Python路径: {project_root}")
 print(f"当前工作目录: {os.getcwd()}")
 

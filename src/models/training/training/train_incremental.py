@@ -21,7 +21,6 @@ from src.core.logging.global_logger import get_logger
 from models.keypoint_aware_model import get_keypoint_aware_model
 
 # Python
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 
 # 
 

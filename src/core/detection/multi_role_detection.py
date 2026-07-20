@@ -15,11 +15,10 @@ from typing import List, Dict, Any, Tuple
 
 # 添加项目根目录到Python路径
 project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-sys.path.insert(0, project_root)
 
-from core.logging.global_logger import get_logger
-from core.feature_extraction.feature_extraction import FeatureExtraction
-from core.tagging.wd_vit_v3_tagger import WDViTV3Tagger
+from src.core.logging.global_logger import get_logger
+from src.core.feature_extraction.feature_extraction import FeatureExtraction
+from src.core.tagging.wd_vit_v3_tagger import WDViTV3Tagger
 import torch
 import torchvision.transforms as transforms
 from torchvision import models

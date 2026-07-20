@@ -145,34 +145,46 @@ function calculateNewDimensions(
 }
 
 /**
- * 批量压缩图片
+ * 批量压缩图片（P2-4: 并行压缩，带并发限制避免内存溢出）
  * @param files 图片文件数组
  * @param options 压缩选项
+ * @param concurrency 最大并发数，默认 5
  * @returns 压缩后的图片文件数组
  */
 export async function compressImages(
   files: File[],
-  options?: CompressionOptions
+  options?: CompressionOptions,
+  concurrency: number = 5
 ): Promise<File[]> {
-  const compressedFiles: File[] = [];
-  
-  for (const file of files) {
-    try {
-      // 只压缩图片文件
-      if (!file.type.startsWith('image/')) {
-        compressedFiles.push(file);
-        continue;
-      }
-      
-      const compressed = await compressImage(file, options);
-      compressedFiles.push(compressed);
-    } catch (error) {
-      console.warn(`压缩图片失败: ${file.name}`, error);
-      // 压缩失败时使用原文件
-      compressedFiles.push(file);
+  const compressedFiles: File[] = new Array(files.length);
+
+  // 并发控制：分批处理，每批最多 concurrency 个文件
+  for (let i = 0; i < files.length; i += concurrency) {
+    const batch = files.slice(i, i + concurrency);
+    const batchResults = await Promise.all(
+      batch.map(async (file, batchIdx) => {
+        const globalIdx = i + batchIdx;
+        try {
+          // 只压缩图片文件
+          if (!file.type.startsWith('image/')) {
+            return { index: globalIdx, file };
+          }
+          const compressed = await compressImage(file, options);
+          return { index: globalIdx, file: compressed };
+        } catch (error) {
+          console.warn(`压缩图片失败: ${file.name}`, error);
+          // 压缩失败时使用原文件
+          return { index: globalIdx, file };
+        }
+      })
+    );
+
+    // 按原始顺序放入结果数组
+    for (const result of batchResults) {
+      compressedFiles[result.index] = result.file;
     }
   }
-  
+
   return compressedFiles;
 }
 

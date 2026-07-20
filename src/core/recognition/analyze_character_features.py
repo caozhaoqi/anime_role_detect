@@ -15,7 +15,6 @@ from pathlib import Path
 from collections import defaultdict
 import numpy as np
 
-sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
 
 from src.core.recognition.character_retriever import CharacterRetriever
 

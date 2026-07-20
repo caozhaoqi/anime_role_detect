@@ -18,8 +18,6 @@ from torchvision import transforms
 project_root = os.path.dirname(
     os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 )
-sys.path.insert(0, project_root)
-
 
 class MultiTargetDetector:
     """多目标检测器 - YOLOv8 人体检测 + 角色分类"""

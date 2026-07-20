@@ -16,7 +16,6 @@ os.environ["OBJC_DISABLE_INITIALIZE_FORK_SAFETY"] = "YES"
 os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
 
 project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-sys.path.insert(0, project_root)
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware

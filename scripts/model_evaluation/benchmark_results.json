@@ -1,0 +1,418 @@
+{
+  "benchmark_at": "2026-07-20 10:50:15",
+  "project": "anime_role_detect",
+  "efficientnet_b3": {
+    "model_name": "efficientnet_b3",
+    "model_path": "models/efficientnet_b3/model_best.pth",
+    "device": "mps",
+    "num_classes": 51,
+    "image_size": 256,
+    "model_size_mb": 45.99,
+    "total_parameters": 11917403,
+    "trainable_parameters": 11917403,
+    "param_memory_mb": 45.46,
+    "buffer_memory_mb": 0.34,
+    "process_rss_mb": 795.09,
+    "test_samples": 1275,
+    "skipped_samples": 0,
+    "eval_time_seconds": 117.42,
+    "top1_accuracy": 0.84,
+    "top5_accuracy": 0.9396,
+    "macro_precision": 0.8479,
+    "macro_recall": 0.84,
+    "macro_f1": 0.8401,
+    "single_latency_ms": 21.63,
+    "single_fps": 46.23,
+    "batch_size": 32,
+    "batch_latency_ms": 326.39,
+    "batch_fps": 87.54,
+    "best_5_classes": [
+      {
+        "class": "Kachina",
+        "correct": 25,
+        "total": 25,
+        "accuracy": 1.0
+      },
+      {
+        "class": "Yaoyao",
+        "correct": 24,
+        "total": 25,
+        "accuracy": 0.96
+      },
+      {
+        "class": "qingque",
+        "correct": 24,
+        "total": 25,
+        "accuracy": 0.96
+      },
+      {
+        "class": "rosaria",
+        "correct": 24,
+        "total": 25,
+        "accuracy": 0.96
+      },
+      {
+        "class": "sushang",
+        "correct": 24,
+        "total": 25,
+        "accuracy": 0.96
+      }
+    ],
+    "worst_5_classes": [
+      {
+        "class": "Klee",
+        "correct": 17,
+        "total": 25,
+        "accuracy": 0.68
+      },
+      {
+        "class": "aglaea",
+        "correct": 17,
+        "total": 25,
+        "accuracy": 0.68
+      },
+      {
+        "class": "clorinde",
+        "correct": 17,
+        "total": 25,
+        "accuracy": 0.68
+      },
+      {
+        "class": "kafka",
+        "correct": 17,
+        "total": 25,
+        "accuracy": 0.68
+      },
+      {
+        "class": "silver_wolf",
+        "correct": 16,
+        "total": 25,
+        "accuracy": 0.64
+      }
+    ],
+    "top_confused_pairs": [
+      {
+        "true": "clorinde",
+        "pred": "Furina",
+        "count": 3
+      },
+      {
+        "true": "ako",
+        "pred": "asuna",
+        "count": 2
+      },
+      {
+        "true": "charlotte",
+        "pred": "Kachina",
+        "count": 2
+      },
+      {
+        "true": "topaz",
+        "pred": "ako",
+        "count": 2
+      },
+      {
+        "true": "Hina",
+        "pred": "pearl",
+        "count": 2
+      },
+      {
+        "true": "natasha",
+        "pred": "ako",
+        "count": 2
+      },
+      {
+        "true": "ako",
+        "pred": "silver_wolf",
+        "count": 2
+      },
+      {
+        "true": "noelle",
+        "pred": "charlotte",
+        "count": 2
+      },
+      {
+        "true": "kafka",
+        "pred": "black_swan",
+        "count": 2
+      },
+      {
+        "true": "silver_wolf",
+        "pred": "Furina",
+        "count": 2
+      }
+    ],
+    "per_class_accuracy": {
+      "Aru": {
+        "correct": 18,
+        "total": 25,
+        "accuracy": 0.72
+      },
+      "Clara": {
+        "correct": 23,
+        "total": 25,
+        "accuracy": 0.92
+      },
+      "Diona": {
+        "correct": 22,
+        "total": 25,
+        "accuracy": 0.88
+      },
+      "Firefly": {
+        "correct": 23,
+        "total": 25,
+        "accuracy": 0.92
+      },
+      "Furina": {
+        "correct": 22,
+        "total": 25,
+        "accuracy": 0.88
+      },
+      "Herta": {
+        "correct": 22,
+        "total": 25,
+        "accuracy": 0.88
+      },
+      "Hina": {
+        "correct": 20,
+        "total": 25,
+        "accuracy": 0.8
+      },
+      "Kachina": {
+        "correct": 25,
+        "total": 25,
+        "accuracy": 1.0
+      },
+      "Kayoko": {
+        "correct": 23,
+        "total": 25,
+        "accuracy": 0.92
+      },
+      "Kirara": {
+        "correct": 21,
+        "total": 25,
+        "accuracy": 0.84
+      },
+      "Klee": {
+        "correct": 17,
+        "total": 25,
+        "accuracy": 0.68
+      },
+      "Yaoyao": {
+        "correct": 24,
+        "total": 25,
+        "accuracy": 0.96
+      },
+      "aglaea": {
+        "correct": 17,
+        "total": 25,
+        "accuracy": 0.68
+      },
+      "ako": {
+        "correct": 19,
+        "total": 25,
+        "accuracy": 0.76
+      },
+      "asuna": {
+        "correct": 19,
+        "total": 25,
+        "accuracy": 0.76
+      },
+      "black_swan": {
+        "correct": 21,
+        "total": 25,
+        "accuracy": 0.84
+      },
+      "castorice": {
+        "correct": 21,
+        "total": 25,
+        "accuracy": 0.84
+      },
+      "charlotte": {
+        "correct": 18,
+        "total": 25,
+        "accuracy": 0.72
+      },
+      "clorinde": {
+        "correct": 17,
+        "total": 25,
+        "accuracy": 0.68
+      },
+      "collei": {
+        "correct": 20,
+        "total": 25,
+        "accuracy": 0.8
+      },
+      "dori": {
+        "correct": 21,
+        "total": 25,
+        "accuracy": 0.84
+      },
+      "dunyarzad": {
+        "correct": 19,
+        "total": 25,
+        "accuracy": 0.76
+      },
+      "faruzan": {
+        "correct": 23,
+        "total": 25,
+        "accuracy": 0.92
+      },
+      "hakurei_reimu": {
+        "correct": 21,
+        "total": 25,
+        "accuracy": 0.84
+      },
+      "hook": {
+        "correct": 22,
+        "total": 25,
+        "accuracy": 0.88
+      },
+      "kafka": {
+        "correct": 17,
+        "total": 25,
+        "accuracy": 0.68
+      },
+      "keqing": {
+        "correct": 22,
+        "total": 25,
+        "accuracy": 0.88
+      },
+      "kokomi": {
+        "correct": 19,
+        "total": 25,
+        "accuracy": 0.76
+      },
+      "kujou_sara": {
+        "correct": 23,
+        "total": 25,
+        "accuracy": 0.92
+      },
+      "lucia": {
+        "correct": 23,
+        "total": 25,
+        "accuracy": 0.92
+      },
+      "mona": {
+        "correct": 23,
+        "total": 25,
+        "accuracy": 0.92
+      },
+      "nahida": {
+        "correct": 22,
+        "total": 25,
+        "accuracy": 0.88
+      },
+      "natasha": {
+        "correct": 20,
+        "total": 25,
+        "accuracy": 0.8
+      },
+      "nilou": {
+        "correct": 22,
+        "total": 25,
+        "accuracy": 0.88
+      },
+      "ningguang": {
+        "correct": 21,
+        "total": 25,
+        "accuracy": 0.84
+      },
+      "noelle": {
+        "correct": 20,
+        "total": 25,
+        "accuracy": 0.8
+      },
+      "pearl": {
+        "correct": 22,
+        "total": 25,
+        "accuracy": 0.88
+      },
+      "qingque": {
+        "correct": 24,
+        "total": 25,
+        "accuracy": 0.96
+      },
+      "rosaria": {
+        "correct": 24,
+        "total": 25,
+        "accuracy": 0.96
+      },
+      "sandrone": {
+        "correct": 23,
+        "total": 25,
+        "accuracy": 0.92
+      },
+      "serval": {
+        "correct": 23,
+        "total": 25,
+        "accuracy": 0.92
+      },
+      "silver_wolf": {
+        "correct": 16,
+        "total": 25,
+        "accuracy": 0.64
+      },
+      "sushang": {
+        "correct": 24,
+        "total": 25,
+        "accuracy": 0.96
+      },
+      "tingyun": {
+        "correct": 20,
+        "total": 25,
+        "accuracy": 0.8
+      },
+      "topaz": {
+        "correct": 18,
+        "total": 25,
+        "accuracy": 0.72
+      },
+      "xiangling": {
+        "correct": 22,
+        "total": 25,
+        "accuracy": 0.88
+      },
+      "xueyi": {
+        "correct": 20,
+        "total": 25,
+        "accuracy": 0.8
+      },
+      "yanfei": {
+        "correct": 23,
+        "total": 25,
+        "accuracy": 0.92
+      },
+      "yoimiya": {
+        "correct": 20,
+        "total": 25,
+        "accuracy": 0.8
+      },
+      "yukong": {
+        "correct": 23,
+        "total": 25,
+        "accuracy": 0.92
+      },
+      "yunli": {
+        "correct": 19,
+        "total": 25,
+        "accuracy": 0.76
+      }
+    }
+  },
+  "yolov8n": {
+    "model_name": "yolov8n",
+    "model_path": "yolov8n.pt",
+    "device": "mps",
+    "model_size_mb": 6.25,
+    "total_parameters": 3151904,
+    "load_time_seconds": 0.03,
+    "test_samples": 200,
+    "infer_time_seconds": 32.83,
+    "avg_latency_ms": 164.15,
+    "fps": 6.09,
+    "total_detections": 245,
+    "avg_detections_per_image": 1.23,
+    "avg_confidence": 0.444
+  }
+}

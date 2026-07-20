@@ -18,7 +18,6 @@ from src.models.models import get_model_with_attributes
 """
 
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 # 
 logging.basicConfig(

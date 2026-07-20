@@ -13,9 +13,8 @@ import logging
 import json
 import sys
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from models import get_model_with_attributes
+from src.core.classification.models import get_model_with_attributes
 
 # 
 logging.basicConfig(

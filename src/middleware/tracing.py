@@ -68,7 +68,12 @@ class TracingMiddleware(BaseHTTPMiddleware):
                 "http.query_params": str(request.query_params),
                 "client.ip": request.client.host if request.client else "unknown",
                 "client.port": request.client.port if request.client else 0,
-                "request.headers": dict(request.headers),
+                # P3-1: 仅记录关键请求头，避免记录全部 headers 导致内存膨胀
+                "request.headers": {
+                    "content_type": request.headers.get("content-type"),
+                    "content_length": request.headers.get("content-length"),
+                    "user_agent": request.headers.get("user-agent"),
+                },
             },
         )
 

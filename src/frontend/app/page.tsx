@@ -4,18 +4,41 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { Message, AuthState } from "./types";
 import axios from 'axios';
 import Login from './components/Login';
-import HistoryPanel from './components/HistoryPanel';
-import ConfigManager from './config/ConfigManager';
-import ConfigPanel from './components/ConfigPanel';
-import SearchPanel from './components/SearchPanel';
-import VideoPanel from './components/VideoPanel';
 import Header from './components/Header';
 import TabSwitcher from './components/TabSwitcher';
 import ChatPanel from './components/ChatPanel';
-import CleaningPanel from './components/CleaningPanel';
+import ConfigManager from './config/ConfigManager';
 import { useDebounce, useThrottle, useLock } from './hooks/useDebounce';
 import { compressImage, compressImages, formatFileSize } from './utils/imageCompression';
 import ErrorBoundary, { useGlobalErrorHandler } from './components/ErrorBoundary';
+
+// P2-5: 重型组件懒加载，减少首屏 JS bundle 体积
+import dynamic from 'next/dynamic';
+
+const HistoryPanel = dynamic(() => import('./components/HistoryPanel'), {
+  loading: () => <div className="animate-pulse h-96 bg-gray-100 dark:bg-gray-700 rounded-lg" />,
+  ssr: false,
+});
+
+const ConfigPanel = dynamic(() => import('./components/ConfigPanel'), {
+  loading: () => <div className="animate-pulse h-96 bg-gray-100 dark:bg-gray-700 rounded-lg" />,
+  ssr: false,
+});
+
+const SearchPanel = dynamic(() => import('./components/SearchPanel'), {
+  loading: () => <div className="animate-pulse h-96 bg-gray-100 dark:bg-gray-700 rounded-lg" />,
+  ssr: false,
+});
+
+const VideoPanel = dynamic(() => import('./components/VideoPanel'), {
+  loading: () => <div className="animate-pulse h-96 bg-gray-100 dark:bg-gray-700 rounded-lg" />,
+  ssr: false,
+});
+
+const CleaningPanel = dynamic(() => import('./components/CleaningPanel'), {
+  loading: () => <div className="animate-pulse h-96 bg-gray-100 dark:bg-gray-700 rounded-lg" />,
+  ssr: false,
+});
 
 export default function AnimeRoleDetect() {
   const [authState, setAuthState] = useState<AuthState>({

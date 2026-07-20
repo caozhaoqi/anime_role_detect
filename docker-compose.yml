@@ -18,6 +18,12 @@ services:
     networks:
       - backend
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
     deploy:
       resources:
         limits:
@@ -30,15 +36,21 @@ services:
     ports:
       - "3306:3306"
     environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-CHANGE_ME_root_pwd}
       MYSQL_DATABASE: ${MYSQL_DATABASE:-anime_role_detect}
       MYSQL_USER: ${MYSQL_USER:-anime_user}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-anime_pass}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-CHANGE_ME_anime_pwd}
     volumes:
       - mysql-data:/var/lib/mysql
     networks:
       - backend
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
     deploy:
       resources:
         limits:
@@ -52,8 +64,8 @@ services:
       - "5672:5672"
       - "15672:15672"
     environment:
-      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-admin}
-      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-admin}
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-ard_admin}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-CHANGE_ME_rabbit_pwd}
     volumes:
       - rabbitmq-data:/var/lib/rabbitmq
     networks:
@@ -124,10 +136,16 @@ services:
       base:
         condition: service_completed_successfully
       redis:
-        condition: service_started
+        condition: service_healthy
       mysql:
-        condition: service_started
+        condition: service_healthy
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
     deploy:
       resources:
         limits:
@@ -159,15 +177,21 @@ services:
       ml-base:
         condition: service_completed_successfully
       redis:
-        condition: service_started
+        condition: service_healthy
       rabbitmq:
-        condition: service_started
+        condition: service_healthy
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
     deploy:
       resources:
         limits:
           memory: 4G        # 压缩：8G -> 4G（深度学习模型，保留最大的一块）
-          cpus: "1.5"
+          cpus: "4"
 
   api-gateway:
     build:
@@ -193,8 +217,14 @@ services:
       base:
         condition: service_completed_successfully
       redis:
-        condition: service_started
+        condition: service_healthy
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
     deploy:
       resources:
         limits:
@@ -224,10 +254,16 @@ services:
       base:
         condition: service_completed_successfully
       redis:
-        condition: service_started
+        condition: service_healthy
       rabbitmq:
-        condition: service_started
+        condition: service_healthy
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
     deploy:
       resources:
         limits:
@@ -255,10 +291,16 @@ services:
       base:
         condition: service_completed_successfully
       redis:
-        condition: service_started
+        condition: service_healthy
       rabbitmq:
-        condition: service_started
+        condition: service_healthy
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
     deploy:
       resources:
         limits:
@@ -286,10 +328,16 @@ services:
       base:
         condition: service_completed_successfully
       redis:
-        condition: service_started
+        condition: service_healthy
       rabbitmq:
-        condition: service_started
+        condition: service_healthy
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f 'search.worker' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
     deploy:
       resources:
         limits:
@@ -317,10 +365,16 @@ services:
       ml-base:
         condition: service_completed_successfully
       redis:
-        condition: service_started
+        condition: service_healthy
       rabbitmq:
-        condition: service_started
+        condition: service_healthy
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f 'inference.worker' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
     deploy:
       resources:
         limits:
@@ -346,8 +400,14 @@ services:
       - frontend
     depends_on:
       redis:
-        condition: service_started
+        condition: service_healthy
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
     deploy:
       resources:
         limits:
@@ -374,6 +434,12 @@ services:
       api-gateway:
         condition: service_started
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3000 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
     deploy:
       resources:
         limits:

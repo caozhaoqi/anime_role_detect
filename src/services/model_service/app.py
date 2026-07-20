@@ -7,6 +7,7 @@ import sys
 import platform
 import asyncio
 import time
+import secrets
 from concurrent.futures import ThreadPoolExecutor
 
 IS_MACOS = platform.system() == "Darwin"
@@ -16,38 +17,27 @@ if IS_MACOS:
     os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
     os.environ["MPS_HIGH_WATERMARK_RATIO"] = "0.0"
     os.environ["PYTORCH_MPS_HIGH_WATERMARK_RATIO"] = "0.0"
-    os.environ["PYTORCH_MPS_DISABLE"] = "1"
-    os.environ["OMP_NUM_THREADS"] = "1"
-    os.environ["MKL_NUM_THREADS"] = "1"
-    os.environ["OPENBLAS_NUM_THREADS"] = "1"
-    os.environ["VECLIB_MAXIMUM_THREADS"] = "1"
-    os.environ["NUMEXPR_NUM_THREADS"] = "1"
+    os.environ["OMP_NUM_THREADS"] = "4"
+    os.environ["MKL_NUM_THREADS"] = "4"
+    os.environ["OPENBLAS_NUM_THREADS"] = "4"
+    os.environ["VECLIB_MAXIMUM_THREADS"] = "4"
+    os.environ["NUMEXPR_NUM_THREADS"] = "4"
     os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 
-# ==================== MPS 强制禁用补丁 ====================
-# macOS MPS 后端存在 mutex 死锁问题（[mutex.cc : 452] RAW: Lock blocking）
-# 该死锁由 macOS 内核级信号量残留导致，无法通过环境变量完全清理
-# 通过在 torch 初始化前 monkey-patch _mps_is_available 来彻底禁用 MPS
-# 注意：此补丁必须在任何模块导入 torch 之前执行
-try:
-    import torch._C
-    # 检查是否已有 MPS 可用性检查函数
-    if hasattr(torch._C, '_mps_is_available'):
-        torch._C._mps_is_available = lambda: False
-except Exception:
-    pass
-# ==========================================================
+# MPS 已通过 DeviceManager 自动管理，不再强制禁用
+# 保留 PYTORCH_ENABLE_MPS_FALLBACK=1 作为安全网（上方第 16 行）
 
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.."))
-sys.path.insert(0, project_root)
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
+from fastapi import Request, HTTPException
 from contextlib import asynccontextmanager
 import uvicorn
 
 from src.core.config.service_config import get_service_config
+from src.core.config.device_manager import DeviceManager
 from src.core.logging.global_logger import get_logger
 
 config = get_service_config()
@@ -64,18 +54,32 @@ except ImportError:
 @asynccontextmanager
 async def model_service_lifespan(app: FastAPI):
     """模型服务生命周期管理"""
-    global logger, Image, preprocessor, feature_extractor, tagger
+    global logger, Image, preprocessor, feature_extractor, tagger, keypoint_pool
     from src.core.logging.global_logger import get_logger as gl
     from PIL import Image as Img
 
     Image = Img
     logger = gl("model_service")
     logger.info("启动模型服务")
-    set_globals(preprocessor, feature_extractor, tagger, OPTIMAL_DEVICE)
+
+    # 使用 DeviceManager 替代旧的 get_optimal_device
+    OPTIMAL_DEVICE = DeviceManager.get_device()
+    logger.info(f"推理设备: {OPTIMAL_DEVICE}")
+
+    # 初始化关键点检测进程池
+    from src.services.model_service.keypoint_worker import KeypointWorkerPool
+    keypoint_pool = KeypointWorkerPool(num_workers=config.KEYPOINT_WORKER_COUNT)
+    keypoint_pool.start()
+    logger.info(f"关键点检测进程池已启动 (workers={config.KEYPOINT_WORKER_COUNT})")
+
+    set_globals(preprocessor, feature_extractor, tagger, OPTIMAL_DEVICE, keypoint_pool)
     await init_models()
     logger.info("模型服务启动完成")
     yield
     logger.info("模型服务关闭")
+    if keypoint_pool is not None:
+        keypoint_pool.shutdown()
+        logger.info("关键点检测进程池已关闭")
 
 
 # 创建应用
@@ -92,33 +96,44 @@ allow_credentials = False if allowed_origins == ["*"] else True
 app.add_middleware(CORSMiddleware, allow_origins=allowed_origins, allow_credentials=allow_credentials, allow_methods=["*"], allow_headers=["*"])
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
+# ========== 内部服务认证中间件 ==========
+_INTERNAL_TOKEN = os.environ.get("INTERNAL_SERVICE_TOKEN", "")
+_INTERNAL_IPS = {ip.strip() for ip in os.environ.get("INTERNAL_IPS", "127.0.0.1,localhost,::1").split(",") if ip.strip()}
+_INTERNAL_EXEMPT_PATHS = {"/api/health", "/live", "/ready"}
+
+
+@app.middleware("http")
+async def internal_auth_middleware(request: Request, call_next):
+    """内部服务认证：要求请求来自内部IP或持有内部服务令牌。
+
+    模型服务是内部推理服务，不应直接暴露给外部。
+    仅 /api/health、/live、/ready 免认证。
+    """
+    # 健康检查端点免认证
+    if request.url.path in _INTERNAL_EXEMPT_PATHS:
+        return await call_next(request)
+
+    # 检查客户端IP
+    client_host = request.client.host if request.client else "unknown"
+    # 支持 IPv6 回环地址映射
+    if client_host not in _INTERNAL_IPS and client_host not in {"127.0.0.1", "::1", "localhost"}:
+        # 检查内部服务令牌
+        token = request.headers.get("X-Internal-Service-Token", "")
+        if _INTERNAL_TOKEN and not secrets.compare_digest(token, _INTERNAL_TOKEN):
+            logger.warning(f"未授权的模型服务访问: IP={client_host}, Path={request.url.path}")
+            raise HTTPException(status_code=403, detail="Forbidden: internal service only")
+
+    return await call_next(request)
+
+
 # 路由
 from src.services.model_service.routes import router as model_router, set_globals
 app.include_router(model_router)
 
 
 def get_optimal_device():
-    """自动选择最佳计算设备"""
-    try:
-        import torch
-        # 如果环境变量禁用了MPS，跳过MPS检测
-        if os.environ.get("PYTORCH_MPS_DISABLE", "0") == "1":
-            if torch.cuda.is_available():
-                print("✅ 检测到CUDA可用，将使用NVIDIA GPU加速")
-                return "cuda"
-            print("⚠️ MPS已被环境变量禁用，将使用CPU推理")
-            return "cpu"
-        if IS_MACOS and torch.backends.mps.is_available():
-            print("✅ 检测到MPS可用，将使用Apple Silicon GPU加速")
-            return "mps"
-        if torch.cuda.is_available():
-            print("✅ 检测到CUDA可用，将使用NVIDIA GPU加速")
-            return "cuda"
-        print("⚠️ 未检测到GPU，将使用CPU推理（速度较慢）")
-        return "cpu"
-    except ImportError:
-        print("⚠️ PyTorch未安装，将使用CPU")
-        return "cpu"
+    """自动选择最佳计算设备（委托给 DeviceManager）"""
+    return DeviceManager.get_device()
 
 
 OPTIMAL_DEVICE = get_optimal_device()
@@ -127,6 +142,7 @@ OPTIMAL_DEVICE = get_optimal_device()
 preprocessor = None
 feature_extractor = None
 tagger = None
+keypoint_pool = None
 model_init_lock = asyncio.Lock()
 
 
@@ -144,7 +160,12 @@ async def init_models():
 
 
 async def warmup_models():
-    """模型预热"""
+    """模型预热
+
+    预加载 WD ViT Tagger、EasyOCR、NSFW 检测器，
+    使首次请求不再等待模型下载/初始化。
+    预加载失败不阻止服务启动，仅记录 [DEGRADE] 日志。
+    """
     global feature_extractor, tagger
     try:
         logger.info("开始模型预热...")
@@ -167,14 +188,49 @@ async def warmup_models():
                 await loop.run_in_executor(executor, feature_extractor.extract_features, processed)
             logger.info("特征提取器预热完成")
 
-        # 标签生成器跳过预热（按需加载），
-        # 避免 transformers 加载 SmilingWolf/wd-vit-tagger-v3 时触发 MPS mutex 死锁
-        logger.info("标签生成器跳过预热（按需加载）")
+        # ---- 预加载 WD ViT Tagger（同步加载，替代原来的跳过/超时线程方式）----
+        logger.info("预加载 WD ViT Tagger...")
+        try:
+            if tagger is None:
+                from src.core.tagging.wd_vit_v3_tagger import WDViTV3Tagger
+                tagger = WDViTV3Tagger.get_instance()
+                loop = asyncio.get_running_loop()
+                with ThreadPoolExecutor(max_workers=1) as executor:
+                    await loop.run_in_executor(executor, tagger.load_model)
+                logger.info("WD ViT Tagger 预加载完成")
+        except Exception as e:
+            logger.warning(f"[DEGRADE] WD ViT Tagger 预加载失败，按需加载: {e}")
+
+        # ---- 预加载 EasyOCR ----
+        logger.info("预加载 EasyOCR...")
+        try:
+            from src.core.ocr.easyocr_detector import get_ocr_detector
+            ocr_detector = get_ocr_detector()
+            loop = asyncio.get_running_loop()
+            with ThreadPoolExecutor(max_workers=1) as executor:
+                await loop.run_in_executor(executor, ocr_detector.preload)
+            if ocr_detector.is_ready():
+                logger.info("EasyOCR 预加载完成")
+            else:
+                logger.warning("[DEGRADE] EasyOCR 预加载后仍未就绪，OCR 将降级")
+        except Exception as e:
+            logger.warning(f"[DEGRADE] EasyOCR 预加载失败，OCR 将降级: {e}")
+
+        # ---- 预加载 NSFW 检测器 ----
+        logger.info("预加载 NSFW 检测器...")
+        try:
+            from src.services.model.nsfw_detector import load_transformers_model
+            loop = asyncio.get_running_loop()
+            with ThreadPoolExecutor(max_workers=1) as executor:
+                await loop.run_in_executor(executor, load_transformers_model)
+            logger.info("NSFW 检测器预加载完成")
+        except Exception as e:
+            logger.warning(f"[DEGRADE] NSFW 检测器预加载失败，将使用规则检测: {e}")
 
         elapsed = time.time() - start_time
         logger.info(f"模型预热完成，耗时: {elapsed:.2f}秒")
         # 预热完成后同步全局变量到路由模块
-        set_globals(preprocessor, feature_extractor, tagger, OPTIMAL_DEVICE)
+        set_globals(preprocessor, feature_extractor, tagger, OPTIMAL_DEVICE, keypoint_pool)
     except Exception as e:
         logger.error(f"模型预热失败: {e}")
 
@@ -188,4 +244,4 @@ if __name__ == "__main__":
     parser.add_argument("--workers", type=int, default=1, help="工作进程数")
     args = parser.parse_args()
     uvicorn.run("app:app", host=args.host, port=args.port, workers=args.workers,
-                timeout_keep_alive=30, limit_concurrency=10)
+                timeout_keep_alive=30, limit_concurrency=config.UVICORN_LIMIT_CONCURRENCY)

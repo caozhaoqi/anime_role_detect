@@ -20,7 +20,7 @@ mlflow==2.10.2
 transformers==4.34.0
 
 # CLIP 模型（用于搜索和去重）
-git+https://github.com/openai/CLIP.git
+git+https://github.com/openai/CLIP.git@a1d071733d7111c9c014f024669f959182114e33
 
 # 向量索引（用于搜索）
-faiss-cpu==1.8.0
+faiss-cpu==1.9.0

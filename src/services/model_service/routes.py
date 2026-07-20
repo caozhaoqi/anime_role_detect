@@ -9,7 +9,6 @@ from concurrent.futures import ThreadPoolExecutor
 from typing import List
 
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.."))
-sys.path.insert(0, project_root)
 
 from fastapi import APIRouter, UploadFile, File, HTTPException, Form
 from PIL import Image
@@ -19,9 +18,11 @@ from src.core.logging.global_logger import get_logger
 from src.services.model_service.classifiers import EfficientNetClassifier
 from src.services.cache_service.cache_service import model_cache
 from src.core.utils.role_info_loader import get_role_info
+from src.core.utils.utils import safe_temp_path as _safe_temp_path
 from src.services.cache_service.redis_cache import get_redis_cache
 from src.services.model.recognition_service import get_recognition_service
 from src.models.recognition_record import RecognitionRecordCreate
+from src.core.config.service_config import get_service_config as _get_svc_config
 
 # 模块级别导入 WDViTV3Tagger，确保在请求处理之前完成导入和 torch 初始化
 # 避免在首次请求时触发 MPS C++ 后端 mutex 死锁
@@ -32,6 +33,7 @@ except Exception:
 
 logger = get_logger("model_service.routes")
 
+
 router = APIRouter()
 
 # 全局引用，由 app.py 在初始化时设置
@@ -39,6 +41,10 @@ preprocessor = None
 feature_extractor = None
 tagger = None
 _efficientnet_classifier = None
+keypoint_pool = None  # KeypointWorkerPool 实例
+
+# P2-1: 全局复用的 ThreadPoolExecutor（不在函数内创建新实例）
+_executor: ThreadPoolExecutor = None
 
 model_init_lock = asyncio.Lock()
 OPTIMAL_DEVICE = "cpu"
@@ -106,6 +112,54 @@ def _ensure_torch_imported():
             logger.info("使用CPU")
 
 
+async def _run_ocr_and_nsfw(image, content, filename):
+    """运行 OCR 和 NSFW 检测（可选增强，失败不阻塞主流程）
+
+    在 Model Service 内部完成 OCR + NSFW 检测，避免 API Service 重复推理。
+
+    Args:
+        image: PIL Image 对象（用于 OCR）
+        content: 原始图片字节（用于 NSFW 临时文件写入）
+        filename: 原始文件名
+
+    Returns:
+        tuple: (text_detections, nsfw_result)
+    """
+    text_detections = []
+    nsfw_result = {"is_nsfw": False, "skin_ratio": 0.0, "method": "default"}
+
+    # OCR 检测（使用预加载的 EasyOCR）
+    try:
+        from src.core.ocr.easyocr_detector import get_ocr_detector
+        ocr_detector = get_ocr_detector()
+        if ocr_detector.is_ready():
+            text_detections = ocr_detector.detect_text(image)
+        else:
+            logger.warning("[DEGRADE] OCR 检测器未就绪，跳过文字检测")
+    except Exception as e:
+        logger.warning(f"OCR 检测失败: {e}")
+
+    # NSFW 检测（需要文件路径，保存到安全临时文件）
+    nsfw_temp_path = None
+    try:
+        nsfw_temp_path = _safe_temp_path(filename or "unknown", "nsfw")
+        with open(nsfw_temp_path, "wb") as f:
+            f.write(content)
+        from src.services.model.nsfw_detector import detect_nsfw
+        loop = asyncio.get_running_loop()
+        nsfw_result = await loop.run_in_executor(_executor, detect_nsfw, nsfw_temp_path)
+    except Exception as e:
+        logger.warning(f"NSFW 检测失败: {e}")
+    finally:
+        if nsfw_temp_path and os.path.exists(nsfw_temp_path):
+            try:
+                os.remove(nsfw_temp_path)
+            except Exception:
+                pass
+
+    return text_detections, nsfw_result
+
+
 @router.post("/api/model/predict")
 async def predict_image(
     file: UploadFile = File(...),
@@ -150,38 +204,11 @@ async def predict_image(
         keypoints = None
         if use_keypoints:
             try:
-                # 使用子进程运行关键点检测，避免与 uvicorn 服务中的 PyTorch MPS 后端冲突
-                import subprocess, json, base64, sys
-                from io import BytesIO
-                # 将图像编码为 base64 传给子进程
-                if hasattr(image, 'convert'):
-                    buf = BytesIO()
-                    image.save(buf, format='JPEG')
-                    img_b64 = base64.b64encode(buf.getvalue()).decode()
+                # P0-2: 使用常驻进程池替代每次 subprocess.run fork
+                if keypoint_pool is not None:
+                    keypoints = await keypoint_pool.detect_keypoints(image)
                 else:
-                    img_b64 = base64.b64encode(content).decode()
-
-                result = subprocess.run(
-                    [sys.executable, '-c', '''
-import base64, json, sys
-from io import BytesIO
-from PIL import Image
-img = Image.open(BytesIO(base64.b64decode(sys.argv[1]))).convert("RGB")
-# 在子进程内 lazily import mediapipe
-from src.core.keypoint.mediapipe_keypoint_detector import detect_keypoints
-kps = detect_keypoints(img)
-print(json.dumps(kps), flush=True)
-''', img_b64],
-                    capture_output=True, text=True, timeout=30,
-                    env={**__import__('os').environ, 'PYTORCH_MPS_DISABLE': '1', 'PYTHONPATH': __import__('os').path.dirname(__file__) + '/../../../..'},
-                    cwd=__import__('os').path.dirname(__file__) + '/../../../..'
-                )
-                if result.returncode == 0 and result.stdout.strip():
-                    keypoints = json.loads(result.stdout.strip())
-                    logger.info(f"关键点检测完成: {len(keypoints)} 个关键点")
-                else:
-                    if result.stderr:
-                        logger.warning(f"关键点检测子进程 stderr: {result.stderr[:200]}")
+                    logger.warning("keypoint_pool 未初始化，跳过关键点检测")
                     keypoints = []
             except Exception as e:
                 logger.warning(f"关键点检测失败: {e}")
@@ -191,10 +218,9 @@ print(json.dumps(kps), flush=True)
         if _efficientnet_classifier is None:
             try:
                 loop = asyncio.get_running_loop()
-                with ThreadPoolExecutor(max_workers=1) as executor:
-                    _efficientnet_classifier = await loop.run_in_executor(
-                        executor, EfficientNetClassifier.get_instance
-                    )
+                _efficientnet_classifier = await loop.run_in_executor(
+                    _executor, EfficientNetClassifier.get_instance
+                )
             except Exception as e:
                 logger.error(f"EfficientNet分类器初始化失败: {e}")
 
@@ -214,8 +240,7 @@ print(json.dumps(kps), flush=True)
                                     from src.core.tagging.wd_vit_v3_tagger import WDViTV3Tagger
                                     tagger = WDViTV3Tagger.get_instance()
                                     loop = asyncio.get_running_loop()
-                                    with ThreadPoolExecutor(max_workers=1) as executor:
-                                        await loop.run_in_executor(executor, tagger.load_model)
+                                    await loop.run_in_executor(_executor, tagger.load_model)
                                     logger.info("标签生成器同步加载完成")
                                 except Exception as e:
                                     logger.error(f"标签生成器初始化失败: {e}")
@@ -234,9 +259,15 @@ print(json.dumps(kps), flush=True)
                     "role_anime": role_full_info.get("anime", ""),
                     "similarity": float(similarity),
                     "attributes": attributes,
+                    "tags": [a.get("tag", "") for a in attributes if a.get("tag")] if attributes else [],
                     "keypoints": keypoints,
                     "feature": feature.tolist() if hasattr(feature, "tolist") else feature,
                 }
+
+                # 在 Model Service 内部完成 OCR + NSFW 检测，避免 API Service 重复推理
+                text_detections, nsfw_result = await _run_ocr_and_nsfw(image, content, file.filename)
+                result["text_detections"] = text_detections
+                result["nsfw"] = nsfw_result
 
                 if use_cache and redis_cache.available:
                     redis_cache.set_image_result(image_hash, result)
@@ -266,8 +297,7 @@ print(json.dumps(kps), flush=True)
             async with model_init_lock:
                 if feature_extractor is None:
                     loop = asyncio.get_running_loop()
-                    with ThreadPoolExecutor(max_workers=1) as executor:
-                        feature_extractor = await loop.run_in_executor(executor, FeatureExtraction)
+                    feature_extractor = await loop.run_in_executor(_executor, FeatureExtraction)
 
         feature = feature_extractor.extract_features(processed_image)
 
@@ -280,8 +310,7 @@ print(json.dumps(kps), flush=True)
                             from src.core.tagging.wd_vit_v3_tagger import WDViTV3Tagger
                             tagger = WDViTV3Tagger.get_instance()
                             loop = asyncio.get_running_loop()
-                            with ThreadPoolExecutor(max_workers=1) as executor:
-                                await loop.run_in_executor(executor, tagger.load_model)
+                            await loop.run_in_executor(_executor, tagger.load_model)
                             logger.info("标签生成器同步加载完成")
                         except Exception:
                             tagger = None
@@ -307,9 +336,11 @@ print(json.dumps(kps), flush=True)
                 classifier = Classification(threshold=0.1)
             model_cache.setdefault(model_name, classifier)
 
-        if classifier.index is not None:
+        if classifier.index is not None and getattr(classifier.index, "ntotal", 0) > 0:
             role, similarity = classifier.classify(feature, 5, attributes)
         else:
+            if classifier.index is not None and getattr(classifier.index, "ntotal", 0) == 0:
+                logger.warning("[DEGRADE] FAISS 索引为空 (ntotal=0)，降级到本地模型分类")
             try:
                 from src.core.detection.multi_role_detection import MultiRoleDetector
                 detector = MultiRoleDetector(model_name=model_name)
@@ -329,9 +360,15 @@ print(json.dumps(kps), flush=True)
             "role_anime": role_full_info.get("anime", ""),
             "similarity": float(similarity),
             "attributes": attributes,
+            "tags": [a.get("tag", "") for a in attributes if a.get("tag")] if attributes else [],
             "keypoints": keypoints,
             "feature": feature.tolist() if hasattr(feature, "tolist") else feature,
         }
+
+        # 在 Model Service 内部完成 OCR + NSFW 检测，避免 API Service 重复推理
+        text_detections, nsfw_result = await _run_ocr_and_nsfw(image, content, file.filename)
+        result["text_detections"] = text_detections
+        result["nsfw"] = nsfw_result
 
         if use_cache and redis_cache.available:
             redis_cache.set_image_result(image_hash, result)
@@ -376,7 +413,7 @@ async def extract_features(file: UploadFile = File(...)):
     temp_path = None
     try:
         content = await file.read()
-        temp_path = f"temp_{int(time.time())}_{file.filename}"
+        temp_path = _safe_temp_path(file.filename, "extract")
         with open(temp_path, "wb") as f:
             f.write(content)
 
@@ -417,7 +454,7 @@ async def detect_multiple_characters(
     temp_path = None
     try:
         content = await file.read()
-        temp_path = f"temp_{int(time.time())}_{file.filename}"
+        temp_path = _safe_temp_path(file.filename, "multirole")
         with open(temp_path, "wb") as f:
             f.write(content)
 
@@ -473,7 +510,11 @@ async def detect_multiple_characters(
                 role_result["is_fuzzy"] = detection["is_fuzzy"]
             results.append(role_result)
 
-        return {"roles": results, "count": len(results)}
+        # 在 Model Service 内部完成 OCR + NSFW 检测，避免 API Service 重复推理
+        multi_image = Image.open(temp_path).convert("RGB")
+        text_detections, nsfw_result = await _run_ocr_and_nsfw(multi_image, content, file.filename)
+
+        return {"roles": results, "count": len(results), "text_detections": text_detections, "nsfw": nsfw_result}
     except HTTPException:
         raise
     except Exception as e:
@@ -499,7 +540,7 @@ async def detect_with_yolo(
     temp_path = None
     try:
         content = await file.read()
-        temp_path = f"temp_yolo_{int(time.time())}_{file.filename}"
+        temp_path = _safe_temp_path(file.filename, "yolo")
         with open(temp_path, "wb") as f:
             f.write(content)
 
@@ -567,57 +608,94 @@ async def batch_predict_images(
     multilabel: bool = Form(False),
     threshold: float = Form(0.4),
 ):
-    """批量预测多张图像"""
+    """批量预测多张图像（P1-1: 并行读取 + 批量推理）"""
     global preprocessor, feature_extractor, tagger
     results = []
     try:
         _ensure_torch_imported()
-        for file in files:
-            content = await file.read()
+
+        # P1-1: 从 ServiceConfig 读取 batch_size
+        svc_config = _get_svc_config()
+        effective_batch_size = batch_size or svc_config.INFERENCE_BATCH_SIZE
+
+        # P1-1: 并行读取所有文件
+        async def _read_file(f: UploadFile) -> tuple:
+            content = await f.read()
+            return (f, content)
+
+        file_contents = await asyncio.gather(*[_read_file(f) for f in files])
+
+        # 并行预处理所有图像
+        valid_items = []  # [(file, content, image), ...]
+        for file, content in file_contents:
             try:
-                from src.core.classification.classification import Classification
                 image = Image.open(io.BytesIO(content)).convert("RGB")
+                valid_items.append((file, content, image))
+            except Exception as e:
+                logger.error(f"读取文件 {file.filename} 失败: {e}")
+                results.append({"filename": file.filename, "error": str(e)})
+
+        if not valid_items:
+            return {"results": results, "count": len(results)}
+
+        # 确保预处理器已初始化
+        if preprocessor is None:
+            async with model_init_lock:
                 if preprocessor is None:
-                    async with model_init_lock:
-                        if preprocessor is None:
-                            from src.core.preprocessing.preprocessing import Preprocessing
-                            preprocessor = Preprocessing()
-                processed_image = preprocessor.preprocess(image)
-                if processed_image is None:
-                    results.append({"filename": file.filename, "error": "图像预处理失败"})
-                    continue
+                    from src.core.preprocessing.preprocessing import Preprocessing
+                    preprocessor = Preprocessing()
 
-                if feature_extractor is None:
-                    async with model_init_lock:
-                        if feature_extractor is None:
-                            from src.core.feature_extraction.feature_extraction import FeatureExtraction
-                            feature_extractor = FeatureExtraction()
-                feature = feature_extractor.extract_features(processed_image)
+        # 并行预处理
+        def _preprocess_one(image):
+            return preprocessor.preprocess(image)
 
-                attributes = []
-                if use_attributes and tagger:
-                    try:
-                        attributes = tagger.generate_tags(image)
-                    except Exception:
-                        pass
+        loop = asyncio.get_running_loop()
+        processed_images = await loop.run_in_executor(
+            _executor, lambda: [_preprocess_one(img) for _, _, img in valid_items]
+        )
 
-                classifier = model_cache.get(model_name)
-                if classifier is None:
-                    index_path = f"./models/{model_name}"
-                    if not os.path.exists(index_path):
-                        index_path = "./models/efficientnet_b3_loli_optimized_v2_20260529_133654"
-                    faiss_path = f"{index_path}.faiss"
-                    mapping_path = f"{index_path}_mapping.json"
-                    if os.path.exists(faiss_path) and os.path.exists(mapping_path):
-                        classifier = Classification(index_path, threshold=0.1)
-                    else:
-                        classifier = Classification(threshold=0.1)
-                    model_cache.setdefault(model_name, classifier)
+        # 过滤预处理失败的
+        batch_images = []
+        batch_meta = []  # [(file, image, attributes, processed), ...]
+        for i, (file, content, image) in enumerate(valid_items):
+            processed = processed_images[i]
+            if processed is None:
+                results.append({"filename": file.filename, "error": "图像预处理失败"})
+                continue
 
-                if classifier.index is not None:
-                    role, similarity = classifier.classify(feature, 5, attributes, threshold=threshold)
-                else:
-                    role, similarity = "unknown", 0.0
+            attributes = []
+            if use_attributes and tagger:
+                try:
+                    attributes = tagger.generate_tags(image)
+                except Exception:
+                    pass
+
+            batch_images.append(image)
+            batch_meta.append((file, image, attributes, processed))
+
+        if not batch_images:
+            return {"results": results, "count": len(results)}
+
+        # P1-1: 使用 EfficientNet 批量推理
+        global _efficientnet_classifier
+        if _efficientnet_classifier is None:
+            try:
+                _efficientnet_classifier = await loop.run_in_executor(
+                    _executor, EfficientNetClassifier.get_instance
+                )
+            except Exception as e:
+                logger.error(f"EfficientNet分类器初始化失败: {e}")
+
+        if _efficientnet_classifier is not None and _efficientnet_classifier.model is not None:
+            # 批量分类
+            batch_roles = _efficientnet_classifier.classify_batch(
+                batch_images, batch_size=effective_batch_size
+            )
+
+            for i, (file, image, attributes, processed) in enumerate(batch_meta):
+                role_info = batch_roles[i]
+                role = role_info["role"]
+                similarity = role_info["confidence"]
 
                 role_full_info = get_role_info(role)
                 result = {
@@ -628,9 +706,50 @@ async def batch_predict_images(
                     "similarity": float(similarity), "attributes": attributes,
                 }
                 results.append(result)
-            except Exception as e:
-                logger.error(f"处理文件 {file.filename} 失败: {e}")
-                results.append({"filename": file.filename, "error": str(e)})
+        else:
+            # 降级：串行使用 Faiss
+            from src.core.classification.classification import Classification
+            from src.core.feature_extraction.feature_extraction import FeatureExtraction
+
+            if feature_extractor is None:
+                async with model_init_lock:
+                    if feature_extractor is None:
+                        feature_extractor = await loop.run_in_executor(_executor, FeatureExtraction)
+
+            classifier = model_cache.get(model_name)
+            if classifier is None:
+                index_path = f"./models/{model_name}"
+                if not os.path.exists(index_path):
+                    index_path = "./models/efficientnet_b3_loli_optimized_v2_20260529_133654"
+                faiss_path = f"{index_path}.faiss"
+                mapping_path = f"{index_path}_mapping.json"
+                if os.path.exists(faiss_path) and os.path.exists(mapping_path):
+                    classifier = Classification(index_path, threshold=0.1)
+                else:
+                    classifier = Classification(threshold=0.1)
+                model_cache.setdefault(model_name, classifier)
+
+            for i, (file, image, attributes, processed) in enumerate(batch_meta):
+                try:
+                    feature = feature_extractor.extract_features(processed)
+                    if classifier.index is not None:
+                        role, similarity = classifier.classify(feature, 5, attributes, threshold=threshold)
+                    else:
+                        role, similarity = "unknown", 0.0
+
+                    role_full_info = get_role_info(role)
+                    result = {
+                        "filename": file.filename, "role": role,
+                        "role_cn": role_full_info.get("cn", role),
+                        "role_jp": role_full_info.get("jp", ""),
+                        "role_anime": role_full_info.get("anime", ""),
+                        "similarity": float(similarity), "attributes": attributes,
+                    }
+                    results.append(result)
+                except Exception as e:
+                    logger.error(f"处理文件 {file.filename} 失败: {e}")
+                    results.append({"filename": file.filename, "error": str(e)})
+
         return {"results": results, "count": len(results)}
     except Exception as e:
         logger.error(f"批量预测失败: {e}")
@@ -638,9 +757,14 @@ async def batch_predict_images(
 
 
 # 保存全局引用的字典
-def set_globals(prep, feat_ext, tag, device):
-    global preprocessor, feature_extractor, tagger, OPTIMAL_DEVICE
+def set_globals(prep, feat_ext, tag, device, kp_pool=None):
+    global preprocessor, feature_extractor, tagger, OPTIMAL_DEVICE, keypoint_pool, _executor
     preprocessor = prep
     feature_extractor = feat_ext
     tagger = tag
     OPTIMAL_DEVICE = device
+    keypoint_pool = kp_pool
+    # P2-1: 初始化全局 ThreadPoolExecutor（仅初始化一次）
+    if _executor is None:
+        _executor = ThreadPoolExecutor(max_workers=4)
+        logger.info("全局 ThreadPoolExecutor 已初始化 (max_workers=4)")

@@ -17,8 +17,6 @@ from src.core.logging.global_logger import get_logger
 
 
 # Python
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-
 
 logger = get_logger("model_evaluation")
 

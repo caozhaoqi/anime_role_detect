@@ -14,8 +14,6 @@ import random
 import threading
 from concurrent.futures import ThreadPoolExecutor
 
-# 添加项目根目录到Python路径
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src.utils.http_utils import HTTPUtils
 from src.utils.image_utils import ImageUtils

@@ -4,35 +4,108 @@
 OCR 检测器
 
 使用 EasyOCR 进行文字识别
+支持预加载（preload）和就绪状态检查（is_ready）
 """
 
+import os
+import threading
 import easyocr
 from src.core.logging.global_logger import get_logger
 
 logger = get_logger("ocr_detector")
 
+# EasyOCR 模型缓存目录
+_EASYOCR_MODEL_DIR = os.path.join(os.path.expanduser("~"), ".EasyOCR", "model")
+
+
+def _detect_available_languages() -> list:
+    """检测本地已缓存的 EasyOCR 语言模型
+
+    Returns:
+        list: 可用的语言列表（如 ["ch_sim"] 或 ["ch_sim", "en"]）
+    """
+    available_langs = []
+
+    # 检测器模型（所有语言共用）
+    has_detector = os.path.exists(os.path.join(_EASYOCR_MODEL_DIR, "craft_mlt_25k.pth"))
+    if not has_detector:
+        logger.warning("EasyOCR 检测器模型 (craft_mlt_25k.pth) 未缓存")
+        return available_langs
+
+    # 检查各语言模型
+    lang_model_map = {
+        "ch_sim": "zh_sim_g2.pth",
+        "en": "en_g2.pth",
+    }
+
+    for lang, model_file in lang_model_map.items():
+        if os.path.exists(os.path.join(_EASYOCR_MODEL_DIR, model_file)):
+            available_langs.append(lang)
+
+    if not available_langs:
+        logger.warning("EasyOCR 未检测到任何已缓存的语言模型")
+
+    return available_langs
+
 
 class EasyOCRDetector:
-    """EasyOCR 文字检测器"""
+    """EasyOCR 文字检测器
+
+    支持预加载和就绪状态检查，避免首次请求时长时间阻塞。
+    """
 
     def __init__(self):
-        """初始化 OCR 检测器"""
+        """初始化 OCR 检测器（不自动加载模型，需调用 preload()）"""
         self.reader = None
-        self._initialize_reader()
+        self._ready = False
+        self._loading = False
+        self._lock = threading.Lock()
 
-    def _initialize_reader(self):
-        """初始化 EasyOCR 读取器"""
+    def preload(self) -> None:
+        """预加载 EasyOCR Reader（同步加载）
+
+        根据本地已缓存的语言模型初始化 Reader。
+        如果加载失败，设置 _ready=False 并记录降级日志。
+        重复调用是安全的（通过 _loading 标志防止重复加载）。
+        """
+        with self._lock:
+            if self._ready or self._loading:
+                return
+
+            self._loading = True
+
         try:
-            # 只加载中英文模型
-            self.reader = easyocr.Reader(["ch_sim", "en"], gpu=False)
-            logger.info("EasyOCR 初始化成功")
+            available_langs = _detect_available_languages()
+            if not available_langs:
+                logger.warning("[DEGRADE] EasyOCR 无可用语言模型，OCR 功能不可用")
+                self._ready = False
+                return
+
+            logger.info(f"EasyOCR 预加载开始，语言: {available_langs}")
+            self.reader = easyocr.Reader(available_langs, gpu=False)
+            self._ready = True
+            logger.info("EasyOCR 预加载完成，OCR 就绪")
         except Exception as e:
-            logger.error(f"EasyOCR 初始化失败: {e}")
+            logger.error(f"[DEGRADE] EasyOCR 预加载失败: {e}")
+            self._ready = False
             self.reader = None
+        finally:
+            with self._lock:
+                self._loading = False
+
+    def is_ready(self) -> bool:
+        """检查 OCR 检测器是否就绪
+
+        Returns:
+            bool: 是否已加载完成且可用
+        """
+        return self._ready and self.reader is not None
 
     def detect_text(self, image_source):
         """
         检测图像中的文字
+
+        如果检测器未就绪，返回空列表并记录降级日志。
 
         Args:
             image_source: 图像路径或文件对象
@@ -40,8 +113,8 @@ class EasyOCRDetector:
         Returns:
             list: 文字检测结果，每个元素包含文字、置信度和边界框
         """
-        if self.reader is None:
-            logger.warning("OCR 检测器未初始化，跳过文字检测")
+        if not self.is_ready():
+            logger.warning("[DEGRADE] OCR 检测器未就绪，跳过文字检测")
             return []
 
         try:

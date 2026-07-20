@@ -18,7 +18,6 @@ if platform.system() == "Darwin":
     os.environ["FORCE_CPU"] = "1"
 
 project_root = Path(__file__).parent.parent.parent.parent
-sys.path.insert(0, str(project_root))
 
 import json
 from PIL import Image, ImageDraw
