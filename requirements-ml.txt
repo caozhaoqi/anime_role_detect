@@ -14,10 +14,10 @@ sentence-transformers==2.2.2
 accelerate==0.24.1
 
 # 实验追踪
-mlflow==2.10.2
+mlflow==3.11.1
 
 # 标签生成 / CLIP（与 torch==2.1.0+cpu 兼容）
-transformers==4.34.0
+transformers==5.5.0
 
 # CLIP 模型（用于搜索和去重）
 git+https://github.com/openai/CLIP.git@a1d071733d7111c9c014f024669f959182114e33
