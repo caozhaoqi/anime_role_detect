@@ -195,9 +195,17 @@ async def warmup_models():
                 from src.core.tagging.wd_vit_v3_tagger import WDViTV3Tagger
                 tagger = WDViTV3Tagger.get_instance()
                 loop = asyncio.get_running_loop()
-                with ThreadPoolExecutor(max_workers=1) as executor:
-                    await loop.run_in_executor(executor, tagger.load_model)
-                logger.info("WD ViT Tagger 预加载完成")
+                executor = ThreadPoolExecutor(max_workers=1)
+                try:
+                    await asyncio.wait_for(
+                        loop.run_in_executor(executor, tagger.load_model),
+                        timeout=30
+                    )
+                    logger.info("WD ViT Tagger 预加载完成")
+                finally:
+                    executor.shutdown(wait=False)
+        except asyncio.TimeoutError:
+            logger.warning("[DEGRADE] WD ViT Tagger 预加载超时（30s），跳过")
         except Exception as e:
             logger.warning(f"[DEGRADE] WD ViT Tagger 预加载失败，按需加载: {e}")
 
@@ -207,25 +215,28 @@ async def warmup_models():
             from src.core.ocr.easyocr_detector import get_ocr_detector
             ocr_detector = get_ocr_detector()
             loop = asyncio.get_running_loop()
-            with ThreadPoolExecutor(max_workers=1) as executor:
-                await loop.run_in_executor(executor, ocr_detector.preload)
-            if ocr_detector.is_ready():
-                logger.info("EasyOCR 预加载完成")
-            else:
-                logger.warning("[DEGRADE] EasyOCR 预加载后仍未就绪，OCR 将降级")
+            executor = ThreadPoolExecutor(max_workers=1)
+            try:
+                await asyncio.wait_for(
+                    loop.run_in_executor(executor, ocr_detector.preload),
+                    timeout=30
+                )
+                if ocr_detector.is_ready():
+                    logger.info("EasyOCR 预加载完成")
+                else:
+                    logger.warning("[DEGRADE] EasyOCR 预加载后仍未就绪，OCR 将降级")
+            finally:
+                executor.shutdown(wait=False)
+        except asyncio.TimeoutError:
+            logger.warning("[DEGRADE] EasyOCR 预加载超时（30s），跳过")
         except Exception as e:
             logger.warning(f"[DEGRADE] EasyOCR 预加载失败，OCR 将降级: {e}")
 
         # ---- 预加载 NSFW 检测器 ----
-        logger.info("预加载 NSFW 检测器...")
-        try:
-            from src.services.model.nsfw_detector import load_transformers_model
-            loop = asyncio.get_running_loop()
-            with ThreadPoolExecutor(max_workers=1) as executor:
-                await loop.run_in_executor(executor, load_transformers_model)
-            logger.info("NSFW 检测器预加载完成")
-        except Exception as e:
-            logger.warning(f"[DEGRADE] NSFW 检测器预加载失败，将使用规则检测: {e}")
+        # 注意：NSFW 模型从 HF 下载在当前网络环境不可用（TCP 层面卡死，asyncio.wait_for 无法穿透），
+        # 直接跳过预热，请求时 _run_ocr_and_nsfw 会降级返回 is_nsfw=False 默认值
+        logger.info("NSFW 检测器预热跳过（HF 网络不可用），请求时将返回安全默认值")
+
 
         elapsed = time.time() - start_time
         logger.info(f"模型预热完成，耗时: {elapsed:.2f}秒")

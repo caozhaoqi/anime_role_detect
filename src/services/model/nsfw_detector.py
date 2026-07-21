@@ -55,13 +55,16 @@ def load_transformers_model():
         torch.set_num_threads(1)
         torch.set_num_interop_threads(1)
         
+        # 设置 HF 下载超时（防止网络不通时无限等待）
+        os.environ.setdefault("HF_HUB_DOWNLOAD_TIMEOUT", "30")
+        
         from transformers import AutoImageProcessor, AutoModelForImageClassification
         
         # 使用Falconsai的NSFW检测模型
         model_name = "Falconsai/nsfw_image_detection"
         
-        _processor = AutoImageProcessor.from_pretrained(model_name)
-        _model = AutoModelForImageClassification.from_pretrained(model_name)
+        _processor = AutoImageProcessor.from_pretrained(model_name, timeout=10)
+        _model = AutoModelForImageClassification.from_pretrained(model_name, timeout=10)
         
         # 设置为评估模式
         _model.eval()
@@ -114,7 +117,7 @@ def detect_nsfw_with_local_model(image_source):
         import json
         
         # 获取OpenCV检测脚本路径
-        script_path = Path(__file__).parent.parent.parent / "scripts" / "data_processing" / "nsfw_opencv_cli.py"
+        script_path = Path(__file__).parent.parent.parent.parent / "scripts" / "data_processing" / "nsfw_opencv_cli.py"
         
         if not script_path.exists():
             logger.warning(f"OpenCV检测脚本不存在: {script_path}")
@@ -125,7 +128,7 @@ def detect_nsfw_with_local_model(image_source):
             [sys.executable, str(script_path), str(image_source)],
             capture_output=True,
             text=True,
-            timeout=60
+            timeout=15
         )
         
         if result.returncode == 0:

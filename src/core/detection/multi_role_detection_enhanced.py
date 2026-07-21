@@ -23,6 +23,12 @@ from torchvision import models
 
 logger = get_logger("multi_role_detection_enhanced")
 
+# 项目根目录（相对于当前文件向上三级：detection → core → src → project_root）
+_project_file = os.path.abspath(__file__)
+_src_dir = os.path.dirname(os.path.dirname(os.path.dirname(_project_file)))
+project_root = os.path.dirname(_src_dir)
+src_root = _src_dir  # src 目录路径
+
 
 class EnhancedMultiRoleDetector:
     """
@@ -37,7 +43,7 @@ class EnhancedMultiRoleDetector:
 
     def __init__(
         self,
-        model_name: str = "efficientnet_b3_loli_optimized_v2_20260529_133654",
+        model_name: str = "efficientnet_b3",
         enable_open_set: bool = True,
         enable_fuzzy_record: bool = True,
         unknown_threshold: float = 0.3,
@@ -88,8 +94,8 @@ class EnhancedMultiRoleDetector:
         if self.enable_open_set:
             logger.info("初始化 Open-set 识别器...")
             try:
-                MODEL_NAME = "efficientnet_b3_loli_optimized_v2_20260529_133654"
-                MODEL_DIR = os.path.join(src_root, "models", MODEL_NAME)
+                MODEL_NAME = self.model_name
+                MODEL_DIR = os.path.join(project_root, "models", MODEL_NAME)
                 index_path = os.path.join(MODEL_DIR, "role_index_final.faiss")
                 mapping_path = os.path.join(MODEL_DIR, "role_index_final_mapping.json")
                 role_info_path = os.path.join(project_root, "src", "core", "data", "role_info.json")
@@ -146,8 +152,8 @@ class EnhancedMultiRoleDetector:
     def _load_trained_model(self):
         """加载训练好的模型"""
         try:
-            MODEL_NAME = "efficientnet_b3_loli_optimized_v2_20260529_133654"
-            MODEL_DIR = os.path.join(src_root, "models", MODEL_NAME)
+            MODEL_NAME = self.model_name
+            MODEL_DIR = os.path.join(project_root, "models", MODEL_NAME)
             model_path = os.path.join(MODEL_DIR, "model_best.pth")
 
             if not os.path.exists(model_path):
@@ -223,7 +229,7 @@ class EnhancedMultiRoleDetector:
             "similarity": 0.0,
             "confidence": 0.0,
             "decision": "unknown",
-            "is_unknown": False,
+            "is_unknown": True,
             "is_fuzzy": False,
         }
 
@@ -460,7 +466,7 @@ def main():
         enable_open_set=True, enable_fuzzy_record=True, unknown_threshold=0.3, fuzzy_threshold=0.5
     )
 
-    test_images_dir = os.path.join(src_root, "data", "test_images")
+    test_images_dir = os.path.join(project_root, "data", "test_images")
     if os.path.exists(test_images_dir):
         image_files = [f for f in os.listdir(test_images_dir) if f.endswith((".jpg", ".png"))]
         if image_files:

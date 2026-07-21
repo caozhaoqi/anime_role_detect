@@ -15,6 +15,7 @@ from src.services.support.auth_service import (
     create_refresh_token,
 )
 from src.middleware.auth_enhanced import get_current_user, get_current_admin
+from src.services.support.auth_service import get_auth_service
 
 logger = get_logger("api.routes.auth")
 
@@ -43,6 +44,45 @@ async def login(username: str = Form(...), password: str = Form(...)):
     except Exception as e:
         logger.error(f"登录失败: {e}")
         return {"success": False, "message": "登录失败，请稍后重试"}
+
+
+@router.post("/api/auth/register")
+async def register(username: str = Form(...), password: str = Form(...), email: str = Form(None)):
+    """用户注册"""
+    try:
+        # 输入校验
+        if not username or not password:
+            return {"success": False, "message": "用户名和密码不能为空"}
+        if len(username) < 2 or len(username) > 32:
+            return {"success": False, "message": "用户名长度需要 2-32 个字符"}
+        if len(password) < 4:
+            return {"success": False, "message": "密码长度至少 4 位"}
+
+        auth_service = get_auth_service()
+        user = auth_service.create_user(username=username, password=password, email=email)
+
+        if not user:
+            return {"success": False, "message": "用户名已存在或注册失败"}
+
+        # 注册成功后自动生成 token
+        access_token = create_access_token(data={"sub": username, "role": user.get("role", "user")})
+        refresh_token = create_refresh_token(data={"sub": username})
+
+        logger.info(f"用户注册成功: {username}, 存储模式: {auth_service.storage_mode}")
+        return {
+            "success": True,
+            "message": "注册成功",
+            "data": {
+                "access_token": access_token,
+                "refresh_token": refresh_token,
+                "username": username,
+                "role": user.get("role", "user"),
+                "storage_mode": auth_service.storage_mode,
+            },
+        }
+    except Exception as e:
+        logger.error(f"注册失败: {e}")
+        return {"success": False, "message": f"注册失败: {str(e)}"}
 
 
 @router.post("/api/auth/refresh")

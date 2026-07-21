@@ -108,7 +108,7 @@ class EasyOCRDetector:
         如果检测器未就绪，返回空列表并记录降级日志。
 
         Args:
-            image_source: 图像路径或文件对象
+            image_source: 图像路径(str)、PIL Image 或 numpy 数组
 
         Returns:
             list: 文字检测结果，每个元素包含文字、置信度和边界框
@@ -118,8 +118,15 @@ class EasyOCRDetector:
             return []
 
         try:
+            # EasyOCR 接受文件路径、bytes、numpy 数组，不接受 PIL Image
+            import numpy as np
+            _source = image_source
+            if hasattr(image_source, "__array__") or hasattr(image_source, "convert"):
+                # PIL Image → numpy array (RGB)
+                _source = np.array(image_source.convert("RGB") if hasattr(image_source, "convert") else image_source)
+
             logger.info(f"开始 OCR 文字检测")
-            results = self.reader.readtext(image_source)
+            results = self.reader.readtext(_source)
 
             # 处理结果
             text_detections = []
@@ -132,7 +139,8 @@ class EasyOCRDetector:
                         bbox_flat.extend(point)
 
                     text_detections.append(
-                        {"text": text, "confidence": float(confidence), "bbox": bbox_flat}
+                        {"text": text, "confidence": float(confidence),
+                         "bbox": [float(v) for v in bbox_flat]}
                     )
 
             logger.info(f"OCR 文字检测完成，检测到 {len(text_detections)} 个文本区域")

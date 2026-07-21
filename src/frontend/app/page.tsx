@@ -147,8 +147,9 @@ export default function AnimeRoleDetect() {
     const requestInterceptor = axios.interceptors.request.use(
       (config) => {
         // 检查是否需要认证的请求（排除登录相关接口）
-        const requiresAuth = !config.url?.includes('/api/auth/login') && 
+        const requiresAuth =                            !config.url?.includes('/api/auth/login') &&
                            !config.url?.includes('/api/login') &&
+                           !config.url?.includes('/api/auth/register') &&
                            !config.url?.includes('/api/register') &&
                            !config.url?.includes('/api/health') &&
                            !config.url?.includes('/api/auth/refresh') &&
@@ -406,6 +407,45 @@ export default function AnimeRoleDetect() {
     } catch (error) {
       console.error('登录失败:', error);
       setLoginError('登录失败，请稍后重试');
+    } finally {
+      setIsLoginLoading(false);
+    }
+  };
+
+  const handleRegister = async (username: string, password: string) => {
+    setIsLoginLoading(true);
+    setLoginError(null);
+    
+    try {
+      const formData = new FormData();
+      formData.append('username', username);
+      formData.append('password', password);
+      
+      const response = await axios.post('/api/auth/register', formData);
+      
+      if (response.data.success) {
+        const { access_token, refresh_token, username: userName, role } = response.data.data;
+        
+        const user = { username: userName, role };
+        
+        setAuthState({
+          isAuthenticated: true,
+          user,
+          accessToken: access_token,
+          refreshToken: refresh_token
+        });
+        
+        localStorage.setItem('accessToken', access_token);
+        localStorage.setItem('refreshToken', refresh_token);
+        localStorage.setItem('currentUser', JSON.stringify(user));
+        
+        fetchAvailableModels();
+      } else {
+        setLoginError(response.data.message || '注册失败');
+      }
+    } catch (error) {
+      console.error('注册失败:', error);
+      setLoginError('注册失败，请稍后重试');
     } finally {
       setIsLoginLoading(false);
     }
@@ -1070,7 +1110,8 @@ export default function AnimeRoleDetect() {
       {!authState.isAuthenticated ? (
         <Login 
           darkMode={darkMode} 
-          onLogin={handleLogin} 
+          onLogin={handleLogin}
+          onRegister={handleRegister}
           isLoading={isLoginLoading} 
           error={loginError} 
         />

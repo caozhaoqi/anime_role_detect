@@ -33,7 +33,7 @@ except ImportError:
 # 默认 EfficientNet 模型路径
 EFFICIENTNET_MODEL_DIR = os.path.join(
     os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))),
-    "models", "efficientnet_b3_loli_optimized_v2_20260529_133654"
+    "models", "efficientnet_b3"
 )
 
 # 动态导入函数
