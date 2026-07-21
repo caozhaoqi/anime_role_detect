@@ -181,7 +181,7 @@ class EnhancedMultiRoleDetector:
 
             num_classes = len(self.class_to_idx) if self.class_to_idx else 74
 
-            model_full_path = os.path.join(MODEL_DIR, "model_full.pth")
+            model_full_path = os.path.join(MODEL_DIR, "model_best.pth")
             if os.path.exists(model_full_path):
                 try:
                     full_model = torch.load(

@@ -8,6 +8,7 @@ OCR 检测器
 """
 
 import os
+import time
 import threading
 import easyocr
 from src.core.logging.global_logger import get_logger
@@ -52,14 +53,19 @@ class EasyOCRDetector:
     """EasyOCR 文字检测器
 
     支持预加载和就绪状态检查，避免首次请求时长时间阻塞。
+    支持懒加载 + TTL 自动卸载，空闲时释放 ~200MB 内存。
     """
 
+    TTL_SECONDS = 180  # 3 分钟空闲后自动卸载
+
     def __init__(self):
-        """初始化 OCR 检测器（不自动加载模型，需调用 preload()）"""
+        """初始化 OCR 检测器（不自动加载模型，需调用 preload() 或 detect_text() 触发懒加载）"""
         self.reader = None
         self._ready = False
         self._loading = False
         self._lock = threading.Lock()
+        self._last_used_time = 0.0
+        self.logger = logger
 
     def preload(self) -> None:
         """预加载 EasyOCR Reader（同步加载）
@@ -105,7 +111,7 @@ class EasyOCRDetector:
         """
         检测图像中的文字
 
-        如果检测器未就绪，返回空列表并记录降级日志。
+        如果检测器未就绪，尝试懒加载。如果加载失败，返回空列表并记录降级日志。
 
         Args:
             image_source: 图像路径(str)、PIL Image 或 numpy 数组
@@ -113,9 +119,14 @@ class EasyOCRDetector:
         Returns:
             list: 文字检测结果，每个元素包含文字、置信度和边界框
         """
+        # 懒加载保障：未就绪时自动尝试加载
+        if not self.is_ready():
+            self.logger.info("[LazyLoad] EasyOCR 首次使用，触发懒加载...")
+            self.preload()
         if not self.is_ready():
             logger.warning("[DEGRADE] OCR 检测器未就绪，跳过文字检测")
             return []
+        self._last_used_time = time.time()
 
         try:
             # EasyOCR 接受文件路径、bytes、numpy 数组，不接受 PIL Image
@@ -148,6 +159,30 @@ class EasyOCRDetector:
         except Exception as e:
             logger.error(f"OCR 文字检测失败: {e}")
             return []
+
+
+    def unload_if_idle(self) -> bool:
+        """空闲超过 TTL 时自动卸载 Reader，释放 ~200MB 内存
+
+        Returns:
+            bool: 是否执行了卸载
+        """
+        if self.reader is None:
+            return False
+        if self._last_used_time == 0:
+            return False
+        idle_seconds = time.time() - self._last_used_time
+        if idle_seconds < self.TTL_SECONDS:
+            return False
+        self.logger.info(
+            f"[TTL] EasyOCR 空闲 {idle_seconds:.0f}s 超过 {self.TTL_SECONDS}s，卸载释放内存"
+        )
+        self.reader = None
+        self._ready = False
+        import gc
+        gc.collect()
+        self.logger.info("[TTL] EasyOCR Reader 已卸载")
+        return True
 
 
 # 全局 OCR 检测器实例

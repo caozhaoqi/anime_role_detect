@@ -171,7 +171,7 @@ class FeatureExtraction:
                 return
 
             # 查找模型文件
-            model_full_path = os.path.join(EFFICIENTNET_MODEL_DIR, "model_full.pth")
+            model_full_path = os.path.join(EFFICIENTNET_MODEL_DIR, "model_best.pth")
             if not os.path.exists(model_full_path):
                 logger.warning(f"EfficientNet模型文件不存在: {model_full_path}，回退到简单方法")
                 return

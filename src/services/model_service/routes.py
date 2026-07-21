@@ -5,12 +5,14 @@ import os
 import sys
 import time
 import asyncio
+import gc
 from concurrent.futures import ThreadPoolExecutor
 from typing import List
 
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.."))
 
-from fastapi import APIRouter, UploadFile, File, HTTPException, Form
+from fastapi import APIRouter, UploadFile, File, HTTPException, Form, Request
+from fastapi.responses import Response
 from PIL import Image
 import io
 
@@ -48,6 +50,25 @@ _executor: ThreadPoolExecutor = None
 
 model_init_lock = asyncio.Lock()
 OPTIMAL_DEVICE = "cpu"
+
+
+def _cleanup_after_inference():
+    """推理后自动 GC，防止内存碎片化 (P2)
+
+    在重型端点（classify / detect-multiple / batch-predict）完成后调用，
+    释放 PyTorch 缓存的显存/统一内存。
+    """
+    import gc
+    gc.collect()
+    try:
+        import torch
+        if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+            torch.mps.empty_cache()
+        elif torch.cuda.is_available():
+            torch.cuda.empty_cache()
+    except Exception:
+        pass
+
 
 # 延迟导入核心模块
 def import_core_modules():
@@ -428,6 +449,7 @@ async def predict_image(
                 os.remove(temp_path)
             except Exception:
                 pass
+        _cleanup_after_inference()
 
 
 @router.post("/api/model/extract")
@@ -550,6 +572,7 @@ async def detect_multiple_characters(
                 os.remove(temp_path)
             except Exception:
                 pass
+        _cleanup_after_inference()
 
 
 @router.post("/api/model/detect-yolo")
@@ -607,6 +630,7 @@ async def detect_with_yolo(
                 os.remove(temp_path)
             except Exception:
                 pass
+        _cleanup_after_inference()
 
 
 @router.post("/api/classify")
@@ -778,6 +802,8 @@ async def batch_predict_images(
     except Exception as e:
         logger.error(f"批量预测失败: {e}")
         raise HTTPException(status_code=500, detail=f"批量预测失败: {e}")
+    finally:
+        _cleanup_after_inference()
 
 
 # 保存全局引用的字典

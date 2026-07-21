@@ -14,6 +14,7 @@ import platform
 import threading
 import subprocess
 import re
+import time
 
 # ==================== 【第零步：清理系统信号量】 ====================
 # 清理之前崩溃进程泄漏的 macOS System V 信号量
@@ -124,6 +125,9 @@ class WDViTV3Tagger:
     # 全局Core ML标签生成器实例缓存
     _coreml_tagger = None
 
+    # TTL 懒加载配置
+    TTL_SECONDS = 300  # 5 分钟空闲后自动卸载
+
     def __new__(cls, *args, **kwargs):
         """确保单例：只有首次调用 __init__ 才会执行初始化逻辑"""
         if cls._instance is None:
@@ -167,6 +171,7 @@ class WDViTV3Tagger:
         self.clip_processor = None
         self.id2label = {}
         self.num_id2label = {}
+        self._last_used_time = 0.0  # 最后一次使用时间
 
         # 初始化标签列表
         if USE_COREML:
@@ -807,6 +812,52 @@ class WDViTV3Tagger:
 
         return balanced_tags
 
+    def _ensure_loaded(self):
+        """懒加载保障：首次使用时自动加载模型"""
+        if self.wd_model is None and not USE_COREML:
+            self.logger.info("[LazyLoad] WD ViT Tagger 首次使用，触发懒加载...")
+            self.load_model()
+        elif USE_COREML and self.__class__._coreml_tagger is None:
+            self.logger.info("[LazyLoad] CoreML WD Tagger 首次使用，触发懒加载...")
+            self.load_model()
+        self._last_used_time = time.time()
+
+    def unload_if_idle(self) -> bool:
+        """空闲超过 TTL 时自动卸载模型，释放内存
+
+        Returns:
+            bool: 是否执行了卸载
+        """
+        if self.wd_model is None and self.__class__._coreml_tagger is None:
+            return False  # 本来就没加载
+        if self._last_used_time == 0:
+            return False
+        idle_seconds = time.time() - self._last_used_time
+        if idle_seconds < self.TTL_SECONDS:
+            return False
+        self.logger.info(
+            f"[TTL] WD ViT Tagger 空闲 {idle_seconds:.0f}s 超过 {self.TTL_SECONDS}s，卸载模型释放内存"
+        )
+        self._unload_model()
+        return True
+
+    def _unload_model(self):
+        """卸载模型，释放内存"""
+        self.wd_model = None
+        self.wd_processor = None
+        self.__class__._coreml_tagger = None
+        import gc
+        gc.collect()
+        try:
+            import torch
+            if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+                torch.mps.empty_cache()
+            elif torch.cuda.is_available():
+                torch.cuda.empty_cache()
+        except Exception:
+            pass
+        self.logger.info("[TTL] WD ViT Tagger 模型已卸载")
+
     def generate_tags(self, image, threshold=0.2):
         """生成图像标签
 
@@ -817,6 +868,8 @@ class WDViTV3Tagger:
         Returns:
             list: 标签列表
         """
+        # 懒加载保障 + 更新最后使用时间
+        self._ensure_loaded()
         try:
             from PIL import Image
             

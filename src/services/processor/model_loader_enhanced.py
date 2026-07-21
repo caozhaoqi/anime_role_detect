@@ -152,10 +152,8 @@ def load_trained_model(
         project_root = Path(__file__).parent.parent.parent.parent
         model_dir = project_root / "models" / model_name
 
-        # 优先使用 model_full.pth
-        model_path = model_dir / "model_full.pth"
-        if not model_path.exists():
-            model_path = model_dir / "model_best.pth"
+        # 使用 model_best.pth（model_full.pth 已移除）
+        model_path = model_dir / "model_best.pth"
 
         class_map_path = model_dir / "class_to_idx.json"
 

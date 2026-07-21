@@ -12,7 +12,7 @@ import json
 import sqlite3
 import threading
 import concurrent.futures
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict, Any, List
 
 from src.core.logging.global_logger import get_logger
@@ -91,11 +91,11 @@ class SQLiteUserStore:
             raise
 
     def get_user(self, username: str) -> Optional[Dict[str, Any]]:
-        """获取用户信息"""
+        """获取用户信息（不按 is_active 过滤，锁定用户也可查到）"""
         try:
             with self._get_conn() as conn:
                 row = conn.execute(
-                    "SELECT * FROM users WHERE username=? AND is_active=1",
+                    "SELECT * FROM users WHERE username=?",
                     (username,)
                 ).fetchone()
                 if row:
@@ -149,8 +149,11 @@ class SQLiteUserStore:
         if user.get("locked_until"):
             try:
                 locked_until = datetime.fromisoformat(user["locked_until"])
-                if locked_until > datetime.utcnow():
-                    remaining = (locked_until - datetime.utcnow()).total_seconds() // 60
+                if locked_until.tzinfo is None:
+                    locked_until = locked_until.replace(tzinfo=timezone.utc)
+                now = datetime.now(timezone.utc)
+                if locked_until > now:
+                    remaining = (locked_until - now).total_seconds() // 60
                     logger.warning(f"SQLite 用户 {username} 已被锁定，剩余 {remaining} 分钟")
                     return {"user": user, "status": "locked"}
             except (ValueError, TypeError):
@@ -184,9 +187,9 @@ class SQLiteUserStore:
                         "SELECT failed_login_count FROM users WHERE id=?", (user_id,)
                     ).fetchone()
                     if row and row["failed_login_count"] >= 5:
-                        lock_until = (datetime.utcnow() + timedelta(minutes=10)).isoformat()
+                        lock_until = (datetime.now(timezone.utc) + timedelta(minutes=10)).isoformat()
                         conn.execute(
-                            "UPDATE users SET locked_until=?, is_active=0 WHERE id=?",
+                            "UPDATE users SET locked_until=? WHERE id=?",
                             (lock_until, user_id)
                         )
                 conn.commit()
@@ -362,7 +365,7 @@ class AuthService:
         if self.storage_mode == self.STORAGE_MODE_MYSQL:
             try:
                 db = next(get_db())
-                user = db.query(UserModel).filter_by(username=username, is_active=True).first()
+                user = db.query(UserModel).filter_by(username=username).first()
                 db.close()
                 if user:
                     return {
@@ -436,15 +439,14 @@ class AuthService:
                 db_user = db.query(UserModel).filter_by(id=mysql_obj.id).first()
                 if db_user:
                     if success:
-                        db_user.last_login_at = datetime.utcnow()
+                        db_user.last_login_at = datetime.now(timezone.utc)
                         db_user.login_count = (db_user.login_count or 0) + 1
                         db_user.failed_login_count = 0
                         db_user.locked_until = None
                     else:
                         db_user.failed_login_count = (db_user.failed_login_count or 0) + 1
                         if db_user.failed_login_count >= 5:
-                            db_user.locked_until = datetime.utcnow() + timedelta(minutes=10)
-                            db_user.is_active = False
+                            db_user.locked_until = datetime.now(timezone.utc) + timedelta(minutes=10)
                     db.commit()
             except Exception as e:
                 logger.error(f"更新用户登录信息失败: {e}")
@@ -468,9 +470,9 @@ class AuthService:
 
         to_encode = data.copy()
         if expires_delta:
-            expire = datetime.utcnow() + expires_delta
+            expire = datetime.now(timezone.utc) + expires_delta
         else:
-            expire = datetime.utcnow() + timedelta(minutes=self.ACCESS_TOKEN_EXPIRE_MINUTES)
+            expire = datetime.now(timezone.utc) + timedelta(minutes=self.ACCESS_TOKEN_EXPIRE_MINUTES)
 
         to_encode.update({"exp": expire})
         encoded_jwt = jwt.encode(to_encode, self.SECRET_KEY, algorithm=self.ALGORITHM)
@@ -483,7 +485,7 @@ class AuthService:
             return f"simple_refresh_{secrets.token_hex(16)}"
 
         to_encode = data.copy()
-        expire = datetime.utcnow() + timedelta(days=self.REFRESH_TOKEN_EXPIRE_DAYS)
+        expire = datetime.now(timezone.utc) + timedelta(days=self.REFRESH_TOKEN_EXPIRE_DAYS)
         to_encode.update({"exp": expire, "type": "refresh"})
         encoded_jwt = jwt.encode(to_encode, self.SECRET_KEY, algorithm=self.ALGORITHM)
         return encoded_jwt
@@ -549,10 +551,15 @@ class AuthService:
             mysql_obj = user_data.get("_mysql_obj")
 
             # 检查锁定
-            if mysql_obj and mysql_obj.locked_until and mysql_obj.locked_until > datetime.utcnow():
-                remaining = (mysql_obj.locked_until - datetime.utcnow()).total_seconds() // 60
-                logger.warning(f"用户 {username} 已被锁定，剩余 {remaining} 分钟")
-                return None
+            if mysql_obj and mysql_obj.locked_until:
+                locked_until = mysql_obj.locked_until
+                if locked_until.tzinfo is None:
+                    locked_until = locked_until.replace(tzinfo=timezone.utc)
+                now = datetime.now(timezone.utc)
+                if locked_until > now:
+                    remaining = (locked_until - now).total_seconds() // 60
+                    logger.warning(f"用户 {username} 已被锁定，剩余 {remaining} 分钟")
+                    return None
 
             if mysql_obj and HAS_BCRYPT:
                 # MySQL 用户用 bcrypt 验证
@@ -759,7 +766,7 @@ class AuthService:
                 for key, value in kwargs.items():
                     if hasattr(user, key):
                         setattr(user, key, value)
-                user.updated_at = datetime.utcnow()
+                user.updated_at = datetime.now(timezone.utc)
                 db.commit()
                 db.refresh(user)
                 return user.to_dict()

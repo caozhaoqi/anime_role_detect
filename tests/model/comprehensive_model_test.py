@@ -22,7 +22,7 @@ logger = logging.getLogger("comprehensive_model_test")
 
 
 # 导入通用分类模块
-from src.core.general_classification import GeneralClassification, get_classifier
+from src.core.classification.general_classification import GeneralClassification, get_classifier
 
 
 def collect_test_data(data_dir, max_images_per_class=10):

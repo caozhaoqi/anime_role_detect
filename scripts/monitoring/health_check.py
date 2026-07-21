@@ -64,6 +64,7 @@ class ServiceHealthChecker:
             "port": None,
             "response_time": None,
             "memory_percent": None,
+            "memory_rss_mb": None,
             "cpu_percent": None,
             "error": None,
             "timestamp": datetime.now().isoformat()
@@ -89,6 +90,7 @@ class ServiceHealthChecker:
                 process_info = self._get_process_info(service_name)
                 if process_info:
                     result["memory_percent"] = process_info["memory_percent"]
+                    result["memory_rss_mb"] = process_info.get("memory_rss_mb")
                     result["cpu_percent"] = process_info["cpu_percent"]
 
             health_check = self._check_http_endpoint(service_name)
@@ -119,8 +121,8 @@ class ServiceHealthChecker:
             cmd = [
                 str(self.supervisorctl),
                 "-c", str(self.supervisor_config),
-                "-u", "admin",
-                "-p", "admin123",
+                "-u", "CHANGE_ME_supervisor_admin",
+                "-p", "CHANGE_ME_supervisor_pwd",
                 "status", service_name
             ]
             result = subprocess.run(
@@ -141,37 +143,70 @@ class ServiceHealthChecker:
 
         return None
 
-    def _check_port(self, service_name: str) -> bool:
-        """检查端口是否在监听"""
-        try:
-            port = self.services[service_name]["port"]
-            for conn in psutil.net_connections():
-                if conn.laddr.port == port and conn.status == "LISTEN":
-                    return True
-        except psutil.AccessDenied as e:
-            logger.debug(f"检查端口 {port} 权限不足: {e}")
-        except Exception as e:
-            logger.warning(f"检查端口 {port} 失败: {e}")
+    def _get_supervisor_pid(self, service_name: str) -> Optional[int]:
+        """通过 supervisor XML-RPC API 获取进程 PID
 
+        macOS 上 psutil.net_connections() 需要 root 权限，
+        改用 supervisorctl 获取 PID，再用 psutil.Process(pid) 读取资源。
+        """
+        if sys.platform == "win32":
+            return None
+        try:
+            cmd = [
+                str(self.supervisorctl),
+                "-c", str(self.supervisor_config),
+                "-u", "CHANGE_ME_supervisor_admin",
+                "-p", "CHANGE_ME_supervisor_pwd",
+                "pid", service_name
+            ]
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+            if result.returncode == 0:
+                pid_str = result.stdout.strip()
+                if pid_str.isdigit():
+                    return int(pid_str)
+        except Exception as e:
+            logger.debug(f"获取 {service_name} PID 失败: {e}")
+        return None
+
+    def _check_port(self, service_name: str) -> bool:
+        """检查端口是否在监听
+
+        优先使用 socket 直连检测（不依赖 root 权限），
+        不再使用 psutil.net_connections()。
+        """
+        import socket
+        port = self.services[service_name]["port"]
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(1)
+        try:
+            result = sock.connect_ex(("127.0.0.1", port))
+            if result == 0:
+                return True
+        except Exception as e:
+            logger.debug(f"检查端口 {port} 失败: {e}")
+        finally:
+            sock.close()
         return False
 
     def _get_process_info(self, service_name: str) -> Optional[Dict[str, float]]:
-        """获取进程资源使用情况"""
-        try:
-            port = self.services[service_name]["port"]
-            for conn in psutil.net_connections():
-                if conn.laddr.port == port and conn.status == "LISTEN":
-                    try:
-                        process = psutil.Process(conn.pid)
-                        return {
-                            "memory_percent": process.memory_percent(),
-                            "cpu_percent": process.cpu_percent(interval=1)
-                        }
-                    except (psutil.NoSuchProcess, psutil.AccessDenied):
-                        continue
-        except psutil.AccessDenied as e:
-            logger.debug(f"获取进程信息权限不足: {e}")
+        """获取进程资源使用情况
 
+        通过 supervisor API 获取 PID，再用 psutil.Process(pid) 读取 RSS/CPU。
+        macOS 不需要 root 权限即可读取自己用户的进程信息。
+        """
+        pid = self._get_supervisor_pid(service_name)
+        if pid is None:
+            return None
+        try:
+            process = psutil.Process(pid)
+            mem_info = process.memory_info()
+            return {
+                "memory_percent": process.memory_percent(),
+                "memory_rss_mb": round(mem_info.rss / 1024 / 1024, 1),
+                "cpu_percent": process.cpu_percent(interval=1)
+            }
+        except (psutil.NoSuchProcess, psutil.AccessDenied) as e:
+            logger.debug(f"获取进程 {pid} 信息失败: {e}")
         return None
 
     def _check_http_endpoint(self, service_name: str) -> Dict[str, any]:
@@ -224,8 +259,8 @@ class ServiceHealthChecker:
             cmd = [
                 str(self.supervisorctl),
                 "-c", str(self.supervisor_config),
-                "-u", "admin",
-                "-p", "admin123",
+                "-u", "CHANGE_ME_supervisor_admin",
+                "-p", "CHANGE_ME_supervisor_pwd",
                 "restart", service_name
             ]
 
@@ -353,6 +388,23 @@ class ServiceHealthChecker:
 
         return restarted_services
 
+    def _get_system_memory(self) -> Dict[str, any]:
+        """获取系统级内存信息（不依赖服务进程）"""
+        try:
+            mem = psutil.virtual_memory()
+            swap = psutil.swap_memory()
+            return {
+                "total_gb": round(mem.total / 1024**3, 1),
+                "available_gb": round(mem.available / 1024**3, 1),
+                "used_gb": round(mem.used / 1024**3, 1),
+                "percent": mem.percent,
+                "swap_used_gb": round(swap.used / 1024**3, 1) if swap.total > 0 else 0,
+                "swap_percent": swap.percent if swap.total > 0 else 0,
+            }
+        except Exception as e:
+            logger.debug(f"获取系统内存失败: {e}")
+            return {"error": str(e)}
+
     def save_health_report(self, results: List[Dict[str, any]], alerts: List[Dict[str, any]]):
         """保存健康检查报告"""
         try:
@@ -364,6 +416,7 @@ class ServiceHealthChecker:
 
             report = {
                 "timestamp": datetime.now().isoformat(),
+                "system_memory": self._get_system_memory(),
                 "services": results,
                 "alerts": alerts,
                 "summary": {
@@ -422,6 +475,11 @@ def main():
     elif args.daemon:
         logger.info(f"健康检查守护进程启动，检查间隔: {args.interval}秒")
 
+        # P2: 状态变化检测 + 自适应频率
+        last_status_hash = None
+        all_stopped_interval = 300  # 全部服务 stopped 时降频到 5 分钟
+        normal_interval = args.interval
+
         while True:
             try:
                 # 检查并告警
@@ -433,12 +491,27 @@ def main():
                     if restarted:
                         logger.info(f"自动重启服务: {restarted}")
 
-                # 生成报告
+                # 生成报告（仅在状态变化时写入磁盘）
                 results = checker.check_all_services()
-                checker.save_health_report(results, alerts)
+
+                # P2: 计算状态指纹，状态无变化时跳过写盘
+                current_status_hash = json.dumps([
+                    {"service": r["service"], "status": r["status"]}
+                    for r in results
+                ], sort_keys=True)
+
+                if current_status_hash != last_status_hash:
+                    checker.save_health_report(results, alerts)
+                    last_status_hash = current_status_hash
+                else:
+                    logger.debug("状态无变化，跳过报告写入")
+
+                # P2: 全部服务 stopped 时降低检查频率
+                all_stopped = all(r["status"] != "healthy" for r in results)
+                sleep_interval = all_stopped_interval if all_stopped else normal_interval
 
                 # 等待下一次检查
-                time.sleep(args.interval)
+                time.sleep(sleep_interval)
 
             except KeyboardInterrupt:
                 logger.info("健康检查守护进程已停止")
@@ -458,6 +531,13 @@ def main():
         print(f"健康服务: {sum(1 for r in results if r['status'] == 'healthy')}")
         print(f"异常服务: {sum(1 for r in results if r['status'] != 'healthy')}")
         print(f"告警数量: {len(alerts)}")
+
+        # 显示系统内存信息
+        sys_mem = checker._get_system_memory()
+        if "error" not in sys_mem:
+            print(f"\n系统内存: 总量={sys_mem['total_gb']}GB  已用={sys_mem['used_gb']}GB ({sys_mem['percent']}%)  可用={sys_mem['available_gb']}GB")
+            if sys_mem.get("swap_used_gb", 0) > 0:
+                print(f"交换分区: 已用={sys_mem['swap_used_gb']}GB ({sys_mem['swap_percent']}%)")
 
         print("\n=== 服务状态详情 ===")
         for result in results:

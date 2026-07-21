@@ -16,7 +16,7 @@
 import os
 import time
 import threading
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from fastapi import Request, HTTPException, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from typing import Optional, Dict, Any
@@ -204,8 +204,11 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
             if locked_until:
                 try:
                     locked_datetime = datetime.fromisoformat(locked_until.replace("Z", "+00:00"))
-                    if locked_datetime > datetime.utcnow():
-                        remaining = (locked_datetime - datetime.utcnow()).total_seconds() // 60
+                    if locked_datetime.tzinfo is None:
+                        locked_datetime = locked_datetime.replace(tzinfo=timezone.utc)
+                    now = datetime.now(timezone.utc)
+                    if locked_datetime > now:
+                        remaining = (locked_datetime - now).total_seconds() // 60
                         raise HTTPException(
                             status_code=401,
                             detail=f"账户已被锁定，请等待 {remaining} 分钟后重试"
@@ -391,8 +394,11 @@ async def auth_middleware(request: Request, call_next):
                 if locked_until:
                     try:
                         locked_datetime = datetime.fromisoformat(locked_until.replace("Z", "+00:00"))
-                        if locked_datetime > datetime.utcnow():
-                            remaining = (locked_datetime - datetime.utcnow()).total_seconds() // 60
+                        if locked_datetime.tzinfo is None:
+                            locked_datetime = locked_datetime.replace(tzinfo=timezone.utc)
+                        now = datetime.now(timezone.utc)
+                        if locked_datetime > now:
+                            remaining = (locked_datetime - now).total_seconds() // 60
                             logger.warning(f"用户账户被锁定：{username}, IP={client_ip}")
                             raise HTTPException(
                                 status_code=401,

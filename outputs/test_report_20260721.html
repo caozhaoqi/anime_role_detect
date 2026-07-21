@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Anime Role Detect - 测试报告 2026-07-21</title>
+<style>
+:root {
+  --bg: #0d1117;
+  --card: #161b22;
+  --border: #30363d;
+  --text: #c9d1d9;
+  --text-muted: #8b949e;
+  --green: #3fb950;
+  --red: #f85149;
+  --yellow: #d2991d;
+  --blue: #58a6ff;
+  --purple: #bc8cff;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height:1.6; }
+.container { max-width: 1100px; margin:0 auto; padding: 32px 16px; }
+h1 { font-size: 28px; margin-bottom: 4px; }
+h2 { font-size: 20px; margin: 32px 0 16px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+h3 { font-size: 16px; margin: 16px 0 8px; color: var(--blue); }
+.subtitle { color: var(--text-muted); font-size: 14px; margin-bottom: 24px; }
+.card { background: var(--card); border:1px solid var(--border); border-radius:8px; padding:20px; margin-bottom:16px; }
+.metrics { display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap:16px; margin-bottom:24px; }
+.metric { background: var(--card); border:1px solid var(--border); border-radius:8px; padding:16px; text-align:center; }
+.metric .value { font-size: 36px; font-weight:700; }
+.metric .label { color: var(--text-muted); font-size:13px; margin-top:4px; }
+.pass .value { color: var(--green); }
+.fail .value { color: var(--red); }
+.warn .value { color: var(--yellow); }
+table { width:100%; border-collapse:collapse; margin:12px 0; font-size:13px; }
+th, td { text-align:left; padding:8px 12px; border-bottom:1px solid var(--border); }
+th { color: var(--text-muted); font-weight:600; font-size:12px; text-transform:uppercase; background: rgba(255,255,255,0.02); }
+td { vertical-align:top; }
+tr:hover td { background: rgba(255,255,255,0.02); }
+.badge { display:inline-block; padding:2px 8px; border-radius:12px; font-size:11px; font-weight:600; }
+.badge-pass { background: rgba(63,185,80,0.15); color: var(--green); }
+.badge-fail { background: rgba(248,81,73,0.15); color: var(--red); }
+.badge-skip { background: rgba(210,153,29,0.15); color: var(--yellow); }
+.badge-error { background: rgba(188,140,255,0.15); color: var(--purple); }
+.progress-bar { height:20px; border-radius:10px; background: var(--border); overflow:hidden; display:flex; margin:8px 0; }
+.progress-bar div { height:100%; transition:width 0.3s; }
+.progress-bar .pg { background: var(--green); }
+.progress-bar .pf { background: var(--red); }
+.progress-bar .ps { background: var(--yellow); }
+.progress-bar .pe { background: var(--purple); }
+.summary-box { padding:12px; border-radius:6px; margin:8px 0; font-size:13px; }
+.summary-ok { background: rgba(63,185,80,0.08); border:1px solid rgba(63,185,80,0.2); }
+.summary-warn { background: rgba(210,153,29,0.08); border:1px solid rgba(210,153,29,0.2); }
+.summary-issue { background: rgba(248,81,73,0.08); border:1px solid rgba(248,81,73,0.2); }
+ul { padding-left:20px; }
+li { margin:4px 0; }
+code { background: rgba(255,255,255,0.06); padding:1px 5px; border-radius:3px; font-size:12px; }
+a { color: var(--blue); }
+</style>
+</head>
+<body>
+<div class="container">
+
+<h1>🧪 Anime Role Detect — 测试报告</h1>
+<p class="subtitle">生成时间: 2026-07-21 11:50 CST | 版本: v2.3.0 | Python 3.13.12</p>
+
+<!-- ====== 总览指标 ====== -->
+<h2>📊 测试总览</h2>
+<div class="metrics">
+  <div class="metric">
+    <div class="value" style="color:var(--text)">109</div>
+    <div class="label">可执行测试总数</div>
+  </div>
+  <div class="metric pass">
+    <div class="value">87</div>
+    <div class="label">通过 ✅</div>
+  </div>
+  <div class="metric fail">
+    <div class="value">10</div>
+    <div class="label">失败 ❌</div>
+  </div>
+  <div class="metric warn">
+    <div class="value">7</div>
+    <div class="label">跳过 ⏭️</div>
+  </div>
+  <div class="metric" style="color:var(--purple)">
+    <div class="value">5</div>
+    <div class="label">错误 ⚠️</div>
+  </div>
+  <div class="metric" style="color:var(--text-muted)">
+    <div class="value">27</div>
+    <div class="label">收集失败（依赖缺失）</div>
+  </div>
+</div>
+
+<div class="progress-bar">
+  <div class="pg" style="width:64%"></div>
+  <div class="pf" style="width:7%"></div>
+  <div class="ps" style="width:5%"></div>
+  <div class="pe" style="width:4%"></div>
+  <div style="width:20%;background:rgba(255,255,255,0.04)"></div>
+</div>
+<p style="color:var(--text-muted);font-size:12px;text-align:center;margin:4px 0;">
+  通过率: <b style="color:var(--green)">79.8%</b> (87/109) | 
+  含依赖缺失: <b>64.0%</b> (87/136)
+</p>
+
+<!-- ====== 回归测试 ====== -->
+<h2>🔄 回归测试结果 — 全部通过 (30/30)</h2>
+<div class="card summary-ok">
+  <p>针对 2026-07-20 以来修复的模块运行了 30 个回归测试，<b>全部通过</b>。</p>
+</div>
+
+<table>
+  <tr><th>测试类</th><th>数量</th><th>状态</th><th>覆盖内容</th></tr>
+  <tr>
+    <td>TestSQLiteUserStore</td>
+    <td>10</td>
+    <td><span class="badge badge-pass">10 通过</span></td>
+    <td>用户 CRUD、密码验证（bcrypt/SHA-256）、登录统计、账户锁定/解锁、列表查询</td>
+  </tr>
+  <tr>
+    <td>TestAuthServiceDegrade</td>
+    <td>4</td>
+    <td><span class="badge badge-pass">4 通过</span></td>
+    <td>单例模式、users 字典初始化、存储模式、SQLite 集成</td>
+  </tr>
+  <tr>
+    <td>TestMultiRoleDetectionFixes</td>
+    <td>4</td>
+    <td><span class="badge badge-pass">4 通过</span></td>
+    <td>project_root 定义、is_unknown 默认值、efficientnet_b3 映射、model_full.pth 清理</td>
+  </tr>
+  <tr>
+    <td>TestHealthCheckFixes</td>
+    <td>3</td>
+    <td><span class="badge badge-pass">3 通过</span></td>
+    <td>Supervisor 凭据修复、_get_system_memory 方法、CLI 输出</td>
+  </tr>
+  <tr>
+    <td>TestModelServiceTTLFix</td>
+    <td>1</td>
+    <td><span class="badge badge-pass">1 通过</span></td>
+    <td>TTL 卸载检查器使用 WDViTV3Tagger.get_instance()</td>
+  </tr>
+  <tr>
+    <td>TestSafeTempPathIntegration</td>
+    <td>3</td>
+    <td><span class="badge badge-pass">3 通过</span></td>
+    <td>安全临时路径创建、路径遍历防护、空输入处理</td>
+  </tr>
+  <tr>
+    <td>TestAuthAPIRegistration</td>
+    <td>3</td>
+    <td><span class="badge badge-pass">3 通过</span></td>
+    <td>register 端点定义、create_user 引用、SQLiteUserStore 导入</td>
+  </tr>
+  <tr>
+    <td>TestVersionConsistency</td>
+    <td>2</td>
+    <td><span class="badge badge-pass">2 通过</span></td>
+    <td>pyproject.toml 版本号、README 版本一致性</td>
+  </tr>
+</table>
+
+<!-- ====== 回归测试发现的 Bug ====== -->
+<h3>🔍 回归测试发现的新问题</h3>
+<div class="card summary-issue">
+  <p><b>P1 — SQLiteUserStore 账户锁定后 get_user() 无法找到用户</b></p>
+  <p style="color:var(--text-muted);font-size:13px;">
+    <code>_update_login_info()</code> 在锁定时设置 <code>is_active=0</code>，但 <code>get_user()</code> 
+    查询条件包含 <code>AND is_active=1</code>。锁定后用户不可见，错误提示变为"用户不存在"而非"账户已锁定"。
+    成功登录的路径也未恢复 <code>is_active=1</code>。
+  </p>
+  <p style="margin-top:8px;font-size:13px;">
+    <b>建议修复</b>: 在 <code>get_user()</code> 中移除 <code>is_active=1</code> 过滤，或在成功登录时恢复 
+    <code>is_active=1</code>。
+  </p>
+</div>
+
+<div class="card summary-warn">
+  <p><b>P2 — datetime.utcnow() 已弃用</b></p>
+  <p style="color:var(--text-muted);font-size:13px;">
+    <code>_update_login_info()</code> 第187行使用了 <code>datetime.utcnow()</code>，
+    在 Python 3.13 中触发 DeprecationWarning。建议迁移至
+    <code>datetime.now(datetime.UTC)</code>。
+  </p>
+</div>
+
+<!-- ====== 单元测试 ====== -->
+<h2>🧩 单元测试与管道测试 (57/67 通过)</h2>
+
+<table>
+  <tr><th>测试模块</th><th>通过</th><th>失败</th><th>跳过</th><th>错误</th><th>说明</th></tr>
+  <tr>
+    <td>test_perf_opt_t01_t03</td>
+    <td>11</td><td>8</td><td>0</td><td>0</td>
+    <td style="font-size:12px;color:var(--text-muted)">
+      缓存层 (6/6)、数据库降级 (3/3) 通过<br>
+      EasyOCR 测试 (3) 缺少 easyocr；模型处理器 (4) 缺少 torch；预热断言 (1) 需更新
+    </td>
+  </tr>
+  <tr>
+    <td>test_data_preprocessing</td>
+    <td>1</td><td>0</td><td>0</td><td>0</td>
+    <td>数据集分割测试通过</td>
+  </tr>
+  <tr>
+    <td>test_cleaner (pipeline)</td>
+    <td>12</td><td>0</td><td>0</td><td>0</td>
+    <td>QualityFilter、CharacterCropper、AnimeClassifier、AIDetector、CLIPTagger 全部通过</td>
+  </tr>
+  <tr>
+    <td>test_cleaner_unit (pipeline)</td>
+    <td>11</td><td>0</td><td>0</td><td>0</td>
+    <td>包含设备选择、平台检测测试</td>
+  </tr>
+  <tr>
+    <td>test_active_learning</td>
+    <td>10</td><td>0</td><td>1</td><td>0</td>
+    <td style="font-size:12px;color:var(--text-muted)">ConfidenceFilter、SampleReviewer、IncrementalTrainer 全部通过</td>
+  </tr>
+  <tr>
+    <td>test_cleaners</td>
+    <td>5</td><td>0</td><td>0</td><td>0</td>
+    <td>QualityFilter、AnimeClassifier、CLIPTagger 通过</td>
+  </tr>
+  <tr>
+    <td>test_class_mapping</td>
+    <td>0</td><td>0</td><td>6</td><td>0</td>
+    <td style="font-size:12px;color:var(--text-muted)">缺少 class_mapping JSON 文件，全部跳过</td>
+  </tr>
+  <tr>
+    <td>test_api_integration</td>
+    <td>2</td><td>2</td><td>0</td><td>0</td>
+    <td style="font-size:12px;color:var(--text-muted)">health check 通过；model service 需要运行中的服务（端口 8004）</td>
+  </tr>
+</table>
+
+<!-- ====== 失败详情 ====== -->
+<h2>❌ 失败详细分析</h2>
+
+<div class="card">
+<h3>环境依赖缺失 (7 个)</h3>
+<table>
+  <tr><th>测试</th><th>缺失模块</th><th>影响</th></tr>
+  <tr><td>TestEasyOCRReady (3)</td><td>easyocr</td><td>OCR 就绪检查测试无法运行</td></tr>
+  <tr><td>TestNoDuplicateInference (4)</td><td>torch</td><td>模型处理器重复推理测试无法运行</td></tr>
+</table>
+<p style="color:var(--text-muted);font-size:12px;margin-top:8px;">
+  easyocr ~200MB, torch ~800MB，不适合在 CI 轻量环境中安装。建议在 CI 中标记为 skip 或使用 mock。
+</p>
+</div>
+
+<div class="card">
+<h3>测试断言与代码不同步 (1 个)</h3>
+<table>
+  <tr><th>测试</th><th>原因</th><th>修复建议</th></tr>
+  <tr>
+    <td>test_warmup_preloads_all_three</td>
+    <td>Warmup 已改为懒加载模式（WD ViT + EasyOCR），测试仍检查旧代码路径中的 WDViTV3Tagger 字符串</td>
+    <td>更新断言以匹配懒加载模式的 warmup_models 函数源码</td>
+  </tr>
+</table>
+</div>
+
+<div class="card">
+<h3>服务未运行 (2 个)</h3>
+<table>
+  <tr><th>测试</th><th>原因</th><th>修复建议</th></tr>
+  <tr><td>test_model_service_health</td><td>Model Service (8004) 未启动</td><td>CI 中需启动服务或使用 mock</td></tr>
+  <tr><td>test_predict_endpoint</td><td>Model Service (8004) 未启动</td><td>CI 中需启动服务或使用 mock</td></tr>
+</table>
+</div>
+
+<!-- ====== 收集错误 ====== -->
+<h2>📦 收集失败测试 (27 个)</h2>
+<div class="card summary-warn">
+  <p>以下 27 个测试文件在收集阶段失败，全部因为缺少 ML 重型依赖。</p>
+</div>
+
+<table>
+  <tr><th>文件</th><th>缺失依赖</th><th>类别</th></tr>
+  <tr><td>test_cleaning_pipeline.py</td><td>faiss</td><td>cleaners</td></tr>
+  <tr><td>test_pipeline_full.py</td><td>faiss</td><td>cleaners</td></tr>
+  <tr><td>test_pipeline_integration.py (cleaners)</td><td>faiss</td><td>cleaners</td></tr>
+  <tr><td>test_with_real_data.py</td><td>faiss</td><td>cleaners</td></tr>
+  <tr><td>test_deduplication.py</td><td>torch</td><td>data_pipeline</td></tr>
+  <tr><td>test_pipeline_integration.py (data_pipeline)</td><td>torch</td><td>data_pipeline</td></tr>
+  <tr><td>test_yolo_detector.py</td><td>cv2</td><td>data_pipeline</td></tr>
+  <tr><td>test_all_models.py</td><td>torch</td><td>evaluation</td></tr>
+  <tr><td>test_model_accuracy.py</td><td>torch</td><td>evaluation</td></tr>
+  <tr><td>test_model_performance.py</td><td>torch</td><td>evaluation</td></tr>
+  <tr><td>test_data_integration.py</td><td>bs4</td><td>integration</td></tr>
+  <tr><td>comprehensive_model_test.py</td><td>src.core.general_classification</td><td>model</td></tr>
+  <tr><td>test_classification_debug.py</td><td>loguru</td><td>model</td></tr>
+  <tr><td>test_classification_direct.py</td><td>torch</td><td>model</td></tr>
+  <tr><td>test_extended_classifier.py</td><td>CharacterClassifier</td><td>model</td></tr>
+  <tr><td>test_individual_models.py</td><td>torch</td><td>model</td></tr>
+  <tr><td>test_infinity_fix.py</td><td>src.core.general_classification</td><td>model</td></tr>
+  <tr><td>test_midterm_optimization.py</td><td>loguru</td><td>model</td></tr>
+  <tr><td>test_model_fix.py</td><td>torch</td><td>model</td></tr>
+  <tr><td>test_model_on_collected_data.py</td><td>torch</td><td>model</td></tr>
+  <tr><td>test_processing.py</td><td>torch</td><td>model</td></tr>
+  <tr><td>test_single_model.py</td><td>torch</td><td>model</td></tr>
+  <tr><td>test_weight_loading.py</td><td>torch</td><td>model</td></tr>
+  <tr><td>test_wuthering_waves.py</td><td>torch</td><td>model</td></tr>
+  <tr><td>test_recognition_system.py</td><td>faiss</td><td>recognition</td></tr>
+  <tr><td>test_classification.py</td><td>faiss</td><td>unit</td></tr>
+  <tr><td>test_model_management.py</td><td>torch</td><td>unit</td></tr>
+</table>
+
+<div class="card summary-warn" style="margin-top:12px;">
+  <p><b>依赖分布统计</b>:</p>
+  <ul>
+    <li>torch: <b>12 个文件</b></li>
+    <li>faiss: <b>5 个文件</b></li>
+    <li>loguru: <b>3 个文件</b>（实际已安装，可能版本不兼容）</li>
+    <li>src.core.general_classification: <b>2 个文件</b>（模块不存在）</li>
+    <li>bs4: <b>1 个文件</b>（已安装，可能模块路径问题）</li>
+    <li>cv2: <b>1 个文件</b>（已安装 opencv-python-headless，可能模块路径问题）</li>
+    <li>easyocr: <b>0 个文件</b>（仅在运行时失败）</li>
+  </ul>
+</div>
+
+<!-- ====== 非 pytest 脚本 ====== -->
+<h2>📝 非 pytest 脚本与数据文件</h2>
+<div class="card">
+  <p style="color:var(--text-muted);font-size:13px;">
+    以下目录包含可独立运行的 Python 脚本（非 pytest 测试格式），本次未执行：
+  </p>
+  <ul style="columns:2;font-size:13px;color:var(--text-muted);">
+    <li>tests/benchmark/ — 4 个基准测试脚本</li>
+    <li>tests/data/ — 8 个数据采集脚本</li>
+    <li>tests/model/ — ~15 个模型检查/分类脚本</li>
+    <li>tests/evaluation/ — evaluate_system.py, simple_evaluate.py</li>
+    <li>tests/performance/ — benchmark.py</li>
+    <li>tests/workflow/ — verify_pipeline.py</li>
+    <li>tests/cleaners/ — quick_verify.py</li>
+  </ul>
+</div>
+
+<!-- ====== 总结与建议 ====== -->
+<h2>📋 总结与建议</h2>
+
+<div class="card summary-ok">
+  <h3>✅ 已验证的修复</h3>
+  <ul>
+    <li><b>SQLiteUserStore</b> — 用户 CRUD、密码哈希、登录跟踪全部正常</li>
+    <li><b>AuthService 三层降级</b> — MySQL→SQLite→Memory 初始化正确</li>
+    <li><b>多角色识别</b> — project_root 定义、is_unknown 默认值、模型映射均已修复</li>
+    <li><b>model_full.pth 清理</b> — src/ 下无活跃代码引用（注释除外）</li>
+    <li><b>Health Check 凭据</b> — 已从 admin/admin123 改为 CHANGE_ME_supervisor_*</li>
+    <li><b>TTL 卸载修复</b> — 不再引用过期全局变量，改用 get_instance()</li>
+    <li><b>安全临时路径</b> — 路径遍历防护、空输入处理正常</li>
+    <li><b>版本一致性</b> — pyproject.toml / README 均为 v2.3.0</li>
+    <li><b>缓存层</b> — LRU、TTL、降级全部通过 (6/6)</li>
+    <li><b>数据库降级</b> — 连接超时、auth 降级测试全部通过 (3/3)</li>
+  </ul>
+</div>
+
+<div class="card summary-warn">
+  <h3>⚠️ 建议优先处理的 P1 问题</h3>
+  <ol>
+    <li><b>SQLite 锁定用户不可见</b> — <code>get_user()</code> 的 <code>is_active=1</code> 过滤导致锁定用户无法查询</li>
+    <li><b>test_warmup_preloads_all_three</b> — 测试断言需与懒加载模式同步更新</li>
+    <li><b>datetime.utcnow() 弃用</b> — 迁移至 <code>datetime.now(datetime.UTC)</code></li>
+    <li><b>训练/测试集同源</b> — 84% 准确率不代表泛化能力（已知数据泄漏）</li>
+  </ol>
+</div>
+
+<div class="card summary-ok">
+  <h3>💡 P2 改进建议</h3>
+  <ul>
+    <li><b>CI 集成</b>: GitHub Actions docker-image.yml 中 test job 未运行 pytest，建议添加</li>
+    <li><b>测试分层</b>: 添加 <code>@pytest.mark.slow</code> 和 <code>@pytest.mark.ml</code> 标记，区分轻量测试和 ML 测试</li>
+    <li><b>依赖分组</b>: 将 torch/faiss/easyocr 测试标记为 ml 分组，CI 中可选执行</li>
+    <li><b>Fixture 修复</b>: 5 个测试的 fixture (model_path, mlmodel_path, onnx_path, data_dir) 未定义</li>
+    <li><b>loguru/bs4/cv2</b>: 虽然已安装，但部分模块路径导致收集失败，可能是 Python 路径问题</li>
+    <li><b>src.core.general_classification</b>: 2 个测试引用了不存在的模块，需清理</li>
+    <li><b>tests/README.md</b>: 文档中提及的 docs/、img/、legacy/ 目录实际不存在</li>
+    <li><b>YOLOv8 微调</b>: 当前为 COCO 预训练，对动漫角色不匹配</li>
+  </ul>
+</div>
+
+</div>
+</body>
+</html>

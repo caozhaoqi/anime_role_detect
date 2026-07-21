@@ -163,7 +163,7 @@ class MultiRoleDetector:
                     logger.error(f"训练结果文件不存在: {training_results_path}")
 
             # 尝试直接加载完整模型
-            model_full_path = model_path.replace("model_best.pth", "model_full.pth")
+            model_full_path = model_path  # 统一使用 model_best.pth
             if os.path.exists(model_full_path):
                 logger.info(f"尝试加载完整模型文件: {model_full_path}")
                 try:

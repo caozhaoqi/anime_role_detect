@@ -12,7 +12,7 @@ project_root = Path(__file__).parent.parent.parent.parent
 from sqlalchemy import create_engine, Column, Integer, String, Float, Boolean, JSON, DateTime, ForeignKey
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
-from datetime import datetime
+from datetime import datetime, timezone
 
 Base = declarative_base()
 
@@ -26,8 +26,8 @@ class Character(Base):
     series = Column(String(100), nullable=False, index=True)
     aliases = Column(JSON, nullable=True)
     search_terms = Column(JSON, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=datetime.now(timezone.utc), onupdate=datetime.now(timezone.utc))
 
     # 关系
     samples = relationship("Sample", back_populates="character", cascade="all, delete-orphan")
@@ -66,8 +66,8 @@ class Sample(Base):
 
     # 状态管理
     status = Column(String(20), default='pending', index=True)  # pending, reviewed, rejected
-    created_at = Column(DateTime, default=datetime.utcnow, index=True)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.now(timezone.utc), index=True)
+    updated_at = Column(DateTime, default=datetime.now(timezone.utc), onupdate=datetime.now(timezone.utc))
 
     # 关系
     character = relationship("Character", back_populates="samples")
@@ -84,8 +84,8 @@ class CollectionTask(Base):
     status = Column(String(20), default='pending', index=True)  # pending, running, completed, failed
     collected_count = Column(Integer, default=0)
     error_message = Column(String(500), nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow, index=True)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.now(timezone.utc), index=True)
+    updated_at = Column(DateTime, default=datetime.now(timezone.utc), onupdate=datetime.now(timezone.utc))
     completed_at = Column(DateTime, nullable=True)
 
     # 关系
@@ -101,7 +101,7 @@ class DeduplicationRecord(Base):
     duplicate_of_id = Column(Integer, ForeignKey('samples.id'), nullable=True)
     similarity = Column(Float, nullable=True)
     method = Column(String(50), nullable=False)  # phash, clip
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.now(timezone.utc))
 
 
 class Annotation(Base):
@@ -117,7 +117,7 @@ class Annotation(Base):
     character_confidence = Column(Float, nullable=True)  # 角色识别置信度
     attributes = Column(JSON, nullable=True)
     is_verified = Column(Boolean, default=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.now(timezone.utc))
 
 
 def init_database(db_url: str = "sqlite:///./data/data_pipeline.db"):

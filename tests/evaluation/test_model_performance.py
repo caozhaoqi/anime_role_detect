@@ -1,19 +1,45 @@
 import os
 import sys
-import torch
-import torch.nn as nn
-import torchvision.transforms as transforms
-from torch.utils.data import DataLoader, Dataset
+import pytest
 from PIL import Image
 import numpy as np
-from sklearn.metrics import classification_report, confusion_matrix
-import seaborn as sns
-import matplotlib.pyplot as plt
 from pathlib import Path
-from loguru import logger
+
+try:
+    from loguru import logger
+    HAS_LOGURU = True
+except ImportError:
+    HAS_LOGURU = False
+    import logging
+    logger = logging.getLogger("test_model_performance")
+
+try:
+    import torch
+    HAS_TORCH = True
+except ImportError:
+    HAS_TORCH = False
+
+try:
+    import sklearn
+    HAS_SKLEARN = True
+except ImportError:
+    HAS_SKLEARN = False
+
+try:
+    import seaborn as sns
+    HAS_SEABORN = True
+except ImportError:
+    HAS_SEABORN = False
+
+try:
+    import matplotlib.pyplot as plt
+    HAS_MATPLOTLIB = True
+except ImportError:
+    HAS_MATPLOTLIB = False
 
 # 配置日志
-logger.add("test_model_performance.log", rotation="500 MB")
+if HAS_LOGURU:
+    logger.add("test_model_performance.log", rotation="500 MB")
 
 # 模型路径
 MODEL_DIR = Path("/Users/caozhaoqi/PycharmProjects/anime_role_detect/models")

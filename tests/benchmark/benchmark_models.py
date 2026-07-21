@@ -16,7 +16,7 @@ from tqdm import tqdm
 from sklearn.metrics import accuracy_score, confusion_matrix, classification_report
 
 
-from src.core.general_classification import GeneralClassification
+from src.core.classification.general_classification import GeneralClassification
 from tests.collect_test_data import collect_single_character_data
 
 
