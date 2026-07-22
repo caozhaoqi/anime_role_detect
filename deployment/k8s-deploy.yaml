@@ -83,7 +83,7 @@ data:
 
   # ===================== 模型 =====================
   MODEL_DIR: "/app/models"
-  DEFAULT_MODEL: "efficientnet_b3_loli_optimized_v2"
+  DEFAULT_MODEL: "efficientnet_b0"
   MODEL_DEVICE: "cpu"   # 使用 GPU 时改为 cuda，并取消 Deployment 中 nvidia.com/gpu 注释
   MODEL_WARMUP: "true"
   MODEL_CACHE_ENABLED: "true"

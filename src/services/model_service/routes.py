@@ -207,7 +207,7 @@ async def _run_ocr_and_nsfw(image, content, filename):
 @router.post("/api/model/predict")
 async def predict_image(
     file: UploadFile = File(...),
-    model_name: str = Form("efficientnet_b3"),
+    model_name: str = Form("efficientnet_b0"),
     use_attributes: bool = Form(True),
     use_keypoints: bool = Form(False),
     multilabel: bool = Form(False),
@@ -370,8 +370,8 @@ async def predict_image(
             from src.core.classification.classification import Classification
             index_path = f"./models/{model_name}"
             if not os.path.exists(index_path):
-                index_path = "./models/efficientnet_b3"
-                model_name = "efficientnet_b3"
+                index_path = "./models/efficientnet_b0"
+                model_name = "efficientnet_b0"
 
             faiss_path = f"{index_path}.faiss"
             mapping_path = f"{index_path}_mapping.json"
@@ -507,14 +507,14 @@ async def detect_multiple_characters(
         try:
             from src.core.detection.multi_role_detection_enhanced import EnhancedMultiRoleDetector
             detector = EnhancedMultiRoleDetector(
-                model_name="efficientnet_b3",
+                model_name="efficientnet_b0",
                 enable_open_set=True, enable_fuzzy_record=True,
                 unknown_threshold=0.3, fuzzy_threshold=0.5,
             )
             detection_results = detector.detect_roles(temp_path)
         except Exception:
             from src.core.detection.multi_role_detection import MultiRoleDetector
-            detector = MultiRoleDetector(model_name="efficientnet_b3")
+            detector = MultiRoleDetector(model_name="efficientnet_b0")
             detection_results = detector.detect_roles(temp_path)
 
         if feature_extractor is None:
@@ -640,7 +640,7 @@ async def classify_image(
     use_model: bool = Form(True),
     use_attributes: bool = Form(True),
     use_keypoints: bool = Form(False),
-    model_name: str = Form("efficientnet_b3"),
+    model_name: str = Form("efficientnet_b0"),
     cache_bypass: bool = Form(False),
 ):
     """分类图像（兼容前端调用）"""
@@ -650,7 +650,7 @@ async def classify_image(
 @router.post("/api/model/batch-predict")
 async def batch_predict_images(
     files: List[UploadFile] = File(...),
-    model_name: str = Form("efficientnet_b3"),
+    model_name: str = Form("efficientnet_b0"),
     use_attributes: bool = Form(True),
     batch_size: int = Form(8),
     multilabel: bool = Form(False),

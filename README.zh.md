@@ -103,7 +103,8 @@ docker-compose down
 
 ### 默认账号
 - **用户名**: `admin` / `user`
-- **密码**: `admin123` / `user123`
+- **密码**: 通过环境变量 `ADMIN_PASSWORD` 和 `USER_PASSWORD` 设置
+- **说明**: 如果未设置，首次启动时会自动生成随机密码
 
 ## 📁 项目结构
 

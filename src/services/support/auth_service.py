@@ -19,6 +19,16 @@ from src.core.logging.global_logger import get_logger
 
 logger = get_logger("auth_service")
 
+def _get_default_password(username: str) -> str:
+    """从环境变量获取默认密码，未设置时生成随机密码"""
+    env_var = f"{username.upper()}_PASSWORD"
+    pwd = os.environ.get(env_var)
+    if pwd:
+        return pwd
+    random_pwd = secrets.token_urlsafe(12)
+    logger.warning(f"⚠️  {env_var} 未设置，为用户 {username} 生成随机密码: {random_pwd}")
+    return random_pwd
+
 try:
     import jwt
     HAS_JWT = True
@@ -300,8 +310,8 @@ class AuthService:
         # ---- 第 3 层：内存兜底 ----
         if self.storage_mode == self.STORAGE_MODE_MEMORY:
             self.users = {
-                "admin": {"password": self._hash_password("admin123"), "role": "admin"},
-                "user": {"password": self._hash_password("user123"), "role": "user"},
+                "admin": {"password": self._hash_password(_get_default_password("admin")), "role": "admin"},
+                "user": {"password": self._hash_password(_get_default_password("user")), "role": "user"},
             }
             logger.info("认证服务初始化完成（内存模式，密码已哈希）")
 
@@ -313,8 +323,8 @@ class AuthService:
             return
 
         default_users = [
-            {"username": "admin", "password": "admin123", "role": "admin", "is_superuser": True},
-            {"username": "user", "password": "user123", "role": "user", "is_superuser": False},
+            {"username": "admin", "password": _get_default_password("admin"), "role": "admin", "is_superuser": True},
+            {"username": "user", "password": _get_default_password("user"), "role": "user", "is_superuser": False},
         ]
 
         db = next(get_db())
@@ -344,8 +354,8 @@ class AuthService:
         if not self.sqlite_store:
             return
         default_users = [
-            {"username": "admin", "password": "admin123", "role": "admin", "is_superuser": True},
-            {"username": "user", "password": "user123", "role": "user", "is_superuser": False},
+            {"username": "admin", "password": _get_default_password("admin"), "role": "admin", "is_superuser": True},
+            {"username": "user", "password": _get_default_password("user"), "role": "user", "is_superuser": False},
         ]
         for u in default_users:
             existing = self.sqlite_store.get_user(u["username"])
@@ -424,8 +434,8 @@ class AuthService:
         self.storage_mode = self.STORAGE_MODE_MEMORY
         if not self.users:
             self.users = {
-                "admin": {"password": self._hash_password("admin123"), "role": "admin"},
-                "user": {"password": self._hash_password("user123"), "role": "user"},
+                "admin": {"password": self._hash_password(_get_default_password("admin")), "role": "admin"},
+                "user": {"password": self._hash_password(_get_default_password("user")), "role": "user"},
             }
         logger.warning("[DEGRADE] 已降级到内存认证模式")
 
