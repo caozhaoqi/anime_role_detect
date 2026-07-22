@@ -177,6 +177,7 @@ jobs:
           docker build -t ardc/monitoring:${{ needs.build-base-images.outputs.version }} -t ardc/monitoring:latest \
             --build-arg BUILD_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ) \
             --build-arg BUILD_TAG=${{ needs.build-base-images.outputs.version }} \
+            --build-arg BASE_IMAGE=ardc/base:${{ needs.build-base-images.outputs.version }} \
             -f deployment/Dockerfile.monitoring .
 
       - name: Build frontend image
