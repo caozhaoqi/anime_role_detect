@@ -90,14 +90,18 @@ jobs:
             -f deployment/Dockerfile.base .
           docker system df
 
-      - name: Build ml-base image
+      - name: Save base image for caching
         run: |
-          docker build -t ardc/ml-base:${{ steps.meta.outputs.version }} -t ardc/ml-base:latest \
-            --build-arg BUILD_DATE=${{ steps.meta.outputs.created }} \
-            --build-arg BUILD_TAG=${{ steps.meta.outputs.version }} \
-            --build-arg BASE_IMAGE=ardc/base:${{ steps.meta.outputs.version }} \
-            -f deployment/Dockerfile.ml-base .
-          docker system df
+          mkdir -p /tmp/docker-cache
+          docker save ardc/base:${{ steps.meta.outputs.version }} -o /tmp/docker-cache/base.tar
+          ls -la /tmp/docker-cache/
+
+      - name: Upload base image artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: base-image-${{ steps.meta.outputs.version }}
+          path: /tmp/docker-cache/base.tar
+          retention-days: 1
 
       - name: Disk usage report
         run: df -h
@@ -113,6 +117,18 @@ jobs:
         run: |
           docker system prune -af --volumes || true
           df -h
+
+      - name: Download base image artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: base-image-${{ needs.build-base-images.outputs.version }}
+          path: /tmp/docker-cache
+
+      - name: Load base image
+        run: |
+          docker load -i /tmp/docker-cache/base.tar
+          docker tag ardc/base:${{ needs.build-base-images.outputs.version }} ardc/base:latest
+          docker images | grep ardc/base
 
       - name: Build api-service image
         run: |
@@ -182,6 +198,27 @@ jobs:
         run: |
           docker system prune -af --volumes || true
           df -h
+
+      - name: Download base image artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: base-image-${{ needs.build-base-images.outputs.version }}
+          path: /tmp/docker-cache
+
+      - name: Load base image
+        run: |
+          docker load -i /tmp/docker-cache/base.tar
+          docker tag ardc/base:${{ needs.build-base-images.outputs.version }} ardc/base:latest
+          docker images | grep ardc/base
+
+      - name: Build ml-base image
+        run: |
+          docker build -t ardc/ml-base:${{ needs.build-base-images.outputs.version }} -t ardc/ml-base:latest \
+            --build-arg BUILD_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ) \
+            --build-arg BUILD_TAG=${{ needs.build-base-images.outputs.version }} \
+            --build-arg BASE_IMAGE=ardc/base:${{ needs.build-base-images.outputs.version }} \
+            -f deployment/Dockerfile.ml-base .
+          docker system df
 
       - name: Build model-service image
         run: |
