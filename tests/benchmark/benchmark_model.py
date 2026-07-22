@@ -23,7 +23,7 @@ logger = logging.getLogger("benchmark_model")
 
 
 # 导入通用分类模块
-from src.core.general_classification import GeneralClassification, get_classifier
+from src.core.classification.general_classification import GeneralClassification, get_classifier
 
 
 def get_memory_usage():

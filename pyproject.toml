@@ -158,6 +158,10 @@ addopts = [
 ]
 pythonpath = ["src"]
 asyncio_mode = "auto"
+markers = [
+  "ml: 机器学习相关测试，需要 torch/faiss/easyocr 等重型依赖",
+  "slow: 慢速测试，不适合在 CI 中频繁运行",
+]
 
 [tool.bandit]
 exclude_dirs = [

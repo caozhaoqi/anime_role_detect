@@ -101,6 +101,7 @@ class MultiRoleDetector:
                 "resnet18_loli8": "models/resnet18_loli8/model_best.pth",
                 "mobilenet_v2_loli8": "models/mobilenet_v2_loli8/model_best.pth",
                 "efficientnet_b0_loli8": "models/efficientnet_b0_loli8/model_best.pth",
+                "efficientnet_b3": "models/efficientnet_b3/model_best.pth",
                 "efficientnet_b3_loli_optimized_v2_20260529_133654": "models/efficientnet_b3_loli_optimized_v2_20260529_133654/model_best.pth",
                 "efficientnet_b3_loli_optimized_v2_20260522_165046": "models/efficientnet_b3_loli_optimized_v2_20260522_165046/model_best.pth",
             }
@@ -108,7 +109,7 @@ class MultiRoleDetector:
             # 处理默认模型
             model_name = self.model_name
             if model_name == "default":
-                model_name = "efficientnet_b3_loli_optimized_v2_20260529_133654"
+                model_name = "efficientnet_b3"
                 logger.info(f"使用默认模型: {model_name}")
 
             # 检查模型是否存在
@@ -162,7 +163,7 @@ class MultiRoleDetector:
                     logger.error(f"训练结果文件不存在: {training_results_path}")
 
             # 尝试直接加载完整模型
-            model_full_path = model_path.replace("model_best.pth", "model_full.pth")
+            model_full_path = model_path  # 统一使用 model_best.pth
             if os.path.exists(model_full_path):
                 logger.info(f"尝试加载完整模型文件: {model_full_path}")
                 try:

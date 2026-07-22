@@ -5,12 +5,14 @@ import os
 import sys
 import time
 import asyncio
+import gc
 from concurrent.futures import ThreadPoolExecutor
 from typing import List
 
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.."))
 
-from fastapi import APIRouter, UploadFile, File, HTTPException, Form
+from fastapi import APIRouter, UploadFile, File, HTTPException, Form, Request
+from fastapi.responses import Response
 from PIL import Image
 import io
 
@@ -48,6 +50,25 @@ _executor: ThreadPoolExecutor = None
 
 model_init_lock = asyncio.Lock()
 OPTIMAL_DEVICE = "cpu"
+
+
+def _cleanup_after_inference():
+    """推理后自动 GC，防止内存碎片化 (P2)
+
+    在重型端点（classify / detect-multiple / batch-predict）完成后调用，
+    释放 PyTorch 缓存的显存/统一内存。
+    """
+    import gc
+    gc.collect()
+    try:
+        import torch
+        if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+            torch.mps.empty_cache()
+        elif torch.cuda.is_available():
+            torch.cuda.empty_cache()
+    except Exception:
+        pass
+
 
 # 延迟导入核心模块
 def import_core_modules():
@@ -128,18 +149,34 @@ async def _run_ocr_and_nsfw(image, content, filename):
     text_detections = []
     nsfw_result = {"is_nsfw": False, "skin_ratio": 0.0, "method": "default"}
 
-    # OCR 检测（使用预加载的 EasyOCR）
+    # OCR 检测（使用预加载的 EasyOCR，缩放图片加速 + 超时保护）
     try:
         from src.core.ocr.easyocr_detector import get_ocr_detector
         ocr_detector = get_ocr_detector()
         if ocr_detector.is_ready():
-            text_detections = ocr_detector.detect_text(image)
+            # 缩放图片加速 OCR（最长边 ≤ 768px，大幅降低处理时间）
+            ocr_image = image.copy()
+            w, h = ocr_image.size
+            max_dim = max(w, h)
+            if max_dim > 768:
+                scale = 768.0 / max_dim
+                ocr_image = ocr_image.resize((int(w * scale), int(h * scale)))
+                logger.debug(f"OCR 图片缩放: {w}x{h} → {ocr_image.size[0]}x{ocr_image.size[1]}")
+
+            loop = asyncio.get_running_loop()
+            text_detections = await asyncio.wait_for(
+                loop.run_in_executor(_executor, ocr_detector.detect_text, ocr_image),
+                timeout=10
+            )
         else:
             logger.warning("[DEGRADE] OCR 检测器未就绪，跳过文字检测")
+    except asyncio.TimeoutError:
+        logger.warning("[DEGRADE] OCR 检测超时（10s），跳过文字检测")
+        text_detections = []
     except Exception as e:
         logger.warning(f"OCR 检测失败: {e}")
 
-    # NSFW 检测（需要文件路径，保存到安全临时文件）
+    # NSFW 检测（使用本地 OpenCV 检测 + 规则回退，不触发 HF 下载）
     nsfw_temp_path = None
     try:
         nsfw_temp_path = _safe_temp_path(filename or "unknown", "nsfw")
@@ -147,9 +184,16 @@ async def _run_ocr_and_nsfw(image, content, filename):
             f.write(content)
         from src.services.model.nsfw_detector import detect_nsfw
         loop = asyncio.get_running_loop()
-        nsfw_result = await loop.run_in_executor(_executor, detect_nsfw, nsfw_temp_path)
+        nsfw_result = await asyncio.wait_for(
+            loop.run_in_executor(_executor, detect_nsfw, nsfw_temp_path),
+            timeout=15
+        )
+    except asyncio.TimeoutError:
+        logger.warning("[DEGRADE] NSFW 检测超时（15s），降级为安全默认值")
+        nsfw_result = {"is_nsfw": False, "skin_ratio": 0.0, "method": "timeout"}
     except Exception as e:
-        logger.warning(f"NSFW 检测失败: {e}")
+        logger.warning(f"[DEGRADE] NSFW 检测失败: {e}")
+        nsfw_result = {"is_nsfw": False, "skin_ratio": 0.0, "method": "error"}
     finally:
         if nsfw_temp_path and os.path.exists(nsfw_temp_path):
             try:
@@ -163,7 +207,7 @@ async def _run_ocr_and_nsfw(image, content, filename):
 @router.post("/api/model/predict")
 async def predict_image(
     file: UploadFile = File(...),
-    model_name: str = Form("efficientnet_b3_loli_optimized_v2_20260529_133654"),
+    model_name: str = Form("efficientnet_b3"),
     use_attributes: bool = Form(True),
     use_keypoints: bool = Form(False),
     multilabel: bool = Form(False),
@@ -228,7 +272,8 @@ async def predict_image(
             direct_role, direct_confidence, feature = _efficientnet_classifier.classify_with_features(image)
             logger.info(f"EfficientNet直接分类: role={direct_role}, confidence={direct_confidence:.4f}")
 
-            if direct_confidence >= 0.3:
+            # 51类模型，0.05 以上即视为有效识别（随机概率 1/51 ≈ 0.02）
+            if direct_confidence >= 0.05:
                 role = direct_role
                 similarity = direct_confidence
                 attributes = []
@@ -325,8 +370,8 @@ async def predict_image(
             from src.core.classification.classification import Classification
             index_path = f"./models/{model_name}"
             if not os.path.exists(index_path):
-                index_path = "./models/efficientnet_b3_loli_optimized_v2_20260529_133654"
-                model_name = "efficientnet_b3_loli_optimized_v2_20260529_133654"
+                index_path = "./models/efficientnet_b3"
+                model_name = "efficientnet_b3"
 
             faiss_path = f"{index_path}.faiss"
             mapping_path = f"{index_path}_mapping.json"
@@ -404,6 +449,7 @@ async def predict_image(
                 os.remove(temp_path)
             except Exception:
                 pass
+        _cleanup_after_inference()
 
 
 @router.post("/api/model/extract")
@@ -461,14 +507,14 @@ async def detect_multiple_characters(
         try:
             from src.core.detection.multi_role_detection_enhanced import EnhancedMultiRoleDetector
             detector = EnhancedMultiRoleDetector(
-                model_name="efficientnet_b3_loli_optimized_v2_20260529_133654",
+                model_name="efficientnet_b3",
                 enable_open_set=True, enable_fuzzy_record=True,
                 unknown_threshold=0.3, fuzzy_threshold=0.5,
             )
             detection_results = detector.detect_roles(temp_path)
         except Exception:
             from src.core.detection.multi_role_detection import MultiRoleDetector
-            detector = MultiRoleDetector(model_name="efficientnet_b3_loli_optimized_v2_20260529_133654")
+            detector = MultiRoleDetector(model_name="efficientnet_b3")
             detection_results = detector.detect_roles(temp_path)
 
         if feature_extractor is None:
@@ -526,6 +572,7 @@ async def detect_multiple_characters(
                 os.remove(temp_path)
             except Exception:
                 pass
+        _cleanup_after_inference()
 
 
 @router.post("/api/model/detect-yolo")
@@ -583,6 +630,7 @@ async def detect_with_yolo(
                 os.remove(temp_path)
             except Exception:
                 pass
+        _cleanup_after_inference()
 
 
 @router.post("/api/classify")
@@ -592,7 +640,7 @@ async def classify_image(
     use_model: bool = Form(True),
     use_attributes: bool = Form(True),
     use_keypoints: bool = Form(False),
-    model_name: str = Form("efficientnet_b3_loli_optimized_v2_20260529_133654"),
+    model_name: str = Form("efficientnet_b3"),
     cache_bypass: bool = Form(False),
 ):
     """分类图像（兼容前端调用）"""
@@ -602,7 +650,7 @@ async def classify_image(
 @router.post("/api/model/batch-predict")
 async def batch_predict_images(
     files: List[UploadFile] = File(...),
-    model_name: str = Form("efficientnet_b3_loli_optimized_v2_20260529_133654"),
+    model_name: str = Form("efficientnet_b3"),
     use_attributes: bool = Form(True),
     batch_size: int = Form(8),
     multilabel: bool = Form(False),
@@ -720,7 +768,7 @@ async def batch_predict_images(
             if classifier is None:
                 index_path = f"./models/{model_name}"
                 if not os.path.exists(index_path):
-                    index_path = "./models/efficientnet_b3_loli_optimized_v2_20260529_133654"
+                    index_path = "./models/efficientnet_b3"
                 faiss_path = f"{index_path}.faiss"
                 mapping_path = f"{index_path}_mapping.json"
                 if os.path.exists(faiss_path) and os.path.exists(mapping_path):
@@ -754,6 +802,8 @@ async def batch_predict_images(
     except Exception as e:
         logger.error(f"批量预测失败: {e}")
         raise HTTPException(status_code=500, detail=f"批量预测失败: {e}")
+    finally:
+        _cleanup_after_inference()
 
 
 # 保存全局引用的字典

@@ -23,7 +23,10 @@ jobs:
           sudo rm -rf /usr/share/dotnet || true
           sudo rm -rf /opt/ghc || true
           sudo rm -rf /usr/local/share/boost || true
-          docker system prune -af || true
+          sudo rm -rf /usr/lib/jvm || true
+          sudo rm -rf /usr/local/lib/android || true
+          sudo apt-get clean || true
+          docker system prune -af --volumes || true
           echo "=== After cleanup ==="
           df -h
 
@@ -55,9 +58,11 @@ jobs:
       - name: Run tests
         run: python -c "print('Test environment OK')"
 
-  build-all-images:
+  build-base-images:
     runs-on: ubuntu-latest
     needs: test
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -72,97 +77,183 @@ jobs:
             type=sha,prefix=
             type=raw,value=latest
 
+      - name: Free disk space before build
+        run: |
+          docker system prune -af --volumes || true
+          df -h
+
       - name: Build base image
         run: |
           docker build -t ardc/base:${{ steps.meta.outputs.version }} -t ardc/base:latest \
             --build-arg BUILD_DATE=${{ steps.meta.outputs.created }} \
             --build-arg BUILD_TAG=${{ steps.meta.outputs.version }} \
             -f deployment/Dockerfile.base .
+          docker system df
 
-      - name: Build ml-base image
+      - name: Save base image for caching
         run: |
-          docker build -t ardc/ml-base:${{ steps.meta.outputs.version }} -t ardc/ml-base:latest \
-            --build-arg BUILD_DATE=${{ steps.meta.outputs.created }} \
-            --build-arg BUILD_TAG=${{ steps.meta.outputs.version }} \
-            --build-arg BASE_IMAGE=ardc/base:${{ steps.meta.outputs.version }} \
-            -f deployment/Dockerfile.ml-base .
+          mkdir -p /tmp/docker-cache
+          docker save ardc/base:${{ steps.meta.outputs.version }} -o /tmp/docker-cache/base.tar
+          ls -la /tmp/docker-cache/
+
+      - name: Upload base image artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: base-image-${{ steps.meta.outputs.version }}
+          path: /tmp/docker-cache/base.tar
+          retention-days: 1
+
+      - name: Disk usage report
+        run: df -h
+
+  build-service-images:
+    runs-on: ubuntu-latest
+    needs: build-base-images
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Free disk space before build
+        run: |
+          docker system prune -af --volumes || true
+          df -h
+
+      - name: Download base image artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: base-image-${{ needs.build-base-images.outputs.version }}
+          path: /tmp/docker-cache
+
+      - name: Load base image
+        run: |
+          docker load -i /tmp/docker-cache/base.tar
+          docker tag ardc/base:${{ needs.build-base-images.outputs.version }} ardc/base:latest
+          docker images | grep ardc/base
 
       - name: Build api-service image
         run: |
-          docker build -t ardc/api-service:${{ steps.meta.outputs.version }} -t ardc/api-service:latest \
-            --build-arg BUILD_DATE=${{ steps.meta.outputs.created }} \
-            --build-arg BUILD_TAG=${{ steps.meta.outputs.version }} \
-            --build-arg BASE_IMAGE=ardc/base:${{ steps.meta.outputs.version }} \
+          docker build -t ardc/api-service:${{ needs.build-base-images.outputs.version }} -t ardc/api-service:latest \
+            --build-arg BUILD_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ) \
+            --build-arg BUILD_TAG=${{ needs.build-base-images.outputs.version }} \
+            --build-arg BASE_IMAGE=ardc/base:${{ needs.build-base-images.outputs.version }} \
             -f deployment/Dockerfile.api-service .
 
       - name: Build api-gateway image
         run: |
-          docker build -t ardc/api-gateway:${{ steps.meta.outputs.version }} -t ardc/api-gateway:latest \
-            --build-arg BUILD_DATE=${{ steps.meta.outputs.created }} \
-            --build-arg BUILD_TAG=${{ steps.meta.outputs.version }} \
-            --build-arg BASE_IMAGE=ardc/base:${{ steps.meta.outputs.version }} \
+          docker build -t ardc/api-gateway:${{ needs.build-base-images.outputs.version }} -t ardc/api-gateway:latest \
+            --build-arg BUILD_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ) \
+            --build-arg BUILD_TAG=${{ needs.build-base-images.outputs.version }} \
+            --build-arg BASE_IMAGE=ardc/base:${{ needs.build-base-images.outputs.version }} \
             -f deployment/Dockerfile.api-gateway .
-
-      - name: Build model-service image
-        run: |
-          docker build -t ardc/model-service:${{ steps.meta.outputs.version }} -t ardc/model-service:latest \
-            --build-arg BUILD_DATE=${{ steps.meta.outputs.created }} \
-            --build-arg BUILD_TAG=${{ steps.meta.outputs.version }} \
-            --build-arg BASE_IMAGE=ardc/ml-base:${{ steps.meta.outputs.version }} \
-            -f deployment/Dockerfile.model-service .
 
       - name: Build multimedia-service image
         run: |
-          docker build -t ardc/multimedia-service:${{ steps.meta.outputs.version }} -t ardc/multimedia-service:latest \
-            --build-arg BUILD_DATE=${{ steps.meta.outputs.created }} \
-            --build-arg BUILD_TAG=${{ steps.meta.outputs.version }} \
-            --build-arg BASE_IMAGE=ardc/base:${{ steps.meta.outputs.version }} \
+          docker build -t ardc/multimedia-service:${{ needs.build-base-images.outputs.version }} -t ardc/multimedia-service:latest \
+            --build-arg BUILD_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ) \
+            --build-arg BUILD_TAG=${{ needs.build-base-images.outputs.version }} \
+            --build-arg BASE_IMAGE=ardc/base:${{ needs.build-base-images.outputs.version }} \
             -f deployment/Dockerfile.multimedia-service .
 
       - name: Build search-service image
         run: |
-          docker build -t ardc/search-service:${{ steps.meta.outputs.version }} -t ardc/search-service:latest \
-            --build-arg BUILD_DATE=${{ steps.meta.outputs.created }} \
-            --build-arg BUILD_TAG=${{ steps.meta.outputs.version }} \
-            --build-arg BASE_IMAGE=ardc/base:${{ steps.meta.outputs.version }} \
+          docker build -t ardc/search-service:${{ needs.build-base-images.outputs.version }} -t ardc/search-service:latest \
+            --build-arg BUILD_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ) \
+            --build-arg BUILD_TAG=${{ needs.build-base-images.outputs.version }} \
+            --build-arg BASE_IMAGE=ardc/base:${{ needs.build-base-images.outputs.version }} \
             -f deployment/Dockerfile.search-service .
 
       - name: Build search-worker image
         run: |
-          docker build -t ardc/search-worker:${{ steps.meta.outputs.version }} -t ardc/search-worker:latest \
-            --build-arg BUILD_DATE=${{ steps.meta.outputs.created }} \
-            --build-arg BUILD_TAG=${{ steps.meta.outputs.version }} \
-            --build-arg BASE_IMAGE=ardc/base:${{ steps.meta.outputs.version }} \
+          docker build -t ardc/search-worker:${{ needs.build-base-images.outputs.version }} -t ardc/search-worker:latest \
+            --build-arg BUILD_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ) \
+            --build-arg BUILD_TAG=${{ needs.build-base-images.outputs.version }} \
+            --build-arg BASE_IMAGE=ardc/base:${{ needs.build-base-images.outputs.version }} \
             -f deployment/Dockerfile.search-worker .
-
-      - name: Build inference-worker image
-        run: |
-          docker build -t ardc/inference-worker:${{ steps.meta.outputs.version }} -t ardc/inference-worker:latest \
-            --build-arg BUILD_DATE=${{ steps.meta.outputs.created }} \
-            --build-arg BUILD_TAG=${{ steps.meta.outputs.version }} \
-            --build-arg BASE_IMAGE=ardc/ml-base:${{ steps.meta.outputs.version }} \
-            -f deployment/Dockerfile.inference-worker .
 
       - name: Build monitoring image
         run: |
-          docker build -t ardc/monitoring:${{ steps.meta.outputs.version }} -t ardc/monitoring:latest \
-            --build-arg BUILD_DATE=${{ steps.meta.outputs.created }} \
-            --build-arg BUILD_TAG=${{ steps.meta.outputs.version }} \
+          docker build -t ardc/monitoring:${{ needs.build-base-images.outputs.version }} -t ardc/monitoring:latest \
+            --build-arg BUILD_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ) \
+            --build-arg BUILD_TAG=${{ needs.build-base-images.outputs.version }} \
             -f deployment/Dockerfile.monitoring .
 
       - name: Build frontend image
         run: |
-          docker build -t ardc/frontend:${{ steps.meta.outputs.version }} -t ardc/frontend:latest \
-            --build-arg BUILD_DATE=${{ steps.meta.outputs.created }} \
-            --build-arg BUILD_TAG=${{ steps.meta.outputs.version }} \
+          docker build -t ardc/frontend:${{ needs.build-base-images.outputs.version }} -t ardc/frontend:latest \
+            --build-arg BUILD_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ) \
+            --build-arg BUILD_TAG=${{ needs.build-base-images.outputs.version }} \
             -f deployment/Dockerfile.frontend .
+
+      - name: Disk usage report
+        run: df -h
+
+  build-ml-images:
+    runs-on: ubuntu-latest
+    needs: build-base-images
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Free disk space before build
+        run: |
+          docker system prune -af --volumes || true
+          df -h
+
+      - name: Download base image artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: base-image-${{ needs.build-base-images.outputs.version }}
+          path: /tmp/docker-cache
+
+      - name: Load base image
+        run: |
+          docker load -i /tmp/docker-cache/base.tar
+          docker tag ardc/base:${{ needs.build-base-images.outputs.version }} ardc/base:latest
+          docker images | grep ardc/base
+
+      - name: Build ml-base image
+        run: |
+          docker build -t ardc/ml-base:${{ needs.build-base-images.outputs.version }} -t ardc/ml-base:latest \
+            --build-arg BUILD_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ) \
+            --build-arg BUILD_TAG=${{ needs.build-base-images.outputs.version }} \
+            --build-arg BASE_IMAGE=ardc/base:${{ needs.build-base-images.outputs.version }} \
+            -f deployment/Dockerfile.ml-base .
+          docker system df
+
+      - name: Build model-service image
+        run: |
+          docker build -t ardc/model-service:${{ needs.build-base-images.outputs.version }} -t ardc/model-service:latest \
+            --build-arg BUILD_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ) \
+            --build-arg BUILD_TAG=${{ needs.build-base-images.outputs.version }} \
+            --build-arg BASE_IMAGE=ardc/ml-base:${{ needs.build-base-images.outputs.version }} \
+            -f deployment/Dockerfile.model-service .
+          docker system df
+
+      - name: Build inference-worker image
+        run: |
+          docker build -t ardc/inference-worker:${{ needs.build-base-images.outputs.version }} -t ardc/inference-worker:latest \
+            --build-arg BUILD_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ) \
+            --build-arg BUILD_TAG=${{ needs.build-base-images.outputs.version }} \
+            --build-arg BASE_IMAGE=ardc/ml-base:${{ needs.build-base-images.outputs.version }} \
+            -f deployment/Dockerfile.inference-worker .
+          docker system df
+
+      - name: Disk usage report
+        run: df -h
+
+  verify-images:
+    runs-on: ubuntu-latest
+    needs: [build-service-images, build-ml-images]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
 
       - name: List all images
         run: |
           echo "=== All built images ==="
           docker images | grep ardc
 
-      - name: Disk usage report
+      - name: Disk usage final report
         run: |
           echo "=== Disk Usage ==="
           df -h

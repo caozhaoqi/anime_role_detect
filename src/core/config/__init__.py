@@ -39,9 +39,9 @@ class ConfigManager:
                     "enabled": True,
                     "args": ["--host", "0.0.0.0", "--port", "8000"],
                     "env": {
-                        "OMP_NUM_THREADS": "1",
-                        "MKL_NUM_THREADS": "1",
-                        "PYTORCH_MPS_DISABLE": "1",
+                        "OMP_NUM_THREADS": "4",
+                        "MKL_NUM_THREADS": "4",
+                        "PYTORCH_ENABLE_MPS_FALLBACK": "1",
                         "KMP_DUPLICATE_LIB_OK": "TRUE"
                     }
                 },

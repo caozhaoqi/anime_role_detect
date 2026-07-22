@@ -1,13 +1,16 @@
 import numpy as np
 import sys
 import os
-
-
-from src.core.general_classification import GeneralClassification
+import pytest
 
 
 def test_infinity_handling():
     """测试无穷大值处理"""
+    pytest.importorskip("torch")
+    pytest.importorskip("transformers")
+    
+    from src.core.classification.general_classification import GeneralClassification
+    
     print("开始测试无穷大值处理...")
 
     try:

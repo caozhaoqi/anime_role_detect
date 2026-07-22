@@ -33,7 +33,7 @@ except ImportError:
 # 默认 EfficientNet 模型路径
 EFFICIENTNET_MODEL_DIR = os.path.join(
     os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))),
-    "models", "efficientnet_b3_loli_optimized_v2_20260529_133654"
+    "models", "efficientnet_b3"
 )
 
 # 动态导入函数
@@ -171,7 +171,7 @@ class FeatureExtraction:
                 return
 
             # 查找模型文件
-            model_full_path = os.path.join(EFFICIENTNET_MODEL_DIR, "model_full.pth")
+            model_full_path = os.path.join(EFFICIENTNET_MODEL_DIR, "model_best.pth")
             if not os.path.exists(model_full_path):
                 logger.warning(f"EfficientNet模型文件不存在: {model_full_path}，回退到简单方法")
                 return

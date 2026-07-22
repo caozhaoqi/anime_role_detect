@@ -15,7 +15,7 @@ import logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, project_root)
 
 
@@ -50,7 +50,10 @@ class TestDataset(Dataset):
             return image, label
         except Exception as e:
             logger.warning(f"跳过损坏图片: {img_path} - {e}")
-            return Image.new('RGB', (224, 224), color=0), label
+            image = Image.new('RGB', (224, 224), color=0)
+            if self.transform:
+                image = self.transform(image)
+            return image, label
 
 
 class BenchmarkEvaluator:
@@ -81,12 +84,12 @@ class BenchmarkEvaluator:
             else:
                 state_dict = checkpoint
 
-            model_name = os.path.basename(self.model_path).lower()
-            if "efficientnet" in model_name:
+            model_path_lower = self.model_path.lower()
+            if "efficientnet" in model_path_lower:
                 model = models.efficientnet_b3()
                 num_classes = state_dict.get("classifier.1.weight", torch.randn(100, 1536)).shape[0]
                 model.classifier[1] = nn.Linear(model.classifier[1].in_features, num_classes)
-            elif "resnet" in model_name:
+            elif "resnet" in model_path_lower:
                 model = models.resnet50()
                 num_classes = state_dict.get("fc.weight", torch.randn(100, 2048)).shape[0]
                 model.fc = nn.Linear(model.fc.in_features, num_classes)
@@ -141,12 +144,26 @@ class BenchmarkEvaluator:
         }
 
 
+class SyntheticDataset(Dataset):
+    def __init__(self, num_samples=500, transform=None):
+        self.num_samples = num_samples
+        self.transform = transform
+        self.class_names = [f"class_{i}" for i in range(100)]
+
+    def __len__(self):
+        return self.num_samples
+
+    def __getitem__(self, idx):
+        image = Image.new('RGB', (224, 224), color=(idx % 256, (idx * 7) % 256, (idx * 13) % 256))
+        if self.transform:
+            image = self.transform(image)
+        return image, idx % 100
+
+
 def main():
     model_configs = [
-        {"name": "MobileNetV2 (Aug)", "path": "models/mobilenetv2_aug_best.pth"},
-        {"name": "MobileNetV2", "path": "models/mobilenetv2_best.pth"},
-        {"name": "ResNet50", "path": "models/resnet50_best.pth"},
-        {"name": "EfficientNet-B3", "path": "models/efficientnet_b3_anime_20260616_132028/model_best.pth"},
+        {"name": "EfficientNet-B3", "path": "models/efficientnet_b3/model_best.pth"},
+        {"name": "EfficientNet-B3 (Full)", "path": "models/efficientnet_b3/model_full.pth"},
     ]
 
     test_dir = os.path.join(project_root, "data", "training_dataset")
@@ -157,10 +174,17 @@ def main():
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
     ])
 
-    test_dataset = TestDataset(test_dir, transform=transform)
+    if os.path.exists(test_dir) and len(os.listdir(test_dir)) > 0:
+        test_dataset = TestDataset(test_dir, transform=transform)
+        logger.info(f"测试数据集: {len(test_dataset)} 样本, {len(test_dataset.class_names)} 类别")
+    else:
+        logger.warning(f"真实测试数据集不存在: {test_dir}")
+        logger.info("使用合成数据集进行性能测试...")
+        test_dataset = SyntheticDataset(num_samples=500, transform=transform)
+        logger.info(f"合成测试数据集: {len(test_dataset)} 样本, {len(test_dataset.class_names)} 类别")
+
     test_loader = DataLoader(test_dataset, batch_size=32, shuffle=False, num_workers=4)
 
-    logger.info(f"测试数据集: {len(test_dataset)} 样本, {len(test_dataset.class_names)} 类别")
     logger.info(f"测试批次大小: 32\n")
 
     results = []

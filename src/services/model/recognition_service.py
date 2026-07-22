@@ -11,8 +11,23 @@ import json
 import os
 from datetime import datetime
 from typing import List, Optional
+
+import numpy as np
+
 from src.models.recognition_record import RecognitionRecord, RecognitionRecordCreate
 from src.core.logging.global_logger import get_logger
+
+
+class _NumpyEncoder(json.JSONEncoder):
+    """JSON 编码器，处理 numpy 类型"""
+    def default(self, obj):
+        if isinstance(obj, (np.integer,)):
+            return int(obj)
+        if isinstance(obj, (np.floating,)):
+            return float(obj)
+        if isinstance(obj, (np.ndarray,)):
+            return obj.tolist()
+        return super().default(obj)
 
 logger = get_logger("recognition_service")
 
@@ -77,7 +92,7 @@ class RecognitionService:
                 data.append(record_dict)
 
             with open(self.records_file, "w", encoding="utf-8") as f:
-                json.dump(data, f, ensure_ascii=False, indent=2)
+                json.dump(data, f, ensure_ascii=False, indent=2, cls=_NumpyEncoder)
             logger.info(f"保存了 {len(self.records)} 条识别记录")
         except Exception as e:
             logger.error(f"保存识别记录失败: {e}")

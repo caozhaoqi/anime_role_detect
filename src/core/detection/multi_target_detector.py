@@ -62,9 +62,9 @@ class MultiTargetDetector:
         from torchvision import models
 
         if model_path is None:
-            MODEL_NAME = "efficientnet_b3_loli_optimized_v2_20260529_133654"
+            MODEL_NAME = "efficientnet_b3"
             MODEL_DIR = os.path.join(project_root, "models", MODEL_NAME)
-            model_path = os.path.join(MODEL_DIR, "model_full.pth")
+            model_path = os.path.join(MODEL_DIR, "model_best.pth")
 
         with open(os.path.join(os.path.dirname(model_path), "training_results.json"), "r") as f:
             config = json.load(f)

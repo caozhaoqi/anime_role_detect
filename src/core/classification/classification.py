@@ -188,10 +188,10 @@ class Classification:
         results = []
         for i in range(top_k):
             idx = indices[0][i]
-            distance = distances[0][i]
+            inner_product = distances[0][i]
 
             if idx < len(self.role_mapping):
-                similarity = 1.0 / (1.0 + distance)
+                similarity = (inner_product + 1.0) / 2.0
                 results.append({"role": self.role_mapping[idx], "similarity": float(similarity)})
 
         if not results:

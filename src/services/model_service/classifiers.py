@@ -42,34 +42,68 @@ class EfficientNetClassifier:
             return
 
         model_dir = os.path.join(
-            project_root, "models", "efficientnet_b3_loli_optimized_v2_20260529_133654"
+            project_root, "models", "efficientnet_b3"
         )
-        model_full_path = os.path.join(model_dir, "model_full.pth")
+        model_best_path = os.path.join(model_dir, "model_best.pth")
 
-        if not os.path.exists(model_full_path):
-            logger.warning(f"EfficientNet模型不存在: {model_full_path}")
+        if not os.path.exists(model_best_path):
+            logger.warning(f"EfficientNet模型不存在: {model_best_path}")
             self.model = None
             self._device = DeviceManager.get_device()
             return
 
-        logger.info(f"加载EfficientNet分类模型: {model_full_path}")
+        logger.info(f"加载EfficientNet分类模型: {model_best_path}")
 
         # P0-1: 使用 DeviceManager 检测设备
         device = DeviceManager.get_device()
         self._device = device
 
-        torch.serialization.add_safe_globals(
-            [torchvision.models.efficientnet.EfficientNet]
+        # 加载 checkpoint（dict 格式：{epoch, model_state_dict, best_acc, class_to_idx}）
+        checkpoint = torch.load(model_best_path, map_location=device, weights_only=False)
+        if isinstance(checkpoint, dict) and "model_state_dict" in checkpoint:
+            state_dict = checkpoint["model_state_dict"]
+            logger.info("检测到 checkpoint 格式，提取 model_state_dict")
+        else:
+            state_dict = checkpoint
+
+        # 从 checkpoint 或 class_to_idx.json 读取类别映射
+        if isinstance(checkpoint, dict) and "class_to_idx" in checkpoint:
+            class_to_idx = checkpoint["class_to_idx"]
+            logger.info(f"从 checkpoint 读取 {len(class_to_idx)} 个类别")
+        else:
+            class_to_idx_path = os.path.join(model_dir, "class_to_idx.json")
+            if os.path.exists(class_to_idx_path):
+                with open(class_to_idx_path, "r", encoding="utf-8") as f:
+                    class_to_idx = json.load(f)
+                logger.info(f"从 class_to_idx.json 读取 {len(class_to_idx)} 个类别")
+            else:
+                training_results_path = os.path.join(model_dir, "training_results.json")
+                with open(training_results_path, "r", encoding="utf-8") as f:
+                    training_results = json.load(f)
+                class_names = training_results.get("class_names", [])
+                class_to_idx = {name: idx for idx, name in enumerate(class_names)}
+
+        num_classes = len(class_to_idx)
+
+        # 构建与训练时一致的模型架构（自定义 classifier，与 MultiRoleDetector 相同）
+        base_model = torchvision.models.efficientnet_b3(weights=None)
+        base_model.classifier = torch.nn.Sequential(
+            torch.nn.Dropout(p=0.3),
+            torch.nn.Linear(base_model.classifier[1].in_features, 768),
+            torch.nn.ReLU(inplace=True),
+            torch.nn.BatchNorm1d(768),
+            torch.nn.Dropout(p=0.15),
+            torch.nn.Linear(768, num_classes),
         )
-        model = torch.load(model_full_path, map_location=device, weights_only=False)
+        model = base_model
+        model.load_state_dict(state_dict)
         model = model.to(device)
+        # FP16 量化：MPS/CUDA 设备上启用半精度，减少 ~50% 推理内存
+        if device in ("mps", "cuda"):
+            model = model.half()
+            logger.info(f"EfficientNet 已切换为 FP16 半精度模式 (device={device})")
         model.eval()
 
-        training_results_path = os.path.join(model_dir, "training_results.json")
-        with open(training_results_path, "r", encoding="utf-8") as f:
-            training_results = json.load(f)
-        class_names = training_results.get("class_names", [])
-        class_to_idx = {name: idx for idx, name in enumerate(class_names)}
         idx_to_class = {v: k for k, v in class_to_idx.items()}
 
         transform = transforms.Compose([
@@ -85,6 +119,7 @@ class EfficientNetClassifier:
         self.model = model
         self.idx_to_class = idx_to_class
         self.transform = transform
+        self._is_half = device in ("mps", "cuda")
 
         logger.info(f"EfficientNet分类器加载完成，类别数: {len(class_to_idx)}")
 
@@ -95,6 +130,8 @@ class EfficientNetClassifier:
             return "unknown", 0.0
         try:
             input_tensor = self.transform(image).unsqueeze(0).to(self._device)
+            if self._is_half:
+                input_tensor = input_tensor.half()
             with torch.no_grad():
                 outputs = self.model(input_tensor)
                 probabilities = torch.nn.functional.softmax(outputs, dim=1)
@@ -113,6 +150,8 @@ class EfficientNetClassifier:
             return "unknown", 0.0, np.zeros(512, dtype=np.float32)
         try:
             input_tensor = self.transform(image).unsqueeze(0).to(self._device)
+            if self._is_half:
+                input_tensor = input_tensor.half()
             features = []
             def hook_fn(module, input, output):
                 features.append(output)
@@ -191,6 +230,8 @@ class EfficientNetClassifier:
                 # transform 所有图像并 stack 成 batch tensor
                 tensors = [self.transform(img) for img in batch]
                 batch_input = torch.stack(tensors).to(self._device)
+                if self._is_half:
+                    batch_input = batch_input.half()
 
                 with torch.no_grad():
                     outputs = self.model(batch_input)

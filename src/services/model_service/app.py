@@ -188,51 +188,49 @@ async def warmup_models():
                 await loop.run_in_executor(executor, feature_extractor.extract_features, processed)
             logger.info("特征提取器预热完成")
 
-        # ---- 预加载 WD ViT Tagger（同步加载，替代原来的跳过/超时线程方式）----
-        logger.info("预加载 WD ViT Tagger...")
-        try:
-            if tagger is None:
-                from src.core.tagging.wd_vit_v3_tagger import WDViTV3Tagger
-                tagger = WDViTV3Tagger.get_instance()
-                loop = asyncio.get_running_loop()
-                with ThreadPoolExecutor(max_workers=1) as executor:
-                    await loop.run_in_executor(executor, tagger.load_model)
-                logger.info("WD ViT Tagger 预加载完成")
-        except Exception as e:
-            logger.warning(f"[DEGRADE] WD ViT Tagger 预加载失败，按需加载: {e}")
+        # ---- WD ViT Tagger：改为懒加载 + TTL 卸载（P1 优化）----
+        # 不再在启动时预加载，首次使用时自动加载，空闲 5 分钟后自动卸载释放 ~700MB
+        logger.info("WD ViT Tagger 已切换为懒加载模式（首次使用时加载，空闲 5 分钟后卸载）")
 
-        # ---- 预加载 EasyOCR ----
-        logger.info("预加载 EasyOCR...")
-        try:
-            from src.core.ocr.easyocr_detector import get_ocr_detector
-            ocr_detector = get_ocr_detector()
-            loop = asyncio.get_running_loop()
-            with ThreadPoolExecutor(max_workers=1) as executor:
-                await loop.run_in_executor(executor, ocr_detector.preload)
-            if ocr_detector.is_ready():
-                logger.info("EasyOCR 预加载完成")
-            else:
-                logger.warning("[DEGRADE] EasyOCR 预加载后仍未就绪，OCR 将降级")
-        except Exception as e:
-            logger.warning(f"[DEGRADE] EasyOCR 预加载失败，OCR 将降级: {e}")
+        # ---- EasyOCR：改为懒加载 + TTL 卸载（P1 优化）----
+        # 不再在启动时预加载，首次使用时自动加载，空闲 3 分钟后自动卸载释放 ~200MB
+        logger.info("EasyOCR 已切换为懒加载模式（首次使用时加载，空闲 3 分钟后卸载）")
 
-        # ---- 预加载 NSFW 检测器 ----
-        logger.info("预加载 NSFW 检测器...")
-        try:
-            from src.services.model.nsfw_detector import load_transformers_model
-            loop = asyncio.get_running_loop()
-            with ThreadPoolExecutor(max_workers=1) as executor:
-                await loop.run_in_executor(executor, load_transformers_model)
-            logger.info("NSFW 检测器预加载完成")
-        except Exception as e:
-            logger.warning(f"[DEGRADE] NSFW 检测器预加载失败，将使用规则检测: {e}")
+        # ---- NSFW 检测器 ----
+        # 注意：NSFW 模型从 HF 下载在当前网络环境不可用（TCP 层面卡死，asyncio.wait_for 无法穿透），
+        # 直接跳过预热，请求时 _run_ocr_and_nsfw 会降级返回 is_nsfw=False 默认值
+        logger.info("NSFW 检测器预热跳过（HF 网络不可用），请求时将返回安全默认值")
+
 
         elapsed = time.time() - start_time
         logger.info(f"模型预热完成，耗时: {elapsed:.2f}秒")
+        # 启动 TTL 空闲卸载检查后台任务
+        asyncio.create_task(_ttl_unload_checker())
         # 预热完成后同步全局变量到路由模块
         set_globals(preprocessor, feature_extractor, tagger, OPTIMAL_DEVICE, keypoint_pool)
     except Exception as e:
         logger.error(f"模型预热失败: {e}")
+
+
+async def _ttl_unload_checker():
+    """后台任务：每 60 秒检查一次 WD ViT Tagger 和 EasyOCR 是否空闲超时需要卸载"""
+    while True:
+        await asyncio.sleep(60)
+        try:
+            # 通过单例模式获取 tagger（routes.py 懒加载的也是同一个单例）
+            try:
+                from src.core.tagging.wd_vit_v3_tagger import WDViTV3Tagger
+                t = WDViTV3Tagger.get_instance()
+                if t.unload_if_idle():
+                    logger.info("[TTL] WD ViT Tagger 已自动卸载")
+            except Exception:
+                pass
+            from src.core.ocr.easyocr_detector import get_ocr_detector
+            ocr = get_ocr_detector()
+            if ocr.unload_if_idle():
+                logger.info("[TTL] EasyOCR 已自动卸载")
+        except Exception as e:
+            logger.debug(f"TTL 检查出错: {e}")
 
 
 
