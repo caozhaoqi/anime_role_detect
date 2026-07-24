@@ -178,13 +178,34 @@ class FeatureExtraction:
 
             logger.info(f"加载EfficientNet-B3模型: {model_full_path}")
 
-            # 允许加载 EfficientNet 类
-            torch.serialization.add_safe_globals(
-                [torchvision.models.efficientnet.EfficientNet]
-            )
+            # 允许加载 EfficientNet 类（兼容不同PyTorch版本）
+            if hasattr(torch.serialization, 'add_safe_globals'):
+                torch.serialization.add_safe_globals(
+                    [torchvision.models.efficientnet.EfficientNet]
+                )
 
-            # 加载模型
-            model = torch.load(model_full_path, map_location=DeviceManager.get_device(), weights_only=False)
+            # 加载模型（兼容不同PyTorch版本和不同保存格式）
+            try:
+                loaded = torch.load(model_full_path, map_location=DeviceManager.get_device(), weights_only=False)
+            except TypeError:
+                loaded = torch.load(model_full_path, map_location=DeviceManager.get_device())
+            
+            # 如果加载的是state_dict（字典），则创建模型实例并加载权重
+            # 支持多种保存格式：完整模型、纯state_dict、训练检查点（包含model_state_dict）
+            if isinstance(loaded, dict):
+                if 'model_state_dict' in loaded:
+                    state_dict = loaded['model_state_dict']
+                elif any(k.startswith('features.') or k.startswith('classifier.') for k in loaded.keys()):
+                    state_dict = loaded
+                else:
+                    logger.warning("无法识别模型文件格式，回退到简单方法")
+                    return
+                
+                model = torchvision.models.efficientnet_b3(weights=None)
+                model.load_state_dict(state_dict)
+            else:
+                model = loaded
+            
             model = model.to(self.device)
             model.eval()
 

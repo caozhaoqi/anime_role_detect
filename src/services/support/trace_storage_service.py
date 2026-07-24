@@ -328,12 +328,12 @@ class TraceStorageService:
             status = t.get("status", "UNKNOWN")
             status_dist[status] = status_dist.get(status, 0) + 1
         
-        # 统计端点分布（从Span中提取）
         endpoint_dist = {}
         for t in traces:
             spans = t.get("spans", [])
             for span in spans:
-                endpoint = span.get("attributes", {}).get("http.path", "unknown")
+                attrs = span.get("attributes", {})
+                endpoint = attrs.get("http.route") or attrs.get("http.target") or attrs.get("http.path") or span.get("name", "unknown")
                 endpoint_dist[endpoint] = endpoint_dist.get(endpoint, 0) + 1
         
         return {

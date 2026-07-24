@@ -62,6 +62,13 @@ app = FastAPI(
     redoc_url=None,
 )
 
+# OpenTelemetry 链路追踪
+try:
+    from src.utils.monitoring.opentelemetry import instrument_app
+    instrument_app(app, service_name="api-gateway")
+except Exception as e:
+    logger.warning(f"OpenTelemetry 初始化失败: {e}")
+
 # CORS 配置：生产环境应通过 CORS_ORIGINS 环境变量限定，默认仅允许本地开发
 _cors_origins_env = os.getenv("CORS_ORIGINS", "")
 if _cors_origins_env:

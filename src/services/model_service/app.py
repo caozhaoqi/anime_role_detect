@@ -90,6 +90,13 @@ app = FastAPI(
     lifespan=model_service_lifespan,
 )
 
+# OpenTelemetry 链路追踪
+try:
+    from src.utils.monitoring.opentelemetry import instrument_app
+    instrument_app(app, service_name="model-service")
+except Exception as e:
+    print(f"OpenTelemetry 初始化失败: {e}")
+
 # CORS - 模型服务是内部服务，仅允许网关和本地访问
 _cors_origins_env = os.environ.get("CORS_ALLOWED_ORIGINS", "")
 if _cors_origins_env:
@@ -203,11 +210,10 @@ async def warmup_models():
                     with ThreadPoolExecutor(max_workers=1) as executor:
                         feature_extractor = await loop.run_in_executor(executor, FeatureExtraction)
 
-        processed = preprocessor.preprocess(dummy_image)
-        if processed is not None:
+        if feature_extractor is not None:
             loop = asyncio.get_running_loop()
             with ThreadPoolExecutor(max_workers=1) as executor:
-                await loop.run_in_executor(executor, feature_extractor.extract_features, processed)
+                await loop.run_in_executor(executor, feature_extractor.extract_features, dummy_image)
             logger.info("特征提取器预热完成")
 
         # ---- WD ViT Tagger：改为懒加载 + TTL 卸载（P1 优化）----

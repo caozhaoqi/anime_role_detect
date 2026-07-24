@@ -4,10 +4,11 @@ OpenTelemetry Tracer 封装
 """
 
 import os
+import traceback
 from typing import Optional
 from opentelemetry import trace
 from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from opentelemetry.sdk.trace.export import BatchSpanProcessor, SimpleSpanProcessor
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.trace import Tracer
@@ -27,24 +28,41 @@ def init_otel_tracer(service_name: str = "anime_role_detect") -> Tracer:
     """
     global _otel_tracer
 
-    otlp_endpoint = os.environ.get("OTLP_ENDPOINT", "")
-    
-    resource = Resource(attributes={
-        "service.name": service_name,
-        "service.version": "1.0.0",
-    })
+    try:
+        otlp_endpoint = os.environ.get("OTLP_ENDPOINT", "")
+        
+        resource = Resource(attributes={
+            "service.name": service_name,
+            "service.version": "1.0.0",
+        })
 
-    provider = TracerProvider(resource=resource)
+        provider = TracerProvider(resource=resource)
 
-    if otlp_endpoint:
-        exporter = OTLPSpanExporter(endpoint=otlp_endpoint)
-        processor = BatchSpanProcessor(exporter)
-        provider.add_span_processor(processor)
+        try:
+            from .otel_exporter import TraceStorageSpanExporter
+            exporter = TraceStorageSpanExporter()
+            processor = SimpleSpanProcessor(exporter)
+            provider.add_span_processor(processor)
+            print(f"✅ 已添加 TraceStorageSpanExporter")
+        except Exception as e:
+            print(f"⚠️  TraceStorageSpanExporter 添加失败: {e}")
 
-    trace.set_tracer_provider(provider)
-    _otel_tracer = trace.get_tracer(service_name)
+        if otlp_endpoint:
+            otlp_exporter = OTLPSpanExporter(endpoint=otlp_endpoint)
+            otlp_processor = BatchSpanProcessor(otlp_exporter)
+            provider.add_span_processor(otlp_processor)
+            print(f"✅ 已添加 OTLP Exporter: {otlp_endpoint}")
 
-    return _otel_tracer
+        trace.set_tracer_provider(provider)
+        _otel_tracer = trace.get_tracer(service_name)
+
+        print(f"✅ OpenTelemetry Tracer 初始化成功 - 服务: {service_name}")
+        return _otel_tracer
+        
+    except Exception as e:
+        print(f"❌ OpenTelemetry Tracer 初始化失败: {e}")
+        print(f"   堆栈: {traceback.format_exc()}")
+        raise
 
 
 def get_otel_tracer(service_name: str = "anime_role_detect") -> Tracer:
@@ -65,6 +83,10 @@ def get_otel_tracer(service_name: str = "anime_role_detect") -> Tracer:
 
 def shutdown_otel():
     """关闭 OpenTelemetry 资源"""
-    provider = trace.get_tracer_provider()
-    if hasattr(provider, "shutdown"):
-        provider.shutdown()
+    try:
+        provider = trace.get_tracer_provider()
+        if hasattr(provider, "shutdown"):
+            provider.shutdown()
+            print("✅ OpenTelemetry 资源已关闭")
+    except Exception as e:
+        print(f"❌ 关闭 OpenTelemetry 资源失败: {e}")

@@ -58,18 +58,16 @@ class EnhancedLogger:
 
     def _format_log_record(self, record):
         extra = record.get("extra", {})
-        trace_id = extra.get("trace_id", "-")
-        request_id = extra.get("request_id", "-")
-        component = extra.get("component", "service")
-        
-        return (
-            f"<green>{record['time'].strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]}</green> | "
-            f"<magenta>{trace_id:<36}</magenta> | "
-            f"<cyan>{request_id:<8}</cyan> | "
-            f"<level>{record['level'].name: <8}</level> | "
-            f"<yellow>{component:<10}</yellow> | "
-            f"<blue>{record['name']}</blue>:<blue>{record['function']}</blue>:<blue>{record['line']}</blue> | "
-            f"<level>{record['message']}</level>"
+        return "{time:YYYY-MM-DD HH:mm:ss.SSS} | {trace_id} | {request_id} | {level: <8} | {component} | {name}:{function}:{line} | {message}".format(
+            time=record["time"],
+            trace_id=extra.get("trace_id", "-"),
+            request_id=extra.get("request_id", "-"),
+            level=record["level"].name,
+            component=extra.get("component", "service"),
+            name=record["name"],
+            function=record["function"],
+            line=record["line"],
+            message=record["message"],
         )
 
     def _configure_logger(self):
