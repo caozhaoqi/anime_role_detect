@@ -17,19 +17,43 @@ logger = get_logger("api.middleware")
 def setup_middlewares(app: FastAPI) -> None:
     """配置所有中间件"""
 
-    # 1. CORS - 生产环境应指定具体 origins，allow_credentials=True 与 origins=["*"] 不兼容
-    allowed_origins = os.environ.get("CORS_ALLOWED_ORIGINS", "").split(",") if os.environ.get("CORS_ALLOWED_ORIGINS") else ["*"]
-    allow_credentials = False if allowed_origins == ["*"] else True
+    # 1. CORS - 生产环境应通过 CORS_ALLOWED_ORIGINS 环境变量指定具体 origins
+    _cors_origins_env = os.environ.get("CORS_ALLOWED_ORIGINS", "")
+    if _cors_origins_env:
+        allowed_origins = [o.strip() for o in _cors_origins_env.split(",") if o.strip()]
+    else:
+        allowed_origins = [
+            "http://localhost:3000",
+            "http://localhost:8080",
+            "http://127.0.0.1:3000",
+            "http://127.0.0.1:8080",
+        ]
+    allow_credentials = True
     app.add_middleware(
         CORSMiddleware,
         allow_origins=allowed_origins,
         allow_credentials=allow_credentials,
-        allow_methods=["*"],
-        allow_headers=["*"],
+        allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+        allow_headers=[
+            "Content-Type",
+            "Authorization",
+            "X-Requested-With",
+            "Accept",
+            "Origin",
+            "X-CSRF-Token",
+        ],
     )
     logger.info(f"CORS配置: origins={allowed_origins}, allow_credentials={allow_credentials}")
 
-    # 2. 监控中间件
+    # 2. OpenTelemetry 插桩（可选，通过 OTEL_ENABLED 环境变量控制）
+    try:
+        from src.utils.monitoring.opentelemetry import instrument_app
+        instrument_app(app, service_name="api-service")
+        logger.info("OpenTelemetry 插桩加载成功")
+    except Exception as e:
+        logger.warning(f"导入 OpenTelemetry 插桩失败: {e}")
+
+    # 3. 监控中间件
     try:
         from src.middleware.monitoring import monitoring_middleware
         app.middleware("http")(monitoring_middleware)
@@ -37,7 +61,7 @@ def setup_middlewares(app: FastAPI) -> None:
     except Exception as e:
         logger.warning(f"导入监控中间件失败: {e}")
 
-    # 3. 链路追踪中间件
+    # 4. 链路追踪中间件
     try:
         from src.middleware.tracing import TracingMiddleware
         app.add_middleware(TracingMiddleware)
@@ -45,7 +69,7 @@ def setup_middlewares(app: FastAPI) -> None:
     except Exception as e:
         logger.warning(f"导入链路追踪中间件失败: {e}")
 
-    # 4. 认证中间件
+    # 5. 认证中间件
     try:
         from src.middleware.auth_enhanced import auth_middleware
         app.middleware("http")(auth_middleware)

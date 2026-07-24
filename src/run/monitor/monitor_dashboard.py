@@ -19,7 +19,7 @@ from src.run.monitor.dashboard_templates import (
     generate_tracing_html,
     generate_topology_html,
 )
-from cleaning_progress import generate_cleaning_progress_html
+from src.run.monitor.cleaning_progress import generate_cleaning_progress_html
 
 from flask import Flask, jsonify
 

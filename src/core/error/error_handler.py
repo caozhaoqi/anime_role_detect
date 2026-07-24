@@ -2,12 +2,28 @@
 # -*- coding: utf-8 -*-
 """
 错误处理系统
+整合统一异常处理（src/core/exceptions.py）
 """
 
 from fastapi import HTTPException, Request
 from fastapi.responses import JSONResponse
 from src.core.error.error_codes import ErrorCode
 from src.core.logging.global_logger import get_logger
+
+try:
+    from src.core.exceptions import (
+        BaseError,
+        NotFoundError,
+        InvalidParamsError,
+        MissingParamsError,
+        UnauthorizedError,
+        ForbiddenError,
+        format_error_response,
+    )
+    HAS_UNIFIED_EXCEPTIONS = True
+except ImportError:
+    HAS_UNIFIED_EXCEPTIONS = False
+    logger.warning("统一异常处理模块不可用")
 
 logger = get_logger("error_handler")
 
@@ -55,6 +71,11 @@ async def global_exception_handler(request: Request, exc: Exception):
     """
     # 记录异常
     logger.error(f"全局异常: {exc}")
+
+    # 处理统一异常（优先）
+    if HAS_UNIFIED_EXCEPTIONS and isinstance(exc, BaseError):
+        status_code, error_dict = format_error_response(exc)
+        return JSONResponse(status_code=status_code, content={"error": error_dict})
 
     # 处理应用异常
     if isinstance(exc, AppException):

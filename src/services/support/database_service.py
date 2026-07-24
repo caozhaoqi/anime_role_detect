@@ -5,18 +5,23 @@
 提供数据库操作的封装
 """
 
-import json
-from datetime import datetime
 from typing import List, Optional, Dict, Any
 from sqlalchemy.orm import Session
 from sqlalchemy import desc, asc
 from src.core.config.database import get_db, get_db_session, init_database, create_tables
 from src.core.logging.global_logger import get_logger
+from src.core.query_helper import QueryHelper, QueryBuilder
+from src.core.helpers import json_utils, datetime_utils
+from src.core.cache.thread_cache import ThreadLocalCache
+from src.core.cache.timed_lru_cache import timed_lru_cache
 from src.models.database_models import RecognitionRecordModel, UserFeedbackModel, CleaningRecordModel
 
 logger = get_logger("db_service")
 
 _db_session = None
+
+RECORD_CACHE_TTL = 300
+USER_STATS_CACHE_TTL = 60
 
 
 def get_db_service() -> Session:
@@ -63,13 +68,13 @@ class RecognitionRecordDB:
             username=username,
             image_filename=image_filename,
             image_path=image_path,
-            recognition_result=json.dumps(recognition_result, ensure_ascii=False),
+            recognition_result=json_utils.dumps(recognition_result),
             model_used=model_used,
             processing_time=int(processing_time),
             is_multi_role=is_multi_role,
             nsfw_status=nsfw_status,
             detected_text=detected_text,
-            created_at=datetime.now(),
+            created_at=datetime_utils.now_local(),
         )
         db.add(record)
         db.commit()
@@ -79,51 +84,57 @@ class RecognitionRecordDB:
 
     @staticmethod
     def get_by_id(db: Session, record_id: str) -> Optional[RecognitionRecordModel]:
-        """根据ID获取识别记录"""
-        return (
-            db.query(RecognitionRecordModel).filter(RecognitionRecordModel.id == record_id).first()
-        )
+        """根据ID获取识别记录（使用请求级缓存）"""
+        cache_key = f"recognition_record:{record_id}"
+        cached = ThreadLocalCache.get(cache_key)
+        if cached is not None:
+            return cached
+        record = QueryBuilder.get_by_id(db, RecognitionRecordModel, record_id)
+        if record:
+            ThreadLocalCache.set(cache_key, record)
+        return record
 
     @staticmethod
     def get_by_user(
         db: Session, user_id: str, limit: int = 100, offset: int = 0
     ) -> List[RecognitionRecordModel]:
-        """获取用户的所有识别记录"""
-        return (
-            db.query(RecognitionRecordModel)
-            .filter(RecognitionRecordModel.user_id == user_id)
-            .order_by(desc(RecognitionRecordModel.created_at))
+        """获取用户的所有识别记录（使用请求级缓存）"""
+        cache_key = f"recognition_records_by_user:{user_id}:{limit}:{offset}"
+        cached = ThreadLocalCache.get(cache_key)
+        if cached is not None:
+            return cached
+        records = (
+            QueryHelper(db, RecognitionRecordModel)
+            .filter(user_id=user_id)
+            .order_by("created_at", descending=True)
             .offset(offset)
             .limit(limit)
             .all()
         )
+        ThreadLocalCache.set(cache_key, records)
+        return records
 
     @staticmethod
     def get_all(db: Session, limit: int = 100, offset: int = 0) -> List[RecognitionRecordModel]:
         """获取所有识别记录"""
         return (
-            db.query(RecognitionRecordModel)
-            .order_by(desc(RecognitionRecordModel.created_at))
+            QueryHelper(db, RecognitionRecordModel)
+            .order_by("created_at", descending=True)
             .offset(offset)
             .limit(limit)
             .all()
         )
 
     @staticmethod
+    @timed_lru_cache(maxsize=128, ttl=USER_STATS_CACHE_TTL)
     def count_by_user(db: Session, user_id: str) -> int:
-        """统计用户的识别记录数量"""
-        return (
-            db.query(RecognitionRecordModel)
-            .filter(RecognitionRecordModel.user_id == user_id)
-            .count()
-        )
+        """统计用户的识别记录数量（使用进程级缓存，TTL 60秒）"""
+        return QueryBuilder.count(db, RecognitionRecordModel, user_id=user_id)
 
     @staticmethod
     def delete(db: Session, record_id: str) -> bool:
         """删除识别记录"""
-        record = (
-            db.query(RecognitionRecordModel).filter(RecognitionRecordModel.id == record_id).first()
-        )
+        record = QueryBuilder.get_by_id(db, RecognitionRecordModel, record_id)
         if record:
             db.delete(record)
             db.commit()
@@ -174,8 +185,8 @@ class UserFeedbackDB:
             comment=comment,
             correction_role=correction_role,
             is_correct=is_correct,
-            extra_data=json.dumps(extra_data or {}, ensure_ascii=False),
-            created_at=datetime.now(),
+            extra_data=json_utils.dumps(extra_data or {}),
+            created_at=datetime_utils.now_local(),
         )
         db.add(feedback)
         db.commit()
@@ -186,7 +197,7 @@ class UserFeedbackDB:
     @staticmethod
     def get_by_id(db: Session, feedback_id: str) -> Optional[UserFeedbackModel]:
         """根据ID获取用户反馈"""
-        return db.query(UserFeedbackModel).filter(UserFeedbackModel.id == feedback_id).first()
+        return QueryBuilder.get_by_id(db, UserFeedbackModel, feedback_id)
 
     @staticmethod
     def get_by_user(
@@ -194,9 +205,9 @@ class UserFeedbackDB:
     ) -> List[UserFeedbackModel]:
         """获取用户的所有反馈"""
         return (
-            db.query(UserFeedbackModel)
-            .filter(UserFeedbackModel.user_id == user_id)
-            .order_by(desc(UserFeedbackModel.created_at))
+            QueryHelper(db, UserFeedbackModel)
+            .filter(user_id=user_id)
+            .order_by("created_at", descending=True)
             .offset(offset)
             .limit(limit)
             .all()
@@ -206,16 +217,16 @@ class UserFeedbackDB:
     def get_by_record(db: Session, record_id: str) -> List[UserFeedbackModel]:
         """获取特定记录的所有反馈"""
         return (
-            db.query(UserFeedbackModel)
-            .filter(UserFeedbackModel.record_id == record_id)
-            .order_by(desc(UserFeedbackModel.created_at))
+            QueryHelper(db, UserFeedbackModel)
+            .filter(record_id=record_id)
+            .order_by("created_at", descending=True)
             .all()
         )
 
     @staticmethod
     def delete(db: Session, feedback_id: str) -> bool:
         """删除用户反馈"""
-        feedback = db.query(UserFeedbackModel).filter(UserFeedbackModel.id == feedback_id).first()
+        feedback = QueryBuilder.get_by_id(db, UserFeedbackModel, feedback_id)
         if feedback:
             db.delete(feedback)
             db.commit()
@@ -244,9 +255,9 @@ class CleaningRecordDB:
             username=username,
             input_dir=input_dir,
             output_dir=output_dir,
-            config=json.dumps(config or {}, ensure_ascii=False),
+            config=json_utils.dumps(config or {}),
             status="pending",
-            created_at=datetime.now(),
+            created_at=datetime_utils.now_local(),
         )
         db.add(record)
         db.commit()
@@ -257,7 +268,7 @@ class CleaningRecordDB:
     @staticmethod
     def get_by_id(db: Session, record_id: str) -> Optional[CleaningRecordModel]:
         """根据ID获取数据清洗记录"""
-        return db.query(CleaningRecordModel).filter(CleaningRecordModel.id == record_id).first()
+        return QueryBuilder.get_by_id(db, CleaningRecordModel, record_id)
 
     @staticmethod
     def get_by_user(
@@ -265,9 +276,9 @@ class CleaningRecordDB:
     ) -> List[CleaningRecordModel]:
         """获取用户的所有数据清洗记录"""
         return (
-            db.query(CleaningRecordModel)
-            .filter(CleaningRecordModel.user_id == user_id)
-            .order_by(desc(CleaningRecordModel.created_at))
+            QueryHelper(db, CleaningRecordModel)
+            .filter(user_id=user_id)
+            .order_by("created_at", descending=True)
             .offset(offset)
             .limit(limit)
             .all()
@@ -277,8 +288,8 @@ class CleaningRecordDB:
     def get_all(db: Session, limit: int = 50, offset: int = 0) -> List[CleaningRecordModel]:
         """获取所有数据清洗记录"""
         return (
-            db.query(CleaningRecordModel)
-            .order_by(desc(CleaningRecordModel.created_at))
+            QueryHelper(db, CleaningRecordModel)
+            .order_by("created_at", descending=True)
             .offset(offset)
             .limit(limit)
             .all()
@@ -289,7 +300,7 @@ class CleaningRecordDB:
         db: Session, record_id: str, status: str, **kwargs
     ) -> Optional[CleaningRecordModel]:
         """更新数据清洗记录状态"""
-        record = db.query(CleaningRecordModel).filter(CleaningRecordModel.id == record_id).first()
+        record = QueryBuilder.get_by_id(db, CleaningRecordModel, record_id)
         if record:
             record.status = status
             if "started_at" in kwargs:
@@ -321,16 +332,12 @@ class CleaningRecordDB:
     @staticmethod
     def count_by_user(db: Session, user_id: str) -> int:
         """统计用户的数据清洗记录数量"""
-        return (
-            db.query(CleaningRecordModel)
-            .filter(CleaningRecordModel.user_id == user_id)
-            .count()
-        )
+        return QueryBuilder.count(db, CleaningRecordModel, user_id=user_id)
 
     @staticmethod
     def delete(db: Session, record_id: str) -> bool:
         """删除数据清洗记录"""
-        record = db.query(CleaningRecordModel).filter(CleaningRecordModel.id == record_id).first()
+        record = QueryBuilder.get_by_id(db, CleaningRecordModel, record_id)
         if record:
             db.delete(record)
             db.commit()

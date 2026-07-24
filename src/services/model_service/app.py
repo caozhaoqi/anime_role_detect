@@ -90,10 +90,32 @@ app = FastAPI(
     lifespan=model_service_lifespan,
 )
 
-# CORS - 同主 API 一样，allow_credentials=True 与 origins=["*"] 不兼容
-allowed_origins = os.environ.get("CORS_ALLOWED_ORIGINS", "").split(",") if os.environ.get("CORS_ALLOWED_ORIGINS") else ["*"]
-allow_credentials = False if allowed_origins == ["*"] else True
-app.add_middleware(CORSMiddleware, allow_origins=allowed_origins, allow_credentials=allow_credentials, allow_methods=["*"], allow_headers=["*"])
+# CORS - 模型服务是内部服务，仅允许网关和本地访问
+_cors_origins_env = os.environ.get("CORS_ALLOWED_ORIGINS", "")
+if _cors_origins_env:
+    allowed_origins = [o.strip() for o in _cors_origins_env.split(",") if o.strip()]
+else:
+    allowed_origins = [
+        "http://localhost:8000",
+        "http://localhost:8080",
+        "http://127.0.0.1:8000",
+        "http://127.0.0.1:8080",
+    ]
+allow_credentials = True
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=allowed_origins,
+    allow_credentials=allow_credentials,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    allow_headers=[
+        "Content-Type",
+        "Authorization",
+        "X-Requested-With",
+        "Accept",
+        "Origin",
+        "X-Internal-Service-Token",
+    ],
+)
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 # ========== 内部服务认证中间件 ==========

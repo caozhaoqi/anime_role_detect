@@ -27,8 +27,21 @@ except ImportError:
     HAS_SQLALCHEMY = False
     logger.warning("sqlalchemy 模块不可用，数据库功能将不可用")
 
+try:
+    from src.core.base_model import EnhancedBase
+    HAS_ENHANCED_BASE = True
+except ImportError:
+    HAS_ENHANCED_BASE = False
+    logger.warning("EnhancedBase 不可用，使用标准 Base")
+
 if HAS_SQLALCHEMY:
-    Base = declarative_base()
+    _declarative_base = declarative_base()
+    
+    if HAS_ENHANCED_BASE:
+        class Base(_declarative_base, EnhancedBase):
+            __abstract__ = True
+    else:
+        Base = _declarative_base
 else:
     Base = None
     Session = Any

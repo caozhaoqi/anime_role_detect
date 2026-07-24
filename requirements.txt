@@ -107,6 +107,8 @@ joblib==1.5.3
 threadpoolctl==3.6.0
 
 # ONNX 推理
+onnxruntime==1.18.0
+onnx==1.15.0
 safetensors==0.7.0
 tokenizers==0.22.2
 
