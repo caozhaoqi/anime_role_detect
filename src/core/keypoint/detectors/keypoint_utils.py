@@ -8,7 +8,7 @@
 
 import cv2
 import numpy as np
-from src.core.logging.global_logger import get_logger
+from src.core.logging import get_enhanced_logger as get_logger
 from .mediapipe_detector import MediaPipeKeypointDetector
 
 logger = get_logger("mediapipe_keypoint_detector")

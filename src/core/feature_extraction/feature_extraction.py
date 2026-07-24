@@ -16,7 +16,7 @@ CLIPProcessor = None
 CLIPModel = None
 
 # 使用全局日志系统
-from src.core.logging.global_logger import get_logger, log_system, log_error
+from src.core.logging import get_enhanced_logger as get_logger, log_system, log_error
 from src.core.config.device_manager import DeviceManager
 
 logger = get_logger("feature_extraction")

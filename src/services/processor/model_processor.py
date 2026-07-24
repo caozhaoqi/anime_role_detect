@@ -11,7 +11,7 @@ import time
 import asyncio
 import aiohttp
 import numpy as np
-from src.core.logging.global_logger import get_logger
+from src.core.logging import get_enhanced_logger as get_logger
 from src.core.utils.utils import safe_temp_path as _safe_temp_path
 from src.services.processor.model_loader import (
     get_preprocessor,

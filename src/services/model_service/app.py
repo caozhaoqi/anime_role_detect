@@ -38,7 +38,7 @@ import uvicorn
 
 from src.core.config.service_config import get_service_config
 from src.core.config.device_manager import DeviceManager
-from src.core.logging.global_logger import get_logger
+from src.core.logging import get_enhanced_logger as get_logger
 
 config = get_service_config()
 logger = None
@@ -55,7 +55,7 @@ except ImportError:
 async def model_service_lifespan(app: FastAPI):
     """模型服务生命周期管理"""
     global logger, Image, preprocessor, feature_extractor, tagger, keypoint_pool
-    from src.core.logging.global_logger import get_logger as gl
+    from src.core.logging import get_enhanced_logger as gl
     from PIL import Image as Img
 
     Image = Img

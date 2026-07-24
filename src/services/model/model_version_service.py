@@ -3,7 +3,7 @@ import json
 import random
 from typing import Optional, Dict, List, Tuple
 
-from src.core.logging.global_logger import get_logger
+from src.core.logging import get_enhanced_logger as get_logger
 
 logger = get_logger("model_version_service")
 

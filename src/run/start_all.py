@@ -18,7 +18,7 @@ import signal
 import subprocess
 import argparse
 
-project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src.run.services_config import SERVICES, SERVICE_GROUPS
 

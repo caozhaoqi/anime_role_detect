@@ -8,7 +8,7 @@ import torch
 import torchvision.transforms as transforms
 from torch.utils.data import DataLoader
 from arona.training.train_incremental import get_model, CharacterDataset
-from src.core.logging.global_logger import get_logger
+from src.core.logging import get_enhanced_logger as get_logger
 
 """
 

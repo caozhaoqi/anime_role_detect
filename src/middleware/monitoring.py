@@ -3,7 +3,7 @@ from fastapi import Request, Response
 from starlette.responses import StreamingResponse
 from prometheus_client import Gauge, Summary
 
-from src.core.logging.global_logger import get_logger
+from src.core.logging import get_enhanced_logger as get_logger
 from src.services.support.monitoring_service import get_monitoring_service
 
 logger = get_logger("monitoring_middleware")

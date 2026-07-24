@@ -12,7 +12,7 @@ from src.core.log_fusion.log_recorder import record_classification_log
 from src.services.model.clip_faiss_adapter import get_clip_faiss_classifier
 
 # 使用全局日志系统
-from src.core.logging.global_logger import get_logger, log_system, log_inference, log_error
+from src.core.logging import get_enhanced_logger as get_logger, log_system, log_inference, log_error
 
 logger = get_logger("classification_service")
 

@@ -10,7 +10,7 @@ import argparse
 import json
 
 from src.core.utils.utils import load_json, save_json, create_directory, list_files
-from src.core.logging.global_logger import get_logger
+from src.core.logging import get_enhanced_logger as get_logger
 
 logger = get_logger("data_processing")
 

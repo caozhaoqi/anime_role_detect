@@ -22,7 +22,7 @@ from src.core.config.service_config import get_service_config
 
 config = get_service_config()
 
-from src.core.logging.global_logger import get_logger
+from src.core.logging import get_enhanced_logger as get_logger
 
 logger = get_logger("api_gateway")
 

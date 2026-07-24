@@ -7,7 +7,7 @@
 """
 
 from torchvision import transforms
-from src.core.logging.global_logger import get_logger
+from src.core.logging import get_enhanced_logger as get_logger
 from .image_preprocessor import ImagePreprocessor
 from .data_preprocessor import DataPreprocessor
 

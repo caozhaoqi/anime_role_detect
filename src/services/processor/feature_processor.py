@@ -6,7 +6,7 @@
 负责处理图像特征
 """
 
-from src.core.logging.global_logger import get_logger
+from src.core.logging import get_enhanced_logger as get_logger
 from src.services.processor.model_loader import (
     get_keypoint_detector,
     get_tagger,

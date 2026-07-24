@@ -16,7 +16,7 @@ from fastapi.responses import Response
 from PIL import Image
 import io
 
-from src.core.logging.global_logger import get_logger
+from src.core.logging import get_enhanced_logger as get_logger
 from src.services.model_service.classifiers import EfficientNetClassifier
 from src.services.cache_service.cache_service import model_cache
 from src.core.utils.role_info_loader import get_role_info

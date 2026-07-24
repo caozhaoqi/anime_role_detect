@@ -6,7 +6,7 @@ from typing import Optional, Dict, Any, Callable
 import aio_pika
 import pika
 
-from src.core.logging.global_logger import get_logger
+from src.core.logging import get_enhanced_logger as get_logger
 
 logger = get_logger("message_queue_service")
 

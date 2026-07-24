@@ -15,7 +15,7 @@ from pydantic import BaseModel, Field
 # 添加项目根目录到Python路径
 project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from src.core.logging.global_logger import get_logger
+from src.core.logging import get_enhanced_logger as get_logger
 from src.services.inference_queue.queue_manager import get_queue_manager, TaskStatus
 
 logger = get_logger("async_inference")

@@ -8,7 +8,7 @@
 from fastapi import HTTPException, Request
 from fastapi.responses import JSONResponse
 from src.core.error.error_codes import ErrorCode
-from src.core.logging.global_logger import get_logger
+from src.core.logging import get_enhanced_logger as get_logger
 
 try:
     from src.core.exceptions import (

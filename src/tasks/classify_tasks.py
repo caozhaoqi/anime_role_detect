@@ -10,7 +10,7 @@ import io
 from typing import Dict, Any
 from fastapi import UploadFile
 from src.tasks.celery_app import celery_app
-from src.core.logging.global_logger import get_logger
+from src.core.logging import get_enhanced_logger as get_logger
 
 logger = get_logger("celery.tasks")
 

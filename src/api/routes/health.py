@@ -10,7 +10,7 @@ import time
 from datetime import datetime
 from fastapi import APIRouter
 
-from src.core.logging.global_logger import get_logger
+from src.core.logging import get_enhanced_logger as get_logger
 
 logger = get_logger("api.routes.health")
 

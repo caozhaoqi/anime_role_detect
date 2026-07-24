@@ -10,7 +10,7 @@ from typing import Dict, List, Optional, Any
 from datetime import datetime, timedelta
 from abc import ABC, abstractmethod
 
-from src.core.logging.global_logger import get_logger
+from src.core.logging import get_enhanced_logger as get_logger
 from src.utils.monitoring.tracing import Trace, Span
 
 logger = get_logger("trace_storage_service")

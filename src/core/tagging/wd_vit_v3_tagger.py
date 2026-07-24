@@ -105,7 +105,7 @@ if USE_COREML:
         print(f"[SAFE_BOOT] CoreML 导入失败，回退到 CPU 模式: {e}")
         USE_COREML = False
 
-from src.core.logging.global_logger import get_logger
+from src.core.logging import get_enhanced_logger as get_logger
 
 logger = get_logger("wd_vit_v3_tagger")
 

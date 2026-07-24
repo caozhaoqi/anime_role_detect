@@ -8,7 +8,7 @@ project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../..
 
 from fastapi import APIRouter, Form, Depends
 
-from src.core.logging.global_logger import get_logger
+from src.core.logging import get_enhanced_logger as get_logger
 from src.services.support.auth_service import (
     authenticate_user,
     create_access_token,

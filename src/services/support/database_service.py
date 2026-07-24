@@ -9,7 +9,7 @@ from typing import List, Optional, Dict, Any
 from sqlalchemy.orm import Session
 from sqlalchemy import desc, asc
 from src.core.config.database import get_db, get_db_session, init_database, create_tables
-from src.core.logging.global_logger import get_logger
+from src.core.logging import get_enhanced_logger as get_logger
 from src.core.query_helper import QueryHelper, QueryBuilder
 from src.core.helpers import json_utils, datetime_utils
 from src.core.cache.thread_cache import ThreadLocalCache

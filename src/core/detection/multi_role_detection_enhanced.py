@@ -12,7 +12,7 @@ import numpy as np
 from PIL import Image
 from typing import List, Dict, Any, Tuple, Optional
 
-from src.core.logging.global_logger import get_logger
+from src.core.logging import get_enhanced_logger as get_logger
 from src.core.feature_extraction.feature_extraction import FeatureExtraction
 from src.core.recognition.open_set_recognizer import OpenSetRecognizer
 from src.core.feedback.ambiguous_sample_recorder import AmbiguousSampleRecorder
