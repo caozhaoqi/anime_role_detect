@@ -76,15 +76,20 @@ def get_all_services_status() -> List[dict]:
     for key, config in SERVICES.items():
         status = check_service_health(config)
         status["key"] = key
+        status["id"] = key  # For template icon lookup and data-service-id
         services_status.append(status)
 
     return services_status
 
 
-def get_tracing_stats():
-    """获取追踪统计信息"""
+def get_tracing_stats(hours: int = 24):
+    """获取追踪统计信息
+
+    Args:
+        hours: 统计时间窗口（小时），默认 24
+    """
     storage = get_trace_storage_service()
-    return storage.get_aggregated_stats(24)
+    return storage.get_aggregated_stats(hours)
 
 
 def get_recent_traces(limit: int = 20):
@@ -97,6 +102,82 @@ def get_trace_details(trace_id: str):
     """获取追踪详情"""
     storage = get_trace_storage_service()
     return storage.get_trace(trace_id)
+
+
+def get_trace_span_tree(trace_id: str):
+    """获取追踪的Span树结构"""
+    trace = get_trace_details(trace_id)
+    if not trace:
+        return {"error": "Trace not found"}
+    
+    spans = trace.get("spans", [])
+    span_dict = {span["span_id"]: span for span in spans}
+    
+    for span_id, span_data in span_dict.items():
+        span_data["children"] = []
+    
+    for span_id, span_data in span_dict.items():
+        parent_id = span_data.get("parent_span_id")
+        if parent_id and parent_id in span_dict:
+            span_dict[parent_id]["children"].append(span_data)
+    
+    root_spans = []
+    for span_id, span_data in span_dict.items():
+        if not span_data.get("parent_span_id"):
+            root_spans.append(span_data)
+    
+    return {"trace_id": trace_id, "root_spans": root_spans, "total_spans": len(spans)}
+
+
+def get_trace_root_span(trace_id: str):
+    """获取追踪的根Span"""
+    trace = get_trace_details(trace_id)
+    if not trace:
+        return {"error": "Trace not found"}
+    
+    spans = trace.get("spans", [])
+    for span in spans:
+        if not span.get("parent_span_id"):
+            return span
+    
+    return {"error": "Root span not found"}
+
+
+def get_child_spans(trace_id: str, parent_span_id: str):
+    """获取指定Span的子Span"""
+    trace = get_trace_details(trace_id)
+    if not trace:
+        return {"error": "Trace not found"}
+    
+    spans = trace.get("spans", [])
+    child_spans = [span for span in spans if span.get("parent_span_id") == parent_span_id]
+    return {"parent_span_id": parent_span_id, "child_spans": child_spans}
+
+
+def get_span_details(trace_id: str, span_id: str):
+    """获取指定Span的详情"""
+    trace = get_trace_details(trace_id)
+    if not trace:
+        return {"error": "Trace not found"}
+    
+    spans = trace.get("spans", [])
+    for span in spans:
+        if span.get("span_id") == span_id:
+            return span
+    
+    return {"error": "Span not found"}
+
+
+def search_traces_api(endpoint=None, status=None, min_duration=None, max_duration=None, limit=20):
+    """搜索追踪记录"""
+    storage = get_trace_storage_service()
+    return storage.search_traces(
+        endpoint=endpoint,
+        status=status,
+        min_duration_ms=min_duration,
+        max_duration_ms=max_duration,
+        limit=limit
+    )
 
 
 def get_service_relations():

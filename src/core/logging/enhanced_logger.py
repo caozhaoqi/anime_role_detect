@@ -14,6 +14,10 @@ try:
     HAS_OPENTELEMETRY = True
 except ImportError:
     HAS_OPENTELEMETRY = False
+    # Fallback: define dummy types so type annotations don't crash at import time
+    # when opentelemetry is not installed
+    Span = Any
+    Tracer = Any
 
 from .request_context import RequestContext
 

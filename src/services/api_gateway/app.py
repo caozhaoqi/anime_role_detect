@@ -101,6 +101,16 @@ from fastapi.middleware.gzip import GZipMiddleware
 
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
+# 挂载监控和日志路由
+try:
+    from src.services.api_gateway.routers.monitor import router as monitor_router
+    from src.services.api_gateway.routers.logs import router as logs_router
+    app.include_router(monitor_router)
+    app.include_router(logs_router)
+    logger.info("监控和日志路由挂载成功")
+except Exception as e:
+    logger.warning(f"监控路由挂载失败: {e}")
+
 client = None
 
 

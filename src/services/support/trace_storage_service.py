@@ -369,7 +369,8 @@ class TraceStorageService:
             if endpoint:
                 has_matching_span = False
                 for span in trace.get("spans", []):
-                    span_endpoint = span.get("attributes", {}).get("http.path", "")
+                    attrs = span.get("attributes", {})
+                    span_endpoint = attrs.get("http.route") or attrs.get("http.target") or attrs.get("http.path") or ""
                     if endpoint in span_endpoint:
                         has_matching_span = True
                         break

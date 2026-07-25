@@ -37,7 +37,7 @@ def generate_trace_items_html(traces):
 def generate_endpoint_stats_html(endpoint_distribution):
     """生成端点分布统计HTML"""
     if not endpoint_distribution:
-        return '<div class="empty-state" style="color: #666; text-align: center; padding: 20px;">暂无端点统计数据</div>'
+        return '<div class="empty-state"><div class="empty-state-icon">📊</div>暂无端点统计数据</div>'
     
     max_count = max(endpoint_distribution.values())
     html = ""
@@ -47,10 +47,10 @@ def generate_endpoint_stats_html(endpoint_distribution):
         html += f"""
             <div class="endpoint-bar">
                 <div class="endpoint-name">{endpoint}</div>
-                <div class="endpoint-bar-fill">
-                    <div class="endpoint-bar-inner" style="width: {percentage}%;"></div>
+                <div class="endpoint-count">{count}</div>
+                <div class="endpoint-progress">
+                    <div class="endpoint-progress-fill" style="width: {percentage}%;"></div>
                 </div>
-                <div style="color: #888; font-size: 0.9em; width: 60px; text-align: right;">{count}</div>
             </div>
         """
     return html
@@ -215,21 +215,35 @@ def generate_service_monitor_html(services_status: List[dict]) -> str:
         else:
             links_html = ""
 
+        service_icons = {
+            "model_service": "🤖",
+            "api_service": "🚀",
+            "multimedia_service": "🎬",
+            "search_service": "🔍",
+            "api_gateway": "🌐",
+            "frontend": "🎨",
+            "monitor_dashboard": "📊",
+            "inference_worker": "⚡",
+            "search_worker": "🔎",
+        }
+        icon = service_icons.get(service['id'], "📦")
+
+        service_id = service.get('key', service.get('id', ''))
         html += f"""
-            <div class="service-card">
+            <div class="service-card {status_class}" data-service-id="{service_id}">
                 <div class="service-header">
-                    <div>
-                        <span class="status-indicator {status_class}"></span>
-                        <span class="service-name">{service['name']}</span>
+                    <div class="service-name-row">
+                        <div class="service-icon">{icon}</div>
+                        <div>
+                            <div class="service-name">{service['name']}</div>
+                            <span class="status-indicator {status_class}"></span>
+                            <span style="font-size: 0.85em; color: var(--text-secondary); margin-left: 8px;">{status_text}</span>
+                        </div>
                     </div>
                     <span class="service-badge {badge_class}">{badge_text}</span>
                 </div>
                 
                 <div class="service-info">
-                    <div class="info-item">
-                        <div class="info-label">状态</div>
-                        <div class="info-value">{status_text}</div>
-                    </div>
                     <div class="info-item">
                         <div class="info-label">端口</div>
                         <div class="info-value">{service['port']}</div>
@@ -240,7 +254,11 @@ def generate_service_monitor_html(services_status: List[dict]) -> str:
                     </div>
                     <div class="info-item">
                         <div class="info-label">最后检查</div>
-                        <div class="info-value" style="font-size: 0.9em;">{service['last_check']}</div>
+                        <div class="info-value">{service['last_check']}</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">服务ID</div>
+                        <div class="info-value" style="font-family: monospace; font-size: 0.85em;">{service['id']}</div>
                     </div>
                 </div>
                 
@@ -261,11 +279,19 @@ def generate_tracing_html(stats, recent_traces) -> str:
 
     html = f"""
 <div class="tab-content" id="tracing-tab">
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-        <h2 style="color: #667eea;">🔗 API链路追踪</h2>
-        <button class="refresh-btn" onclick="refreshTracing()">🔄 刷新追踪数据</button>
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <h2 style="color: var(--text-primary); font-size: 1.5em; font-weight: 600;">🔗 API链路追踪</h2>
+        <div style="display: flex; gap: 12px; align-items: center;">
+            <div class="time-range-selector" style="display: flex; gap: 4px; background: rgba(255,255,255,0.05); padding: 4px; border-radius: 10px; border: 1px solid var(--border-color);">
+                <button class="range-btn" data-hours="1" onclick="changeTimeRange(1)">1h</button>
+                <button class="range-btn" data-hours="6" onclick="changeTimeRange(6)">6h</button>
+                <button class="range-btn active" data-hours="24" onclick="changeTimeRange(24)">24h</button>
+                <button class="range-btn" data-hours="168" onclick="changeTimeRange(168)">7d</button>
+            </div>
+            <button class="refresh-btn" onclick="refreshTracing()">🔄 刷新追踪数据</button>
+        </div>
     </div>
-    
+
     <div id="tracing-stats">
         <div class="stats-grid">
             <div class="stat-card">
@@ -284,7 +310,7 @@ def generate_tracing_html(stats, recent_traces) -> str:
                 <h3>错误率</h3>
                 <div class="value">{stats.get('error_rate', 0)}%</div>
             </div>
-            <div class="stat-card">
+            <div class="stat-card info">
                 <h3>平均耗时</h3>
                 <div class="value">{stats.get('avg_duration_ms', 0)}ms</div>
             </div>
@@ -295,18 +321,30 @@ def generate_tracing_html(stats, recent_traces) -> str:
         </div>
     </div>
 
+    <div class="search-bar">
+        <input type="text" id="search-endpoint" placeholder="搜索端点 (如: classify)">
+        <select id="search-status">
+            <option value="">所有状态</option>
+            <option value="OK">成功</option>
+            <option value="ERROR">错误</option>
+        </select>
+        <input type="number" id="search-min-duration" placeholder="最小耗时(ms)" min="0" style="width: 120px;">
+        <input type="number" id="search-max-duration" placeholder="最大耗时(ms)" min="0" style="width: 120px;">
+        <button class="refresh-btn" onclick="searchTraces()">🔍 搜索</button>
+        <button class="action-btn secondary" onclick="loadRecentTraces()">📋 重置</button>
+    </div>
+
     <div class="main-content">
         <div class="panel">
             <div class="panel-header">
-                <span class="panel-title">📋 最近追踪记录</span>
-                <span style="color: #888; font-size: 0.9em;">共 {len(recent_traces)} 条</span>
+                <span class="panel-title">📋 追踪记录</span>
+                <span style="color: var(--text-muted); font-size: 0.9em;" id="trace-count">共 {len(recent_traces)} 条</span>
             </div>
             
             <div id="trace-list" class="trace-list">
                 {generate_trace_items_html(recent_traces)}
                 """
     
-    # 预计算端点统计HTML（避免在f-string内嵌 {} 导致语法错误）
     endpoint_html = generate_endpoint_stats_html(stats.get("endpoint_distribution", {}))
 
     html += f"""
@@ -316,9 +354,16 @@ def generate_tracing_html(stats, recent_traces) -> str:
         <div class="panel detail-panel">
             <div class="panel-header">
                 <span class="panel-title">📊 追踪详情</span>
+                <div class="panel-actions">
+                    <button class="action-btn secondary" onclick="viewSpanTree()" style="padding: 6px 14px; font-size: 0.85em;">🌳 Span树</button>
+                    <button class="action-btn secondary" onclick="viewRootSpan()" style="padding: 6px 14px; font-size: 0.85em;">🌱 根Span</button>
+                </div>
             </div>
             <div id="trace-detail" class="panel-content">
-                <div class='empty-state'>点击左侧追踪记录查看详情</div>
+                <div class='empty-state'><div class="empty-state-icon">📋</div>点击左侧追踪记录查看详情</div>
+            </div>
+            <div id="span-tree-container" class="panel-content" style="display: none;">
+                <div class='empty-state'><div class="empty-state-icon">🌳</div>点击"Span树"按钮查看Span树结构</div>
             </div>
         </div>
     </div>
@@ -435,6 +480,7 @@ def generate_gantt_html(trace):
         name = span.get("name", "unknown")
         kind = span.get("kind", "INTERNAL")
         duration = span.get("duration_ms", 0)
+        status_code = span.get("status", {}).get("code", "UNSET") if isinstance(span.get("status"), dict) else span.get("status", "UNSET")
         s_start = span.get("start_time", min_start)
         s_end = span.get("end_time", s_start)
         
@@ -452,14 +498,14 @@ def generate_gantt_html(trace):
         bar_rows.append(f"""
             <div class="gantt-row">
                 <div class="gantt-label">{name}
-                    <span style="color: #888; font-size: 0.8em;">({duration}ms)</span>
+                    <span style="color: var(--text-muted); font-size: 0.8em;">({duration}ms)</span>
                 </div>
                 <div class="gantt-track">
                     <div class="gantt-bar" style="
                         margin-left: {left_pct:.1f}%;
                         width: {width_pct:.1f}%;
                         background: {kind_color};
-                    "></div>
+                    " title="{name} | {kind} | {duration}ms | {status_code}"></div>
                 </div>
             </div>
         """)
@@ -478,8 +524,8 @@ def generate_gantt_html(trace):
                 display: grid;
                 grid-template-columns: 180px 1fr;
                 padding: 8px 0;
-                border-bottom: 1px solid #333;
-                color: #888;
+                border-bottom: 1px solid var(--border-color);
+                color: var(--text-muted);
                 font-weight: bold;
             }
             .gantt-row {
@@ -487,19 +533,19 @@ def generate_gantt_html(trace):
                 grid-template-columns: 180px 1fr;
                 align-items: center;
                 padding: 4px 0;
-                border-bottom: 1px solid rgba(255,255,255,0.05);
+                border-bottom: 1px solid rgba(128,128,128,0.1);
             }
             .gantt-label {
                 padding-right: 10px;
                 white-space: nowrap;
                 overflow: hidden;
                 text-overflow: ellipsis;
-                color: #ccc;
+                color: var(--text-secondary);
             }
             .gantt-track {
                 position: relative;
                 height: 24px;
-                background: rgba(255,255,255,0.05);
+                background: rgba(128,128,128,0.1);
                 border-radius: 4px;
             }
             .gantt-bar {

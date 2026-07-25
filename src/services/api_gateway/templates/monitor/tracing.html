@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="grid grid-cols-12 gap-6">
+    <div class="col-span-12">
+        <div class="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden">
+            <div class="px-6 py-4 border-b border-gray-700 flex items-center justify-between">
+                <h3 class="font-semibold text-white">链路追踪记录</h3>
+                <div class="flex items-center gap-2">
+                    <span class="text-xs text-gray-400">自动刷新: </span>
+                    <div class="relative w-10 h-6 bg-gray-700 rounded-full cursor-pointer" onclick="toggleAutoRefresh()">
+                        <div id="auto-refresh-toggle" class="absolute top-1 left-1 w-4 h-4 bg-indigo-500 rounded-full transition-transform"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="p-4">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm">
+                        <thead>
+                            <tr class="text-gray-400 border-b border-gray-700">
+                                <th class="text-left py-2 px-3">Trace ID</th>
+                                <th class="text-left py-2 px-3">端点</th>
+                                <th class="text-left py-2 px-3">状态</th>
+                                <th class="text-left py-2 px-3">耗时</th>
+                                <th class="text-left py-2 px-3">时间</th>
+                                <th class="text-left py-2 px-3">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="trace-table-body">
+                            {% for trace in traces %}
+                            <tr class="border-b border-gray-700/50 hover:bg-gray-700/30">
+                                <td class="py-2 px-3 font-mono text-xs text-gray-400 truncate max-w-[200px]">{{ trace.trace_id }}</td>
+                                <td class="py-2 px-3 text-white">{{ trace.endpoint }}</td>
+                                <td class="py-2 px-3">
+                                    <span class="px-2 py-0.5 rounded text-xs {% if trace.status == 'OK' %}bg-green-500/20 text-green-400{% else %}bg-red-500/20 text-red-400{% endif %}">
+                                        {{ trace.status }}
+                                    </span>
+                                </td>
+                                <td class="py-2 px-3 {% if trace.duration_ms > 2000 %}text-red-400{% elif trace.duration_ms > 500 %}text-yellow-400{% else %}text-green-400{% endif %}">
+                                    {{ trace.duration_ms }}ms
+                                </td>
+                                <td class="py-2 px-3 text-gray-400 text-xs">{{ trace.timestamp }}</td>
+                                <td class="py-2 px-3">
+                                    <button onclick="viewTrace('{{ trace.trace_id }}')" class="text-indigo-400 hover:text-indigo-300 text-xs">详情</button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-span-12">
+        <div class="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden">
+            <div class="px-6 py-4 border-b border-gray-700">
+                <h3 class="font-semibold text-white">追踪统计</h3>
+            </div>
+            <div class="p-4">
+                <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                    {% for stat in stats %}
+                    <div class="bg-gray-700/50 rounded-lg p-4 text-center">
+                        <div class="text-2xl font-bold text-white">{{ stat.value }}</div>
+                        <div class="text-xs text-gray-400 mt-1">{{ stat.label }}</div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let autoRefreshEnabled = true;
+let refreshTimer = null;
+
+function toggleAutoRefresh() {
+    autoRefreshEnabled = !autoRefreshEnabled;
+    const toggle = document.getElementById('auto-refresh-toggle');
+    toggle.style.transform = autoRefreshEnabled ? 'translateX(20px)' : 'translateX(0)';
+    if (autoRefreshEnabled) {
+        startAutoRefresh();
+    } else {
+        stopAutoRefresh();
+    }
+}
+
+function startAutoRefresh() {
+    stopAutoRefresh();
+    refreshTimer = setInterval(refreshTraces, 30000);
+}
+
+function stopAutoRefresh() {
+    if (refreshTimer) {
+        clearInterval(refreshTimer);
+        refreshTimer = null;
+    }
+}
+
+function refreshTraces() {
+    fetch('/monitor/tracing/recent')
+        .then(r => r.json())
+        .then(data => {
+            const tbody = document.getElementById('trace-table-body');
+            tbody.innerHTML = data.map(t => `
+                <tr class="border-b border-gray-700/50 hover:bg-gray-700/30">
+                    <td class="py-2 px-3 font-mono text-xs text-gray-400 truncate max-w-[200px]">${t.trace_id}</td>
+                    <td class="py-2 px-3 text-white">${t.endpoint}</td>
+                    <td class="py-2 px-3"><span class="px-2 py-0.5 rounded text-xs ${t.status === 'OK' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}">${t.status}</span></td>
+                    <td class="py-2 px-3 ${t.duration_ms > 2000 ? 'text-red-400' : t.duration_ms > 500 ? 'text-yellow-400' : 'text-green-400'}">${t.duration_ms}ms</td>
+                    <td class="py-2 px-3 text-gray-400 text-xs">${t.timestamp}</td>
+                    <td class="py-2 px-3"><button onclick="viewTrace('${t.trace_id}')" class="text-indigo-400 hover:text-indigo-300 text-xs">详情</button></td>
+                </tr>
+            `).join('');
+            document.getElementById('last-update-time').textContent = new Date().toLocaleString('zh-CN');
+        });
+}
+
+function viewTrace(traceId) {
+    fetch(`/monitor/tracing/${traceId}`)
+        .then(r => r.text())
+        .then(html => {
+            const modal = document.createElement('div');
+            modal.className = 'fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4';
+            modal.innerHTML = html;
+            document.body.appendChild(modal);
+            modal.onclick = (e) => {
+                if (e.target === modal) modal.remove();
+            };
+        });
+}
+
+startAutoRefresh();
+</script>
+{% endblock %}

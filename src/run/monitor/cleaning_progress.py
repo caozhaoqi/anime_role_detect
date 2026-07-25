@@ -215,23 +215,23 @@ def generate_cleaning_progress_html() -> str:
     
     tasks_html = ""
     for task_id, task in progress["tasks"].items():
-        status_color = status_colors.get(task["status"], "#9E9E9E")
+        status_class = f"cleaning-task-status {task['status']}"
         status_label = status_labels.get(task["status"], task["status"])
         
         tasks_html += f"""
-        <div class="task-card">
-            <div class="task-header">
-                <span class="task-name">{task['name']}</span>
-                <span class="task-status" style="background: {status_color};">{status_label}</span>
+        <div class="cleaning-task" data-task-id="{task_id}">
+            <div class="cleaning-task-header">
+                <span class="cleaning-task-name">{task['name']}</span>
+                <span class="{status_class}">{status_label}</span>
             </div>
-            <div class="progress-bar-container">
-                <div class="progress-bar" style="width: {task['progress']}%; background: {status_color};"></div>
+            <div class="cleaning-progress-bar">
+                <div class="cleaning-progress-fill" style="width: {task['progress']}%;"></div>
             </div>
-            <div class="task-info">
-                <span class="progress-text">{task['completed']}/{task['total']}</span>
-                <span class="progress-percent">{task['progress']:.1f}%</span>
+            <div class="cleaning-progress-text">
+                <span>{task['completed']}/{task['total']}</span>
+                <span style="float: right;">{task['progress']:.1f}%</span>
             </div>
-            {f'<div class="task-message">{task["message"]}</div>' if task["message"] else ''}
+            {f'<div style="font-size: 0.8em; color: var(--text-muted); margin-top: 8px;">{task["message"]}</div>' if task["message"] else ''}
         </div>
         """
     
@@ -277,143 +277,52 @@ def generate_cleaning_progress_html() -> str:
     """
     
     html = f"""
-    <div class="cleaning-panel">
+    <div class="panel" style="max-width: 100%;">
         <div class="panel-header">
-            <h2>🧹 数据清理进度</h2>
-            <span class="last-update">更新时间: {progress['last_updated']}</span>
+            <span class="panel-title">🧹 数据清理进度</span>
+            <div style="display: flex; gap: 10px; align-items: center;">
+                <span style="color: var(--text-muted); font-size: 0.85em;">更新时间: {progress['last_updated']}</span>
+                <button class="action-btn secondary" onclick="refreshCleaningProgress()" style="padding: 6px 14px; font-size: 0.85em;">🔄 刷新</button>
+                <button class="action-btn secondary" onclick="resetCleaningProgress()" style="padding: 6px 14px; font-size: 0.85em;">♻️ 重置</button>
+            </div>
         </div>
         
-        {summary_html}
-        
-        <div class="tasks-section">
-            <h3>📋 清理任务列表</h3>
-            <div class="tasks-grid">
+        <div class="panel-content">
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <h3>总处理数</h3>
+                    <div class="value">{total_processed}</div>
+                </div>
+                <div class="stat-card success">
+                    <h3>有效样本</h3>
+                    <div class="value">{total_valid}</div>
+                </div>
+                <div class="stat-card error">
+                    <h3>已过滤</h3>
+                    <div class="value">{total_rejected}</div>
+                </div>
+                <div class="stat-card info">
+                    <h3>重复数</h3>
+                    <div class="value">{total_duplicates}</div>
+                </div>
+                <div class="stat-card">
+                    <h3>平均置信度</h3>
+                    <div class="value">{summary['avg_confidence']:.2f}</div>
+                </div>
+                <div class="stat-card">
+                    <h3>平均质量分</h3>
+                    <div class="value">{summary['avg_quality_score']:.2f}</div>
+                </div>
+            </div>
+            
+            <div style="margin-top: 24px;">
+                <h3 style="color: var(--text-primary); font-size: 1.15em; margin-bottom: 16px;">📋 清理任务列表</h3>
                 {tasks_html}
             </div>
         </div>
     </div>
     
     <style>
-        .cleaning-panel {{
-            background: #16213e;
-            border-radius: 10px;
-            border: 1px solid #333;
-            padding: 20px;
-        }}
-        
-        .panel-header {{
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
-            padding-bottom: 15px;
-            border-bottom: 1px solid #333;
-        }}
-        
-        .panel-header h2 {{
-            color: #667eea;
-            margin: 0;
-        }}
-        
-        .last-update {{
-            color: #888;
-            font-size: 0.9em;
-        }}
-        
-        .summary-grid {{
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-            gap: 15px;
-            margin-bottom: 25px;
-        }}
-        
-        .summary-card {{
-            background: rgba(255, 255, 255, 0.05);
-            border-radius: 8px;
-            padding: 15px;
-            text-align: center;
-            border: 1px solid #333;
-        }}
-        
-        .summary-card.success {{ border-color: #4CAF50; }}
-        .summary-card.warning {{ border-color: #ff9800; }}
-        .summary-card.info {{ border-color: #2196F3; }}
-        
-        .summary-icon {{
-            font-size: 1.8em;
-            margin-bottom: 8px;
-        }}
-        
-        .summary-value {{
-            font-size: 1.5em;
-            font-weight: bold;
-            color: #fff;
-            margin-bottom: 4px;
-        }}
-        
-        .summary-label {{
-            font-size: 0.85em;
-            color: #888;
-        }}
-        
-        .tasks-section h3 {{
-            color: #fff;
-            margin-bottom: 15px;
-            font-size: 1.1em;
-        }}
-        
-        .tasks-grid {{
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-            gap: 15px;
-        }}
-        
-        .task-card {{
-            background: rgba(255, 255, 255, 0.05);
-            border-radius: 8px;
-            padding: 15px;
-            border: 1px solid #333;
-        }}
-        
-        .task-header {{
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 10px;
-        }}
-        
-        .task-name {{
-            font-weight: bold;
-            color: #fff;
-        }}
-        
-        .task-status {{
-            padding: 4px 10px;
-            border-radius: 15px;
-            font-size: 0.8em;
-            color: white;
-        }}
-        
-        .progress-bar-container {{
-            height: 8px;
-            background: #333;
-            border-radius: 4px;
-            overflow: hidden;
-            margin-bottom: 8px;
-        }}
-        
-        .progress-bar {{
-            height: 100%;
-            transition: width 0.3s ease;
-            border-radius: 4px;
-        }}
-        
-        .task-info {{
-            display: flex;
-            justify-content: space-between;
-            font-size: 0.9em;
-        }}
-        
         .progress-text {{
             color: #888;
         }}
