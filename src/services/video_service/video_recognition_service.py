@@ -22,7 +22,7 @@ project_root = os.path.dirname(
 # 延迟导入分类服务，避免启动时的锁竞争
 classify_image = None
 
-from src.core.logging.global_logger import get_logger
+from src.core.logging import get_enhanced_logger as get_logger
 
 logger = get_logger("video_recognition_service")
 

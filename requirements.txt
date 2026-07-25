@@ -107,6 +107,8 @@ joblib==1.5.3
 threadpoolctl==3.6.0
 
 # ONNX 推理
+onnxruntime==1.18.0
+onnx==1.15.0
 safetensors==0.7.0
 tokenizers==0.22.2
 
@@ -117,8 +119,6 @@ coremltools==9.0
 ftfy==6.3.1
 pycparser==2.23
 cffi==2.0.0
-frozenlist==1.8.0
-PyYAML==6.0.3
 pypdfium2==5.9.0
 protobuf==6.33.6
 propcache==0.4.1

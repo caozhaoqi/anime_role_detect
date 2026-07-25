@@ -22,7 +22,7 @@ import sys
 print(f"Python路径: {sys.path[:3]}")
 
 try:
-    from src.core.logging.global_logger import get_logger
+    from src.core.logging import get_enhanced_logger as get_logger
 
     print("导入成功")
 except ImportError as e:

@@ -31,6 +31,24 @@ def make_model_class(class_name, table_name, columns_def):
         attrs = {"__tablename__": table_name}
         for col_name, col_type in columns_def.items():
             attrs[col_name] = col_type
+        
+        if table_name == "recognition_records":
+            attrs["__description__"] = "识别记录"
+            attrs["__blur_field__"] = ['image_filename', 'username']
+            attrs["__ignore_fields__"] = []
+        elif table_name == "api_keys":
+            attrs["__description__"] = "API密钥"
+            attrs["__ignore_fields__"] = ['key']
+        elif table_name == "system_configs":
+            attrs["__description__"] = "系统配置"
+            attrs["__blur_field__"] = ['key', 'description']
+        elif table_name == "cleaning_records":
+            attrs["__description__"] = "清理记录"
+            attrs["__blur_field__"] = ['input_dir', 'output_dir']
+        elif table_name == "user_feedback":
+            attrs["__description__"] = "用户反馈"
+            attrs["__blur_field__"] = ['username', 'comment']
+        
         return type(class_name, (Base,), attrs)
     else:
         attrs = {"__tablename__": table_name}
@@ -39,19 +57,7 @@ def make_model_class(class_name, table_name, columns_def):
             for key, value in kwargs.items():
                 setattr(self, key, value)
 
-        def to_dict(self):
-            result = {}
-            for attr in ['id', 'username', 'role', 'email', 'user_id', 'image_filename',
-                         'status', 'created_at', 'updated_at']:
-                if hasattr(self, attr):
-                    value = getattr(self, attr)
-                    if isinstance(value, datetime):
-                        value = value.isoformat()
-                    result[attr] = value
-            return result
-
         attrs["__init__"] = __init__
-        attrs["to_dict"] = to_dict
         return type(class_name, (), attrs)
 
 
@@ -81,6 +87,10 @@ else:
 class UserModel(Base if HAS_SQLALCHEMY else object):
     """用户模型"""
     __tablename__ = "users"
+    __description__ = "系统用户"
+    __blur_field__ = ['username', 'email', 'nickname']
+    __ignore_fields__ = ['password_hash', 'failed_login_count', 'locked_until']
+    __display_field__ = 'username'
 
     if HAS_SQLALCHEMY:
         id = Column(Integer, primary_key=True, index=True)
@@ -118,19 +128,6 @@ class UserModel(Base if HAS_SQLALCHEMY else object):
             self.password_hash = password
             return
         self.password_hash = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
-
-    def to_dict(self):
-        """转换为字典"""
-        result = {}
-        for attr in ['id', 'username', 'role', 'email', 'nickname', 'avatar_url',
-                     'is_active', 'is_superuser', 'created_at', 'updated_at',
-                     'last_login_at', 'login_count']:
-            if hasattr(self, attr):
-                value = getattr(self, attr)
-                if isinstance(value, datetime):
-                    value = value.isoformat()
-                result[attr] = value
-        return result
 
 
 # 动态创建其他模型类

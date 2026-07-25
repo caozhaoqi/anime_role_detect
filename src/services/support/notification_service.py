@@ -11,7 +11,7 @@ import time
 from typing import Optional, Dict, Any, List
 from enum import Enum
 import requests
-from src.core.logging.global_logger import get_logger
+from src.core.logging import get_enhanced_logger as get_logger
 
 logger = get_logger("notification_service")
 

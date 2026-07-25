@@ -98,7 +98,7 @@ def init_search_service():
     return search_service
 
 
-def classify_with_model(image: Image.Image, model_name: str = "efficientnet_b3_loli_optimized_v2_20260529_133654") -> list:
+def classify_with_model(image: Image.Image, model_name: str = "efficientnet_b0") -> list:
     """使用模型推理模式分类图像"""
     try:
         img_byte_arr = io.BytesIO()
@@ -208,7 +208,7 @@ async def recognize_video(
     confidence_threshold: float = Query(0.5, ge=0.0, le=1.0),
     top_k: int = Query(3, ge=1, le=10),
     recognition_mode: str = Query("search", pattern="^(search|inference)$"),
-    model_name: str = Query("efficientnet_b3_loli_optimized_v2_20260529_133654"),
+    model_name: str = Query("efficientnet_b0"),
 ):
     """视频实时抽帧识别"""
     try:
@@ -258,7 +258,7 @@ async def recognize_video_with_overlay(
     confidence_threshold: float = Query(0.5, ge=0.0, le=1.0),
     top_k: int = Query(3, ge=1, le=10),
     recognition_mode: str = Query("search", pattern="^(search|inference)$"),
-    model_name: str = Query("efficientnet_b3_loli_optimized_v2_20260529_133654"),
+    model_name: str = Query("efficientnet_b0"),
 ):
     """视频识别并生成带标注的结果视频（异步任务模式）"""
     try:

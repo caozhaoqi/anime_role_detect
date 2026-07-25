@@ -6,7 +6,7 @@ MediaPipe 关键点检测器
 负责使用 MediaPipe 进行关键点检测
 """
 
-from src.core.logging.global_logger import get_logger
+from src.core.logging import get_enhanced_logger as get_logger
 
 logger = get_logger("mediapipe_keypoint_detector")
 

@@ -20,7 +20,7 @@ import torchvision.models as models
 from typing import Optional, Tuple, Dict, Any
 from pathlib import Path
 
-from src.core.logging.global_logger import get_logger
+from src.core.logging import get_enhanced_logger as get_logger
 
 logger = get_logger("model_loader")
 

@@ -17,7 +17,7 @@ from tqdm import tqdm
 import json
 import numpy as np
 import random
-from src.core.logging.global_logger import get_logger
+from src.core.logging import get_enhanced_logger as get_logger
 from models.keypoint_aware_model import get_keypoint_aware_model
 
 # Python

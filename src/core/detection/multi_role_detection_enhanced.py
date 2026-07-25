@@ -12,7 +12,7 @@ import numpy as np
 from PIL import Image
 from typing import List, Dict, Any, Tuple, Optional
 
-from src.core.logging.global_logger import get_logger
+from src.core.logging import get_enhanced_logger as get_logger
 from src.core.feature_extraction.feature_extraction import FeatureExtraction
 from src.core.recognition.open_set_recognizer import OpenSetRecognizer
 from src.core.feedback.ambiguous_sample_recorder import AmbiguousSampleRecorder
@@ -195,10 +195,66 @@ class EnhancedMultiRoleDetector:
                 except Exception as e:
                     logger.warning(f"完整模型加载失败: {e}")
 
-            self.model = models.efficientnet_b3(num_classes=num_classes)
+            if self.model_name == "efficientnet_b0":
+                self.model = models.efficientnet_b0(num_classes=num_classes)
+            elif self.model_name == "efficientnet_b3":
+                self.model = models.efficientnet_b3(num_classes=num_classes)
+            else:
+                self.model = models.efficientnet_b3(num_classes=num_classes)
+                logger.warning(f"未知模型名称: {self.model_name}，使用 efficientnet_b3")
 
             if "model_state_dict" in model_data:
-                self.model.load_state_dict(model_data["model_state_dict"], strict=False)
+                state_dict = model_data["model_state_dict"]
+                
+                # 检查分类器层是否匹配
+                classifier_keys = [k for k in state_dict.keys() if k.startswith('classifier.')]
+                if classifier_keys:
+                    # 分析分类器结构
+                    classifier_layers = {}
+                    for key in classifier_keys:
+                        parts = key.split('.')
+                        if len(parts) >= 2:
+                            try:
+                                idx = int(parts[1])
+                                if idx not in classifier_layers:
+                                    classifier_layers[idx] = {}
+                                param_name = '.'.join(parts[2:])
+                                classifier_layers[idx][param_name] = state_dict[key]
+                            except ValueError:
+                                pass
+                    
+                    sorted_indices = sorted(classifier_layers.keys())
+                    if sorted_indices:
+                        max_idx = max(sorted_indices)
+                        new_classifier_modules = []
+                        
+                        for idx in range(max_idx + 1):
+                            if idx in classifier_layers:
+                                layer_params = classifier_layers[idx]
+                                if 'weight' in layer_params and 'bias' in layer_params:
+                                    if 'running_mean' in layer_params:
+                                        num_features = layer_params['weight'].shape[0]
+                                        new_classifier_modules.append(torch.nn.BatchNorm1d(num_features))
+                                    else:
+                                        weight_shape = layer_params['weight'].shape
+                                        out_features = weight_shape[0]
+                                        in_features = weight_shape[1] if len(weight_shape) > 1 else 768
+                                        new_classifier_modules.append(torch.nn.Linear(in_features, out_features))
+                                else:
+                                    new_classifier_modules.append(torch.nn.Identity())
+                            else:
+                                if idx == 0:
+                                    new_classifier_modules.append(torch.nn.Dropout(p=0.2, inplace=True))
+                                else:
+                                    new_classifier_modules.append(torch.nn.ReLU(inplace=True))
+                        
+                        self.model.classifier = torch.nn.Sequential(*new_classifier_modules)
+                        logger.info(f"重建分类器结构: {[type(m).__name__ for m in self.model.classifier]}")
+                
+                self.model.load_state_dict(state_dict)
+                logger.info("模型权重加载成功")
+            else:
+                self.model.load_state_dict(model_data, strict=False)
 
             self.model.eval()
             logger.info(f"✅ 角色分类模型加载成功 ({num_classes} 个类别)")

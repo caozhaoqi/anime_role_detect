@@ -43,7 +43,20 @@ Pillow==11.3.0
 scikit-image==0.22.0
 
 # 数值计算
-numpy==1.26.4
+numpy>=1.26.4
+
+# 关键点检测
+mediapipe>=0.10.35
 
 # 系统监控
 psutil==7.2.2
+
+# OpenTelemetry（链路追踪）- 版本需保持一致
+# API/SDK 1.x.x 对应 instrumentation/semantic-conventions 0.(x+21).x
+opentelemetry-api==1.41.1
+opentelemetry-sdk==1.41.1
+opentelemetry-semantic-conventions==0.62b1
+opentelemetry-instrumentation-fastapi==0.62b1
+opentelemetry-exporter-otlp-proto-grpc==1.41.1
+opentelemetry-exporter-otlp-proto-common==1.41.1
+opentelemetry-proto==1.41.1

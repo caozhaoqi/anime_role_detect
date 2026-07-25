@@ -1,5 +1,5 @@
 # ==============================================
-# 机器学习专属依赖 - 仅包含 requirements.txt 中没有的 ML 包
+# 机器学习专属依赖 - 与 requirements.txt 保持版本一致
 # PyTorch 在 Dockerfile.ml-base 中单独安装（CPU 版本）
 # ==============================================
 
@@ -7,16 +7,22 @@
 numpy==1.26.4
 
 # 向量嵌入
-sentence-transformers==2.7.0
+sentence-transformers==2.2.2
 
 # 训练加速
-accelerate==0.34.2
+accelerate==0.24.1
 
 # 实验追踪
 mlflow==2.10.2
 
-# 标签生成 / CLIP（与 torch>=2.1.0 兼容）
-transformers==4.44.2
+# 标签生成 / CLIP（与 torch==2.1.0 兼容）
+transformers==4.34.0
 
 # 向量索引（用于搜索）
 faiss-cpu==1.9.0
+
+# ONNX 推理引擎
+onnxruntime==1.18.0
+
+# ONNX 工具
+onnx==1.15.0

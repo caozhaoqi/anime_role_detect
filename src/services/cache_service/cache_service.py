@@ -6,7 +6,7 @@
 """
 
 import threading
-from src.core.logging.global_logger import get_logger
+from src.core.logging import get_enhanced_logger as get_logger
 from .cache_factory import get_cache_factory
 
 logger = get_logger("cache_service")

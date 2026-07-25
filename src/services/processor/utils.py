@@ -18,7 +18,7 @@ import tempfile
 from typing import Optional, Tuple
 from PIL import Image
 
-from src.core.logging.global_logger import get_logger
+from src.core.logging import get_enhanced_logger as get_logger
 
 logger = get_logger("processor_utils")
 

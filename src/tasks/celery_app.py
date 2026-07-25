@@ -35,7 +35,7 @@ celery_app.conf.update(
 @worker_ready.connect
 def on_worker_ready(**kwargs):
     """Worker启动时的回调"""
-    from src.core.logging.global_logger import get_logger
+    from src.core.logging import get_enhanced_logger as get_logger
 
     logger = get_logger("celery")
     logger.info("Celery worker已就绪")
@@ -44,7 +44,7 @@ def on_worker_ready(**kwargs):
 @worker_shutdown.connect
 def on_worker_shutdown(**kwargs):
     """Worker关闭时的回调"""
-    from src.core.logging.global_logger import get_logger
+    from src.core.logging import get_enhanced_logger as get_logger
 
     logger = get_logger("celery")
     logger.info("Celery worker正在关闭")

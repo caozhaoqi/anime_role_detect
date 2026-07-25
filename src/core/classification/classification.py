@@ -6,7 +6,7 @@ import hashlib
 from typing import List, Tuple, Dict, Optional, Any, Union
 from dataclasses import dataclass
 
-from src.core.logging.global_logger import get_logger
+from src.core.logging import get_enhanced_logger as get_logger
 
 logger = get_logger("classification")
 

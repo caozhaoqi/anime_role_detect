@@ -20,6 +20,26 @@ from .unified_logger import (
     LOG_FILES,
 )
 
+from .request_context import (
+    RequestContext,
+    RequestContextManager,
+    with_request_context,
+)
+
+from .enhanced_logger import (
+    EnhancedLogger,
+    enhanced_logger,
+    get_enhanced_logger,
+    log_with_context,
+    log_access,
+    log_operation,
+    log_db,
+    log_redis,
+    log_error_with_stack,
+    start_trace_span,
+    end_trace_span,
+)
+
 __all__ = [
     "get_logger",
     "log_system",
@@ -37,4 +57,18 @@ __all__ = [
     "list_services",
     "LOG_DIR",
     "LOG_FILES",
+    "RequestContext",
+    "RequestContextManager",
+    "with_request_context",
+    "EnhancedLogger",
+    "enhanced_logger",
+    "get_enhanced_logger",
+    "log_with_context",
+    "log_access",
+    "log_operation",
+    "log_db",
+    "log_redis",
+    "log_error_with_stack",
+    "start_trace_span",
+    "end_trace_span",
 ]

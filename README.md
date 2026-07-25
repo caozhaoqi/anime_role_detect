@@ -114,7 +114,8 @@ kubectl get pods -n anime-role-detect
 
 ### Default Credentials
 - **Username**: `admin` / `user`
-- **Password**: `admin123` / `user123`
+- **Password**: Set via environment variables `ADMIN_PASSWORD` and `USER_PASSWORD`
+- **Note**: Default passwords are auto-generated on first startup if not set
 
 ## 📁 Project Structure
 

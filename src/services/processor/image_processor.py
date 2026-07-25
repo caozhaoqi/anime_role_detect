@@ -9,7 +9,7 @@
 import os
 import hashlib
 import numpy as np
-from src.core.logging.global_logger import get_logger
+from src.core.logging import get_enhanced_logger as get_logger
 from src.services.cache_service import get_cache_manager
 from .model_processor import (
     process_with_model_service,

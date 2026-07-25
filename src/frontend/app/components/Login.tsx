@@ -326,8 +326,8 @@ export default function Login({ darkMode, onLogin, onRegister, isLoading, error 
             </div>
 
             <div className={`text-center text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-              <p>测试账号: admin / admin123</p>
-              <p>测试账号: user / user123</p>
+              <p>请使用环境变量配置的账号密码登录</p>
+              <p>首次启动时默认密码会打印在日志中</p>
             </div>
           </form>
         )}

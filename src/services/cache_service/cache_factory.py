@@ -7,7 +7,7 @@
 
 import os
 from typing import Optional, Any
-from src.core.logging.global_logger import get_logger
+from src.core.logging import get_enhanced_logger as get_logger
 from src.services.cache_service.redis_cache import get_redis_cache
 from src.utils.cache_manager import CacheManager
 

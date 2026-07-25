@@ -8,13 +8,45 @@
 
 import os
 from PIL import Image
-import numpy as np
 import torch
 from torchvision import transforms
-from src.core.logging.global_logger import get_logger
+from src.core.logging import get_enhanced_logger as get_logger
 from src.utils.image_utils import ImageUtils
 
 logger = get_logger("preprocessing")
+
+
+def pil_to_tensor(image):
+    """
+    将PIL图像转换为张量（手动实现，避免NumPy兼容性问题）
+    
+    Args:
+        image: PIL图像
+        
+    Returns:
+        torch.Tensor: 转换后的张量 (C x H x W)
+    """
+    try:
+        width, height = image.size
+        channels = len(image.getbands())
+        
+        pixel_data = list(image.getdata())
+        flat_array = []
+        for pixel in pixel_data:
+            if channels == 1:
+                flat_array.append(pixel)
+            else:
+                flat_array.extend(pixel)
+        
+        tensor = torch.tensor(flat_array, dtype=torch.float32)
+        tensor = tensor.view(height, width, channels)
+        tensor = tensor.permute(2, 0, 1)
+        tensor = tensor / 255.0
+        
+        return tensor
+    except Exception as e:
+        logger.error(f"PIL转张量失败: {e}")
+        return None
 
 
 class ImagePreprocessor:
@@ -34,22 +66,7 @@ class ImagePreprocessor:
         self.size = size
         self.mean = mean
         self.std = std
-        self.transform = self._get_transform()
-
-    def _get_transform(self):
-        """
-        获取图像变换
-
-        Returns:
-            transforms.Compose: 图像变换
-        """
-        return transforms.Compose(
-            [
-                transforms.Resize(self.size),
-                transforms.ToTensor(),
-                transforms.Normalize(mean=self.mean, std=self.std),
-            ]
-        )
+        self.resize_transform = transforms.Resize(self.size)
 
     def preprocess(self, image):
         """
@@ -63,15 +80,22 @@ class ImagePreprocessor:
         """
         try:
             if isinstance(image, str):
-                # 加载图像
                 image = Image.open(image).convert("RGB")
             elif not isinstance(image, Image.Image):
                 logger.error("输入不是图像路径或PIL图像")
                 return None
 
-            # 应用变换
-            image_tensor = self.transform(image)
-            return image_tensor
+            image = self.resize_transform(image)
+            
+            image_tensor = pil_to_tensor(image)
+            if image_tensor is None:
+                return None
+            
+            mean_tensor = torch.tensor(self.mean, dtype=torch.float32).view(3, 1, 1)
+            std_tensor = torch.tensor(self.std, dtype=torch.float32).view(3, 1, 1)
+            image_tensor = (image_tensor - mean_tensor) / std_tensor
+            
+            return image_tensor.unsqueeze(0)
         except Exception as e:
             logger.error(f"预处理图像失败: {e}")
             return None

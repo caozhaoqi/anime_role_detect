@@ -16,7 +16,7 @@ from typing import List, Dict, Any, Tuple
 # 添加项目根目录到Python路径
 project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from src.core.logging.global_logger import get_logger
+from src.core.logging import get_enhanced_logger as get_logger
 from src.core.feature_extraction.feature_extraction import FeatureExtraction
 from src.core.tagging.wd_vit_v3_tagger import WDViTV3Tagger
 import torch

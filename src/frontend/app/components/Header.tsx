@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { User, LogOut, History, Settings, Moon, Sun } from "lucide-react";
+import { User, LogOut, History, Settings, Moon, Sun, Activity } from "lucide-react";
 import { AuthState } from "../types";
 
 interface HeaderProps {
@@ -83,6 +83,14 @@ export default function Header({
                 <History className="h-5 w-5" />
               </button>
             )}
+            
+            <button
+              onClick={() => window.open('http://localhost:8080/monitor/', '_blank')}
+              className={`p-2 rounded-lg ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'} transition-colors`}
+              title="系统监控"
+            >
+              <Activity className="h-5 w-5 text-green-500" />
+            </button>
             
             <button
               onClick={() => onShowConfigChange(!showConfig)}

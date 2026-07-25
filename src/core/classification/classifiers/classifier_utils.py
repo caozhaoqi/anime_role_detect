@@ -8,7 +8,7 @@
 
 import os
 from PIL import Image
-from src.core.logging.global_logger import get_logger
+from src.core.logging import get_enhanced_logger as get_logger
 from src.core.classification.classifiers.general_classifier import GeneralClassification
 from src.services.processor.model_loader import get_role_predictor
 

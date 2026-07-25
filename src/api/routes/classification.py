@@ -10,7 +10,7 @@ import time
 from fastapi import APIRouter, UploadFile, File, Form, Depends, HTTPException
 from typing import Optional
 
-from src.core.logging.global_logger import get_logger
+from src.core.logging import get_enhanced_logger as get_logger
 from src.middleware.auth_enhanced import get_current_user, get_optional_current_user
 from src.services.processor.image_processor import (
     process_single_image,

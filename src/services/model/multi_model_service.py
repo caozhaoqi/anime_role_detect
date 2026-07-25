@@ -1,7 +1,7 @@
 import asyncio
 from typing import Dict, List, Optional, Any, Tuple
 
-from src.core.logging.global_logger import get_logger
+from src.core.logging import get_enhanced_logger as get_logger
 from src.services.processor.model_processor import (
     process_with_local_model,
     process_with_model_service,

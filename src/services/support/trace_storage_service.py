@@ -10,7 +10,7 @@ from typing import Dict, List, Optional, Any
 from datetime import datetime, timedelta
 from abc import ABC, abstractmethod
 
-from src.core.logging.global_logger import get_logger
+from src.core.logging import get_enhanced_logger as get_logger
 from src.utils.monitoring.tracing import Trace, Span
 
 logger = get_logger("trace_storage_service")
@@ -328,12 +328,12 @@ class TraceStorageService:
             status = t.get("status", "UNKNOWN")
             status_dist[status] = status_dist.get(status, 0) + 1
         
-        # 统计端点分布（从Span中提取）
         endpoint_dist = {}
         for t in traces:
             spans = t.get("spans", [])
             for span in spans:
-                endpoint = span.get("attributes", {}).get("http.path", "unknown")
+                attrs = span.get("attributes", {})
+                endpoint = attrs.get("http.route") or attrs.get("http.target") or attrs.get("http.path") or span.get("name", "unknown")
                 endpoint_dist[endpoint] = endpoint_dist.get(endpoint, 0) + 1
         
         return {
@@ -369,7 +369,8 @@ class TraceStorageService:
             if endpoint:
                 has_matching_span = False
                 for span in trace.get("spans", []):
-                    span_endpoint = span.get("attributes", {}).get("http.path", "")
+                    attrs = span.get("attributes", {})
+                    span_endpoint = attrs.get("http.route") or attrs.get("http.target") or attrs.get("http.path") or ""
                     if endpoint in span_endpoint:
                         has_matching_span = True
                         break

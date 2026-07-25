@@ -38,7 +38,7 @@ import uvicorn
 
 from src.core.config.service_config import get_service_config
 from src.core.config.device_manager import DeviceManager
-from src.core.logging.global_logger import get_logger
+from src.core.logging import get_enhanced_logger as get_logger
 
 config = get_service_config()
 logger = None
@@ -55,7 +55,7 @@ except ImportError:
 async def model_service_lifespan(app: FastAPI):
     """模型服务生命周期管理"""
     global logger, Image, preprocessor, feature_extractor, tagger, keypoint_pool
-    from src.core.logging.global_logger import get_logger as gl
+    from src.core.logging import get_enhanced_logger as gl
     from PIL import Image as Img
 
     Image = Img
@@ -90,10 +90,39 @@ app = FastAPI(
     lifespan=model_service_lifespan,
 )
 
-# CORS - 同主 API 一样，allow_credentials=True 与 origins=["*"] 不兼容
-allowed_origins = os.environ.get("CORS_ALLOWED_ORIGINS", "").split(",") if os.environ.get("CORS_ALLOWED_ORIGINS") else ["*"]
-allow_credentials = False if allowed_origins == ["*"] else True
-app.add_middleware(CORSMiddleware, allow_origins=allowed_origins, allow_credentials=allow_credentials, allow_methods=["*"], allow_headers=["*"])
+# OpenTelemetry 链路追踪
+try:
+    from src.utils.monitoring.opentelemetry import instrument_app
+    instrument_app(app, service_name="model-service")
+except Exception as e:
+    print(f"OpenTelemetry 初始化失败: {e}")
+
+# CORS - 模型服务是内部服务，仅允许网关和本地访问
+_cors_origins_env = os.environ.get("CORS_ALLOWED_ORIGINS", "")
+if _cors_origins_env:
+    allowed_origins = [o.strip() for o in _cors_origins_env.split(",") if o.strip()]
+else:
+    allowed_origins = [
+        "http://localhost:8000",
+        "http://localhost:8080",
+        "http://127.0.0.1:8000",
+        "http://127.0.0.1:8080",
+    ]
+allow_credentials = True
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=allowed_origins,
+    allow_credentials=allow_credentials,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    allow_headers=[
+        "Content-Type",
+        "Authorization",
+        "X-Requested-With",
+        "Accept",
+        "Origin",
+        "X-Internal-Service-Token",
+    ],
+)
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 # ========== 内部服务认证中间件 ==========
@@ -181,11 +210,10 @@ async def warmup_models():
                     with ThreadPoolExecutor(max_workers=1) as executor:
                         feature_extractor = await loop.run_in_executor(executor, FeatureExtraction)
 
-        processed = preprocessor.preprocess(dummy_image)
-        if processed is not None:
+        if feature_extractor is not None:
             loop = asyncio.get_running_loop()
             with ThreadPoolExecutor(max_workers=1) as executor:
-                await loop.run_in_executor(executor, feature_extractor.extract_features, processed)
+                await loop.run_in_executor(executor, feature_extractor.extract_features, dummy_image)
             logger.info("特征提取器预热完成")
 
         # ---- WD ViT Tagger：改为懒加载 + TTL 卸载（P1 优化）----

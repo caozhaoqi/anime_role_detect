@@ -13,7 +13,7 @@ from collections import defaultdict
 
 from src.utils.http_utils import HTTPUtils
 from src.utils.config_manager import config_manager
-from src.core.logging.global_logger import get_logger, log_system, log_error
+from src.core.logging import get_enhanced_logger as get_logger, log_system, log_error
 
 logger = get_logger("data_source_manager")
 

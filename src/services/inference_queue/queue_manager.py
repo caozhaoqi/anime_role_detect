@@ -16,7 +16,7 @@ from collections import deque
 
 import redis
 from redis.exceptions import ConnectionError as RedisConnectionError
-from src.core.logging.global_logger import get_logger
+from src.core.logging import get_enhanced_logger as get_logger
 
 logger = get_logger("inference_queue")
 

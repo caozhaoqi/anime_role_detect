@@ -15,7 +15,7 @@ from typing import List, Optional
 import numpy as np
 
 from src.models.recognition_record import RecognitionRecord, RecognitionRecordCreate
-from src.core.logging.global_logger import get_logger
+from src.core.logging import get_enhanced_logger as get_logger
 
 
 class _NumpyEncoder(json.JSONEncoder):

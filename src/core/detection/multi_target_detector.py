@@ -72,23 +72,62 @@ class MultiTargetDetector:
         num_classes = config.get("num_classes", 74)
 
         model = models.efficientnet_b3(num_classes=num_classes)
-        # 先加载到 CPU，避免 PyTorch MPS 后端 UntypedStorage 的 bug
-        # ("invalid low watermark ratio")，后续由 model.to(self.device) 移入目标设备
         checkpoint = torch.load(model_path, map_location="cpu", weights_only=False)
 
         if isinstance(checkpoint, torch.nn.Module):
             model = checkpoint
-        elif "model_state_dict" in checkpoint:
-            model.load_state_dict(checkpoint["model_state_dict"], strict=False)
         else:
-            model.load_state_dict(checkpoint, strict=False)
+            if "model_state_dict" in checkpoint:
+                state_dict = checkpoint["model_state_dict"]
+            else:
+                state_dict = checkpoint
+            
+            classifier_keys = [k for k in state_dict.keys() if k.startswith('classifier.')]
+            if classifier_keys:
+                classifiers = {}
+                for key in classifier_keys:
+                    parts = key.split('.')
+                    layer_idx = int(parts[1])
+                    param_name = parts[2]
+                    if layer_idx not in classifiers:
+                        classifiers[layer_idx] = {}
+                    classifiers[layer_idx][param_name] = state_dict[key]
+                
+                layers = []
+                layer_mapping = {}
+                new_idx = 0
+                for idx in sorted(classifiers.keys()):
+                    params = classifiers[idx]
+                    if 'running_mean' in params and 'running_var' in params:
+                        layers.append(torch.nn.BatchNorm1d(params['weight'].shape[0]))
+                    elif 'weight' in params:
+                        weight_shape = params['weight'].shape
+                        layers.append(torch.nn.Linear(weight_shape[1], weight_shape[0]))
+                    layer_mapping[idx] = new_idx
+                    new_idx += 1
+                
+                model.classifier = torch.nn.Sequential(*layers)
+                
+                new_state_dict = {}
+                for key, value in state_dict.items():
+                    if key.startswith('classifier.'):
+                        parts = key.split('.')
+                        old_idx = int(parts[1])
+                        if old_idx in layer_mapping:
+                            new_key = f'classifier.{layer_mapping[old_idx]}.{parts[2]}'
+                            new_state_dict[new_key] = value
+                        else:
+                            new_state_dict[key] = value
+                    else:
+                        new_state_dict[key] = value
+                
+                state_dict = new_state_dict
+            
+            model.load_state_dict(state_dict, strict=False)
 
-        # 强制使用 CPU 设备，避免 PyTorch MPS 后端内存分配器 bug
-        # ("invalid low watermark ratio")。YOLO 模型内部自行管理设备不影响。
         model = model.to("cpu")
         model.eval()
 
-        # 获取类别名
         class_names = config.get("class_names", [f"class_{i}" for i in range(num_classes)])
 
         return model, class_names

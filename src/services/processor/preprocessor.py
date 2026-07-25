@@ -7,7 +7,7 @@
 """
 
 from PIL import Image
-from src.core.logging.global_logger import get_logger
+from src.core.logging import get_enhanced_logger as get_logger
 from src.services.cache_service import get_image_transform
 from .image_loader import load_image_with_cache
 
