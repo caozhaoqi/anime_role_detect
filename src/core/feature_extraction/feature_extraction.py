@@ -185,10 +185,11 @@ class FeatureExtraction:
                 )
 
             # 加载模型（兼容不同PyTorch版本和不同保存格式）
+            # 先加载到CPU，再移动到目标设备（避免MPS上的加载问题）
             try:
-                loaded = torch.load(model_full_path, map_location=DeviceManager.get_device(), weights_only=False)
+                loaded = torch.load(model_full_path, map_location='cpu', weights_only=False)
             except TypeError:
-                loaded = torch.load(model_full_path, map_location=DeviceManager.get_device())
+                loaded = torch.load(model_full_path, map_location='cpu')
             
             # 如果加载的是state_dict（字典），则创建模型实例并加载权重
             # 支持多种保存格式：完整模型、纯state_dict、训练检查点（包含model_state_dict）
@@ -202,12 +203,100 @@ class FeatureExtraction:
                     return
                 
                 model = torchvision.models.efficientnet_b3(weights=None)
-                model.load_state_dict(state_dict)
+                
+                # 检查state_dict中的分类器层，判断是否为自定义模型
+                classifier_keys = [k for k in state_dict.keys() if k.startswith('classifier.')]
+                features_keys = [k for k in state_dict.keys() if k.startswith('features.')]
+                
+                if classifier_keys and features_keys:
+                    # 分析分类器结构
+                    logger.info(f"检测到自定义分类器结构: {len(classifier_keys)} 个分类器参数")
+                    
+                    # 按索引分组
+                    classifier_layers = {}
+                    for key in classifier_keys:
+                        parts = key.split('.')
+                        if len(parts) >= 2:
+                            try:
+                                idx = int(parts[1])
+                                if idx not in classifier_layers:
+                                    classifier_layers[idx] = {}
+                                param_name = '.'.join(parts[2:])
+                                classifier_layers[idx][param_name] = state_dict[key]
+                            except ValueError:
+                                pass
+                    
+                    # 按索引排序
+                    sorted_indices = sorted(classifier_layers.keys())
+                    logger.info(f"分类器层索引: {sorted_indices}")
+                    
+                    # 重建分类器结构以匹配state_dict
+                    new_classifier_modules = []
+                    max_idx = max(sorted_indices)
+                    
+                    for idx in range(max_idx + 1):
+                        if idx in classifier_layers:
+                            layer_params = classifier_layers[idx]
+                            if 'weight' in layer_params and 'bias' in layer_params:
+                                # 检查是否为BatchNorm（有running_mean）
+                                if 'running_mean' in layer_params:
+                                    # BatchNorm层
+                                    num_features = layer_params['weight'].shape[0]
+                                    layer = torch.nn.BatchNorm1d(num_features)
+                                    logger.info(f"  层 {idx}: BatchNorm1d({num_features})")
+                                else:
+                                    # Linear层
+                                    weight_shape = layer_params['weight'].shape
+                                    out_features, in_features = weight_shape[0], weight_shape[1] if len(weight_shape) > 1 else 768
+                                    layer = torch.nn.Linear(in_features, out_features)
+                                    logger.info(f"  层 {idx}: Linear({in_features}, {out_features})")
+                                new_classifier_modules.append(layer)
+                            else:
+                                # 有参数但没有weight/bias，可能是其他类型，跳过
+                                new_classifier_modules.append(torch.nn.Identity())
+                                logger.info(f"  层 {idx}: Identity (未知类型)")
+                        else:
+                            # 缺失的层
+                            if idx == 0:
+                                # 标准EfficientNet在层0是Dropout
+                                new_classifier_modules.append(torch.nn.Dropout(p=0.2, inplace=True))
+                                logger.info(f"  层 {idx}: Dropout (自动补全)")
+                            else:
+                                # 其他缺失层通常是ReLU
+                                new_classifier_modules.append(torch.nn.ReLU(inplace=True))
+                                logger.info(f"  层 {idx}: ReLU (自动补全)")
+                    
+                    model.classifier = torch.nn.Sequential(*new_classifier_modules)
+                    logger.info(f"重建分类器结构: {[type(m).__name__ for m in model.classifier]}")
+                    
+                    # 加载权重
+                    model.load_state_dict(state_dict)
+                    logger.info(f"成功加载 {len(state_dict)} 个权重参数")
+                else:
+                    # 标准模型，直接加载
+                    model.load_state_dict(state_dict)
             else:
                 model = loaded
             
-            model = model.to(self.device)
             model.eval()
+            
+            # 如果是MPS设备，先在CPU上预热，然后再移动到MPS
+            if self.device == "mps":
+                logger.info("MPS设备：先在CPU上预热模型")
+                from torchvision import transforms
+                dummy_img = Image.new('RGB', (224, 224), color=(128, 128, 128))
+                transform_temp = transforms.Compose([
+                    transforms.Resize((224, 224)),
+                    transforms.ToTensor(),
+                    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+                ])
+                dummy_tensor = transform_temp(dummy_img).unsqueeze(0)
+                with torch.no_grad():
+                    _ = model(dummy_tensor)
+                logger.info("CPU预热完成，移动到MPS设备")
+                model = model.to(self.device)
+            else:
+                model = model.to(self.device)
 
             # 创建特征提取hook
             self._efficientnet_features = []
@@ -281,13 +370,23 @@ class FeatureExtraction:
         import torch
         try:
             dummy_img = Image.new('RGB', (224, 224), color=(128, 128, 128))
-            dummy_tensor = self.efficientnet_transform(dummy_img).unsqueeze(0).to(self.device)
-            with torch.no_grad():
-                _ = self.efficientnet_model(dummy_tensor)
-                if self._efficientnet_features:
-                    feat = self._efficientnet_features[-1].squeeze()
-                    projected = self.efficientnet_projection(feat)
-                    projected = projected / projected.norm()
+            dummy_tensor = self.efficientnet_transform(dummy_img).unsqueeze(0)
+            
+            # 如果设备是MPS，预热时使用CPU以避免内存问题
+            if self.device == "mps":
+                model_cpu = self.efficientnet_model.to("cpu")
+                with torch.no_grad():
+                    _ = model_cpu(dummy_tensor)
+                self.efficientnet_model = model_cpu.to(self.device)
+            else:
+                dummy_tensor = dummy_tensor.to(self.device)
+                with torch.no_grad():
+                    _ = self.efficientnet_model(dummy_tensor)
+            
+            if self._efficientnet_features:
+                feat = self._efficientnet_features[-1].squeeze()
+                projected = self.efficientnet_projection(feat)
+                projected = projected / projected.norm()
             self._efficientnet_features.clear()
             logger.debug("EfficientNet模型预热完成")
         except Exception as e:

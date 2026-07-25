@@ -68,18 +68,15 @@ export class RecognitionService {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('use_coreml', (options.useCoreML ?? false).toString());
-    formData.append('use_model', (options.useModel ?? false).toString());
+    formData.append('use_model', (options.useModel ?? true).toString());
     formData.append('use_attributes', (options.useAttributes ?? true).toString());
-    formData.append('model_name', options.modelName ?? 'default');
-    formData.append('multilabel', (options.multiRole ?? false).toString());
-    formData.append('threshold', (options.threshold ?? 0.4).toString());
-    formData.append('cache_bypass', Date.now().toString());
+    formData.append('model_name', options.modelName ?? 'efficientnet_b3');
+    formData.append('multi_role', (options.multiRole ?? false).toString());
+    formData.append('use_deepdanbooru', 'true');
 
     let endpoint = '/classify';
     if (options.useYolo) {
       endpoint = '/classify/yolo-detect';
-    } else if (options.multiRole) {
-      endpoint = '/classify/multi-role';
     }
 
     const response = await apiClient.post<RecognitionResponse>(endpoint, formData, {

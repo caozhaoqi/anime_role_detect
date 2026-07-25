@@ -145,6 +145,15 @@ class WDViTV3Tagger:
             cls._instance = cls()
         return cls._instance
 
+    @classmethod
+    def reset_instance(cls):
+        """重置单例实例（用于重新加载模型）"""
+        if cls._instance is not None:
+            cls._instance.wd_model = None
+            cls._instance.wd_processor = None
+            cls._instance._loaded = False
+        cls._instance = None
+
     def __init__(self, device=None):
         """初始化（仅在首次调用时执行）"""
         if self._initialized:
@@ -444,11 +453,12 @@ class WDViTV3Tagger:
             self.device = "cpu"
             self.logger.info("PyTorch不可用，使用CPU")
 
-    def load_model(self, model_name="SmilingWolf/wd-vit-tagger-v3"):
+    def load_model(self, model_name="SmilingWolf/wd-vit-tagger-v3", force_reload=False):
         """加载WD Vit Tagger v3模型
 
         Args:
             model_name: 模型名称（仅非macOS平台使用）
+            force_reload: 是否强制重新加载（清除之前的失败状态）
 
         Returns:
             bool: 模型加载是否成功
@@ -456,6 +466,17 @@ class WDViTV3Tagger:
         # macOS环境下使用CoreML模型
         if USE_COREML:
             return self._load_coreml_model()
+        
+        # 如果模型已经加载且不强制重新加载，直接返回成功
+        if self.wd_model is not None and not force_reload:
+            self.logger.info("WD Vit Tagger模型已加载，跳过重新加载")
+            return True
+        
+        # 强制重新加载时，清除之前的状态
+        if force_reload:
+            self.wd_model = None
+            self.wd_processor = None
+            self._loaded = False
         
         # 使用timm + safetensors直接加载，绕过transformers的from_pretrained()避免MPS死锁
         try:
@@ -514,11 +535,35 @@ class WDViTV3Tagger:
             self.logger.info("[load_model] STEP 3/7: 加载 safetensors 权重")
             from safetensors.torch import load_file
             state_dict = load_file(safetensors_path)
+            
+            # 检查分类器层形状是否匹配，不匹配则从权重中推断正确的 num_classes
+            classifier_key = None
+            for key in state_dict:
+                if key.startswith("classifier") and key.endswith(".weight"):
+                    classifier_key = key
+                    break
+            
+            if classifier_key:
+                actual_num_classes = state_dict[classifier_key].shape[0]
+                if actual_num_classes != num_classes:
+                    self.logger.warning(f"配置的 num_classes={num_classes} 与权重中的 {actual_num_classes} 不匹配，重新创建模型")
+                    self.wd_model = timm.create_model(
+                        model_config.get("architecture", "vit_base_patch16_224"),
+                        pretrained=False,
+                        num_classes=actual_num_classes,
+                        img_size=self.img_size,
+                        class_token=model_args.get("class_token", False),
+                        global_pool=model_args.get("global_pool", "avg"),
+                        fc_norm=model_args.get("fc_norm", False),
+                        act_layer=model_args.get("act_layer", "gelu_tanh"),
+                    )
+                    num_classes = actual_num_classes
+            
             self.wd_model.load_state_dict(state_dict, strict=False)
             self.logger.info("[load_model] STEP 3/7 完成: 模型权重加载成功")
 
             # [STEP 4] 设备迁移
-            self.logger.info("[load_model] STEP 4/7: 模型迁移到设备 {self.device} 并设置为 eval 模式")
+            self.logger.info(f"[load_model] STEP 4/7: 模型迁移到设备 {self.device} 并设置为 eval 模式")
             self.wd_model.to(self.device)
             self.wd_model.eval()
             self.logger.info("[load_model] STEP 4/7 完成")
@@ -531,12 +576,13 @@ class WDViTV3Tagger:
                     reader = csv.reader(f)
                     _ = next(reader, None)
                     tag_id_map = {}
+                    row_index = 0
                     for row in reader:
                         if len(row) >= 2:
                             try:
-                                tag_id = int(row[0])
                                 tag_name = row[1].strip()
-                                tag_id_map[tag_id] = tag_name
+                                tag_id_map[row_index] = tag_name
+                                row_index += 1
                             except (ValueError, IndexError):
                                 continue
                 if tag_id_map:
@@ -785,25 +831,7 @@ class WDViTV3Tagger:
                 # 非分类标签直接添加
                 balanced_tags.append(tag_info)
 
-        # 确保至少有10个标签
-        if len(balanced_tags) < 10:
-            # 如果标签不足10个，添加一些通用标签
-            generic_tags = [
-                "anime",
-                "cartoon",
-                "digital art",
-                "illustration",
-                "character",
-                "high quality",
-                "detailed",
-                "beautiful",
-                "stylish",
-                "colorful",
-            ]
-            for tag in generic_tags:
-                if tag not in tag_set and len(balanced_tags) < 10:
-                    balanced_tags.append({"tag": tag, "confidence": 0.5})
-                    tag_set.add(tag)
+        # 不再自动添加固定置信度的通用标签，保持模型预测的真实性
 
         # 限制标签数量
         max_tags = 30

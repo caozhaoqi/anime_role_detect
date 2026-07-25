@@ -108,6 +108,9 @@ tests/test_results/
 *.bak
 *.swp
 *~
+temp
+.trigger_build
+dashboard_preview.html
 
 # Config (keep template files)
 config.ini

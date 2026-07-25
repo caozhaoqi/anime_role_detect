@@ -3,28 +3,34 @@ import { LoginRequest, LoginResponse } from '../../types';
 
 export class AuthService {
   static async login(username: string, password: string): Promise<LoginResponse> {
-    const formData = new FormData();
+    const formData = new URLSearchParams();
     formData.append('username', username);
     formData.append('password', password);
 
-    const response = await apiClient.post<LoginResponse>('/auth/login', formData);
+    const response = await apiClient.post<LoginResponse>('/auth/login', formData, {
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    });
     return response.data;
   }
 
   static async register(username: string, password: string): Promise<LoginResponse> {
-    const formData = new FormData();
+    const formData = new URLSearchParams();
     formData.append('username', username);
     formData.append('password', password);
 
-    const response = await apiClient.post<LoginResponse>('/auth/register', formData);
+    const response = await apiClient.post<LoginResponse>('/auth/register', formData, {
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    });
     return response.data;
   }
 
   static async refreshToken(refreshToken: string): Promise<LoginResponse> {
-    const formData = new FormData();
+    const formData = new URLSearchParams();
     formData.append('refresh_token', refreshToken);
 
-    const response = await apiClient.post<LoginResponse>('/auth/refresh', formData);
+    const response = await apiClient.post<LoginResponse>('/auth/refresh', formData, {
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    });
     return response.data;
   }
 

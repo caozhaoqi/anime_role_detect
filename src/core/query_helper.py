@@ -41,6 +41,8 @@ class QueryHelper:
         self._joins = []
         self._group_by = []
         self._having = []
+        self._limit = None
+        self._offset = None
 
     def filter(self, **kwargs) -> 'QueryHelper':
         """
@@ -290,6 +292,13 @@ class QueryHelper:
         if self._having:
             self.query = self.query.having(and_(*self._having))
 
+    def _apply_limit_offset(self) -> None:
+        """应用 LIMIT 和 OFFSET（必须放在最后）"""
+        if self._offset is not None:
+            self.query = self.query.offset(self._offset)
+        if self._limit is not None:
+            self.query = self.query.limit(self._limit)
+
     def _build_query(self) -> Query:
         """构建最终查询"""
         self._apply_joins()
@@ -297,6 +306,7 @@ class QueryHelper:
         self._apply_group_by()
         self._apply_having()
         self._apply_order_by()
+        self._apply_limit_offset()
         return self.query
 
     def all(self) -> List[Any]:
@@ -339,11 +349,25 @@ class QueryHelper:
         Returns:
             (结果列表, 总数量)
         """
-        query = self._build_query()
-        total = query.count()
-        offset = (page - 1) * size
-        items = query.offset(offset).limit(size).all()
+        if self._limit is not None or self._offset is not None:
+            query = self._build_query()
+            total = query.count()
+            items = query.all()
+        else:
+            base_query = self._build_query_without_limit_offset()
+            total = base_query.count()
+            offset = (page - 1) * size
+            items = base_query.offset(offset).limit(size).all()
         return items, total
+
+    def _build_query_without_limit_offset(self) -> Query:
+        """构建查询但不应用 LIMIT 和 OFFSET"""
+        self._apply_joins()
+        self._apply_filters()
+        self._apply_group_by()
+        self._apply_having()
+        self._apply_order_by()
+        return self.query
 
     def limit(self, limit: int) -> 'QueryHelper':
         """
@@ -355,7 +379,7 @@ class QueryHelper:
         Returns:
             QueryHelper 实例（链式调用）
         """
-        self.query = self.query.limit(limit)
+        self._limit = limit
         return self
 
     def offset(self, offset: int) -> 'QueryHelper':
@@ -368,7 +392,7 @@ class QueryHelper:
         Returns:
             QueryHelper 实例（链式调用）
         """
-        self.query = self.query.offset(offset)
+        self._offset = offset
         return self
 
     def distinct(self) -> 'QueryHelper':

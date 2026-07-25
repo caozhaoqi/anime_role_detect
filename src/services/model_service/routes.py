@@ -231,7 +231,7 @@ async def predict_image(
             cached_result = redis_cache.get_image_result(image_hash)
             if cached_result:
                 logger.info(f"缓存命中: role={cached_result.get('role')}")
-                return cached_result
+                return {"success": True, "data": cached_result}
 
         image = Image.open(io.BytesIO(content)).convert("RGB")
 
@@ -283,9 +283,10 @@ async def predict_image(
                             if tagger is None:
                                 try:
                                     from src.core.tagging.wd_vit_v3_tagger import WDViTV3Tagger
+                                    WDViTV3Tagger.reset_instance()
                                     tagger = WDViTV3Tagger.get_instance()
                                     loop = asyncio.get_running_loop()
-                                    await loop.run_in_executor(_executor, tagger.load_model)
+                                    await loop.run_in_executor(_executor, lambda: tagger.load_model(force_reload=True))
                                     logger.info("标签生成器同步加载完成")
                                 except Exception as e:
                                     logger.error(f"标签生成器初始化失败: {e}")
@@ -334,7 +335,7 @@ async def predict_image(
                     recognition_service.create_record(record)
                 except Exception as e:
                     logger.warning(f"存储识别记录失败: {e}")
-                return result
+                return {"success": True, "data": result}
 
         from src.core.feature_extraction.feature_extraction import FeatureExtraction
         logger.info("EfficientNet置信度不足，降级到Faiss搜索...")
@@ -353,9 +354,10 @@ async def predict_image(
                     if tagger is None:
                         try:
                             from src.core.tagging.wd_vit_v3_tagger import WDViTV3Tagger
+                            WDViTV3Tagger.reset_instance()
                             tagger = WDViTV3Tagger.get_instance()
                             loop = asyncio.get_running_loop()
-                            await loop.run_in_executor(_executor, tagger.load_model)
+                            await loop.run_in_executor(_executor, lambda: tagger.load_model(force_reload=True))
                             logger.info("标签生成器同步加载完成")
                         except Exception:
                             tagger = None
@@ -437,12 +439,12 @@ async def predict_image(
         except Exception as e:
             logger.warning(f"存储识别记录失败: {e}")
 
-        return result
+        return {"success": True, "data": result}
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"模型预测失败: {e}")
-        return {"role": "unknown", "similarity": 0.0, "tags": ["anime", "digital art"]}
+        return {"success": false, "message": "模型预测失败", "data": {"role": "unknown", "similarity": 0.0, "tags": ["anime", "digital art"]}}
     finally:
         if temp_path and os.path.exists(temp_path):
             try:
@@ -507,14 +509,14 @@ async def detect_multiple_characters(
         try:
             from src.core.detection.multi_role_detection_enhanced import EnhancedMultiRoleDetector
             detector = EnhancedMultiRoleDetector(
-                model_name="efficientnet_b0",
+                model_name="efficientnet_b3",
                 enable_open_set=True, enable_fuzzy_record=True,
                 unknown_threshold=0.3, fuzzy_threshold=0.5,
             )
             detection_results = detector.detect_roles(temp_path)
         except Exception:
             from src.core.detection.multi_role_detection import MultiRoleDetector
-            detector = MultiRoleDetector(model_name="efficientnet_b0")
+            detector = MultiRoleDetector(model_name="efficientnet_b3")
             detection_results = detector.detect_roles(temp_path)
 
         if feature_extractor is None:
@@ -523,10 +525,13 @@ async def detect_multiple_characters(
 
         if tagger is None:
             from src.core.tagging.wd_vit_v3_tagger import WDViTV3Tagger
+            WDViTV3Tagger.reset_instance()
             tagger = WDViTV3Tagger.get_instance()
-            tagger.load_model()
+            tagger.load_model(force_reload=True)
 
         results = []
+        full_image = Image.open(temp_path).convert("RGB")
+        
         for i, detection in enumerate(detection_results[:max_characters]):
             role = detection.get("role", "unknown")
             similarity = detection.get("similarity", 0.0)
@@ -535,7 +540,15 @@ async def detect_multiple_characters(
             attributes = detection.get("attributes", [])
 
             if not attributes and tagger:
+                # 从检测结果获取裁剪图像，或根据 bbox 重新裁剪
                 role_image = detection.get("cropped_image")
+                if role_image is None and bbox:
+                    try:
+                        x1, y1, x2, y2 = bbox.get("x1", 0), bbox.get("y1", 0), bbox.get("x2", 0), bbox.get("y2", 0)
+                        role_image = full_image.crop((x1, y1, x2, y2))
+                    except Exception:
+                        pass
+                
                 if role_image is not None:
                     attributes = tagger.generate_tags(role_image)
 
@@ -560,7 +573,7 @@ async def detect_multiple_characters(
         multi_image = Image.open(temp_path).convert("RGB")
         text_detections, nsfw_result = await _run_ocr_and_nsfw(multi_image, content, file.filename)
 
-        return {"roles": results, "count": len(results), "text_detections": text_detections, "nsfw": nsfw_result}
+        return {"success": True, "data": {"roles": results, "count": len(results), "text_detections": text_detections, "nsfw": nsfw_result}}
     except HTTPException:
         raise
     except Exception as e:
@@ -617,9 +630,12 @@ async def detect_with_yolo(
             })
 
         return {
-            "roles": response_results, "count": len(response_results),
-            "image_size": results.get("image_size", []),
-            "detector": "YOLOv8 + EfficientNet", "model": yolo_model,
+            "success": True,
+            "data": {
+                "roles": response_results, "count": len(response_results),
+                "image_size": results.get("image_size", []),
+                "detector": "YOLOv8 + EfficientNet", "model": yolo_model,
+            }
         }
     except Exception as e:
         logger.error(f"YOLOv8 多目标检测失败: {e}")
@@ -684,7 +700,7 @@ async def batch_predict_images(
                 results.append({"filename": file.filename, "error": str(e)})
 
         if not valid_items:
-            return {"results": results, "count": len(results)}
+            return {"success": True, "results": results, "count": len(results)}
 
         # 确保预处理器已初始化
         if preprocessor is None:
@@ -722,7 +738,7 @@ async def batch_predict_images(
             batch_meta.append((file, image, attributes, processed))
 
         if not batch_images:
-            return {"results": results, "count": len(results)}
+            return {"success": True, "results": results, "count": len(results)}
 
         # P1-1: 使用 EfficientNet 批量推理
         global _efficientnet_classifier
@@ -798,7 +814,7 @@ async def batch_predict_images(
                     logger.error(f"处理文件 {file.filename} 失败: {e}")
                     results.append({"filename": file.filename, "error": str(e)})
 
-        return {"results": results, "count": len(results)}
+        return {"success": True, "results": results, "count": len(results)}
     except Exception as e:
         logger.error(f"批量预测失败: {e}")
         raise HTTPException(status_code=500, detail=f"批量预测失败: {e}")
