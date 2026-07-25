@@ -8,6 +8,7 @@ import os
 import sys
 import traceback
 import asyncio
+import time
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, RedirectResponse, HTMLResponse, StreamingResponse
@@ -68,6 +69,66 @@ try:
     instrument_app(app, service_name="api-gateway")
 except Exception as e:
     logger.warning(f"OpenTelemetry 初始化失败: {e}")
+
+# 请求追踪中间件 - 自动记录所有请求
+try:
+    from src.utils.monitoring.tracing.tracer import Tracer
+    from src.services.support.trace_storage_service import get_trace_storage_service
+    
+    tracer = Tracer(service_name="api-gateway")
+    trace_storage = get_trace_storage_service()
+    
+    @app.middleware("http")
+    async def trace_middleware(request: Request, call_next):
+        trace_id = request.headers.get("X-Trace-ID", "")
+        if not trace_id:
+            import uuid
+            trace_id = str(uuid.uuid4()).replace("-", "")
+        
+        start_time = time.time()
+        response = None
+        status = "OK"
+        
+        try:
+            response = await call_next(request)
+            status = "OK" if response.status_code < 400 else "ERROR"
+            return response
+        except Exception as e:
+            status = "ERROR"
+            raise
+        finally:
+            if response:
+                end_time = time.time()
+                duration_ms = round((end_time - start_time) * 1000, 2)
+                endpoint = f"{request.method} {request.url.path}"
+                
+                try:
+                    from src.utils.monitoring.tracing.trace import Trace
+                    from src.utils.monitoring.tracing.span import Span, SpanContext
+                    
+                    local_trace = Trace(trace_id=trace_id)
+                    local_trace.start_time = start_time
+                    local_trace.end_time = end_time
+                    
+                    context = SpanContext(trace_id=trace_id)
+                    span = Span(name=endpoint, context=context, start_time=start_time)
+                    span.end_time = end_time
+                    span.attributes = {
+                        "http.method": request.method,
+                        "http.path": request.url.path,
+                        "http.status_code": response.status_code,
+                    }
+                    local_trace.add_span(span)
+                    local_trace.status = status
+                    local_trace.duration_ms = duration_ms
+                    
+                    trace_storage.store_trace(local_trace)
+                except Exception as trace_err:
+                    logger.debug(f"存储追踪数据失败: {trace_err}")
+    
+    logger.info("请求追踪中间件已启用")
+except Exception as e:
+    logger.warning(f"请求追踪中间件初始化失败: {e}")
 
 # CORS 配置：生产环境应通过 CORS_ORIGINS 环境变量限定，默认仅允许本地开发
 _cors_origins_env = os.getenv("CORS_ORIGINS", "")

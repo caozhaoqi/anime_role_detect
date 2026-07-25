@@ -95,6 +95,31 @@ async def trace_detail(request: Request, trace_id: str):
     })
 
 
+@router.get("/cleaning", response_class=HTMLResponse)
+async def cleaning_page(request: Request):
+    """数据清理页面"""
+    cleaning_summary, cleaning_tasks = await _get_cleaning_progress()
+
+    nav_items = [
+        {"url": "/monitor/", "label": "仪表盘", "icon": "fa-tachometer-alt", "active": False},
+        {"url": "/monitor/services", "label": "服务状态", "icon": "fa-server", "active": False},
+        {"url": "/monitor/tracing", "label": "链路追踪", "icon": "fa-link", "active": False},
+        {"url": "/monitor/cleaning", "label": "数据清理", "icon": "fa-trash-alt", "active": True},
+        {"url": "/logs/", "label": "日志查看", "icon": "fa-file-alt", "active": False},
+    ]
+
+    return templates.TemplateResponse("monitor/cleaning.html", {
+        "request": request,
+        "title": "数据清理",
+        "page_title": "数据清理",
+        "page_description": "查看和管理数据清理进度",
+        "nav_items": nav_items,
+        "last_update": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "cleaning_summary": cleaning_summary,
+        "cleaning_tasks": cleaning_tasks,
+    })
+
+
 @router.get("/cleaning/progress", response_class=JSONResponse)
 async def cleaning_progress():
     """获取数据清理进度"""
@@ -201,7 +226,34 @@ async def _get_recent_traces(limit: int = 10):
         from src.services.support.trace_storage_service import get_trace_storage_service
         storage = get_trace_storage_service()
         traces = storage.get_recent_traces(limit)
-        return traces
+        
+        result = []
+        for trace in traces:
+            endpoint = "未知端点"
+            timestamp = ""
+            
+            if isinstance(trace, dict):
+                if trace.get("endpoint"):
+                    endpoint = trace["endpoint"]
+                elif trace.get("spans"):
+                    for span in trace["spans"]:
+                        attrs = span.get("attributes", {})
+                        method = attrs.get("http.method", "")
+                        path = attrs.get("http.path", "")
+                        if method and path:
+                            endpoint = f"{method} {path}"
+                            break
+                    if endpoint == "未知端点" and trace["spans"]:
+                        endpoint = trace["spans"][0].get("name", "未知端点")
+                
+                if trace.get("start_time"):
+                    timestamp = datetime.fromtimestamp(trace["start_time"]).strftime("%Y-%m-%d %H:%M:%S")
+                
+                trace["endpoint"] = endpoint
+                trace["timestamp"] = timestamp
+            result.append(trace)
+        
+        return result
     except Exception:
         return []
 

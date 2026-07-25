@@ -144,6 +144,12 @@ run/supervisord.conf
 clip_cache/
 
 .trae/rules/CLAUDE.md
+.trae
+.pytest_cache
+.claude/
+.claude
+anime_role_detect_logs
+run
 
 docs/todo.md
 
@@ -159,3 +165,4 @@ run/supervisord.pid
 models/
 .gstack/
 deliverables/
+outputs/
