@@ -110,20 +110,5 @@ spec:
     requests:
       storage: 5Gi
 
----
-# --- 日志 ---
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: log-data
-  namespace: anime-role-detect
-  labels:
-    app.kubernetes.io/name: log-data
-    app.kubernetes.io/part-of: ardc-storage
-spec:
-  accessModes:
-  - ReadWriteOnce
-  resources:
-    requests:
-      storage: 10Gi
+
 
