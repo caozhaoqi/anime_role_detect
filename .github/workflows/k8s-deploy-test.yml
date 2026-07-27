@@ -320,33 +320,29 @@ jobs:
           echo "=== Pod Status Summary ==="
           kubectl get pods -n anime-role-detect --no-headers | awk '{print $1, $2, $3, $4}'
 
-          # Get all non-Running pods
-          failed_pods=$(kubectl get pods -n anime-role-detect --field-selector="status.phase!=Running" -o name 2>/dev/null || true)
-
-          # Also get pods with restarts > 0
-          restarted_pods=$(kubectl get pods -n anime-role-detect -o jsonpath='{range .items[?(@.status.containerStatuses[0].restartCount>0)]}{.metadata.name}{end}' 2>/dev/null || true)
-
-          all_pods=$(echo -e "$failed_pods\n$restarted_pods" | sort -u | grep -v '^$')
+          # Get all pods with issues: non-Running phase or restarts > 0
+          all_pods=$(kubectl get pods -n anime-role-detect -o jsonpath='{range .items[?(@.status.phase!="Running" || @.status.containerStatuses[0].restartCount>0)]}{.metadata.name}{"\n"}{end}' 2>/dev/null || true)
 
           if [ -n "$all_pods" ]; then
             echo ""
             echo "=== Problematic pods ==="
             echo "$all_pods"
-            for pod in $all_pods; do
+            while IFS= read -r pod; do
+              [ -z "$pod" ] && continue
               echo ""
               echo "=============================================="
               echo "=== Describe: $pod ==="
               echo "=============================================="
-              kubectl describe "pod/$pod" -n anime-role-detect 2>/dev/null | tail -30 || true
+              kubectl describe "pod/$pod" -n anime-role-detect 2>/dev/null | tail -40 || true
 
               echo ""
               echo "=== Current logs: $pod ==="
-              kubectl logs "$pod" -n anime-role-detect --tail=50 2>/dev/null || true
+              kubectl logs "$pod" -n anime-role-detect --tail=80 2>/dev/null || true
 
               echo ""
               echo "=== Previous logs (crashed container): $pod ==="
-              kubectl logs "$pod" -n anime-role-detect --previous --tail=50 2>/dev/null || echo "(no previous container logs)"
-            done
+              kubectl logs "$pod" -n anime-role-detect --previous --tail=80 2>/dev/null || echo "(no previous container logs)"
+            done <<< "$all_pods"
           else
             echo ""
             echo "All pods are running with 0 restarts!"
