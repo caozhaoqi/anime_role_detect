@@ -135,8 +135,8 @@ spec:
     app: multimedia-service
   ports:
   - name: http
-    port: 8000
-    targetPort: 8000
+    port: 8002
+    targetPort: 8002
   type: ClusterIP
 ---
 apiVersion: v1
@@ -175,63 +175,5 @@ spec:
     targetPort: 3000
     nodePort: 30000
   type: NodePort
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: monitor-dashboard
-  namespace: anime-role-detect
-  labels:
-    app: monitor-dashboard
-    app.kubernetes.io/name: monitor-dashboard
-    app.kubernetes.io/part-of: ardc-app
-spec:
-  selector:
-    app: monitor-dashboard
-  ports:
-  - name: http
-    port: 8000
-    targetPort: 8000
-  type: ClusterIP
 
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: elasticsearch
-  namespace: anime-role-detect
-  labels:
-    app: elasticsearch
-    app.kubernetes.io/name: elasticsearch
-    app.kubernetes.io/part-of: ardc-monitoring
-spec:
-  selector:
-    app: elasticsearch
-  ports:
-  - name: http
-    port: 9200
-    targetPort: 9200
-  - name: transport
-    port: 9300
-    targetPort: 9300
-  type: ClusterIP
 
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: kibana
-  namespace: anime-role-detect
-  labels:
-    app: kibana
-    app.kubernetes.io/name: kibana
-    app.kubernetes.io/part-of: ardc-monitoring
-spec:
-  selector:
-    app: kibana
-  ports:
-  - name: http
-    port: 5601
-    targetPort: 5601
-    nodePort: 30561
-  type: NodePort

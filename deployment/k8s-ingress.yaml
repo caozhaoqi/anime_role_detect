@@ -91,7 +91,7 @@ spec:
           service:
             name: search-service
             port:
-              number: 8000
+              number: 8003
       # --- Multimedia Service ---
       - path: /multimedia
         pathType: Prefix
@@ -99,15 +99,15 @@ spec:
           service:
             name: multimedia-service
             port:
-              number: 8000
-      # --- Monitor Dashboard ---
+              number: 8002
+      # --- Monitor Dashboard (merged into API Gateway) ---
       - path: /monitor
         pathType: Prefix
         backend:
           service:
-            name: monitor-dashboard
+            name: api-gateway
             port:
-              number: 8000
+              number: 8080
       # --- Health Check Endpoints ---
       - path: /health
         pathType: Prefix
@@ -123,4 +123,4 @@ spec:
           service:
             name: api-service
             port:
-              number: 8000
+              number: 8001
