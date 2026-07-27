@@ -69,9 +69,8 @@ logs/
 log_dir/
 
 # Cache
-cache/
-*.cache
 __pycache__/
+src/cache
 
 # Frontend
 frontend/node_modules/

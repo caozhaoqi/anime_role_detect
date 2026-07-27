@@ -20,7 +20,7 @@ on:
 env:
   DOCKER_REGISTRY: ardc
   KIND_CLUSTER_NAME: ardc-test
-  KIND_NODE_IMAGE: kindest/node:v1.36.0
+  KIND_NODE_IMAGE: kindest/node:v1.29.2
 
 jobs:
   build-images:
@@ -30,9 +30,6 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -248,6 +245,26 @@ jobs:
         with:
           cluster_name: ${{ env.KIND_CLUSTER_NAME }}
           config: /tmp/kind-config.yaml
+          node_image: ${{ env.KIND_NODE_IMAGE }}
+
+      - name: Ensure default StorageClass
+        run: |
+          echo "=== Available StorageClasses ==="
+          kubectl get sc
+          # Ensure the default StorageClass has the default annotation
+          DEFAULT_SC=$(kubectl get sc -o jsonpath='{range .items[?(@.metadata.annotations.storageclass\.kubernetes\.io/is-default-class=="true")]}{.metadata.name}{end}')
+          if [ -z "$DEFAULT_SC" ]; then
+            # Pick the first available StorageClass and make it default
+            FIRST_SC=$(kubectl get sc -o jsonpath='{.items[0].metadata.name}')
+            if [ -n "$FIRST_SC" ]; then
+              echo "Setting $FIRST_SC as default StorageClass"
+              kubectl patch sc "$FIRST_SC" -p '{"metadata":{"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'
+            else
+              echo "WARNING: No StorageClass found in cluster!"
+            fi
+          else
+            echo "Default StorageClass: $DEFAULT_SC"
+          fi
 
       - name: Load images to kind cluster
         run: |
@@ -260,45 +277,93 @@ jobs:
         run: |
           kubectl cluster-info
           kubectl get nodes -o wide
+          kubectl get sc
 
-      - name: Apply K8s manifests
+      - name: Apply K8s manifests (CI overlay)
         run: |
-          kubectl apply -f deployment/k8s-deploy.yaml
-          kubectl apply -f deployment/k8s-volumes.yaml
-          kubectl apply -f deployment/k8s-services.yaml
-          kubectl apply -f deployment/k8s-deployments.yaml
+          # Use kustomize CI overlay: reduced resources + emptyDir volumes
+          kubectl apply -k deployment/
+
+      - name: Wait for PVCs to bind
+        run: |
+          # CI overlay uses emptyDir, so no PVCs expected
+          PVC_COUNT=$(kubectl get pvc -n anime-role-detect --no-headers 2>/dev/null | wc -l || echo 0)
+          if [ "$PVC_COUNT" -gt 0 ]; then
+            echo "Waiting for $PVC_COUNT PVCs to be Bound..."
+            kubectl wait --for=jsonpath='{.status.phase}'=Bound pvc --all -n anime-role-detect --timeout=60s || true
+            kubectl get pvc -n anime-role-detect
+          else
+            echo "No PVCs in CI overlay (using emptyDir) — skipping wait"
+          fi
 
       - name: Wait for pods
         run: |
           kubectl wait --for=condition=ready pod -n anime-role-detect --all --timeout=300s || true
 
       - name: Check pod status
+        if: always()
         run: |
           kubectl get pods -n anime-role-detect -o wide
 
-      - name: Check services
+      - name: Check services and PVCs
+        if: always()
         run: |
+          echo "=== Services ==="
           kubectl get svc -n anime-role-detect
-
-      - name: Check PVC
-        run: |
+          echo ""
+          echo "=== PVCs ==="
           kubectl get pvc -n anime-role-detect
 
-      - name: Check logs of failed pods
+      - name: Diagnose failed pods
+        if: always()
         run: |
-          failed_pods=$(kubectl get pods -n anime-role-detect --field-selector="status.phase!=Running" -o name 2>/dev/null || true)
-          if [ -n "$failed_pods" ]; then
-            echo "=== Failed pods ==="
-            echo "$failed_pods"
-            for pod in $failed_pods; do
+          echo "=== Pod Status Summary ==="
+          kubectl get pods -n anime-role-detect --no-headers | awk '{print $1, $2, $3, $4}'
+
+          # Get all pods with issues: non-Running phase or restarts > 0
+          all_pods=$(kubectl get pods -n anime-role-detect -o jsonpath='{range .items[?(@.status.phase!="Running" || @.status.containerStatuses[0].restartCount>0)]}{.metadata.name}{"\n"}{end}' 2>/dev/null || true)
+
+          if [ -n "$all_pods" ]; then
+            echo ""
+            echo "=== Problematic pods ==="
+            echo "$all_pods"
+            while IFS= read -r pod; do
+              [ -z "$pod" ] && continue
               echo ""
-              echo "=== Logs for $pod ==="
-              kubectl logs "$pod" -n anime-role-detect 2>/dev/null || true
-              kubectl describe "$pod" -n anime-role-detect 2>/dev/null || true
-            done
+              echo "=============================================="
+              echo "=== Describe: $pod ==="
+              echo "=============================================="
+              kubectl describe "pod/$pod" -n anime-role-detect 2>/dev/null | tail -40 || true
+
+              echo ""
+              echo "=== Current logs: $pod ==="
+              kubectl logs "$pod" -n anime-role-detect --tail=80 2>/dev/null || true
+
+              echo ""
+              echo "=== Previous logs (crashed container): $pod ==="
+              kubectl logs "$pod" -n anime-role-detect --previous --tail=80 2>/dev/null || echo "(no previous container logs)"
+            done <<< "$all_pods"
           else
-            echo "All pods are running!"
+            echo ""
+            echo "All pods are running with 0 restarts!"
           fi
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "=============================================="
+          echo "=== Deployment Summary ==="
+          echo "=============================================="
+          echo ""
+          echo "Pods:"
+          kubectl get pods -n anime-role-detect --no-headers 2>/dev/null | awk '{printf "  %-40s %s/%s %s (restarts: %s)\n", $1, $2, $3, $5, $4}'
+          echo ""
+          echo "PVCs:"
+          kubectl get pvc -n anime-role-detect --no-headers 2>/dev/null | awk '{printf "  %-30s %s\n", $1, $2}'
+          echo ""
+          ready=$(kubectl get pods -n anime-role-detect --field-selector=status.phase=Running --no-headers 2>/dev/null | grep -c "1/1\|Running" || echo 0)
+          total=$(kubectl get pods -n anime-role-detect --no-headers 2>/dev/null | wc -l || echo 0)
+          echo "Ready: $ready / $total pods"
 
       - name: Cleanup
         if: always()
