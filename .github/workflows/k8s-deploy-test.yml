@@ -282,7 +282,7 @@ jobs:
       - name: Apply K8s manifests (CI overlay)
         run: |
           # Use kustomize CI overlay: reduced resources + emptyDir volumes
-          kubectl apply -k deployment/ci-overlay/
+          kubectl apply -k deployment/
 
       - name: Wait for PVCs to bind
         run: |
