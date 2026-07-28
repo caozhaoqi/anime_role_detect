@@ -35,6 +35,7 @@ class QueryHelper:
         """
         self.session = session
         self.model = model
+        # 干净的初始 Query，只作为 base query 模板，绝不终结方法污染它
         self.query = session.query(model)
         self._filters = []
         self._order_by = []
@@ -43,6 +44,7 @@ class QueryHelper:
         self._having = []
         self._limit = None
         self._offset = None
+        self._distinct = False
 
     def filter(self, **kwargs) -> 'QueryHelper':
         """
@@ -264,50 +266,70 @@ class QueryHelper:
         self._having.append(condition)
         return self
 
-    def _apply_filters(self) -> None:
-        """应用所有过滤条件"""
+    def _apply_distinct(self, query: Query) -> Query:
+        """应用 DISTINCT（返回新的 Query，不原地改写 self.query）"""
+        if self._distinct:
+            query = query.distinct()
+        return query
+
+    def _apply_filters(self, query: Query) -> Query:
+        """应用所有过滤条件（返回新的 Query）"""
         if self._filters:
-            self.query = self.query.filter(and_(*self._filters))
+            query = query.filter(and_(*self._filters))
+        return query
 
-    def _apply_order_by(self) -> None:
-        """应用排序条件"""
+    def _apply_order_by(self, query: Query) -> Query:
+        """应用排序条件（返回新的 Query）"""
         if self._order_by:
-            self.query = self.query.order_by(*self._order_by)
+            query = query.order_by(*self._order_by)
+        return query
 
-    def _apply_joins(self) -> None:
-        """应用 JOIN"""
+    def _apply_joins(self, query: Query) -> Query:
+        """应用 JOIN（返回新的 Query）"""
         for join_model, on_condition, isouter in self._joins:
             if on_condition:
-                self.query = self.query.join(join_model, on_condition, isouter=isouter)
+                query = query.join(join_model, on_condition, isouter=isouter)
             else:
-                self.query = self.query.join(join_model, isouter=isouter)
+                query = query.join(join_model, isouter=isouter)
+        return query
 
-    def _apply_group_by(self) -> None:
-        """应用 GROUP BY"""
+    def _apply_group_by(self, query: Query) -> Query:
+        """应用 GROUP BY（返回新的 Query）"""
         if self._group_by:
-            self.query = self.query.group_by(*self._group_by)
+            query = query.group_by(*self._group_by)
+        return query
 
-    def _apply_having(self) -> None:
-        """应用 HAVING"""
+    def _apply_having(self, query: Query) -> Query:
+        """应用 HAVING（返回新的 Query）"""
         if self._having:
-            self.query = self.query.having(and_(*self._having))
+            query = query.having(and_(*self._having))
+        return query
 
-    def _apply_limit_offset(self) -> None:
-        """应用 LIMIT 和 OFFSET（必须放在最后）"""
+    def _apply_limit_offset(self, query: Query) -> Query:
+        """应用 LIMIT 和 OFFSET（返回新的 Query，必须放在最后）"""
         if self._offset is not None:
-            self.query = self.query.offset(self._offset)
+            query = query.offset(self._offset)
         if self._limit is not None:
-            self.query = self.query.limit(self._limit)
+            query = query.limit(self._limit)
+        return query
 
     def _build_query(self) -> Query:
-        """构建最终查询"""
-        self._apply_joins()
-        self._apply_filters()
-        self._apply_group_by()
-        self._apply_having()
-        self._apply_order_by()
-        self._apply_limit_offset()
-        return self.query
+        """
+        构建最终查询。
+
+        每次构建都从干净的 base query 出发，绝不原地改写 self.query，
+        因此同一个 QueryHelper 实例多次调用终结方法（如先 count 再 all）
+        不会触发 SQLAlchemy 2.0 的 "filter after limit/offset" 防护报错。
+        """
+        query = self.session.query(self.model)
+        query = self._apply_distinct(query)
+        query = self._apply_joins(query)
+        query = self._apply_filters(query)
+        query = self._apply_group_by(query)
+        query = self._apply_having(query)
+        query = self._apply_order_by(query)
+        query = self._apply_limit_offset(query)
+        return query
 
     def all(self) -> List[Any]:
         """执行查询，返回所有结果"""
@@ -361,13 +383,15 @@ class QueryHelper:
         return items, total
 
     def _build_query_without_limit_offset(self) -> Query:
-        """构建查询但不应用 LIMIT 和 OFFSET"""
-        self._apply_joins()
-        self._apply_filters()
-        self._apply_group_by()
-        self._apply_having()
-        self._apply_order_by()
-        return self.query
+        """构建查询但不应用 LIMIT 和 OFFSET（同样从干净 base query 出发）"""
+        query = self.session.query(self.model)
+        query = self._apply_distinct(query)
+        query = self._apply_joins(query)
+        query = self._apply_filters(query)
+        query = self._apply_group_by(query)
+        query = self._apply_having(query)
+        query = self._apply_order_by(query)
+        return query
 
     def limit(self, limit: int) -> 'QueryHelper':
         """
@@ -397,12 +421,12 @@ class QueryHelper:
 
     def distinct(self) -> 'QueryHelper':
         """
-        添加 DISTINCT
+        添加 DISTINCT（仅记录状态，构建时才应用，避免污染 self.query）
 
         Returns:
             QueryHelper 实例（链式调用）
         """
-        self.query = self.query.distinct()
+        self._distinct = True
         return self
 
     def get_query(self) -> Query:

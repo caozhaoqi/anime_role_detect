@@ -116,7 +116,9 @@ class UserModel(Base if HAS_SQLALCHEMY else object):
     def verify_password(self, password: str) -> bool:
         """验证密码"""
         if not HAS_BCRYPT:
-            return False
+            # bcrypt 不可用：set_password 会以明文存储密码，此处做明文比较以保持一致，
+            # 否则会出现「注册成功但登录永远失败」的认证死锁。
+            return self.password_hash == password
         try:
             return bcrypt.checkpw(password.encode('utf-8'), self.password_hash.encode('utf-8'))
         except Exception:

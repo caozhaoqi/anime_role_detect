@@ -40,11 +40,25 @@ async def readiness_check():
     checks = {"api": True}
     ready = True
 
-    # 检查模型是否已加载
+    # 检查模型是否已就绪
+    # 当 USE_MODEL_SERVICE=True 时，api-service 不本地加载模型，而是依赖独立部署的
+    # model-service；此时应检查 model-service 的可达性/就绪状态，而非本地 _model_cache。
     try:
-        from src.services.processor.model_loader import _model_cache
-        checks["model"] = bool(_model_cache)
-        if not _model_cache:
+        from src.core.config.service_config import ServiceConfig
+
+        _config = ServiceConfig()
+        if _config.USE_MODEL_SERVICE:
+            import urllib.request
+
+            ms_ready_url = _config.MODEL_SERVICE_URL + "/ready"
+            _req = urllib.request.Request(ms_ready_url, method="GET")
+            with urllib.request.urlopen(_req, timeout=1.5) as _resp:
+                checks["model"] = _resp.status == 200
+        else:
+            from src.services.processor.model_loader import _model_cache
+
+            checks["model"] = bool(_model_cache)
+        if not checks["model"]:
             ready = False
     except Exception:
         checks["model"] = False

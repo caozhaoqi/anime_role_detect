@@ -27,6 +27,19 @@ from .feature_processor import process_image_features
 
 logger = get_logger("image_processor")
 
+# [GUARD] 本地重型 OCR/NSFW 推理回退开关
+# 默认(auto)：当 USE_MODEL_SERVICE=True 时禁用本地回退，避免触发 EasyOCR/TF 等重型
+# 原生库的循环导入，导致 C 栈溢出(SIGABRT) 杀死整个 api-service 进程。
+# 设为 "true" 可强制启用本地回退（需确保运行环境原生库可正常加载）；"false" 始终禁用。
+_LOCAL_OCR_NSFW = os.environ.get("ENABLE_LOCAL_OCR_NSFW", "auto").lower()
+_USE_MODEL_SERVICE = os.environ.get("USE_MODEL_SERVICE", "True").lower() == "true"
+if _LOCAL_OCR_NSFW == "true":
+    LOCAL_INFERENCE_ENABLED = True
+elif _LOCAL_OCR_NSFW == "false":
+    LOCAL_INFERENCE_ENABLED = False
+else:  # auto
+    LOCAL_INFERENCE_ENABLED = not _USE_MODEL_SERVICE
+
 
 class HttpClientManager:
     """aiohttp.ClientSession 全局单例管理器（P1-4）
@@ -132,11 +145,13 @@ async def _call_model_service(file, content, model_name, multi_role=False):
             response.raise_for_status()
             model_result = await response.json()
             logger.info(f"模型服务返回数据: {model_result}")
+            # 解包 model-service 的 {success, data} 信封，统一从 data 取值
+            data = model_result.get("data", model_result) if isinstance(model_result, dict) else model_result
 
         if multi_role:
             # 处理多角色结果
-            roles = model_result.get("roles", [])
-            count = model_result.get("count", 0)
+            roles = data.get("roles", [])
+            count = data.get("count", 0)
 
             # 处理角色信息，确保numpy类型转换为Python原生类型
             processed_roles = []
@@ -163,33 +178,44 @@ async def _call_model_service(file, content, model_name, multi_role=False):
                 )
 
             # T03: 优先使用 Model Service 返回的 OCR + NSFW 结果，避免重复推理
-            text_detections = model_result.get("text_detections", None)
-            nsfw_result = model_result.get("nsfw", None)
-            keypoints = model_result.get("keypoints", [])
+            text_detections = data.get("text_detections", None)
+            nsfw_result = data.get("nsfw", None)
+            keypoints = data.get("keypoints", [])
             ai_predicted_role = "unknown"
 
             # 向后兼容：如果 Model Service 未返回 text_detections 或 nsfw，降级到本地处理
             if text_detections is None or nsfw_result is None:
-                temp_path = _safe_temp_path(file.filename, "multi")
-                with open(temp_path, "wb") as f:
-                    f.write(content)
+                if LOCAL_INFERENCE_ENABLED:
+                    temp_path = _safe_temp_path(file.filename, "multi")
+                    with open(temp_path, "wb") as f:
+                        f.write(content)
 
-                if text_detections is None:
-                    text_detections, kp, ai_predicted_role = process_image_features(
-                        temp_path, file.content_type, []
-                    )
-                    if not keypoints:
-                        keypoints = kp
+                    if text_detections is None:
+                        text_detections, kp, ai_predicted_role = process_image_features(
+                            temp_path, file.content_type, []
+                        )
+                        if not keypoints:
+                            keypoints = kp
+                    else:
+                        # 仍需 keypoints 和 ai_predicted_role
+                        _, local_kp, ai_predicted_role = process_image_features(
+                            temp_path, file.content_type, []
+                        )
+                        if not keypoints:
+                            keypoints = local_kp
+
+                    if nsfw_result is None:
+                        nsfw_result = detect_nsfw(temp_path)
                 else:
-                    # 仍需 keypoints 和 ai_predicted_role
-                    _, local_kp, ai_predicted_role = process_image_features(
-                        temp_path, file.content_type, []
+                    # [GUARD] 本地重型推理回退禁用：使用安全默认值避免进程崩溃
+                    logger.warning(
+                        "[GUARD] 本地 OCR/NSFW 重型推理回退已禁用(ENABLE_LOCAL_OCR_NSFW=%s)，"
+                        "多角色场景使用安全默认值", _LOCAL_OCR_NSFW
                     )
-                    if not keypoints:
-                        keypoints = local_kp
-
-                if nsfw_result is None:
-                    nsfw_result = detect_nsfw(temp_path)
+                    if text_detections is None:
+                        text_detections = []
+                    if nsfw_result is None:
+                        nsfw_result = {"is_nsfw": False, "score": 0.0, "source": "skipped_local_disabled"}
             else:
                 logger.info("使用 Model Service 返回的 OCR + NSFW 结果，跳过本地重复推理")
 
@@ -205,20 +231,20 @@ async def _call_model_service(file, content, model_name, multi_role=False):
         else:
             # 处理单角色结果
             # 处理结果
-            role = model_result.get("role", "unknown")
-            similarity = model_result.get("similarity", 0.0)
-            attributes = model_result.get("attributes", [])
-            tags = model_result.get("tags", [])
-            feature = model_result.get("feature", None)
+            role = data.get("role", "unknown")
+            similarity = data.get("similarity", 0.0)
+            attributes = data.get("attributes", [])
+            tags = data.get("tags", [])
+            feature = data.get("feature", None)
 
             logger.info(
                 f"模型服务返回结果: role={role}, similarity={similarity}, has_feature={feature is not None}"
             )
 
             # T03: 优先使用 Model Service 返回的 OCR + NSFW 结果
-            ms_text_detections = model_result.get("text_detections", None)
-            ms_nsfw = model_result.get("nsfw", None)
-            keypoints = model_result.get("keypoints", [])
+            ms_text_detections = data.get("text_detections", None)
+            ms_nsfw = data.get("nsfw", None)
+            keypoints = data.get("keypoints", [])
             ai_predicted_role = "unknown"
 
             # 保存临时文件（用于本地模型分类或降级处理）
@@ -268,14 +294,36 @@ async def _call_model_service(file, content, model_name, multi_role=False):
                 text_detections = ms_text_detections
                 nsfw_result = ms_nsfw
                 logger.info("使用 Model Service 返回的 OCR + NSFW 结果，跳过本地重复推理")
+            elif not LOCAL_INFERENCE_ENABLED:
+                # [GUARD] 本地重型 OCR/NSFW 推理回退已禁用：避免触发 EasyOCR/TF 等重型原生库
+                # 的循环导入导致 C 栈溢出(SIGABRT) 杀死整个 api-service 进程。
+                text_detections = ms_text_detections if ms_text_detections is not None else []
+                nsfw_result = (
+                    ms_nsfw
+                    if ms_nsfw is not None
+                    else {"is_nsfw": False, "score": 0.0, "source": "skipped_local_disabled"}
+                )
+                logger.warning(
+                    "[GUARD] 本地 OCR/NSFW 重型推理回退已禁用(ENABLE_LOCAL_OCR_NSFW=%s)，"
+                    "使用安全默认值以避免进程崩溃", _LOCAL_OCR_NSFW
+                )
             else:
                 # 向后兼容：Model Service 未返回 text_detections 或 nsfw，降级到本地处理
-                text_detections, local_kp, ai_predicted_role = process_image_features(
-                    temp_path, file.content_type, attributes
-                )
-                if not keypoints:
-                    keypoints = local_kp
-                nsfw_result = detect_nsfw(temp_path)
+                try:
+                    text_detections, local_kp, ai_predicted_role = process_image_features(
+                        temp_path, file.content_type, attributes
+                    )
+                    if not keypoints:
+                        keypoints = local_kp
+                    nsfw_result = detect_nsfw(temp_path)
+                except Exception as e:
+                    logger.warning(f"本地 OCR/NSFW 推理失败，使用安全默认值: {e}")
+                    text_detections = ms_text_detections if ms_text_detections is not None else []
+                    nsfw_result = (
+                        ms_nsfw
+                        if ms_nsfw is not None
+                        else {"is_nsfw": False, "score": 0.0, "source": "local_error"}
+                    )
 
             # 使用AI预测的角色名作为主要角色（如果模型服务返回unknown）
             final_role = role if role != "unknown" else ai_predicted_role or "unknown"

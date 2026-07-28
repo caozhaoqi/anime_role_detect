@@ -445,6 +445,10 @@ class FeatureExtraction:
                     img = img.detach()
                 # 转换为numpy数组
                 img_array = img.numpy()
+                # 去除可能的 batch 维度 (N, C, H, W) -> (C, H, W)
+                # 预处理器输出为 4D 张量，extract_features 仅处理单张 3D 张量
+                if img_array.ndim == 4:
+                    img_array = img_array[0]
                 # 如果形状是 (C, H, W)，转换为 (H, W, C)
                 if img_array.ndim == 3 and img_array.shape[0] in [1, 3]:
                     img_array = img_array.transpose(1, 2, 0)
