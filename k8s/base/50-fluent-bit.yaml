@@ -1,0 +1,140 @@
+---
+# ============================================================
+# Fluent-bit DaemonSet — 集中式日志采集
+# 参考 K8s 文档 fluent-bit → ES → kibana 架构
+# 每个节点一个 Pod，自动采集该节点所有容器的 stdout 日志
+# ============================================================
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: fluent-bit
+  namespace: anime-role-detect
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: fluent-bit
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "namespaces", "nodes"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: fluent-bit
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: fluent-bit
+subjects:
+  - kind: ServiceAccount
+    name: fluent-bit
+    namespace: anime-role-detect
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fluent-bit-config
+  namespace: anime-role-detect
+data:
+  fluent-bit.conf: |
+    [SERVICE]
+        Flush         5
+        Log_Level     info
+        Daemon        off
+        Parsers_File  /fluent-bit/etc/parsers.conf
+        HTTP_Server   On
+        HTTP_Listen   0.0.0.0
+        HTTP_Port     2020
+
+    [INPUT]
+        Name              tail
+        Path              /var/log/containers/*.log
+        Parser            docker
+        Tag               k8s.*
+        Refresh_Interval  5
+        Mem_Buf_Limit     20MB
+        Skip_Long_Lines   On
+        DB                /fluent-bit/state/tail.db
+
+    [FILTER]
+        Name           kubernetes
+        Match          k8s.*
+        Kube_URL       https://kubernetes.default.svc:443
+        Merge_Log      On
+        K8S-Logging.Parser  On
+        K8S-Logging.Exclude On
+
+    [OUTPUT]
+        Name          stdout
+        Match         k8s.*
+        Format        json_lines
+
+    # 生产环境: 取消注释以输出到 ES
+    # [OUTPUT]
+    #     Name          es
+    #     Match         k8s.*
+    #     Host          elasticsearch
+    #     Port          9200
+    #     Index         anime-role-detect
+    #     Type          _doc
+    #     Replace_Dots  On
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: fluent-bit
+  namespace: anime-role-detect
+  labels:
+    app: fluent-bit
+    tier: logging
+spec:
+  selector:
+    matchLabels:
+      app: fluent-bit
+  template:
+    metadata:
+      labels:
+        app: fluent-bit
+        tier: logging
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/path: "/api/v1/metrics"
+        prometheus.io/port: "2020"
+    spec:
+      serviceAccountName: fluent-bit
+      containers:
+        - name: fluent-bit
+          image: fluent/fluent-bit:3.0
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "25m"
+            limits:
+              memory: "128Mi"
+              cpu: "100m"
+          volumeMounts:
+            - name: varlog
+              mountPath: /var/log
+              readOnly: true
+            - name: varlibdockercontainers
+              mountPath: /var/lib/docker/containers
+              readOnly: true
+            - name: config
+              mountPath: /fluent-bit/etc/fluent-bit.conf
+              subPath: fluent-bit.conf
+            - name: state
+              mountPath: /fluent-bit/state
+      volumes:
+        - name: varlog
+          hostPath:
+            path: /var/log
+        - name: varlibdockercontainers
+          hostPath:
+            path: /var/lib/docker/containers
+        - name: config
+          configMap:
+            name: fluent-bit-config
+        - name: state
+          emptyDir: {}

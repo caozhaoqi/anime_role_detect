@@ -1,0 +1,206 @@
+---
+# ============================================================
+# Workers — 无状态后台处理进程
+# 参考 K8s 文档 Celery 实践：按任务类型区分，单镜像靠环境变量区分角色
+# ============================================================
+
+# --- Search Worker --- CLIP/FAISS 索引构建 + 检索任务
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: search-worker
+  namespace: anime-role-detect
+  labels:
+    app: search-worker
+    tier: worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: search-worker
+  template:
+    metadata:
+      labels:
+        app: search-worker
+        tier: worker
+    spec:
+      containers:
+        - name: search-worker
+          image: ardc/search-worker:latest
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: ard-config
+          env:
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+          resources:
+            requests:
+              memory: "768Mi"
+              cpu: "250m"
+            limits:
+              memory: "1.5Gi"
+              cpu: "500m"
+          # Worker 无 HTTP 端口，用 exec 探针检查进程存活
+          livenessProbe:
+            exec:
+              command: ["pgrep", "-f", "search.worker"]
+            initialDelaySeconds: 30
+            periodSeconds: 30
+---
+# --- Inference Worker --- 消费推理队列 (high/low 优先级)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: inference-worker
+  namespace: anime-role-detect
+  labels:
+    app: inference-worker
+    tier: worker
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: inference-worker
+  template:
+    metadata:
+      labels:
+        app: inference-worker
+        tier: worker
+    spec:
+      containers:
+        - name: inference-worker
+          image: ardc/inference-worker:latest
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: ard-config
+          env:
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+          resources:
+            requests:
+              memory: "768Mi"
+              cpu: "250m"
+            limits:
+              memory: "1.5Gi"
+              cpu: "500m"
+          livenessProbe:
+            exec:
+              command: ["pgrep", "-f", "inference.worker"]
+            initialDelaySeconds: 30
+            periodSeconds: 30
+---
+# --- Celery Worker --- 通用异步任务 (image/video/model 队列)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: celery-worker
+  namespace: anime-role-detect
+  labels:
+    app: celery-worker
+    tier: worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: celery-worker
+  template:
+    metadata:
+      labels:
+        app: celery-worker
+        tier: worker
+    spec:
+      containers:
+        - name: celery-worker
+          image: ardc/api-service:latest
+          imagePullPolicy: IfNotPresent
+          command: ["celery", "-A", "src.core.celery_config", "worker", "--loglevel=info", "-Q", "image_queue,video_queue,model_queue"]
+          envFrom:
+            - configMapRef:
+                name: ard-config
+            - secretRef:
+                name: ard-secret
+          env:
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "250m"
+          livenessProbe:
+            exec:
+              command: ["pgrep", "-f", "celery.*worker"]
+            initialDelaySeconds: 30
+            periodSeconds: 30
+---
+# --- Celery Beat --- 定时调度（模型预热、健康报告滚动等）
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: celery-beat
+  namespace: anime-role-detect
+  labels:
+    app: celery-beat
+    tier: worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: celery-beat
+  template:
+    metadata:
+      labels:
+        app: celery-beat
+        tier: worker
+    spec:
+      containers:
+        - name: celery-beat
+          image: ardc/api-service:latest
+          imagePullPolicy: IfNotPresent
+          command: ["celery", "-A", "src.core.celery_config", "beat", "--loglevel=info"]
+          envFrom:
+            - configMapRef:
+                name: ard-config
+          env:
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "50m"
+            limits:
+              memory: "256Mi"
+              cpu: "100m"
+          livenessProbe:
+            exec:
+              command: ["pgrep", "-f", "celery.*beat"]
+            initialDelaySeconds: 30
+            periodSeconds: 30

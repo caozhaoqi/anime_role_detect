@@ -1,18 +1,20 @@
 name: K8s Deploy Test
 
-on:
+  on:
   push:
     branches:
       - main
     paths:
-      - 'deployment/**'
+      - 'k8s/**'
+      - 'deployment/Dockerfile.*'
       - 'scripts/k8s/**'
       - '.github/workflows/k8s-deploy-test.yml'
   pull_request:
     branches:
       - main
     paths:
-      - 'deployment/**'
+      - 'k8s/**'
+      - 'deployment/Dockerfile.*'
       - 'scripts/k8s/**'
       - '.github/workflows/k8s-deploy-test.yml'
   workflow_dispatch:
@@ -281,8 +283,8 @@ jobs:
 
       - name: Apply K8s manifests (CI overlay)
         run: |
-          # Use kustomize CI overlay: reduced resources + emptyDir volumes
-          kubectl apply -k deployment/
+          # Use kustomize CI overlay: reduced resources + emptyDir volumes (kind single-node)
+          kubectl apply -k k8s/overlays/ci/
 
       - name: Wait for PVCs to bind
         run: |

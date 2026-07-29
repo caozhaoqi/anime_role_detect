@@ -1,20 +1,9 @@
 # 1. 强制创建命名空间（防止 YAML 文件中没有包含创建逻辑）
 kubectl create ns anime-role-detect || true
 
-# 2. 部署持久化存储卷 (Volumes)
-kubectl apply -f ../../deployment/k8s-volumes.yaml
-
-# 3. 部署服务发现与网络端口 (Services)
-kubectl apply -f ../../deployment/k8s-services.yaml
-
-# 4. 部署应用容器核心 (Deployments)
-kubectl apply -f ../../deployment/k8s-deployments.yaml
-
-# 5. 部署其他外围组件（水平伸缩 HPA、路由 Ingress、中断预算 PDB）
-kubectl apply -f ../../deployment/k8s-hpa.yaml
-kubectl apply -f ../../deployment/k8s-ingress.yaml
-kubectl apply -f ../../deployment/k8s-pdb.yaml
-
+# 2. 部署全部 K8s 资源（权威源：k8s/base/）
+#    旧 deployment/k8s-*.yaml 已归档至 deployment/_legacy_backup/
+kubectl apply -k ../../k8s/base/
 
 
 

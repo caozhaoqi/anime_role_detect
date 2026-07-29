@@ -51,6 +51,33 @@ except ImportError as e:
     HAS_DATABASE = False
     logger.warning(f"数据库模块不可用: {e}")
 
+try:
+    from sqlalchemy.exc import OperationalError, InterfaceError
+except ImportError:
+    # SQLAlchemy 不可用时退化为通用异常，避免导入错误
+    OperationalError = InterfaceError = Exception
+
+
+def _is_mysql_connection_failure(exc: Exception) -> bool:
+    """判断异常是否代表 MySQL 不可达（连接/驱动/超时/鉴权等），应触发降级。
+
+    注意：不能用固定字符串匹配（如仅 'Lost connection'/'Can't connect'），
+    否则在驱动缺失（No module named 'pymysql'）、DNS 失败、连接超时、鉴权失败等
+    场景下无法触发降级，导致「写入走 SQLite 降级、读取仍查 MySQL 而返回 None」
+    的认证不一致（注册成功但登录失败）。
+    """
+    if isinstance(exc, (OperationalError, InterfaceError)):
+        return True
+    msg = str(exc)
+    keywords = (
+        "Lost connection", "Can't connect", "Can not connect", "could not connect",
+        "OperationalError", "InterfaceError", "2003", "2006", "2013",
+        "pymysql", "MySQLdb", "No module named", "ModuleNotFoundError",
+        "timed out", "timeout", "refused", "Unknown MySQL server",
+        "Access denied",
+    )
+    return any(k in msg for k in keywords)
+
 
 class SQLiteUserStore:
     """SQLite 本地用户存储 — 作为 MySQL 不可用时的降级方案"""
@@ -389,7 +416,7 @@ class AuthService:
                     }
             except Exception as e:
                 logger.error(f"MySQL 查询用户失败: {e}")
-                if "Lost connection" in str(e) or "Can't connect" in str(e):
+                if _is_mysql_connection_failure(e):
                     logger.warning("[DEGRADE] MySQL 不可达，尝试降级到 SQLite")
                     # 尝试降级到 SQLite
                     if self._try_downgrade_to_sqlite():
@@ -585,19 +612,37 @@ class AuthService:
                     self._update_user_login_info(user_data, success=False)
                     return None
             else:
-                # SQLite 用户 — verify_password 内部已更新登录统计
-                result = self.sqlite_store.verify_password(
-                    username, password, self._verify_password
-                ) if self.sqlite_store else None
-                if result and result.get("status") == "ok":
-                    return {
-                        "id": user_data.get("id"),
-                        "username": username,
-                        "role": user_data.get("role"),
-                        "is_superuser": user_data.get("is_superuser", False),
-                    }
-                elif result and result.get("status") == "locked":
-                    return None
+                # SQLite 用户 或 dual 模式下记录实际落在 SQLite（sqlite_store 可能未实例化）
+                if self.sqlite_store:
+                    result = self.sqlite_store.verify_password(
+                        username, password, self._verify_password
+                    )
+                    if result and result.get("status") == "ok":
+                        return {
+                            "id": user_data.get("id"),
+                            "username": username,
+                            "role": user_data.get("role"),
+                            "is_superuser": user_data.get("is_superuser", False),
+                        }
+                    elif result and result.get("status") == "locked":
+                        return None
+                    else:
+                        return None
+                elif mysql_obj is not None:
+                    # dual 模式：记录实际写入 SQLite（get_db 降级），但 storage_mode 仍为 mysql 且
+                    # sqlite_store 未实例化。直接调用 UserModel.verify_password 校验——该方法已正确
+                    # 处理 bcrypt 与明文降级两种哈希方案，避免因读取错误字段（password_hash vs password）导致校验失败。
+                    if mysql_obj.verify_password(password):
+                        self._update_user_login_info(user_data, success=True)
+                        return {
+                            "id": getattr(mysql_obj, "id", user_data.get("id")),
+                            "username": username,
+                            "role": user_data.get("role"),
+                            "is_superuser": user_data.get("is_superuser", False),
+                        }
+                    else:
+                        self._update_user_login_info(user_data, success=False)
+                        return None
                 else:
                     return None
 
@@ -673,7 +718,7 @@ class AuthService:
                 db.rollback()
                 logger.error(f"MySQL 创建用户失败: {e}")
                 # 降级到 SQLite
-                if "Lost connection" in str(e) or "Can't connect" in str(e):
+                if _is_mysql_connection_failure(e):
                     logger.warning("[DEGRADE] MySQL 不可达，降级到 SQLite 创建用户")
                     if self._try_downgrade_to_sqlite():
                         return self._create_user_in_sqlite(username, password_hash, role, email, is_superuser)

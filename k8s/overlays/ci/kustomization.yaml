@@ -1,0 +1,226 @@
+# ============================================================
+# CI Overlay — kind 单节点集群测试用（非生产）
+# - 副本降为 1（kind 单节点）
+# - 资源 requests/limits 大幅下调，适配 GitHub Actions runner (~7GB RAM)
+# - PVC → emptyDir（CI 无需持久化，且 kind 默认无动态供给）
+# - 移除 model-service 的 GPU nodeSelector / tolerations（CI 为纯 CPU 节点）
+# - 为 MySQL 增加 startupProbe，避免慢启动被 liveness 杀掉
+# - 降低部分探针阈值，加速 CI 内 readiness 收敛
+#
+# 用法: kubectl apply -k k8s/overlays/ci/
+# ============================================================
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# 继承基础 k8s/base/ 的全部资源
+resources:
+  - ../../base
+
+replicas:
+  - name: api-gateway
+    count: 1
+  - name: api-service
+    count: 1
+  - name: inference-worker
+    count: 1
+  - name: frontend
+    count: 1
+
+patches:
+  # ---------- 基础设施：降配 + PVC→emptyDir ----------
+  - target:
+      kind: Deployment
+      name: redis
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/memory
+        value: "64Mi"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/memory
+        value: "128Mi"
+      - op: replace
+        path: /spec/template/spec/volumes
+        value:
+          - name: redis-data
+            emptyDir: {}
+  - target:
+      kind: Deployment
+      name: rabbitmq
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/memory
+        value: "128Mi"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/memory
+        value: "256Mi"
+      - op: replace
+        path: /spec/template/spec/volumes
+        value:
+          - name: rabbitmq-data
+            emptyDir: {}
+  - target:
+      kind: StatefulSet
+      name: mysql
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/memory
+        value: "128Mi"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/memory
+        value: "512Mi"
+      - op: add
+        path: /spec/template/spec/containers/0/startupProbe
+        value:
+          exec:
+            command: ["mysqladmin", "ping", "-h", "localhost"]
+          initialDelaySeconds: 20
+          periodSeconds: 5
+          failureThreshold: 30
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: MYSQL_INITDB_SKIP_TZINFO
+          value: "1"
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: INNODB_BUFFER_POOL_SIZE
+          value: "64M"
+
+  # ---------- 应用服务：降配 ----------
+  - target:
+      kind: Deployment
+      name: api-gateway
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/memory
+        value: "64Mi"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/memory
+        value: "256Mi"
+  - target:
+      kind: Deployment
+      name: api-service
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/memory
+        value: "128Mi"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/memory
+        value: "512Mi"
+  - target:
+      kind: Deployment
+      name: multimedia-service
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/memory
+        value: "128Mi"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/memory
+        value: "512Mi"
+      - op: replace
+        path: /spec/template/spec/volumes
+        value:
+          - name: multimedia-data
+            emptyDir: {}
+  - target:
+      kind: Deployment
+      name: search-service
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/memory
+        value: "128Mi"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/memory
+        value: "512Mi"
+  - target:
+      kind: Deployment
+      name: monitoring
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/memory
+        value: "64Mi"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/memory
+        value: "256Mi"
+
+  # ---------- model-service：去 GPU 亲和 + 降配 ----------
+  - target:
+      kind: Deployment
+      name: model-service
+    patch: |-
+      - op: remove
+        path: /spec/template/spec/nodeSelector
+      - op: remove
+        path: /spec/template/spec/tolerations
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/memory
+        value: "512Mi"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/memory
+        value: "2Gi"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/cpu
+        value: "100m"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/cpu
+        value: "1"
+      - op: replace
+        path: /spec/template/spec/volumes
+        value:
+          - name: model-storage
+            emptyDir: {}
+
+  # ---------- workers：降配 ----------
+  - target:
+      kind: Deployment
+      name: search-worker
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/memory
+        value: "128Mi"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/memory
+        value: "512Mi"
+  - target:
+      kind: Deployment
+      name: inference-worker
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/memory
+        value: "256Mi"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/memory
+        value: "768Mi"
+  - target:
+      kind: Deployment
+      name: celery-worker
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/memory
+        value: "128Mi"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/memory
+        value: "256Mi"
+  - target:
+      kind: Deployment
+      name: celery-beat
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/memory
+        value: "64Mi"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/memory
+        value: "128Mi"
+
+  # ---------- frontend：降配 ----------
+  - target:
+      kind: Deployment
+      name: frontend
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/memory
+        value: "64Mi"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/memory
+        value: "256Mi"

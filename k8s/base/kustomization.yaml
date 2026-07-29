@@ -1,0 +1,52 @@
+---
+# ============================================================
+# Kustomize 入口 — kubectl apply -k k8s/ 一键部署
+# ============================================================
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: anime-role-detect
+
+resources:
+  - 00-namespace.yaml
+  - 01-config.yaml
+  - 10-infra.yaml
+  - 11-mysql-statefulset.yaml
+  - 20-app-services.yaml
+  - 21-model-service.yaml
+  - 22-workers.yaml
+  - 30-frontend.yaml
+  - 40-ingress.yaml
+  - 50-fluent-bit.yaml
+
+# 镜像 tag 统一管理 — CI/CD 构建后用 `kustomize edit set image` 更新
+images:
+  - name: ardc/api-gateway
+    newTag: latest
+  - name: ardc/api-service
+    newTag: latest
+  - name: ardc/model-service
+    newTag: latest
+  - name: ardc/multimedia-service
+    newTag: latest
+  - name: ardc/search-service
+    newTag: latest
+  - name: ardc/search-worker
+    newTag: latest
+  - name: ardc/inference-worker
+    newTag: latest
+  - name: ardc/monitoring
+    newTag: latest
+  - name: ardc/frontend
+    newTag: latest
+
+# 副本数可在 overlay 中覆盖
+replicas:
+  - name: api-gateway
+    count: 2
+  - name: api-service
+    count: 2
+  - name: inference-worker
+    count: 2
+  - name: frontend
+    count: 2

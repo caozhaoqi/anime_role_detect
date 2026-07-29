@@ -89,8 +89,8 @@ docker-compose down
 # 1. 构建所有镜像
 ./scripts/k8s/build_k8s_images.sh
 
-# 2. 部署到 K8s
-kubectl apply -f deployment/k8s-deploy.yaml
+# 2. 部署到 K8s（权威源：k8s/base/，详见 k8s/README.md）
+kubectl apply -k k8s/base/
 
 # 3. 查看部署状态
 kubectl get pods -n anime-role-detect

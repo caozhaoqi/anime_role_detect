@@ -2155,6 +2155,18 @@ def health():
     return jsonify({"status": "healthy", "service": "monitor_dashboard"})
 
 
+@app.route("/live")
+def live():
+    """K8s liveness 端点 - 进程存活检查"""
+    return jsonify({"status": "alive"})
+
+
+@app.route("/ready")
+def ready():
+    """K8s readiness 端点 - 进程存活即就绪"""
+    return jsonify({"status": "ready"})
+
+
 @app.route("/api/services/status")
 def services_status():
     """获取服务状态"""

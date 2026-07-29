@@ -1,0 +1,39 @@
+---
+# 非敏感配置 — 集群内服务发现地址、Redis DB 分离、日志级别等
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ard-config
+  namespace: anime-role-detect
+data:
+  REDIS_HOST: "redis"
+  REDIS_CACHE_DB: "0"
+  REDIS_QUEUE_DB: "1"
+  RABBITMQ_HOST: "rabbitmq"
+  DB_HOST: "mysql"
+  DB_NAME: "anime_role_detect"
+  DB_USER: "anime_user"
+  MODEL_SERVICE_HOST: "model-service"
+  API_SERVICE_HOST: "api-service"
+  LOG_LEVEL: "INFO"
+  PYTHONUNBUFFERED: "1"
+  # HF 镜像（防被墙）
+  HF_ENDPOINT: "https://hf-mirror.com"
+  # 内部服务间认证 token（生产环境务必替换）
+  INTERNAL_SERVICE_TOKEN: "CHANGE_ME_internal_token"
+---
+# 敏感配置 — 密码/密钥，部署时务必替换 CHANGE_ME 占位
+apiVersion: v1
+kind: Secret
+metadata:
+  name: ard-secret
+  namespace: anime-role-detect
+type: Opaque
+stringData:
+  MYSQL_ROOT_PASSWORD: "CHANGE_ME_root_pwd"
+  MYSQL_PASSWORD: "CHANGE_ME_anime_pwd"
+  RABBITMQ_USER: "ard_admin"
+  RABBITMQ_PASSWORD: "CHANGE_ME_rabbit_pwd"
+  JWT_SECRET_KEY: "CHANGE_ME_jwt_secret_key"
+  SUPERVISOR_ADMIN: "CHANGE_ME_supervisor_admin"
+  SUPERVISOR_PWD: "CHANGE_ME_supervisor_pwd"

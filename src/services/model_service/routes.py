@@ -25,6 +25,7 @@ from src.services.cache_service.redis_cache import get_redis_cache
 from src.services.model.recognition_service import get_recognition_service
 from src.models.recognition_record import RecognitionRecordCreate
 from src.core.config.service_config import get_service_config as _get_svc_config
+from src.core.version import APP_VERSION
 
 # 模块级别导入 WDViTV3Tagger，确保在请求处理之前完成导入和 torch 初始化
 # 避免在首次请求时触发 MPS C++ 后端 mutex 死锁
@@ -77,7 +78,7 @@ def import_core_modules():
 
 @router.get("/api/health")
 async def health_check():
-    return {"status": "healthy", "service": "Model Service"}
+    return {"status": "healthy", "service": "Model Service", "version": APP_VERSION}
 
 
 @router.get("/live")

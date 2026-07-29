@@ -1,0 +1,43 @@
+---
+# ============================================================
+# Ingress — 统一入口路由
+# 前端 → /  → frontend:3000
+# API   → /api → api-gateway:8080
+# 监控  → /monitor → monitoring:8000
+# ============================================================
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ard-ingress
+  namespace: anime-role-detect
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "120"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "120"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: anime-role-detect.local
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: api-gateway
+                port:
+                  number: 8080
+          - path: /monitor
+            pathType: Prefix
+            backend:
+              service:
+                name: monitoring
+                port:
+                  number: 8000
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: frontend
+                port:
+                  number: 3000

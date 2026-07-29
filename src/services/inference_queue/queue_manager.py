@@ -35,22 +35,32 @@ class MemoryQueueManager:
     内存队列管理器（Redis回退方案）
     
     基于内存实现任务队列，功能与Redis版本一致
+    支持优先级双队列 (high/low)
     """
     
     def __init__(self, task_timeout: int = 600, result_ttl: int = 3600):
         self.task_timeout = task_timeout
         self.result_ttl = result_ttl
-        self.task_queue = deque()
+        self._queues: Dict[str, deque] = {}  # key -> deque
         self.processing_queue = {}
         self.results = {}
         self.status = {}
     
     def lpush(self, key: str, value: str):
-        self.task_queue.append(value)
+        if key not in self._queues:
+            self._queues[key] = deque()
+        self._queues[key].append(value)
     
-    def brpop(self, key: str, timeout: int = 1):
-        if self.task_queue:
-            return (key, self.task_queue.popleft())
+    def brpop(self, keys, timeout: int = 1):
+        """
+        阻塞弹出，支持单key或多key（按优先级顺序检查）
+        """
+        if isinstance(keys, str):
+            keys = [keys]
+        for key in keys:
+            q = self._queues.get(key)
+            if q:
+                return (key, q.popleft())
         time.sleep(timeout)
         return None
     
@@ -65,7 +75,8 @@ class MemoryQueueManager:
             del self.processing_queue[field]
     
     def llen(self, key: str):
-        return len(self.task_queue)
+        q = self._queues.get(key)
+        return len(q) if q else 0
     
     def hlen(self, key: str):
         return len(self.processing_queue)
@@ -100,7 +111,7 @@ class InferenceQueueManager:
         self,
         redis_host: str = "localhost",
         redis_port: int = 6379,
-        redis_db: int = 0,
+        redis_db: int = None,
         task_timeout: int = 600,
         result_ttl: int = 3600,
     ):
@@ -114,12 +125,15 @@ class InferenceQueueManager:
             task_timeout: 任务超时时间（秒），默认10分钟
             result_ttl: 结果保留时间（秒）
         """
+        if redis_db is None:
+            redis_db = int(os.environ.get("REDIS_QUEUE_DB", 1))
         self.task_timeout = task_timeout
         self.result_ttl = result_ttl
         self.use_redis = True
         
-        # 队列名称
-        self.task_queue = "inference:tasks"
+        # 队列名称（按优先级分离，参考 K8s 文档 quick/slow 分离实践）
+        self.task_queue_high = "inference:tasks:high"
+        self.task_queue_low = "inference:tasks:low"
         self.processing_queue = "inference:processing"
         self.result_prefix = "inference:result:"
         self.status_prefix = "inference:status:"
@@ -156,6 +170,7 @@ class InferenceQueueManager:
         model_name: str = "ViT-B/32",
         top_k: int = 5,
         use_cache: bool = True,
+        priority: str = "high",
     ) -> str:
         """
         提交推理任务
@@ -165,6 +180,7 @@ class InferenceQueueManager:
             model_name: 模型名称
             top_k: 返回前K个结果
             use_cache: 是否使用缓存
+            priority: 任务优先级 "high"(实时单图分类) / "low"(批量检测/CLIP检索等重任务)
             
         Returns:
             任务ID
@@ -177,6 +193,7 @@ class InferenceQueueManager:
             "model_name": model_name,
             "top_k": top_k,
             "use_cache": use_cache,
+            "priority": priority,
             "image_data": image_data.hex(),  # 转为hex字符串
             "created_at": datetime.now().isoformat(),
             "timeout": self.task_timeout,
@@ -185,21 +202,27 @@ class InferenceQueueManager:
         # 设置初始状态
         self._set_status(task_id, TaskStatus.PENDING)
         
-        # 添加到任务队列
-        self.redis_client.lpush(self.task_queue, json.dumps(task))
+        # 按优先级投递到对应队列
+        queue_key = self.task_queue_high if priority == "high" else self.task_queue_low
+        self.redis_client.lpush(queue_key, json.dumps(task))
         
-        logger.info(f"任务提交成功: {task_id}")
+        logger.info(f"任务提交成功: {task_id}, 优先级: {priority}")
         return task_id
     
     def get_task(self) -> Optional[Dict[str, Any]]:
         """
         获取一个待处理任务（Worker调用）
+        优先从 high 队列获取，high 为空时再从 low 队列获取
+        (Redis BRPOP 支持多key按顺序检查)
         
         Returns:
             任务字典或None
         """
-        # 从队列中弹出任务（阻塞，超时1秒）
-        result = self.redis_client.brpop(self.task_queue, timeout=1)
+        # BRPOP 多key: 依次检查 high → low，第一个非空队列弹出
+        result = self.redis_client.brpop(
+            [self.task_queue_high, self.task_queue_low],
+            timeout=1,
+        )
         
         if result:
             _, task_json = result
@@ -322,18 +345,21 @@ class InferenceQueueManager:
     
     def get_queue_stats(self) -> Dict[str, Any]:
         """
-        获取队列统计信息
+        获取队列统计信息（含分优先级统计）
         
         Returns:
             统计字典
         """
-        pending = self.redis_client.llen(self.task_queue)
+        pending_high = self.redis_client.llen(self.task_queue_high)
+        pending_low = self.redis_client.llen(self.task_queue_low)
         processing = self.redis_client.hlen(self.processing_queue)
         
         return {
-            "pending_tasks": pending,
+            "pending_tasks": pending_high + pending_low,
+            "pending_high": pending_high,
+            "pending_low": pending_low,
             "processing_tasks": processing,
-            "total_active": pending + processing,
+            "total_active": pending_high + pending_low + processing,
         }
     
     def cleanup_expired(self):
@@ -364,5 +390,6 @@ def get_queue_manager() -> InferenceQueueManager:
         _queue_manager = InferenceQueueManager(
             redis_host=os.environ.get("REDIS_HOST", "localhost"),
             redis_port=int(os.environ.get("REDIS_PORT", 6379)),
+            redis_db=int(os.environ.get("REDIS_QUEUE_DB", 1)),
         )
     return _queue_manager

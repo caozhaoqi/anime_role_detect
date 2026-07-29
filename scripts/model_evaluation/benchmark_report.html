@@ -39,13 +39,23 @@
   @media (max-width: 768px) { .grid2 { grid-template-columns: 1fr; } }
   .tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; background: #eef2ff; color: #4f7cff; }
   .err { background: #fef2f2; color: #b91c1c; padding: 10px 14px; border-radius: 8px; font-size: 13px; }
+  .warn-banner { background: #fffbeb; border: 1px solid #fde68a; color: #92400e; padding: 14px 18px;
+                 border-radius: 10px; font-size: 13px; margin: 16px 0 8px 0; line-height: 1.7; }
+  .warn-banner b { color: #b45309; }
   footer { margin-top: 32px; color: #8a8f99; font-size: 12px; text-align: center; }
 </style>
 </head>
 <body>
 <div class="container">
   <h1>Anime Role Detect · 模型基准测试报告</h1>
-  <div class="meta">生成时间：2026-07-20 10:50:15 · 项目：anime_role_detect</div>
+  <div class="meta">生成时间：2026-07-28 16:44:45 · 项目：anime_role_detect</div>
+
+  <div class="warn-banner">
+    <b>⚠️ 评测数据说明（重要）：</b>本报告的分类准确率基于项目内 <code>data/final_dataset</code>，
+    该数据集与模型训练集<b>同源（存在数据泄漏）</b>。因此 Top-1 / Top-5 指标反映的是模型在
+    <b>"已见过的数据"</b> 上的拟合度，<b>不能代表真实泛化能力</b>。真实场景下的泛化准确率应显著低于本数值。
+    <br>建议：构建与训练集<b>完全不相交</b>的独立 held-out 测试集后重新评测，方可得到可信的泛化指标。
+  </div>
 
   <!-- ============ EfficientNet-B3 ============ -->
   <h2>① EfficientNet-B3 分类模型</h2>
@@ -54,11 +64,11 @@
     <div class="card accent"><div class="label">Top-1 准确率</div><div class="value">84.00%</div><div class="sub">1275 样本</div></div>
     <div class="card accent"><div class="label">Top-5 准确率</div><div class="value">93.96%</div><div class="sub">51 类别</div></div>
     <div class="card"><div class="label">Macro-F1</div><div class="value">0.84</div><div class="sub">P=0.85 R=0.84</div></div>
-    <div class="card"><div class="label">单张延迟</div><div class="value">21.63 ms</div><div class="sub">46.23 FPS</div></div>
-    <div class="card"><div class="label">Batch(32) 吞吐</div><div class="value">87.54 FPS</div><div class="sub">326.39 ms/batch</div></div>
+    <div class="card"><div class="label">单张延迟</div><div class="value">29.04 ms</div><div class="sub">34.44 FPS</div></div>
+    <div class="card"><div class="label">Batch(32) 吞吐</div><div class="value">31.11 FPS</div><div class="sub">918.52 ms/batch</div></div>
     <div class="card"><div class="label">参数量</div><div class="value">11,917,403</div><div class="sub">可训练 11,917,403</div></div>
     <div class="card"><div class="label">模型大小</div><div class="value">45.99 MB</div><div class="sub">权重内存 45.46 MB</div></div>
-    <div class="card"><div class="label">进程内存 (RSS)</div><div class="value">795.09 MB</div><div class="sub">设备: mps</div></div>
+    <div class="card"><div class="label">进程内存 (RSS)</div><div class="value">124.09 MB</div><div class="sub">设备: mps</div></div>
   </div>
 
   <h3>每类准确率分布（最弱 15 + 最强 15，共 30 类）</h3>
@@ -116,16 +126,17 @@
   <h2>② YOLOv8n 检测模型</h2>
 
   <div class="cards">
-    <div class="card accent"><div class="label">平均延迟</div><div class="value">164.15 ms</div><div class="sub">单张图像</div></div>
-    <div class="card accent"><div class="label">吞吐</div><div class="value">6.09 FPS</div><div class="sub">200 样本</div></div>
+    <div class="card accent"><div class="label">平均延迟</div><div class="value">246.41 ms</div><div class="sub">单张图像</div></div>
+    <div class="card accent"><div class="label">吞吐</div><div class="value">4.06 FPS</div><div class="sub">200 样本</div></div>
     <div class="card"><div class="label">参数量</div><div class="value">3,151,904</div><div class="sub">YOLOv8n 预训练</div></div>
     <div class="card"><div class="label">模型大小</div><div class="value">6.25 MB</div><div class="sub">yolov8n.pt</div></div>
-    <div class="card"><div class="label">加载耗时</div><div class="value">0.03 s</div><div class="sub">设备: mps</div></div>
+    <div class="card"><div class="label">加载耗时</div><div class="value">0.04 s</div><div class="sub">设备: mps</div></div>
     <div class="card"><div class="label">平均检测数/图</div><div class="value">1.23</div><div class="sub">平均置信度 0.44</div></div>
   </div>
 
   <h2>③ 关键发现与建议</h2>
   <div class="cards">
+    <div class="card warn"><div class="label">数据泄漏风险</div><div class="value">需警惕</div><div class="sub">评测集 = 训练集 (final_dataset)，84% 为过拟合上限估计，真实泛化应更低。建议增补 disjoint 测试集。</div></div>
     <div class="card good"><div class="label">分类准确率</div><div class="value">良好</div><div class="sub">Top-1 ≥ 70%。</div></div>
     <div class="card good"><div class="label">推理延迟</div><div class="value">实时</div><div class="sub">单张 &lt; 50 ms，满足实时场景。</div></div>
     <div class="card"><div class="label">主要混淆</div><div class="value">clorinde → Furina</div><div class="sub">最常误判对（3 次），建议针对性增补样本。</div></div>
@@ -177,7 +188,7 @@ if (ctx2) {
     data: {
       labels: ['单张延迟 (ms)', 'Batch(32) 延迟 (ms)', '单张吞吐 (FPS)', 'Batch 吞吐 (FPS)'],
       datasets: [{
-        data: [21.63, 326.39, 46.23, 87.54],
+        data: [29.04, 918.52, 34.44, 31.11],
         backgroundColor: ['#4f7cff', '#4f7cff', '#16a34a', '#16a34a'],
         borderRadius: 4,
       }]
