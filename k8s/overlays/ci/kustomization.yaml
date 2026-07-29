@@ -94,30 +94,30 @@ patches:
     patch: |-
       - op: replace
         path: /spec/template/spec/containers/0/resources/requests/memory
-        value: "64Mi"
+        value: "128Mi"
       - op: replace
         path: /spec/template/spec/containers/0/resources/limits/memory
-        value: "256Mi"
+        value: "512Mi"
   - target:
       kind: Deployment
       name: api-service
     patch: |-
       - op: replace
         path: /spec/template/spec/containers/0/resources/requests/memory
-        value: "128Mi"
+        value: "256Mi"
       - op: replace
         path: /spec/template/spec/containers/0/resources/limits/memory
-        value: "512Mi"
+        value: "1Gi"
   - target:
       kind: Deployment
       name: multimedia-service
     patch: |-
       - op: replace
         path: /spec/template/spec/containers/0/resources/requests/memory
-        value: "128Mi"
+        value: "256Mi"
       - op: replace
         path: /spec/template/spec/containers/0/resources/limits/memory
-        value: "512Mi"
+        value: "1Gi"
       - op: replace
         path: /spec/template/spec/volumes
         value:
@@ -129,20 +129,20 @@ patches:
     patch: |-
       - op: replace
         path: /spec/template/spec/containers/0/resources/requests/memory
-        value: "128Mi"
+        value: "256Mi"
       - op: replace
         path: /spec/template/spec/containers/0/resources/limits/memory
-        value: "512Mi"
+        value: "1Gi"
   - target:
       kind: Deployment
       name: monitoring
     patch: |-
       - op: replace
         path: /spec/template/spec/containers/0/resources/requests/memory
-        value: "64Mi"
+        value: "128Mi"
       - op: replace
         path: /spec/template/spec/containers/0/resources/limits/memory
-        value: "256Mi"
+        value: "512Mi"
 
   # ---------- model-service：去 GPU 亲和 + 降配 ----------
   - target:
@@ -178,20 +178,20 @@ patches:
     patch: |-
       - op: replace
         path: /spec/template/spec/containers/0/resources/requests/memory
-        value: "128Mi"
+        value: "256Mi"
       - op: replace
         path: /spec/template/spec/containers/0/resources/limits/memory
-        value: "512Mi"
+        value: "1Gi"
   - target:
       kind: Deployment
       name: inference-worker
     patch: |-
       - op: replace
         path: /spec/template/spec/containers/0/resources/requests/memory
-        value: "256Mi"
+        value: "512Mi"
       - op: replace
         path: /spec/template/spec/containers/0/resources/limits/memory
-        value: "768Mi"
+        value: "1.5Gi"
   - target:
       kind: Deployment
       name: celery-worker
@@ -208,10 +208,10 @@ patches:
     patch: |-
       - op: replace
         path: /spec/template/spec/containers/0/resources/requests/memory
-        value: "64Mi"
+        value: "128Mi"
       - op: replace
         path: /spec/template/spec/containers/0/resources/limits/memory
-        value: "128Mi"
+        value: "256Mi"
 
   # ---------- frontend：降配 ----------
   - target:
@@ -224,3 +224,104 @@ patches:
       - op: replace
         path: /spec/template/spec/containers/0/resources/limits/memory
         value: "256Mi"
+
+  # ---------- 阻断 HF / 模型在线下载 ----------
+  # CI 的 kind 节点无外网出口，load_models / model_version_service 若尝试从
+  # HuggingFace 拉模型会无限阻塞，导致 lifespan 永不完成 → 探针超时 → kubelet 杀容器 →
+  # CrashLoopBackOff。置 OFFLINE 后缺失模型会快速报 Missing/Offline 错误（被 _init_services
+  # 的 try/except 捕获并记录 warning），应用正常启动。
+  - target:
+      kind: ConfigMap
+      name: ard-config
+    patch: |-
+      - op: add
+        path: /data/HF_HUB_OFFLINE
+        value: "1"
+      - op: add
+        path: /data/TRANSFORMERS_OFFLINE
+        value: "1"
+      - op: add
+        path: /data/TOKENIZERS_PARALLELISM
+        value: "false"
+
+  # ---------- 为重型 / 模型服务增加 startupProbe ----------
+  # 避免 import torch / 加载模型 / 连接依赖服务等慢启动被 liveness 误杀。
+  # failureThreshold*periodSeconds = 300s 宽限，超过才判定失败。
+  - target:
+      kind: Deployment
+      name: api-gateway
+    patch: |-
+      - op: add
+        path: /spec/template/spec/containers/0/startupProbe
+        value:
+          httpGet:
+            path: /live
+            port: 8080
+          initialDelaySeconds: 20
+          periodSeconds: 10
+          failureThreshold: 30
+  - target:
+      kind: Deployment
+      name: api-service
+    patch: |-
+      - op: add
+        path: /spec/template/spec/containers/0/startupProbe
+        value:
+          httpGet:
+            path: /live
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          failureThreshold: 30
+  - target:
+      kind: Deployment
+      name: multimedia-service
+    patch: |-
+      - op: add
+        path: /spec/template/spec/containers/0/startupProbe
+        value:
+          httpGet:
+            path: /live
+            port: 8000
+          initialDelaySeconds: 20
+          periodSeconds: 10
+          failureThreshold: 30
+  - target:
+      kind: Deployment
+      name: search-service
+    patch: |-
+      - op: add
+        path: /spec/template/spec/containers/0/startupProbe
+        value:
+          httpGet:
+            path: /live
+            port: 8000
+          initialDelaySeconds: 20
+          periodSeconds: 10
+          failureThreshold: 30
+  - target:
+      kind: Deployment
+      name: monitoring
+    patch: |-
+      - op: add
+        path: /spec/template/spec/containers/0/startupProbe
+        value:
+          httpGet:
+            path: /live
+            port: 8000
+          initialDelaySeconds: 20
+          periodSeconds: 10
+          failureThreshold: 30
+  - target:
+      kind: Deployment
+      name: model-service
+    patch: |-
+      - op: add
+        path: /spec/template/spec/containers/0/startupProbe
+        value:
+          httpGet:
+            path: /live
+            port: 8000
+          initialDelaySeconds: 40
+          periodSeconds: 10
+          failureThreshold: 30
