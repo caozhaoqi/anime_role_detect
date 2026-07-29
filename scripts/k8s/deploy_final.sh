@@ -94,31 +94,9 @@ echo ""
 echo "--- Step 3: 部署 K8s 资源 ---"
 export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
 
-info "创建 Namespace..."
-kubectl create namespace anime-role-detect --dry-run=client -o yaml | kubectl apply -f -
-
-info "部署 ConfigMap/Secret..."
-kubectl apply -f "${DEPLOY_DIR}/deployment/k8s-deploy.yaml"
-
-info "部署 PVC..."
-kubectl apply -f "${DEPLOY_DIR}/deployment/k8s-volumes.yaml"
-
-info "部署 Services..."
-kubectl apply -f "${DEPLOY_DIR}/deployment/k8s-services.yaml"
-
-info "部署 Deployments..."
-kubectl apply -f "${DEPLOY_DIR}/deployment/k8s-deployments.yaml"
-
-info "部署 Ingress/HPA/PDB..."
-kubectl apply -f "${DEPLOY_DIR}/deployment/k8s-ingress.yaml" 2>/dev/null || true
-kubectl apply -f "${DEPLOY_DIR}/deployment/k8s-hpa.yaml" 2>/dev/null || true
-kubectl apply -f "${DEPLOY_DIR}/deployment/k8s-pdb.yaml" 2>/dev/null || true
-
-info "部署 Logging (Elasticsearch + Kibana + Filebeat)..."
-info "  设置内核参数 vm.max_map_count..."
-sysctl -w vm.max_map_count=262144 2>/dev/null || true
-echo "vm.max_map_count=262144" >> /etc/sysctl.conf 2>/dev/null || true
-kubectl apply -f "${DEPLOY_DIR}/deployment/k8s-logging.yaml"
+info "部署 K8s 资源 (kustomize base)..."
+# 权威部署源：k8s/base/（旧 deployment/k8s-*.yaml 已归档至 deployment/_legacy_backup/）
+kubectl apply -k "${DEPLOY_DIR}/k8s/base/"
 
 ok "K8s 资源部署完成"
 echo ""

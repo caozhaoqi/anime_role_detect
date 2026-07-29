@@ -113,6 +113,8 @@ class TaskResultResponse(BaseModel):
 class QueueStatsResponse(BaseModel):
     """队列统计响应"""
     pending_tasks: int = Field(description="待处理任务数")
+    pending_high: Optional[int] = Field(None, description="高优先级待处理任务数")
+    pending_low: Optional[int] = Field(None, description="低优先级待处理任务数")
     processing_tasks: int = Field(description="处理中任务数")
     total_active: int = Field(description="总活跃任务数")
     
@@ -138,6 +140,7 @@ async def submit_inference(
     model_name: str = Query(default="ViT-B/32", description="使用的模型名称"),
     top_k: int = Query(default=5, ge=1, le=20, description="返回前K个结果"),
     use_cache: bool = Query(default=True, description="是否使用缓存"),
+    priority: str = Query(default="high", description="任务优先级: high(实时分类) / low(批量检测/重检索)"),
 ):
     """
     提交异步推理任务
@@ -164,6 +167,7 @@ async def submit_inference(
             model_name=model_name,
             top_k=top_k,
             use_cache=use_cache,
+            priority=priority,
         )
         
         logger.info(f"异步推理任务提交: {task_id}, 文件: {file.filename}")

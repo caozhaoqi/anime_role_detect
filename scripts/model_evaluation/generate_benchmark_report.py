@@ -93,6 +93,9 @@ def generate_html(data):
   @media (max-width: 768px) {{ .grid2 {{ grid-template-columns: 1fr; }} }}
   .tag {{ display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; background: #eef2ff; color: #4f7cff; }}
   .err {{ background: #fef2f2; color: #b91c1c; padding: 10px 14px; border-radius: 8px; font-size: 13px; }}
+  .warn-banner {{ background: #fffbeb; border: 1px solid #fde68a; color: #92400e; padding: 14px 18px;
+                 border-radius: 10px; font-size: 13px; margin: 16px 0 8px 0; line-height: 1.7; }}
+  .warn-banner b {{ color: #b45309; }}
   footer {{ margin-top: 32px; color: #8a8f99; font-size: 12px; text-align: center; }}
 </style>
 </head>
@@ -100,6 +103,13 @@ def generate_html(data):
 <div class="container">
   <h1>Anime Role Detect · 模型基准测试报告</h1>
   <div class="meta">生成时间：{data.get('benchmark_at', '—')} · 项目：{data.get('project', 'anime_role_detect')}</div>
+
+  <div class="warn-banner">
+    <b>⚠️ 评测数据说明（重要）：</b>本报告的分类准确率基于项目内 <code>data/final_dataset</code>，
+    该数据集与模型训练集<b>同源（存在数据泄漏）</b>。因此 Top-1 / Top-5 指标反映的是模型在
+    <b>"已见过的数据"</b> 上的拟合度，<b>不能代表真实泛化能力</b>。真实场景下的泛化准确率应显著低于本数值。
+    <br>建议：构建与训练集<b>完全不相交</b>的独立 held-out 测试集后重新评测，方可得到可信的泛化指标。
+  </div>
 
   <!-- ============ EfficientNet-B3 ============ -->
   <h2>① EfficientNet-B3 分类模型</h2>
@@ -188,6 +198,7 @@ def generate_html(data):
 
     # ============ 结论 ============
     html += "\n  <h2>③ 关键发现与建议</h2>\n  <div class=\"cards\">\n"
+    html += '    <div class="card warn"><div class="label">数据泄漏风险</div><div class="value">需警惕</div><div class="sub">评测集 = 训练集 (final_dataset)，84% 为过拟合上限估计，真实泛化应更低。建议增补 disjoint 测试集。</div></div>\n'
     if "error" not in eff:
         top1 = eff.get("top1_accuracy", 0)
         if top1 < 0.5:

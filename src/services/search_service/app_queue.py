@@ -76,6 +76,18 @@ async def health_check():
     return {"status": "healthy", "service": "Search Service (Queue)"}
 
 
+@app.get("/live")
+async def liveness_check():
+    """K8s liveness 端点 - 进程存活检查"""
+    return {"status": "alive"}
+
+
+@app.get("/ready")
+async def readiness_check():
+    """K8s readiness 端点 - 进程存活即就绪"""
+    return {"status": "ready"}
+
+
 @app.post("/api/search/image")
 async def search_similar_images(file: UploadFile = File(...), top_k: int = 10):
     """

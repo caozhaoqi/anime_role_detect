@@ -123,6 +123,8 @@ services:
     environment:
       - PYTHONUNBUFFERED=1
       - REDIS_HOST=redis
+      - REDIS_CACHE_DB=0
+      - REDIS_QUEUE_DB=1
       - MODEL_SERVICE_HOST=model-service
       - RABBITMQ_HOST=rabbitmq
       - DB_HOST=mysql
@@ -141,7 +143,7 @@ services:
         condition: service_healthy
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/ready || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -167,6 +169,8 @@ services:
     environment:
       - PYTHONUNBUFFERED=1
       - REDIS_HOST=redis
+      - REDIS_CACHE_DB=0
+      - REDIS_QUEUE_DB=1
       - RABBITMQ_HOST=rabbitmq
       - LOG_LEVEL=INFO
     volumes:
@@ -182,7 +186,7 @@ services:
         condition: service_healthy
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/ready || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -208,6 +212,8 @@ services:
     environment:
       - PYTHONUNBUFFERED=1
       - REDIS_HOST=redis
+      - REDIS_CACHE_DB=0
+      - REDIS_QUEUE_DB=1
       - API_SERVICE_HOST=api-service
       - LOG_LEVEL=INFO
     networks:
@@ -220,7 +226,7 @@ services:
         condition: service_healthy
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/ready || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -244,6 +250,8 @@ services:
     environment:
       - PYTHONUNBUFFERED=1
       - REDIS_HOST=redis
+      - REDIS_CACHE_DB=0
+      - REDIS_QUEUE_DB=1
       - RABBITMQ_HOST=rabbitmq
       - LOG_LEVEL=INFO
     volumes:
@@ -259,7 +267,7 @@ services:
         condition: service_healthy
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/ready || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -283,6 +291,8 @@ services:
     environment:
       - PYTHONUNBUFFERED=1
       - REDIS_HOST=redis
+      - REDIS_CACHE_DB=0
+      - REDIS_QUEUE_DB=1
       - RABBITMQ_HOST=rabbitmq
       - LOG_LEVEL=INFO
     networks:
@@ -296,7 +306,7 @@ services:
         condition: service_healthy
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/ready || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -320,6 +330,8 @@ services:
     environment:
       - PYTHONUNBUFFERED=1
       - REDIS_HOST=redis
+      - REDIS_CACHE_DB=0
+      - REDIS_QUEUE_DB=1
       - RABBITMQ_HOST=rabbitmq
       - LOG_LEVEL=INFO
     networks:
@@ -357,6 +369,8 @@ services:
     environment:
       - PYTHONUNBUFFERED=1
       - REDIS_HOST=redis
+      - REDIS_CACHE_DB=0
+      - REDIS_QUEUE_DB=1
       - RABBITMQ_HOST=rabbitmq
       - LOG_LEVEL=INFO
     networks:
@@ -395,6 +409,8 @@ services:
     environment:
       - PYTHONUNBUFFERED=1
       - REDIS_HOST=redis
+      - REDIS_CACHE_DB=0
+      - REDIS_QUEUE_DB=1
       - LOG_LEVEL=INFO
     networks:
       - frontend
@@ -403,7 +419,7 @@ services:
         condition: service_healthy
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/ready || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -446,6 +462,28 @@ services:
           memory: 512M      # 压缩：1G -> 512M
           cpus: "0.25"
 
+  # fluent-bit 集中式日志采集（参考 K8s 文档 fluent-bit → ES → kibana 架构）
+  fluent-bit:
+    image: fluent/fluent-bit:3.0
+    container_name: anime-fluent-bit
+    volumes:
+      - ./logs:/app/logs:ro
+      - ./deploy/logging/fluent-bit.conf:/fluent-bit/etc/fluent-bit.conf:ro
+      - ./deploy/logging/parsers.conf:/fluent-bit/etc/parsers.conf:ro
+      - fluent-bit-state:/fluent-bit/state
+    environment:
+      - ARD_SERVICE_NAME=compose
+    ports:
+      - "2020:2020"
+    networks:
+      - backend
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: "0.1"
+
 volumes:
   redis-data:
     driver: local
@@ -454,4 +492,6 @@ volumes:
   rabbitmq-data:
     driver: local
   multimedia-data:
+    driver: local
+  fluent-bit-state:
     driver: local

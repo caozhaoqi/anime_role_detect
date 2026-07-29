@@ -11,6 +11,7 @@ from datetime import datetime
 from fastapi import APIRouter
 
 from src.core.logging import get_enhanced_logger as get_logger
+from src.core.version import APP_VERSION
 
 logger = get_logger("api.routes.health")
 
@@ -23,7 +24,7 @@ async def health_check():
     return {
         "status": "healthy",
         "service": "Anime Role Detect API",
-        "version": "1.0.0",
+        "version": APP_VERSION,
         "timestamp": time.time(),
     }
 

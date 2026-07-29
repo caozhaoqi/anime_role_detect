@@ -12,7 +12,7 @@ from celery.schedules import crontab
 # 获取 Redis 配置
 REDIS_HOST = os.environ.get("REDIS_HOST", "localhost")
 REDIS_PORT = int(os.environ.get("REDIS_PORT", 6379))
-REDIS_DB = int(os.environ.get("REDIS_DB", 0))
+REDIS_DB = int(os.environ.get("REDIS_QUEUE_DB", 1))
 REDIS_URL = f"redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}"
 
 # 初始化 Celery 应用

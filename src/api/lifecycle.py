@@ -96,6 +96,7 @@ def setup_routers(app: FastAPI) -> None:
         # 核心业务路由
         ("src.api.routes.classification", None),
         ("src.api.routes.health", None),
+        ("src.api.routes.version", None),
         ("src.api.routes.auth", None),
         ("src.api.routes.models", None),
         ("src.api.routes.history", None),

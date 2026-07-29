@@ -72,8 +72,9 @@ for pvc in model-data model-cache api-cache mysql-data redis-data rabbitmq-data 
     fi
 done
 
-# 重新 apply 带有 storageClassName 的 PVC
-sudo kubectl apply -f deployment/k8s-volumes.yaml
+# 重新 apply 全部 K8s 资源（权威源：k8s/base/）
+# 旧 deployment/k8s-*.yaml 已归档至 deployment/_legacy_backup/
+sudo kubectl apply -k k8s/base/
 
 echo "  等待 PVC 绑定..."
 sleep 5
@@ -85,7 +86,7 @@ sudo kubectl -n $NAMESPACE get pvc
 echo ""
 echo "🔄 Step 4: 重新 apply Deployment 配置..."
 
-sudo kubectl apply -f deployment/k8s-deployments.yaml
+sudo kubectl apply -k k8s/base/
 
 # ============================================================
 # Step 5: 删除所有 Pending 和 ImagePullBackOff 的 Pod, 触发重新调度

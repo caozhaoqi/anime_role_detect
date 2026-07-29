@@ -1,0 +1,112 @@
+---
+# ============================================================
+# Model Service — 深度学习推理服务
+# ⚠️ 关键风险防护（参考 K8s 文档 worker-2 OOM 162% 事故）:
+#   - 内存 limit 4Gi（EfficientNet-B3 ~795MB RSS + WD ViT/EasyOCR 懒加载尖峰）
+#   - GPU nodeSelector（纯 ARM/CPU 集群跑不动重推理）
+#   - 模型文件用 PVC 挂载，避免镜像膨胀
+# ============================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: model-service
+  namespace: anime-role-detect
+  labels:
+    app: model-service
+    tier: ml
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: model-service
+  template:
+    metadata:
+      labels:
+        app: model-service
+        tier: ml
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/path: "/api/v1/metrics/prometheus"
+        prometheus.io/port: "8000"
+    spec:
+      # GPU 节点调度 — 纯 CPU 集群可改为 nodeSelector: {}
+      nodeSelector:
+        workload: ml-gpu
+      tolerations:
+        - key: "nvidia.com/gpu"
+          operator: "Exists"
+          effect: "NoSchedule"
+      containers:
+        - name: model-service
+          image: ardc/model-service:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8000
+          envFrom:
+            - configMapRef:
+                name: ard-config
+          env:
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+          resources:
+            requests:
+              memory: "2Gi"
+              cpu: "2"
+              # nvidia.com/gpu: 1   # 取消注释以请求 GPU
+            limits:
+              memory: "4Gi"       # 防 OOM：EfficientNet + WD ViT + EasyOCR 懒加载峰值
+              cpu: "4"
+              # nvidia.com/gpu: 1   # 取消注释以限制 GPU
+          livenessProbe:
+            httpGet:
+              path: /live
+              port: 8000
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 8000
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            timeoutSeconds: 10
+            # readiness 在模型/preprocessor 就绪前返回 503，防止流量打到未就绪的模型
+            failureThreshold: 6
+          volumeMounts:
+            - name: model-storage
+              mountPath: /app/models
+              readOnly: true
+      volumes:
+        - name: model-storage
+          persistentVolumeClaim:
+            claimName: model-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: model-service
+  namespace: anime-role-detect
+spec:
+  selector:
+    app: model-service
+  ports:
+    - port: 8000
+      targetPort: 8000
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: model-pvc
+  namespace: anime-role-detect
+spec:
+  accessModes: ["ReadWriteMany"]
+  resources:
+    requests:
+      storage: 2Gi

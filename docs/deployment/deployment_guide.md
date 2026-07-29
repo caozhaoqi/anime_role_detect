@@ -1,3 +1,11 @@
+> [!CAUTION]
+> **已弃用 / 过期**：本文档描述的部署文件名（`configmap.yaml` / `secret.yaml` / `backend-deployment.yaml` 等）与当前仓库已不一致。
+> 当前唯一权威 K8s 部署源为 **`k8s/`**（base + overlays/ci），详见 [`k8s/README.md`](../k8s/README.md)。
+> 旧 `deployment/k8s-*.yaml` 已归档至 `deployment/_legacy_backup/`，仅供历史追溯。
+>
+> 仅保留作为历史参考，请勿按本文档执行部署。
+
+
 # 分层部署指南
 
 ## 1. 环境要求

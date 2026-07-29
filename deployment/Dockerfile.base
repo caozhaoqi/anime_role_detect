@@ -39,3 +39,8 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 WORKDIR /app
 ENV PYTHONPATH="/app"
 ENV LOG_LEVEL="INFO"
+
+# 构建期注入版本元数据（BUILD_TIME / GIT_COMMIT）到 src/core/version/_build_info.py
+ARG BUILD_DATE
+COPY deployment/generate_build_info.py /app/deployment/generate_build_info.py
+RUN BUILD_TIME=${BUILD_DATE:-} python /app/deployment/generate_build_info.py

@@ -276,11 +276,7 @@ fi
 
 echo ""
 echo "💡 部署到 K8s（本地镜像）:"
-echo "   kubectl apply -f deployment/k8s-deploy.yaml"
-echo "   kubectl apply -f deployment/k8s-volumes.yaml"
-echo "   kubectl apply -f deployment/k8s-services.yaml"
-echo "   kubectl apply -f deployment/k8s-deployments.yaml"
-echo "   kubectl apply -f deployment/k8s-ingress.yaml"
+echo "   kubectl apply -k k8s/base/"
 echo ""
 echo "💡 推送到远程仓库:"
 echo "   $0 --push --registry=your-harbor.com/anime-role-detect"

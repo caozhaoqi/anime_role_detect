@@ -95,6 +95,9 @@ reports/
 benchmark_result/
 evaluation_results/
 
+# Build-time generated version metadata (written by deployment/generate_build_info.py)
+src/core/version/_build_info.py
+
 # Generated images
 generated_images/
 
@@ -168,3 +171,9 @@ models/
 .gstack/
 deliverables/
 outputs/
+
+# --- 运行时 / 测试产物（不应提交） ---
+.coverage
+recognition.db
+dump.rdb
+*.rdb
