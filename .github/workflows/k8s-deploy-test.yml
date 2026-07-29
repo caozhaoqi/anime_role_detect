@@ -1,6 +1,5 @@
 name: K8s Deploy Test
-
-  on:
+on:
   push:
     branches:
       - main
