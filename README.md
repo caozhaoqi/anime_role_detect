@@ -212,15 +212,16 @@ The project includes comprehensive Docker support:
 
 ### Latest Benchmark Results (2026-07-28, `scripts/model_evaluation/benchmark_results.json`)
 
-> ⚠️ **Data note**: the test set (`final_dataset`, 1,275 images, 51 classes × 25) is currently **sampled from the same source as the training set**. The reported accuracy reflects training-state performance; true generalization on an independent dataset is **not yet validated** and is expected to be lower. See `docs/architecture/PROJECT_STRUCTURE.md` for known issues.
+> ⚠️ **Data note**: the test set (`final_dataset`, 1,275 images, 51 classes × 25) is **sampled from the same source as the training set** — the same images appear in both train and test, which inflates the headline number. On a **no-overlap split** (70/15/15, seed=42, test never seen in training) the true per-image generalization Top-1 is **82.65%** — only 1.65pp below the 84.00% same-image figure, confirming the model's per-image generalization for the 51 known classes is genuine (not merely memorized). Full analysis: `scripts/model_evaluation/leakage_report.html`; summary: `docs/training/DATA_LEAKAGE_STATUS.md`.
 
 **Production model**: `efficientnet_b3` (`models/efficientnet_b3/model_best.pth`), 51 classes, 256×256 input, 45.99 MB, 11.9M params, evaluated on Apple MPS.
 
 | Metric | Value |
 |--------|-------|
-| Top-1 Accuracy | **84.00%** |
+| Top-1 Accuracy (no-overlap split, **honest per-image**) | **82.65%** |
+| Top-1 Accuracy (same-image test, leaked upper bound) | 84.00% |
 | Top-5 Accuracy | **93.96%** |
-| Macro-F1 | **0.8401** |
+| Macro-F1 (same-image test) | **0.8401** |
 | Single-image Latency | **29.04 ms** (34.44 FPS) |
 | Batch (32) Throughput | **31.11 FPS** |
 | First Request Latency | **< 500ms** (with warm-up) |
@@ -236,7 +237,7 @@ The project includes comprehensive Docker support:
 
 | Model | Classes | Top-1 | Note |
 |-------|---------|-------|------|
-| EfficientNet-B3 (production) | 51 | **84.00%** | Current model |
+| EfficientNet-B3 (production) | 51 | **82.65%** | Honest per-image (no-overlap split); 84.00% is the same-image leaked upper bound |
 | EfficientNet-B0 / MobileNetV2 / ResNet50 | — | — | Earlier experiments, see `docs/blog/10_training_and_evaluation.md` |
 
 ## 🔒 Security

@@ -200,15 +200,16 @@ anime_role_detect/
 
 ### 最新基准测试结果（2026-07-28，`scripts/model_evaluation/benchmark_results.json`）
 
-> ⚠️ **数据说明**：测试集（`final_dataset`，1,275 张图，51 类 × 25 张）目前**与训练集同源采样**。所报准确率为训练态表现，独立数据集上的真实泛化精度**尚未验证**，预计会偏低。详见 `docs/architecture/PROJECT_STRUCTURE.md` 已知问题。
+> ⚠️ **数据说明**：测试集（`final_dataset`，1,275 张图，51 类 × 25 张）**与训练集同源采样**——同一张图既进训练又进测试，会抬高头条数字。在**无交叠切分**（70/15/15，seed=42，测试集训练全程不可见）下，真实逐图泛化 Top-1 为 **82.65%**——仅比 84.00% 同图数字低 1.65 个百分点，证明模型对 51 个已知角色的**逐图泛化是真实的**（并非单纯记图）。完整分析：`scripts/model_evaluation/leakage_report.html`；汇总：`docs/training/DATA_LEAKAGE_STATUS.md`。
 
 **生产模型**：`efficientnet_b3`（`models/efficientnet_b3/model_best.pth`），51 类，256×256 输入，45.99 MB，11.9M 参数，于 Apple MPS 评测。
 
 | 指标 | 数值 |
 |------|------|
-| Top-1 准确率 | **84.00%** |
+| Top-1 准确率（无交叠切分，**诚实逐图泛化**） | **82.65%** |
+| Top-1 准确率（同图测试，泄漏上限） | 84.00% |
 | Top-5 准确率 | **93.96%** |
-| Macro-F1 | **0.8401** |
+| Macro-F1（同图测试） | **0.8401** |
 | 单图延迟 | **29.04 ms**（34.44 FPS） |
 | 批量(32)吞吐 | **31.11 FPS** |
 | 首次请求延迟 | **< 500ms**（带预热） |
@@ -224,7 +225,7 @@ anime_role_detect/
 
 | 模型 | 类别数 | Top-1 | 说明 |
 |------|--------|-------|------|
-| EfficientNet-B3（生产） | 51 | **84.00%** | 当前模型 |
+| EfficientNet-B3（生产） | 51 | **82.65%** | 诚实逐图泛化（无交叠切分）；84.00% 为同图泄漏上限 |
 | EfficientNet-B0 / MobileNetV2 / ResNet50 | — | — | 早期实验，见 `docs/blog/10_training_and_evaluation.md` |
 
 ## 🔒 安全
