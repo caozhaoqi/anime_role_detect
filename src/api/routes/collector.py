@@ -27,7 +27,6 @@ JmApiClient = None
 
 try:
     from jmcomic import JmOption, JmDownloader, JmApiClient
-    from jmcomic.jm_entity import JmAlbumDetail
     JM_AVAILABLE = True
 except ImportError as e:
     print(f"⚠️ JMComic模块导入失败: {e}")
@@ -35,8 +34,6 @@ except ImportError as e:
 try:
     from ui_event.get_url import spider_artworks_url
     from run import constants as spider_constants
-    from utils.log_monitor import log_mon_war
-    from utils.sis_therading import SISThreading
     SPIDER_AVAILABLE = True
 except ImportError as e:
     SPIDER_AVAILABLE = False

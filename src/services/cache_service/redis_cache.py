@@ -13,6 +13,7 @@ import redis
 from collections import OrderedDict
 from typing import Optional, Any
 from src.core.logging import get_enhanced_logger as get_logger
+from src.core.config.ports import coerce_port
 
 logger = get_logger("redis_cache")
 
@@ -101,7 +102,7 @@ class RedisCache:
         try:
             self.redis_client = redis.Redis(
                 host=os.environ.get("REDIS_HOST", "localhost"),
-                port=int(os.environ.get("REDIS_PORT", 6379)),
+                port=coerce_port(os.environ.get("REDIS_PORT"), 6379),
                 db=int(os.environ.get("REDIS_CACHE_DB", 0)),
                 decode_responses=True,
                 socket_connect_timeout=2,

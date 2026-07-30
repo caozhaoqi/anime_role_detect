@@ -204,7 +204,7 @@ def stop_all_services():
                 process.kill()
 
 
-def signal_handler(sig, frame):
+def signal_handler(_sig, _frame):
     """信号处理"""
     stop_all_services()
     sys.exit(0)

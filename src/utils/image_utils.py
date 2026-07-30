@@ -8,8 +8,6 @@ import random
 import numpy as np
 from PIL import Image, ImageFilter
 from io import BytesIO
-from skimage import filters, measure
-from skimage.color import rgb2gray
 
 from src.core.logging import get_enhanced_logger as get_logger, log_system, log_error
 

@@ -21,7 +21,7 @@ try:
     from sqlalchemy import create_engine
     from sqlalchemy.ext.declarative import declarative_base
     from sqlalchemy.orm import sessionmaker, Session
-    from sqlalchemy.pool import StaticPool, QueuePool
+    from sqlalchemy.pool import QueuePool
     HAS_SQLALCHEMY = True
 except ImportError:
     HAS_SQLALCHEMY = False

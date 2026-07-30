@@ -87,7 +87,7 @@ def start_services(service_names=None):
         logger.info(f"   {name}: {state}")
 
 
-def stop_services(signal_num, frame):
+def stop_services(_signal_num, _frame):
     """停止所有服务（信号处理）"""
     logger.info("\n收到停止信号，正在停止服务...")
     service_registry.stop_all_services()

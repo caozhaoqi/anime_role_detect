@@ -208,7 +208,7 @@ class HTTPUtils:
         """上下文管理器入口"""
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(self, exc_type, exc_val, _exc_tb):
         """上下文管理器出口"""
         self.close()
 

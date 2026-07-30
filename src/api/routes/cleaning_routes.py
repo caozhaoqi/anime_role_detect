@@ -17,7 +17,7 @@ project_root = _current_file.parent.parent.parent.parent
 
 logger = logging.getLogger(__name__)
 
-from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Depends, BackgroundTasks, Query
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Depends, Query
 from typing import Optional, List, Dict
 from pydantic import BaseModel
 import time

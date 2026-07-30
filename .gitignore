@@ -177,3 +177,14 @@ outputs/
 recognition.db
 dump.rdb
 *.rdb
+
+# 本地缓存 / 临时目录（运行时生成，不提交）
+.cache/
+src/.cache/
+src/cache/
+src/clip_cache/
+src/huggingface_cache/
+src/temp/
+src/anime_role_detect_logs/
+clip_cache/
+huggingface_cache/

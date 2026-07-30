@@ -115,7 +115,6 @@ class HDBSCANClusterFilter:
     def _cluster_sklearn(self, features: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         """使用sklearn的DBSCAN作为替代"""
         from sklearn.cluster import DBSCAN
-        from sklearn.neighbors import NearestNeighbors
         
         # 使用DBSCAN
         clustering = DBSCAN(

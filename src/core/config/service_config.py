@@ -1,6 +1,9 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import field_validator
 from typing import Optional
 import os
+
+from .ports import coerce_port
 
 
 class ServiceConfig(BaseSettings):
@@ -96,6 +99,24 @@ class ServiceConfig(BaseSettings):
     @property
     def API_GATEWAY_URL(self) -> str:
         return f"http://{self.API_GATEWAY_HOST}:{self.API_GATEWAY_PORT}"
+
+    @field_validator(
+        "API_PORT",
+        "MODEL_SERVICE_PORT",
+        "CORE_API_PORT",
+        "MULTIMEDIA_SERVICE_PORT",
+        "SEARCH_SERVICE_PORT",
+        "API_GATEWAY_PORT",
+        "REDIS_PORT",
+        "MYSQL_PORT",
+        mode="before",
+    )
+    @classmethod
+    def _coerce_port_fields(cls, v):
+        # Kubernetes injects <SERVICE>_PORT as "tcp://<ip>:<port>"; tolerate it.
+        if v is None:
+            return v
+        return coerce_port(v, 0)
 
     def is_production(self) -> bool:
         return os.environ.get("ENVIRONMENT", "development").lower() == "production"

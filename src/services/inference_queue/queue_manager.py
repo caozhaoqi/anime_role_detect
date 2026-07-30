@@ -17,6 +17,7 @@ from collections import deque
 import redis
 from redis.exceptions import ConnectionError as RedisConnectionError
 from src.core.logging import get_enhanced_logger as get_logger
+from src.core.config.ports import coerce_port
 
 logger = get_logger("inference_queue")
 
@@ -389,7 +390,7 @@ def get_queue_manager() -> InferenceQueueManager:
         import os
         _queue_manager = InferenceQueueManager(
             redis_host=os.environ.get("REDIS_HOST", "localhost"),
-            redis_port=int(os.environ.get("REDIS_PORT", 6379)),
+            redis_port=coerce_port(os.environ.get("REDIS_PORT"), 6379),
             redis_db=int(os.environ.get("REDIS_QUEUE_DB", 1)),
         )
     return _queue_manager

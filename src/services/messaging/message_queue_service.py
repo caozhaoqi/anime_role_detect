@@ -4,9 +4,9 @@ import os
 import uuid
 from typing import Optional, Dict, Any, Callable
 import aio_pika
-import pika
 
 from src.core.logging import get_enhanced_logger as get_logger
+from src.core.config.ports import coerce_port
 
 logger = get_logger("message_queue_service")
 
@@ -35,7 +35,7 @@ class MessageQueueService:
 
         # 配置
         self.RABBITMQ_HOST = os.environ.get("RABBITMQ_HOST", "localhost")
-        self.RABBITMQ_PORT = int(os.environ.get("RABBITMQ_PORT", "5672"))
+        self.RABBITMQ_PORT = coerce_port(os.environ.get("RABBITMQ_PORT"), 5672)
         self.RABBITMQ_USER = os.environ.get("RABBITMQ_USER", "guest")
         self.RABBITMQ_PASSWORD = os.environ.get("RABBITMQ_PASSWORD", "guest")
         self.RABBITMQ_VHOST = os.environ.get("RABBITMQ_VHOST", "/")

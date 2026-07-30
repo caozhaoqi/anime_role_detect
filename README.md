@@ -121,34 +121,58 @@ kubectl get pods -n anime-role-detect
 
 ```
 anime_role_detect/
-├── src/                    # Source code
-│   ├── api/                # Backend API (port 8001)
+├── src/                    # Source code (editable install: pip install -e .)
+│   ├── api/                # Backend API service (FastAPI, port 8001)
+│   │   └── routes/         # API route definitions (classify, auth, collector, ...)
 │   ├── services/           # Microservices
-│   │   ├── api_gateway/    # API Gateway (port 8080)
+│   │   ├── api_gateway/    # API Gateway (FastAPI, port 8080)
 │   │   ├── model_service/  # Model Service (port 8000)
 │   │   ├── multimedia_service/  # Multimedia Service (port 8002)
-│   │   ├── search_service/ # Search Service (port 8003)
+│   │   ├── search_service/ # Search Service + worker (port 8003)
+│   │   ├── inference_worker/   # CLIP inference worker
 │   │   ├── cache_service/  # Redis Cache Service
-│   │   └── video_service/  # Video Recognition Service
-│   ├── core/               # Core functionality
-│   ├── frontend/           # Frontend (Next.js)
-│   └── run/                # Service management scripts
-├── models/                 # Model weights
-├── tests/                  # Test suites
-├── docs/                   # Documentation
-├── skillhub/               # Skill Hub module
-├── scripts/                # Utility scripts (spider, data collection)
-├── deployment/             # Kubernetes deployment files
-├── supervisord.conf        # Process manager configuration
+│   │   ├── video_service/  # Video Recognition Service
+│   │   ├── messaging/      # Message queue (aio_pika)
+│   │   └── processor/      # Model loaders / image processors
+│   ├── core/               # Core functionality (classification, detection, tagging,
+│   │                       #   recognition, ocr, logging, config, cache, ...)
+│   ├── data/               # Data collection & preprocessing pipelines
+│   ├── data_pipeline/      # Data cleaning / building / webui pipelines
+│   ├── data_collection/    # (Legacy) keyword-based collector entry
+│   ├── models/             # Training / evaluation / prediction modules
+│   ├── tasks/              # Celery tasks (classify, image, video, model, cleanup)
+│   ├── utils/              # Shared utilities (image, http, concurrency, monitoring)
+│   ├── middleware/         # HTTP middleware
+│   ├── frontend/           # Frontend (Next.js 15 + React 18 + TypeScript)
+│   └── run/                # Service management & monitor dashboard
+├── models/                 # Model weights (git-ignored)
+├── tests/                  # Test suites (unit / integration / model / workflow)
+├── docs/                   # Documentation (architecture, deployment, training, blog)
+├── scripts/                # Utility scripts (k8s, monitoring, data_*, evaluation, ...)
+│   └── skillhub/           # ⚠️ Archived experiment sub-project (88MB, not referenced)
+├── archived/               # Historical / broken modules (spider_image_system, arona, ...)
+├── deployment/             # Kubernetes & Docker deployment files
+├── k8s/                    # Kustomize overlays (base / ci) + local registry helpers
+├── config/                 # Config templates
+├── supervisord.conf        # Process manager configuration (11 programs)
 ├── docker-compose.yml      # Docker Compose configuration
 ├── Dockerfile              # Backend Dockerfile
 ├── Dockerfile.model        # Model Service Dockerfile
-├── requirements-base.txt   # Base dependencies
+├── requirements-base.txt   # Base dependencies (for base image)
 ├── requirements-ml.txt     # ML dependencies
+├── requirements-model-service.txt
+├── requirements-scripts.txt
 ├── requirements-dev.txt    # Development dependencies
-├── pyproject.toml          # Project configuration
-└── .env.example           # Environment template
+├── pyproject.toml          # Project configuration (v2.3.0)
+└── .env.example            # Environment template
 ```
+
+> **Note on unused / legacy code (2026-07-30 cleanup)**
+> - Dead module `src/models/training/convert_model_format.py` (syntax-broken, unreferenced) → moved to `archived/broken_modules/`.
+> - `scripts/skillhub/` is a legacy experiment sub-project (bundled venv, not referenced anywhere). Kept for history; excluded from builds.
+> - `src/run/start_all.py`, `start_all_stable.py`, `application.py`, `start_core.py` are legacy/alternative launchers (not used by supervisord/k8s/docker). Kept as dev tools.
+> - Removed ~30 unused imports / unused variables across `src/` (low-risk lint cleanup).
+> - Runtime artifacts (`logs/`, `data/`, `models/`, `*.db`, `dump.rdb`, caches) are git-ignored.
 
 ## 🌐 API Endpoints
 
@@ -183,34 +207,37 @@ The project includes comprehensive Docker support:
 - **Dockerfile**: Multi-stage build for backend services
 - **Dockerfile.model**: Optimized model service image
 - **deployment/Dockerfile.frontend**: Frontend Next.js deployment with Nginx
-- **docker_manager.py**: Helper script for Docker operations
 
 ## 📊 Model Performance
 
-### Latest Benchmark Results (June 2026)
+### Latest Benchmark Results (2026-07-28, `scripts/model_evaluation/benchmark_results.json`)
 
-**Test Dataset**: 1,480 images across 74 character classes
+> ⚠️ **Data note**: the test set (`final_dataset`, 1,275 images, 51 classes × 25) is currently **sampled from the same source as the training set**. The reported accuracy reflects training-state performance; true generalization on an independent dataset is **not yet validated** and is expected to be lower. See `docs/architecture/PROJECT_STRUCTURE.md` for known issues.
+
+**Production model**: `efficientnet_b3` (`models/efficientnet_b3/model_best.pth`), 51 classes, 256×256 input, 45.99 MB, 11.9M params, evaluated on Apple MPS.
 
 | Metric | Value |
 |--------|-------|
-| Top-1 Accuracy | **93.92%** |
-| Top-3 Accuracy | **96.15%** |
-| Top-5 Accuracy | **96.89%** |
-| Inference Speed | **85.74 FPS** |
-| Latency per Image | **11.66ms** |
+| Top-1 Accuracy | **84.00%** |
+| Top-5 Accuracy | **93.96%** |
+| Macro-F1 | **0.8401** |
+| Single-image Latency | **29.04 ms** (34.44 FPS) |
+| Batch (32) Throughput | **31.11 FPS** |
 | First Request Latency | **< 500ms** (with warm-up) |
-| Login API Response | **< 220ms** |
 
-### Model Comparison
+**Weakest classes** (accuracy): `silver_wolf` 64%, `Klee` / `aglaea` / `clorinde` / `kafka` 68%.
+**Most confused pair**: `clorinde` → `Furina`.
 
-| Model | Accuracy | FPS |
-|-------|----------|-----|
-| MobileNetV2 | 94.00% | 379 |
-| EfficientNet-B0 | 95.20% | 298 |
-| EfficientNet-B3 (Optimized) | **93.92%** | **85.74** |
-| ResNet50 | 94.80% | 257 |
+### Multi-role Detection (YOLOv8n)
 
-**Current Production Model**: `efficientnet_b3_loli_optimized_v2_20260529_133654`
+`yolov8n.pt` is the COCO-pretrained baseline (6.25 MB, 3.15M params). It is **not fine-tuned** on anime characters — avg confidence 0.444, ~4 FPS on MPS. Fine-tuning is pending (see known issues).
+
+### Model Comparison (reference, training-state)
+
+| Model | Classes | Top-1 | Note |
+|-------|---------|-------|------|
+| EfficientNet-B3 (production) | 51 | **84.00%** | Current model |
+| EfficientNet-B0 / MobileNetV2 / ResNet50 | — | — | Earlier experiments, see `docs/blog/10_training_and_evaluation.md` |
 
 ## 🔒 Security
 
@@ -233,18 +260,17 @@ python -m pytest tests/ -v
 # Run integration tests
 python -m pytest tests/integration/ -v
 
-# Run performance tests
-python performance_test.py
+# Run model benchmark (produces scripts/model_evaluation/benchmark_results.json)
+python scripts/model_evaluation/run_benchmark.py
 ```
 
 
 ## 📚 Documentation
 
 For detailed documentation:
-- `docs/technical_guide.md` - Technical specifications
+- `docs/architecture/PROJECT_STRUCTURE.md` - Project structure & known issues
 - `docs/deployment/` - Deployment guides (Kubernetes, Ubuntu)
 - `docs/training/` - Model training guides
-- `skillhub/docs/` - Skill Hub documentation
 - `docs/blog/` - Technical blog posts
 
 ## 🤝 Contributing
@@ -260,7 +286,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-**Version**: v2.3 | **Last Updated**: July 2026 | **Maintainer**: ARD Team
+**Version**: v2.3.0 | **Last Updated**: July 2026 | **Maintainer**: ARD Team
 
 ---
 

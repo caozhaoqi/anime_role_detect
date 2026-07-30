@@ -100,7 +100,7 @@ def start_service(service_key):
         return False
 
 
-def stop_all_services(signal_num=None, frame=None):
+def stop_all_services(_signal_num=None, _frame=None):
     """停止所有服务"""
     print("\n🛑 正在停止所有服务...")
     for key, process in processes.items():

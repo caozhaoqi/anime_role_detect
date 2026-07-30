@@ -2,6 +2,17 @@
 
 
 
+## v2.3.2
+### 2026-07-30
+
+- 代码清理：移除 `src/` 内约 30 处未使用导入/未使用变量（vulture 扫描，低风险 lint 清理）
+- 将语法损坏且无引用的 `src/models/training/convert_model_format.py` 归档至 `archived/broken_modules/`
+- 清理 4 个空目录（`src/anime_role_detect_logs/`、`src/temp/`、`src/cache/huggingface/.../snapshots` 等）
+- 完善 `.gitignore`：显式忽略运行时缓存/临时目录（`src/cache/`、`src/clip_cache/`、`src/huggingface_cache/` 等）
+- 重写 `docs/architecture/PROJECT_STRUCTURE.md`，使其与实际 `src/` 架构一致
+- 在 README / README.zh.md 中标注 `scripts/skillhub/`（遗留实验子项目）、遗留启动器、运行时产物的处理方式
+
+
 ## v2.3.1
 ### 2026-07-25
 

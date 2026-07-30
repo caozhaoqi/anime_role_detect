@@ -9,9 +9,11 @@ import os
 from celery import Celery
 from celery.schedules import crontab
 
+from src.core.config.ports import coerce_port
+
 # 获取 Redis 配置
 REDIS_HOST = os.environ.get("REDIS_HOST", "localhost")
-REDIS_PORT = int(os.environ.get("REDIS_PORT", 6379))
+REDIS_PORT = coerce_port(os.environ.get("REDIS_PORT"), 6379)
 REDIS_DB = int(os.environ.get("REDIS_QUEUE_DB", 1))
 REDIS_URL = f"redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}"
 

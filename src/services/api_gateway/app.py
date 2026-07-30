@@ -11,8 +11,7 @@ import asyncio
 import time
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, RedirectResponse, HTMLResponse, StreamingResponse
-from fastapi.openapi.docs import get_swagger_ui_html
+from fastapi.responses import JSONResponse, HTMLResponse, StreamingResponse
 import uvicorn
 import httpx
 

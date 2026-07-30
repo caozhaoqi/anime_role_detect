@@ -58,7 +58,6 @@ def classify_image_task(
             process_multi_role_image,
         )
         from fastapi import UploadFile
-        from starlette.datastructures import UploadFile as StarletteUploadFile
 
         class BytesUploadFile(UploadFile):
             def __init__(self, content: bytes, filename: str):

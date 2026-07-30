@@ -145,7 +145,7 @@ class Span:
         """进入上下文管理器"""
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(self, exc_type, exc_val, _exc_tb):
         """退出上下文管理器"""
         if exc_type is not None:
             self.set_status(StatusCode.ERROR, str(exc_val))

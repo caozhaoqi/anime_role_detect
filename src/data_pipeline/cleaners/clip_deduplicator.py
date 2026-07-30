@@ -8,7 +8,7 @@ CLIP特征去重器
 import os
 import json
 from pathlib import Path
-from typing import List, Dict, Set, Tuple, Optional
+from typing import List, Dict, Tuple, Optional
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import logging
 

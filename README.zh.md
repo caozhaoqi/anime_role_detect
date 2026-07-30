@@ -110,34 +110,57 @@ docker-compose down
 
 ```
 anime_role_detect/
-├── src/                    # 源代码
-│   ├── api/                # 后端API（端口8001）
+├── src/                    # 源代码（可编辑安装：pip install -e .）
+│   ├── api/                # 后端API服务（FastAPI，端口8001）
+│   │   └── routes/         # API路由（classify、auth、collector 等）
 │   ├── services/           # 微服务
 │   │   ├── api_gateway/    # API网关（端口8080）
 │   │   ├── model_service/  # 模型服务（端口8000）
 │   │   ├── multimedia_service/  # 多媒体服务（端口8002）
-│   │   ├── search_service/ # 搜索服务（端口8003）
+│   │   ├── search_service/ # 搜索服务 + worker（端口8003）
+│   │   ├── inference_worker/   # CLIP 推理 worker
 │   │   ├── cache_service/  # Redis缓存服务
-│   │   └── video_service/  # 视频识别服务
-│   ├── core/               # 核心功能
-│   ├── frontend/           # 前端（Next.js）
-│   └── run/                # 服务管理脚本
-├── models/                 # 模型权重
-├── tests/                  # 测试套件
-├── docs/                   # 文档
-├── skillhub/               # 技能仓库模块
-├── scripts/                # 工具脚本（爬虫、数据采集）
-├── deployment/             # Kubernetes 部署文件
-├── supervisord.conf        # 进程管理器配置
+│   │   ├── video_service/  # 视频识别服务
+│   │   ├── messaging/      # 消息队列（aio_pika）
+│   │   └── processor/      # 模型加载器 / 图像处理器
+│   ├── core/               # 核心功能（分类、检测、打标、识别、ocr、日志、配置、缓存…）
+│   ├── data/               # 数据采集与预处理流水线
+│   ├── data_pipeline/      # 数据清洗 / 构建 / webui 流水线
+│   ├── data_collection/    # （遗留）关键词采集入口
+│   ├── models/             # 训练 / 评估 / 预测模块
+│   ├── tasks/              # Celery 任务（分类、图像、视频、模型、清理）
+│   ├── utils/              # 公共工具（图像、http、并发、监控）
+│   ├── middleware/         # HTTP 中间件
+│   ├── frontend/           # 前端（Next.js 15 + React 18 + TypeScript）
+│   └── run/                # 服务管理与监控面板
+├── models/                 # 模型权重（git 忽略）
+├── tests/                  # 测试套件（unit / integration / model / workflow）
+├── docs/                   # 文档（架构、部署、训练、博客）
+├── scripts/                # 工具脚本（k8s、监控、data_*、评估…）
+│   └── skillhub/           # ⚠️ 归档的实验子项目（88MB，无引用）
+├── archived/               # 历史 / 损坏模块（spider_image_system、arona…）
+├── deployment/             # Kubernetes 与 Docker 部署文件
+├── k8s/                    # Kustomize 覆盖（base / ci）+ 本地 registry 辅助
+├── config/                 # 配置模板
+├── supervisord.conf        # 进程管理器配置（11 个程序）
 ├── docker-compose.yml      # Docker Compose 配置
 ├── Dockerfile              # 后端 Dockerfile
 ├── Dockerfile.model        # 模型服务 Dockerfile
-├── requirements-base.txt   # 基础依赖
-├── requirements-ml.txt     # ML依赖
+├── requirements-base.txt   # 基础依赖（base 镜像用）
+├── requirements-ml.txt     # ML 依赖
+├── requirements-model-service.txt
+├── requirements-scripts.txt
 ├── requirements-dev.txt    # 开发依赖
-├── pyproject.toml          # 项目配置
-└── .env.example           # 环境变量模板
+├── pyproject.toml          # 项目配置（v2.3.0）
+└── .env.example            # 环境变量模板
 ```
+
+> **未使用 / 遗留代码说明（2026-07-30 清理）**
+> - 死亡模块 `src/models/training/convert_model_format.py`（语法损坏、无引用）→ 移至 `archived/broken_modules/`。
+> - `scripts/skillhub/` 为遗留实验子项目（自带 venv，无任何引用），保留作历史，不纳入构建。
+> - `src/run/start_all.py`、`start_all_stable.py`、`application.py`、`start_core.py` 为遗留/备用启动器（supervisord/k8s/docker 未使用），保留为开发工具。
+> - 清理了 `src/` 内约 30 处未使用导入 / 未使用变量（低风险 lint 清理）。
+> - 运行时产物（`logs/`、`data/`、`models/`、`*.db`、`dump.rdb`、各类缓存）均已 git 忽略。
 
 ## 🌐 API 接口
 
@@ -172,34 +195,37 @@ anime_role_detect/
 - **Dockerfile**: 后端服务多阶段构建
 - **Dockerfile.model**: 优化的模型服务镜像
 - **deployment/Dockerfile.frontend**: 前端 Next.js 部署（带 Nginx）
-- **docker_manager.py**: Docker 操作辅助脚本
 
 ## 📊 模型性能
 
-### 最新基准测试结果（2026年6月）
+### 最新基准测试结果（2026-07-28，`scripts/model_evaluation/benchmark_results.json`）
 
-**测试数据集**: 1,480 张图片，覆盖74个角色类别
+> ⚠️ **数据说明**：测试集（`final_dataset`，1,275 张图，51 类 × 25 张）目前**与训练集同源采样**。所报准确率为训练态表现，独立数据集上的真实泛化精度**尚未验证**，预计会偏低。详见 `docs/architecture/PROJECT_STRUCTURE.md` 已知问题。
+
+**生产模型**：`efficientnet_b3`（`models/efficientnet_b3/model_best.pth`），51 类，256×256 输入，45.99 MB，11.9M 参数，于 Apple MPS 评测。
 
 | 指标 | 数值 |
 |------|------|
-| Top-1 准确率 | **93.92%** |
-| Top-3 准确率 | **96.15%** |
-| Top-5 准确率 | **96.89%** |
-| 推理速度 | **85.74 FPS** |
-| 单图耗时 | **11.66ms** |
+| Top-1 准确率 | **84.00%** |
+| Top-5 准确率 | **93.96%** |
+| Macro-F1 | **0.8401** |
+| 单图延迟 | **29.04 ms**（34.44 FPS） |
+| 批量(32)吞吐 | **31.11 FPS** |
 | 首次请求延迟 | **< 500ms**（带预热） |
-| 登录 API 响应 | **< 220ms** |
 
-### 模型对比
+**最弱类别**（准确率）：`silver_wolf` 64%，`Klee` / `aglaea` / `clorinde` / `kafka` 68%。
+**最易混淆对**：`clorinde` → `Furina`。
 
-| 模型 | 准确率 | FPS |
-|------|--------|-----|
-| MobileNetV2 | 94.00% | 379 |
-| EfficientNet-B0 | 95.20% | 298 |
-| EfficientNet-B3 (优化版) | **93.92%** | **85.74** |
-| ResNet50 | 94.80% | 257 |
+### 多角色检测（YOLOv8n）
 
-**当前生产模型**: `efficientnet_b3_loli_optimized_v2_20260529_133654`
+`yolov8n.pt` 为 COCO 预训练基线（6.25 MB，3.15M 参数），**未**在动漫角色上微调 —— 平均置信度 0.444，MPS 下约 4 FPS。微调待完成（见已知问题）。
+
+### 模型对比（参考，训练态）
+
+| 模型 | 类别数 | Top-1 | 说明 |
+|------|--------|-------|------|
+| EfficientNet-B3（生产） | 51 | **84.00%** | 当前模型 |
+| EfficientNet-B0 / MobileNetV2 / ResNet50 | — | — | 早期实验，见 `docs/blog/10_training_and_evaluation.md` |
 
 ## 🔒 安全
 
@@ -222,17 +248,16 @@ python -m pytest tests/ -v
 # 运行集成测试
 python -m pytest tests/integration/ -v
 
-# 运行性能测试
-python performance_test.py
+# 运行模型基准（生成 scripts/model_evaluation/benchmark_results.json）
+python scripts/model_evaluation/run_benchmark.py
 ```
 
 ## 📚 文档
 
 详细文档请参考：
-- `docs/technical_guide.md` - 技术规格
+- `docs/architecture/PROJECT_STRUCTURE.md` - 项目结构与已知问题
 - `docs/deployment/` - 部署指南（Kubernetes、Ubuntu）
 - `docs/training/` - 模型训练指南
-- `skillhub/docs/` - 技能仓库文档
 - `docs/blog/` - 技术博客
 
 ## 🤝 贡献
@@ -248,7 +273,7 @@ python performance_test.py
 
 ---
 
-**版本**: v2.3 | **最后更新**: 2026年7月 | **维护者**: ARD Team
+**版本**: v2.3.0 | **最后更新**: 2026年7月 | **维护者**: ARD Team
 
 ---
 
