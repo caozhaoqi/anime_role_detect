@@ -321,32 +321,42 @@ jobs:
           echo "=== Pod Status Summary ==="
           kubectl get pods -n anime-role-detect --no-headers | awk '{print $1, $2, $3, $4}'
 
-          # Get all pods with issues: non-Running phase or restarts > 0
-          all_pods=$(kubectl get pods -n anime-role-detect -o jsonpath='{range .items[?(@.status.phase!="Running" || @.status.containerStatuses[0].restartCount>0)]}{.metadata.name}{"\n"}{end}' 2>/dev/null || true)
+          echo ""
+          echo "=== Recent Events (last 30) ==="
+          kubectl get events -n anime-role-detect --sort-by=.lastTimestamp 2>/dev/null | tail -30 || true
 
-          if [ -n "$all_pods" ]; then
-            echo ""
-            echo "=== Problematic pods ==="
-            echo "$all_pods"
-            while IFS= read -r pod; do
-              [ -z "$pod" ] && continue
+          # NOTE: kubectl jsonpath does NOT support '!=' or '||', so the previous
+          # filter returned empty and the "All pods are running" false-positive hid
+          # every crash. We now iterate over ALL pods and inspect phase/restartCount
+          # individually — this reliably dumps CrashLoopBackOff container stderr.
+          found=0
+          for p in $(kubectl get pods -n anime-role-detect -o name 2>/dev/null); do
+            name="${p#pod/}"
+            phase=$(kubectl get "$p" -n anime-role-detect -o jsonpath='{.status.phase}' 2>/dev/null || true)
+            restarts=$(kubectl get "$p" -n anime-role-detect -o jsonpath='{.status.containerStatuses[0].restartCount}' 2>/dev/null || echo 0)
+            restarts="${restarts:-0}"
+            # CrashLoopBackOff keeps phase=Running but accumulates restarts; also
+            # catch Pending/Failed and any restart > 0.
+            if [[ "$phase" != "Running" || "${restarts}" -gt 0 ]]; then
+              found=1
               echo ""
               echo "=============================================="
-              echo "=== Describe: $pod ==="
+              echo "=== PROBLEM: $name (phase=$phase, restarts=$restarts) ==="
               echo "=============================================="
-              kubectl describe "pod/$pod" -n anime-role-detect 2>/dev/null | tail -40 || true
-
+              echo "--- describe (last 40 lines) ---"
+              kubectl describe "$p" -n anime-role-detect 2>/dev/null | tail -40 || true
               echo ""
-              echo "=== Current logs: $pod ==="
-              kubectl logs "$pod" -n anime-role-detect --tail=80 2>/dev/null || true
-
+              echo "--- current logs ---"
+              kubectl logs "$p" -n anime-role-detect --tail=80 2>/dev/null || true
               echo ""
-              echo "=== Previous logs (crashed container): $pod ==="
-              kubectl logs "$pod" -n anime-role-detect --previous --tail=80 2>/dev/null || echo "(no previous container logs)"
-            done <<< "$all_pods"
-          else
+              echo "--- previous (crashed) container logs ---"
+              kubectl logs "$p" -n anime-role-detect --previous --tail=80 2>/dev/null || echo "(no previous container logs)"
+            fi
+          done
+
+          if [ "$found" -eq 0 ]; then
             echo ""
-            echo "All pods are running with 0 restarts!"
+            echo "All pods are Running with 0 restarts!"
           fi
 
       - name: Summary
