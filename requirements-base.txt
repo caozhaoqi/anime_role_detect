@@ -76,3 +76,11 @@ bcrypt==4.2.0
 PyJWT==2.13.0
 cryptography==48.0.1
 scikit-learn==1.6.1
+
+# ONNX 推理 + 进度条：celery-worker/celery-beat 复用 ardc/api-service 镜像，
+# src/tasks/image_tasks.py 顶层 `from src.core.onnx_engine import get_engine`
+# → onnx_engine.py 顶层 `import onnxruntime as ort`。缺 onnxruntime 会让 celery
+# 在 import 阶段直接 ModuleNotFoundError 崩溃 (CrashLoopBackOff)。
+# api-service 的 onnx_inference 路由、cleaning_routes 也分别需要 onnxruntime / tqdm。
+onnxruntime==1.19.2
+tqdm==4.67.1
