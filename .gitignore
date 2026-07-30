@@ -188,3 +188,7 @@ src/temp/
 src/anime_role_detect_logs/
 clip_cache/
 huggingface_cache/
+
+# 归档的遗留独立项目（含嵌套 .git / 大模型权重，不纳入主仓库）
+archived/nsfw_model_img/
+archived/spider_image_system/
