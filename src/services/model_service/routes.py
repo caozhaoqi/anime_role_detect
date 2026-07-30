@@ -568,13 +568,16 @@ async def detect_multiple_characters(
                 role_result["is_unknown"] = detection["is_unknown"]
             if "is_fuzzy" in detection:
                 role_result["is_fuzzy"] = detection["is_fuzzy"]
+            if "fallback" in detection:
+                role_result["fallback"] = detection["fallback"]
             results.append(role_result)
 
         # 在 Model Service 内部完成 OCR + NSFW 检测，避免 API Service 重复推理
         multi_image = Image.open(temp_path).convert("RGB")
         text_detections, nsfw_result = await _run_ocr_and_nsfw(multi_image, content, file.filename)
 
-        return {"success": True, "data": {"roles": results, "count": len(results), "text_detections": text_detections, "nsfw": nsfw_result}}
+        fallback_used = any(det.get("fallback", False) for det in detection_results)
+        return {"success": True, "data": {"roles": results, "count": len(results), "fallback": fallback_used, "text_detections": text_detections, "nsfw": nsfw_result}}
     except HTTPException:
         raise
     except Exception as e:

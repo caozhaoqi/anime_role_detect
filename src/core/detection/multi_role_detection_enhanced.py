@@ -461,6 +461,7 @@ class EnhancedMultiRoleDetector:
                         },
                         "box": [0, 0, image_np.shape[1], image_np.shape[0]],
                         "attributes": [],
+                        "fallback": True,
                     }
                 )
 

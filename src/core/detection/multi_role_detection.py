@@ -345,6 +345,7 @@ class MultiRoleDetector:
                             "y2": int(image_np.shape[0]),
                         },
                         "confidence": 0.5,  # 默认置信度
+                        "fallback": True,
                     }
                 )
                 logger.info(f"添加默认角色检测结果: {role}, 相似度: {similarity}")
@@ -364,6 +365,7 @@ class MultiRoleDetector:
                             "y2": int(image_np.shape[0]),
                         },
                         "confidence": 0.1,  # 最低置信度
+                        "fallback": True,
                     }
                 )
         except Exception as e:
