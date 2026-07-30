@@ -55,6 +55,11 @@ class GlobalLogger:
         logger.remove()
 
         log_format = "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> | <level>{message}</level>"
+        # 纯文本格式（无颜色标签）：用于文件/标准输出 sink。
+        # 关键修复：loguru 默认 colorize=True 会对已渲染的日志内容二次解析，
+        # 当 message 含 <module>（模块级调用）或 {...}（字典参数，如 {'http_request': 10.0}）时
+        # 会抛 ValueError/KeyError 并静默丢弃日志。改用纯文本 + colorize=False 彻底规避。
+        log_format_plain = "{time:YYYY-MM-DD HH:mm:ss.SSS} | {level: <8} | {name}:{function}:{line} | {message}"
 
         # JSON 格式日志文件（供 ELK Filebeat / Loki 采集）
         # 按日期轮转，每天生成新文件，保留14天
@@ -76,7 +81,7 @@ class GlobalLogger:
             retention="7 days",
             compression="zip",
             level="DEBUG",
-            format=log_format,
+            format=log_format_plain, colorize=False,
             enqueue=True,
         )
 
@@ -87,7 +92,7 @@ class GlobalLogger:
             retention="7 days",
             compression="zip",
             level="INFO",
-            format=log_format,
+            format=log_format_plain, colorize=False,
         )
 
         # 推理日志配置
@@ -98,7 +103,7 @@ class GlobalLogger:
             retention="14 days",
             compression="zip",
             level="INFO",
-            format=log_format,
+            format=log_format_plain, colorize=False,
         )
 
         # 训练日志配置
@@ -109,7 +114,7 @@ class GlobalLogger:
             retention="30 days",
             compression="zip",
             level="INFO",
-            format=log_format,
+            format=log_format_plain, colorize=False,
         )
 
         # 错误日志配置
@@ -120,11 +125,11 @@ class GlobalLogger:
             retention="30 days",
             compression="zip",
             level="ERROR",
-            format=log_format,
+            format=log_format_plain, colorize=False,
         )
 
         # 控制台输出配置
-        logger.add(sys.stdout, level="INFO", format=log_format)
+        logger.add(sys.stdout, level="INFO", format=log_format_plain, colorize=False)
 
     def get_logger(self, name: str = "global"):
         """
