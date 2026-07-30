@@ -321,6 +321,9 @@ jobs:
           echo "=== Pod Status Summary ==="
           kubectl get pods -n anime-role-detect --no-headers | awk '{print $1, $2, $3, $4}'
 
+          echo ""
+          echo "=== Recent Events (last 30) ==="
+          kubectl get events -n anime-role-detect --sort-by=.lastTimestamp 2>/dev/null | tail -30 || true
           # NOTE: kubectl jsonpath does NOT support '!=' or '||', so the previous
           # filter returned empty and the "All pods are running" false-positive hid
           # every crash. We now iterate over ALL pods and inspect phase/restartCount

@@ -371,6 +371,10 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: spec.nodeName
+          # monitoring 镜像 ENTRYPOINT 为 /entrypoint.sh，必须由参数指定运行模式；
+          # 不传参数会命中 "*" 分支打印 Usage 并 exit 1 —— 导致容器立即退出 (CrashLoopBackOff)。
+          # monitor-dashboard 提供 /live 与 /ready HTTP 端点，匹配下方探针。
+          args: ["monitor-dashboard"]
           resources:
             requests:
               memory: "128Mi"

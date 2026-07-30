@@ -60,3 +60,19 @@ opentelemetry-instrumentation-fastapi==0.62b1
 opentelemetry-exporter-otlp-proto-grpc==1.41.1
 opentelemetry-exporter-otlp-proto-common==1.41.1
 opentelemetry-proto==1.41.1
+
+# ==============================================
+# 运行时依赖（base 镜像服务需要，非 ML）
+# CI / K8s 中 celery-worker、celery-beat 复用 ardc/api-service 镜像并以
+# `celery -A src.core.celery_config ...` 启动，必须安装 celery。
+# faiss / pymysql / bcrypt / PyJWT / cryptography / scikit-learn 为
+# 搜索、数据库、认证等模块运行时所需（本地 .venv 有完整 requirements.txt，
+# 但 ardc/base 仅装 requirements-base.txt，缺这些会导致容器启动失败）。
+# ==============================================
+celery==5.4.0
+faiss-cpu==1.9.0
+pymysql==1.1.1
+bcrypt==4.2.0
+PyJWT==2.13.0
+cryptography==48.0.1
+scikit-learn==1.6.1
