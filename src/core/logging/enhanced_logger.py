@@ -98,6 +98,7 @@ class EnhancedLogger:
             compression="zip",
             level="DEBUG",
             format=log_format,
+            colorize=False,
             enqueue=True,
         )
 
@@ -109,6 +110,7 @@ class EnhancedLogger:
             compression="zip",
             level="INFO",
             format=log_format,
+            colorize=False,
             filter=lambda record: record["extra"].get("log_type") == "system" or "log_type" not in record["extra"],
         )
 
@@ -120,6 +122,7 @@ class EnhancedLogger:
             compression="zip",
             level="INFO",
             format=log_format,
+            colorize=False,
             filter=lambda record: record["extra"].get("log_type") == "inference",
         )
 
@@ -131,6 +134,7 @@ class EnhancedLogger:
             compression="zip",
             level="INFO",
             format=log_format,
+            colorize=False,
             filter=lambda record: record["extra"].get("log_type") == "training",
         )
 
@@ -142,6 +146,7 @@ class EnhancedLogger:
             compression="zip",
             level="ERROR",
             format=log_format,
+            colorize=False,
             filter=lambda record: record["extra"].get("log_type") == "error" or record["level"].name == "ERROR",
         )
 
@@ -153,6 +158,7 @@ class EnhancedLogger:
             compression="zip",
             level="INFO",
             format=log_format,
+            colorize=False,
             filter=lambda record: record["extra"].get("log_type") == "access",
         )
 
@@ -164,10 +170,11 @@ class EnhancedLogger:
             compression="zip",
             level="INFO",
             format=log_format,
+            colorize=False,
             filter=lambda record: record["extra"].get("log_type") == "operation",
         )
 
-        logger.add(sys.stdout, level="INFO", format=log_format)
+        logger.add(sys.stdout, level="INFO", format=log_format, colorize=False)
 
     def _get_base_extra(self, component: str = "service", log_type: str = "system") -> Dict[str, Any]:
         return {

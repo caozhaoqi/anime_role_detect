@@ -23,7 +23,7 @@ logger = get_logger("feature_extraction")
 
 # 导入跨平台诊断工具
 try:
-    from utils.diagnostics import CrossPlatformDiagnostics
+    from src.utils.diagnostics import CrossPlatformDiagnostics
 
     DIAGNOSTICS_AVAILABLE = True
 except ImportError:
