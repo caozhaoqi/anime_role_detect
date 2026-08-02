@@ -55,7 +55,7 @@ export default function ChatPanel({
   return (
     <div className={`w-full ${darkMode ? 'bg-gray-800' : 'bg-white'} rounded-xl shadow-lg border ${darkMode ? 'border-gray-700' : 'border-gray-200'} transform transition-all duration-300 hover:shadow-xl`}>
       <div className={`p-4 md:p-6 border-b ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
-        <h2 className="text-lg md:text-xl font-semibold">动漫角色识别</h2>
+        <h2 className="text-lg md:text-xl font-semibold">Anime Role detect</h2>
       </div>
       <div className="p-4 md:p-6 max-h-[calc(100vh-24rem)] overflow-y-auto">
         {messages.map((message, index) => (

@@ -11,7 +11,7 @@ import json
 import glob
 from datetime import datetime
 
-project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, project_root)
 
 try:
@@ -333,17 +333,68 @@ def rollback_model(target_version):
     logger.info(f"最佳模型链接已更新")
 
 
+def promote_model(src_dir, target="models/efficientnet_b3"):
+    """将已验证的候选模型目录提升为生产模型目录（与 rollback_model 对称）。
+
+    流程：
+      1. 安全校验（src 必须存在且为目录、含 model_best.pth）；
+      2. 把当前 target 整体备份为 target + ".bak_<timestamp>"；
+      3. 将 src_dir 内容复制覆盖到 target。
+
+    本函数不自动调用自身，也不做任何评测/消费判定——评测闸门由调用方负责。
+    """
+    import shutil
+
+    # 1) 安全校验
+    if not os.path.isdir(src_dir):
+        logger.error(f"promote 失败：源目录不存在或不是目录: {src_dir}")
+        return False
+    if not os.path.exists(os.path.join(src_dir, "model_best.pth")):
+        logger.error(f"promote 失败：源目录缺少 model_best.pth: {src_dir}")
+        return False
+
+    # target 解析：非绝对路径一律相对 project_root（不受 cwd 影响）
+    target_path = target if os.path.isabs(target) else os.path.join(project_root, target)
+    logger.info(f"promote: src={src_dir}")
+    logger.info(f"promote: target={target_path}")
+
+    # 2) 备份当前 target（若存在且为有效模型目录）
+    if os.path.isdir(target_path) and os.path.exists(os.path.join(target_path, "model_best.pth")):
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        backup_path = f"{target_path}.bak_{ts}"
+        # 避免覆盖已有同名备份
+        while os.path.exists(backup_path):
+            ts = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+            backup_path = f"{target_path}.bak_{ts}"
+        shutil.copytree(target_path, backup_path)
+        logger.info(f"已备份当前生产模型: {backup_path}")
+    else:
+        logger.warning(f"当前 target 不存在或不是有效模型目录，跳过备份: {target_path}")
+
+    # 3) 复制 src 覆盖到 target
+    os.makedirs(os.path.dirname(target_path) or ".", exist_ok=True)
+    # 若 target 已存在，先清空再复制，确保覆盖语义干净
+    if os.path.isdir(target_path):
+        shutil.rmtree(target_path)
+    shutil.copytree(src_dir, target_path)
+    logger.info(f"已提升候选模型到生产目录: {target_path}")
+    logger.info("promote 完成（未自动调用自身，亦未做评测判定）。")
+    return True
+
+
 def main():
     import argparse
 
     parser = argparse.ArgumentParser(description="模型版本管理脚本")
     parser.add_argument(
-        "command", choices=["list", "compare", "summary", "rollback"], help="执行的命令"
+        "command", choices=["list", "compare", "summary", "rollback", "promote"], help="执行的命令"
     )
     parser.add_argument("--model1", help="第一个模型路径（用于compare命令）")
     parser.add_argument("--model2", help="第二个模型路径（用于compare命令）")
     parser.add_argument("--test_data", help="测试数据目录（用于compare命令）")
     parser.add_argument("--version", help="目标版本（用于rollback命令）")
+    parser.add_argument("--src", help="候选模型目录（用于promote命令）")
+    parser.add_argument("--target", default="models/efficientnet_b3", help="目标生产目录（用于promote命令）")
 
     args = parser.parse_args()
 
@@ -359,6 +410,12 @@ def main():
         if not args.version:
             parser.error("rollback命令需要指定 --version")
         rollback_model(args.version)
+    elif args.command == "promote":
+        if not args.src:
+            parser.error("promote命令需要指定 --src")
+        ok = promote_model(args.src, target=args.target)
+        if not ok:
+            sys.exit(1)
 
 
 if __name__ == "__main__":

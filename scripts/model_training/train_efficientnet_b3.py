@@ -76,9 +76,14 @@ def get_best_device():
         return torch.device("cpu")
 
 
-def create_efficientnet_b3(num_classes: int) -> nn.Module:
-    """创建与 model_loader.py 完全一致的 EfficientNet-B3 架构"""
-    model = models.efficientnet_b3(weights=models.EfficientNet_B3_Weights.DEFAULT)
+def create_efficientnet_b3(num_classes: int, weights=models.EfficientNet_B3_Weights.DEFAULT) -> nn.Module:
+    """创建与 model_loader.py 完全一致的 EfficientNet-B3 架构
+
+    weights: 默认使用 ImageNet 预训练权重（v1 训练 / train_clean_split 需要）；
+    增量微调与评测场景应传入 weights=None，跳过 47MB 权重下载——
+    因为随即 strict 加载 checkpoint 会把整个主干覆盖掉，下载的权重永不使用。
+    """
+    model = models.efficientnet_b3(weights=weights)
     model.classifier = nn.Sequential(
         nn.Dropout(p=0.3),
         nn.Linear(model.classifier[1].in_features, 768),

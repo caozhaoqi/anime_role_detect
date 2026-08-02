@@ -72,6 +72,7 @@ export default function AnimeRoleDetect() {
   const [useAttributes, setUseAttributes] = useState(true);
   const [multiRole, setMultiRole] = useState(false);
   const [useYolo, setUseYolo] = useState(false);
+  const [useDebug, setUseDebug] = useState(false);
   const [isBatchUpload, setIsBatchUpload] = useState(false);
   const [config, setConfig] = useState(ConfigManager.getConfig());
   const [activePanel, setActivePanel] = useState<'classify' | 'search' | 'video' | 'cleaning'>('classify');
@@ -171,6 +172,7 @@ export default function AnimeRoleDetect() {
           multiRole,
           threshold: 0.4,
           useYolo,
+          debug: useDebug,
         }
       );
 
@@ -184,7 +186,7 @@ export default function AnimeRoleDetect() {
     }
 
     setInputText('');
-  }, [inputText, selectedImage, imagePreview, selectedImages, imagePreviews, isBatchUpload, isProcessing, removeImage, clearBatchImages, useCoreML, selectedModel, useAttributes, multiRole, useYolo, classify, batchClassify, replaceThinkingWithMessages, handleLogout, setInputText]);
+  }, [inputText, selectedImage, imagePreview, selectedImages, imagePreviews, isBatchUpload, isProcessing, removeImage, clearBatchImages, useCoreML, selectedModel, useAttributes, multiRole, useYolo, useDebug, classify, batchClassify, replaceThinkingWithMessages, handleLogout, setInputText]);
 
   const handleKeyPress = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -286,6 +288,8 @@ export default function AnimeRoleDetect() {
             onAttributesChange={setUseAttributes}
             onMultiRoleChange={setMultiRole}
             onYoloChange={setUseYolo}
+            onDebugChange={setUseDebug}
+            useDebug={useDebug}
             onBatchUploadChange={handleBatchUploadChange}
           />
 
@@ -351,6 +355,8 @@ export default function AnimeRoleDetect() {
                   <ConfigPanel
                     darkMode={darkMode}
                     config={config}
+                    useDebug={useDebug}
+                    onDebugChange={setUseDebug}
                     onConfigUpdate={handleConfigUpdate}
                     onClose={() => setShowConfig(false)}
                   />
@@ -361,8 +367,8 @@ export default function AnimeRoleDetect() {
 
           <footer className={`py-4 border-t ${darkMode ? 'border-gray-700' : 'border-gray-200'} transition-all duration-300`}>
             <div className="container mx-auto px-4 text-center text-sm text-gray-500 dark:text-gray-400">
-              <p className="bg-gradient-to-r from-blue-500 to-purple-600 bg-clip-text text-transparent">动漫角色识别助手 © zhaoqi.cao arona 2026</p>
-              <p className="mt-1">基于深度学习的动漫角色识别系统</p>
+              <p className="bg-gradient-to-r from-blue-500 to-purple-600 bg-clip-text text-transparent">Anime Role detect ©Arona 2026</p>
+              <p className="mt-1">A role role detection system based on deep learning</p>
             </div>
           </footer>
         </>

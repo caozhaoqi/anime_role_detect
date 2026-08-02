@@ -76,6 +76,10 @@ class EnhancedMultiRoleDetector:
         self.unknown_threshold = unknown_threshold
         self.fuzzy_threshold = fuzzy_threshold
 
+        self._debug_boxes = []
+        self._debug_degraded_path = False
+        self._debug_total_boxes = 0
+
     def _lazy_initialize_models(self):
         """延迟初始化模型"""
         if not self.models_initialized:
@@ -273,7 +277,7 @@ class EnhancedMultiRoleDetector:
         )
         return transform(image).unsqueeze(0)
 
-    def _classify_with_open_set(self, role_image: Image.Image) -> Dict[str, Any]:
+    def _classify_with_open_set(self, role_image: Image.Image, return_top_k: int = 1) -> Dict[str, Any]:
         """
         使用 Open-set 识别进行角色分类
 
@@ -287,23 +291,32 @@ class EnhancedMultiRoleDetector:
             "decision": "unknown",
             "is_unknown": True,
             "is_fuzzy": False,
+            "candidates": [],
+            # 默认视为模型兜底（纯 EfficientNet）；FAISS 命中成功返回时改为 False
+            "used_model": True,
         }
 
         # 1. 使用特征提取 + FAISS 搜索
         if self.open_set_recognizer and self.extractor:
             try:
                 feature = self.extractor.extract_features(role_image)
-                faiss_result = self.open_set_recognizer.recognize(feature, top_k=1)
+                faiss_result = self.open_set_recognizer.recognize(feature, top_k=return_top_k)
 
                 if faiss_result["predictions"]:
-                    top_pred = faiss_result["predictions"][0]
+                    preds = faiss_result["predictions"][:return_top_k]
+                    top_pred = preds[0]
                     result["similarity"] = top_pred["similarity"]
                     result["role"] = top_pred["role"]
                     result["confidence"] = top_pred["similarity"]
                     result["decision"] = faiss_result["decision"]
                     result["is_unknown"] = faiss_result["is_unknown"]
                     result["is_fuzzy"] = faiss_result["is_fuzzy"]
+                    result["candidates"] = [
+                        {"role": p["role"], "prob": float(p["similarity"])} for p in preds
+                    ]
 
+                    # FAISS 命中并成功返回 → 用的是 FAISS，未走模型兜底
+                    result["used_model"] = False
                     return result
             except Exception as e:
                 logger.warning(f"Open-set 识别失败: {e}")
@@ -332,6 +345,8 @@ class EnhancedMultiRoleDetector:
                 else:
                     result["decision"] = "known"
 
+                result["candidates"] = [{"role": result["role"], "prob": float(result["similarity"])}]
+
             except Exception as e:
                 logger.error(f"模型分类失败: {e}")
 
@@ -343,7 +358,11 @@ class EnhancedMultiRoleDetector:
         return result["role"], result["similarity"]
 
     def detect_roles(
-        self, image_path: str, max_characters: int = 10, person_conf_threshold: float = 0.2
+        self,
+        image_path: str,
+        max_characters: int = 10,
+        person_conf_threshold: float = 0.2,
+        debug: bool = False,
     ) -> List[Dict[str, Any]]:
         """
         检测图像中的多个角色
@@ -357,6 +376,11 @@ class EnhancedMultiRoleDetector:
             角色检测和分类结果列表
         """
         results = []
+
+        if debug:
+            self._debug_boxes = []
+            self._debug_degraded_path = False
+            self._debug_total_boxes = 0
 
         try:
             logger.info(f"🔍 开始检测角色，图像路径: {image_path}")
@@ -385,17 +409,37 @@ class EnhancedMultiRoleDetector:
                             continue
                         if box.xyxy is None or len(box.xyxy) == 0:
                             continue
-                            
+
                         try:
                             cls_id = int(box.cls[0])
                             conf = float(box.conf[0])
                         except (TypeError, IndexError):
                             continue
-                            
-                        if cls_id != 0:
-                            continue
 
-                        if conf < person_conf_threshold:
+                        if debug:
+                            self._debug_total_boxes += 1
+
+                        passed_conf = conf >= person_conf_threshold
+
+                        # debug 模式：为每个原始框（过滤前）记录候选信息
+                        if debug:
+                            dbg = {
+                                "bbox": [0.0, 0.0, 0.0, 0.0],
+                                "class_id": cls_id,
+                                "raw_confidence": conf,
+                                "passed_conf_threshold": passed_conf,
+                                "cropped_role": False,
+                                "is_known_character": False,
+                                "kept": False,
+                                "discard_reason": None,
+                                "candidates": [],
+                            }
+
+                        # 放宽类别过滤：接受所有非背景检测框，交由 EfficientNet 开集判定
+                        if not passed_conf:
+                            if debug:
+                                dbg["discard_reason"] = "below_conf_threshold"
+                                self._debug_boxes.append(dbg)
                             continue
 
                         try:
@@ -406,7 +450,7 @@ class EnhancedMultiRoleDetector:
 
                         cropped = image.crop(bbox)
 
-                        classification = self._classify_with_open_set(cropped)
+                        classification = self._classify_with_open_set(cropped, return_top_k=3 if debug else 1)
 
                         detection = {
                             "role": classification["role"],
@@ -418,6 +462,7 @@ class EnhancedMultiRoleDetector:
                             "decision": classification["decision"],
                             "is_unknown": classification["is_unknown"],
                             "is_fuzzy": classification["is_fuzzy"],
+                            "used_model": classification.get("used_model", True),
                             "bbox": {
                                 "x1": int(bbox[0]),
                                 "y1": int(bbox[1]),
@@ -431,6 +476,14 @@ class EnhancedMultiRoleDetector:
                         results.append(detection)
                         detected_count += 1
 
+                        if debug:
+                            dbg["bbox"] = bbox
+                            dbg["cropped_role"] = True
+                            dbg["is_known_character"] = not classification["is_unknown"]
+                            dbg["candidates"] = classification.get("candidates", [])
+                            dbg["kept"] = True
+                            self._debug_boxes.append(dbg)
+
                         if detected_count >= max_characters:
                             break
 
@@ -440,7 +493,7 @@ class EnhancedMultiRoleDetector:
             # 2. 如果没有检测到，使用整图
             if len(results) == 0:
                 logger.info("未检测到人体，使用整图进行分类")
-                classification = self._classify_with_open_set(image)
+                classification = self._classify_with_open_set(image, return_top_k=3 if debug else 1)
 
                 results.append(
                     {
@@ -453,6 +506,7 @@ class EnhancedMultiRoleDetector:
                         "decision": classification["decision"],
                         "is_unknown": classification["is_unknown"],
                         "is_fuzzy": classification["is_fuzzy"],
+                        "used_model": classification.get("used_model", True),
                         "bbox": {
                             "x1": 0,
                             "y1": 0,
@@ -464,6 +518,23 @@ class EnhancedMultiRoleDetector:
                         "fallback": True,
                     }
                 )
+
+                if debug:
+                    h, w = image_np.shape[0], image_np.shape[1]
+                    self._debug_boxes.append(
+                        {
+                            "bbox": [0.0, 0.0, float(w), float(h)],
+                            "class_id": -1,
+                            "raw_confidence": 0.0,
+                            "passed_conf_threshold": True,
+                            "cropped_role": True,
+                            "is_known_character": not classification["is_unknown"],
+                            "kept": True,
+                            "discard_reason": None,
+                            "candidates": classification.get("candidates", []),
+                        }
+                    )
+                    self._debug_degraded_path = True
 
             # 3. 记录模糊样本
             if self.enable_fuzzy_record and self.fuzzy_recorder:

@@ -17,6 +17,7 @@ interface HeaderProps {
   useAttributes: boolean;
   multiRole: boolean;
   useYolo: boolean;
+  useDebug: boolean;
   isBatchUpload: boolean;
   onShowHistoryChange: (value: boolean) => void;
   onShowConfigChange: (value: boolean) => void;
@@ -27,6 +28,7 @@ interface HeaderProps {
   onAttributesChange: (value: boolean) => void;
   onMultiRoleChange: (value: boolean) => void;
   onYoloChange: (value: boolean) => void;
+  onDebugChange: (value: boolean) => void;
   onBatchUploadChange: (value: boolean) => void;
 }
 
@@ -69,7 +71,7 @@ export default function Header({
         <div className="flex flex-wrap items-center justify-between gap-4">
           {/* 左侧：标题 */}
           <div className="flex items-center">
-            <h1 className="text-2xl font-semibold bg-gradient-to-r from-blue-500 to-purple-600 bg-clip-text text-transparent">动漫角色识别</h1>
+            <h1 className="text-2xl font-semibold bg-gradient-to-r from-blue-500 to-purple-600 bg-clip-text text-transparent">Anime Role detect</h1>
           </div>
           
           {/* 右侧：配置和个人信息 */}

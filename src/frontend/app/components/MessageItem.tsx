@@ -1,6 +1,8 @@
-import React from 'react';
-import { Bot, User, Copy, Download, X, Sparkles, CheckCircle } from 'lucide-react';
+import React, { useState } from 'react';
+import { Bot, User, Copy, Download, X, Sparkles, CheckCircle, Flame, Pencil, Check, ChevronDown } from 'lucide-react';
 import { Message } from '../types';
+import { useGradcam } from '../hooks/useGradcam';
+import { useFeedback } from '../hooks/useFeedback';
 
 interface MessageItemProps {
   message: Message;
@@ -27,6 +29,69 @@ const MessageItem: React.FC<MessageItemProps> = ({ message, darkMode, handleCopy
     if (entries.length === 0) return 'unknown';
     return entries.reduce((a, b) => Number(a[1]) > Number(b[1]) ? a : b)[0];
   };
+
+  // Phase1: Grad-CAM 热力图 + 纠错反馈
+  const gradcam = useGradcam();
+  const feedback = useFeedback();
+  const [gradcamLoading, setGradcamLoading] = useState<number | null>(null);
+  const [gradcamResult, setGradcamResult] = useState<{ [key: number]: any }>({});
+  const [correctingRole, setCorrectingRole] = useState<number | null>(null);
+  const [correctionSelect, setCorrectionSelect] = useState<string>('');
+  const [submittedCorrections, setSubmittedCorrections] = useState<Set<number>>(new Set());
+
+  // 原图 base64 → File（gradcam 端点需要 file upload）
+  const imageToFile = async (): Promise<File | null> => {
+    try {
+      if (!message.image) return null;
+      const res = await fetch(message.image);
+      const blob = await res.blob();
+      return new File([blob], 'image.jpg', { type: blob.type || 'image/jpeg' });
+    } catch { return null; }
+  };
+
+  // 触发 Grad-CAM
+  const handleGradcam = async (roleIndex: number, targetClass?: number) => {
+    setGradcamLoading(roleIndex);
+    const file = await imageToFile();
+    if (!file) { setGradcamLoading(null); return; }
+    const result = await gradcam.generate(file, targetClass);
+    if (result) setGradcamResult(prev => ({ ...prev, [roleIndex]: result }));
+    setGradcamLoading(null);
+  };
+
+  // 提交纠错
+  const handleCorrection = async (roleIndex: number, originalRole: string, confidence: number) => {
+    if (!correctionSelect || correctionSelect === originalRole) return;
+    const ok = await feedback.submit({
+      recognition_id: message.id,
+      endpoint: message.multi_roles ? 'multi-role' : 'yolo-detect',
+      original_prediction: originalRole,
+      original_confidence: confidence,
+      corrected_label: correctionSelect,
+      image_data: message.image || undefined,
+      timestamp: new Date().toISOString(),
+    });
+    if (ok) {
+      setSubmittedCorrections(prev => new Set(prev).add(roleIndex));
+      setCorrectingRole(null);
+      setCorrectionSelect('');
+    }
+  };
+
+  // 独立 debug 面板统计（不依赖 classification / multi_roles 是否存在）
+  const debugStats = message.debug && message.debug.enabled ? (() => {
+    const boxes = message.debug!.boxes;
+    const keptKnown = boxes.filter((b) => b.kept && b.is_known_character).length;
+    const keptUnknown = boxes.filter((b) => b.kept && !b.is_known_character).length;
+    const filtered = boxes.filter((b) => !b.kept).length;
+    const discardCounts: Record<string, number> = {};
+    boxes.forEach((b) => {
+      if (!b.kept && b.discard_reason) {
+        discardCounts[b.discard_reason] = (discardCounts[b.discard_reason] || 0) + 1;
+      }
+    });
+    return { keptKnown, keptUnknown, filtered, discardCounts };
+  })() : null;
 
   return (
     <div
@@ -86,6 +151,56 @@ const MessageItem: React.FC<MessageItemProps> = ({ message, darkMode, handleCopy
                   <p className="text-sm font-medium">{(message.classification.similarity * 100).toFixed(1)}%</p>
                 </div>
               </div>
+              {/* Phase1: Grad-CAM 热力图 + 纠错反馈 */}
+              <div className="flex items-center space-x-2 flex-wrap gap-y-2">
+                {message.classification?.used_model !== false && (
+                <button
+                  onClick={() => handleGradcam(-1)}
+                  disabled={gradcamLoading === -1}
+                  className="px-2 py-0.5 text-xs rounded-full bg-orange-100 text-orange-600 dark:bg-orange-900/50 dark:text-orange-400 hover:scale-105 transition-transform disabled:opacity-50"
+                  title="查看 Grad-CAM 热力图"
+                >
+                  {gradcamLoading === -1 ? '⏳ 生成中...' : '🔥 热力图'}
+                </button>
+                )}
+                {submittedCorrections.has(-1) ? (
+                  <span className="px-2 py-0.5 text-xs rounded-full bg-green-100 text-green-600 dark:bg-green-900/50 dark:text-green-400">
+                    ✓ 已纠错
+                  </span>
+                ) : correctingRole === -1 ? (
+                  <div className="flex items-center space-x-1">
+                    <select
+                      value={correctionSelect}
+                      onChange={(e) => setCorrectionSelect(e.target.value)}
+                      className={`text-xs rounded border ${darkMode ? 'bg-gray-700 border-gray-600 text-gray-100' : 'bg-white border-gray-300 text-gray-900'} px-1 py-0.5 max-w-[140px]`}
+                    >
+                      <option value="">选择正确角色...</option>
+                      {feedback.roles.map(r => <option key={r.idx} value={r.name}>{r.name}</option>)}
+                    </select>
+                    <button
+                      onClick={() => handleCorrection(-1, message.classification!.role, message.classification!.similarity)}
+                      disabled={!correctionSelect || feedback.submitting}
+                      className="px-2 py-0.5 text-xs rounded bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-50"
+                    >提交</button>
+                    <button onClick={() => { setCorrectingRole(null); setCorrectionSelect(''); }}
+                      className="px-1 py-0.5 text-xs rounded text-gray-500 hover:text-gray-700">✕</button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => { setCorrectingRole(-1); setCorrectionSelect(''); }}
+                    className="px-2 py-0.5 text-xs rounded-full bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-300 hover:scale-105 transition-transform"
+                    title="纠错：这个角色识别错了？"
+                  >✏️ 纠错</button>
+                )}
+              </div>
+              {gradcamResult[-1] && (
+                <div className="mt-2 rounded-lg overflow-hidden border border-orange-200 dark:border-orange-800">
+                  <p className="text-xs text-orange-600 dark:text-orange-400 p-2 bg-orange-50 dark:bg-orange-900/30">
+                    🔥 Grad-CAM：模型关注区域（目标: {gradcamResult[-1].target_label}，置信度: {(gradcamResult[-1].confidence * 100).toFixed(1)}%）
+                  </p>
+                  <img src={gradcamResult[-1].cam_heatmap_base64} alt="grad-cam" className="w-full h-auto" />
+                </div>
+              )}
             </div>
           )}
 
@@ -106,7 +221,7 @@ const MessageItem: React.FC<MessageItemProps> = ({ message, darkMode, handleCopy
                   <div key={index} className={`p-3 ${darkMode ? 'bg-gray-600' : 'bg-gray-200'} rounded-lg transform hover:scale-[1.02] transition-transform`}>
                     <div className="flex justify-between items-start">
                       <div className="flex-1">
-                        <div className="flex items-center space-x-2">
+                        <div className="flex items-center space-x-2 flex-wrap gap-y-1">
                           <p className="text-sm font-medium">{role.role}</p>
                           {role.is_unknown && (
                             <span className="px-2 py-0.5 text-xs bg-red-100 text-red-600 dark:bg-red-900 dark:text-red-400 rounded-full">未知</span>
@@ -116,6 +231,47 @@ const MessageItem: React.FC<MessageItemProps> = ({ message, darkMode, handleCopy
                           )}
                           {role.decision === "known" && !role.is_fuzzy && !role.is_unknown && (
                             <span className="px-2 py-0.5 text-xs bg-green-100 text-green-600 dark:bg-green-900 dark:text-green-400 rounded-full">已知</span>
+                          )}
+                          {/* Phase1: Grad-CAM 热力图按钮 */}
+                          {role.used_model !== false && (
+                          <button
+                            onClick={() => handleGradcam(index)}
+                            disabled={gradcamLoading === index}
+                            className="px-2 py-0.5 text-xs rounded-full bg-orange-100 text-orange-600 dark:bg-orange-900/50 dark:text-orange-400 hover:scale-105 transition-transform disabled:opacity-50"
+                            title="查看 Grad-CAM 热力图"
+                          >
+                            {gradcamLoading === index ? '⏳ 生成中...' : '🔥 热力图'}
+                          </button>
+                          )}
+                          {/* Phase1: 纠错反馈 */}
+                          {submittedCorrections.has(index) ? (
+                            <span className="px-2 py-0.5 text-xs rounded-full bg-green-100 text-green-600 dark:bg-green-900/50 dark:text-green-400">
+                              ✓ 已纠错
+                            </span>
+                          ) : correctingRole === index ? (
+                            <div className="flex items-center space-x-1">
+                              <select
+                                value={correctionSelect}
+                                onChange={(e) => setCorrectionSelect(e.target.value)}
+                                className={`text-xs rounded border ${darkMode ? 'bg-gray-700 border-gray-600 text-gray-100' : 'bg-white border-gray-300 text-gray-900'} px-1 py-0.5 max-w-[140px]`}
+                              >
+                                <option value="">选择正确角色...</option>
+                                {feedback.roles.map(r => <option key={r.idx} value={r.name}>{r.name}</option>)}
+                              </select>
+                              <button
+                                onClick={() => handleCorrection(index, role.role, role.similarity)}
+                                disabled={!correctionSelect || feedback.submitting}
+                                className="px-2 py-0.5 text-xs rounded bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-50"
+                              >提交</button>
+                              <button onClick={() => { setCorrectingRole(null); setCorrectionSelect(''); }}
+                                className="px-1 py-0.5 text-xs rounded text-gray-500 hover:text-gray-700">✕</button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => { setCorrectingRole(index); setCorrectionSelect(''); }}
+                              className="px-2 py-0.5 text-xs rounded-full bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-300 hover:scale-105 transition-transform"
+                              title="纠错：这个角色识别错了？"
+                            >✏️ 纠错</button>
                           )}
                         </div>
                         {role.role_cn && role.role_cn !== role.role && (
@@ -135,8 +291,117 @@ const MessageItem: React.FC<MessageItemProps> = ({ message, darkMode, handleCopy
                         />
                       </div>
                     </div>
+                    {gradcamResult[index] && (
+                      <div className="mt-2 rounded-lg overflow-hidden border border-orange-200 dark:border-orange-800">
+                        <p className="text-xs text-orange-600 dark:text-orange-400 p-2 bg-orange-50 dark:bg-orange-900/30">
+                          🔥 Grad-CAM：模型关注区域（目标: {gradcamResult[index].target_label}，置信度: {(gradcamResult[index].confidence * 100).toFixed(1)}%）
+                        </p>
+                        <img src={gradcamResult[index].cam_heatmap_base64} alt="grad-cam" className="w-full h-auto" />
+                      </div>
+                    )}
                   </div>
                 ))}
+              </div>
+            </div>
+          )}
+
+          {debugStats && (
+            <div className="mt-4 space-y-3 animate-fade-in">
+              <div className="flex items-center space-x-2">
+                <div className="w-2 h-2 rounded-full bg-purple-500 animate-pulse" />
+                <h4 className="font-semibold text-sm">🐞 Debug 辅助框</h4>
+                <span className="px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-600 dark:bg-purple-900/50 dark:text-purple-400">
+                  调试视图
+                </span>
+              </div>
+
+              {message.debug!.degraded_path && (
+                <div className="mt-2 mb-3 p-2 rounded-lg bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300 text-xs flex items-center space-x-1">
+                  <span>⚠️</span>
+                  <span>降级路径（未检测到人体，使用整图分类）</span>
+                </div>
+              )}
+
+              {message.debug!.annotated_image && (
+                <div className="mt-3 rounded-lg overflow-hidden shadow-md border border-gray-200 dark:border-gray-600">
+                  <img
+                    src={message.debug!.annotated_image}
+                    alt="debug annotated"
+                    className="w-full h-auto object-contain"
+                  />
+                </div>
+              )}
+
+              <div className={`grid grid-cols-3 gap-3 ${darkMode ? 'text-gray-100' : 'text-gray-900'}`}>
+                <div className={`p-3 ${darkMode ? 'bg-gray-600' : 'bg-gray-200'} rounded-lg transform hover:scale-[1.02] transition-transform`}>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">🟢 保留已知</p>
+                  <p className="text-sm font-medium">{debugStats.keptKnown}</p>
+                </div>
+                <div className={`p-3 ${darkMode ? 'bg-gray-600' : 'bg-gray-200'} rounded-lg transform hover:scale-[1.02] transition-transform`}>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">🟡 保留未知</p>
+                  <p className="text-sm font-medium">{debugStats.keptUnknown}</p>
+                </div>
+                <div className={`p-3 ${darkMode ? 'bg-gray-600' : 'bg-gray-200'} rounded-lg transform hover:scale-[1.02] transition-transform`}>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">🔴 被过滤</p>
+                  <p className="text-sm font-medium">{debugStats.filtered}</p>
+                </div>
+              </div>
+
+              {message.debug!.boxes && message.debug!.boxes.length > 0 && (
+                <div className="mt-3 space-y-1">
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">📊 逐框置信度</p>
+                  <div className={`rounded-lg ${darkMode ? 'bg-gray-600' : 'bg-gray-200'} p-2 space-y-1 max-h-48 overflow-y-auto`}>
+                    {message.debug!.boxes.map((b, i) => {
+                      const dot = b.kept
+                        ? b.is_known_character
+                          ? '🟢'
+                          : '🟡'
+                        : '🔴';
+                      const reason =
+                        !b.kept && b.discard_reason ? `（${b.discard_reason}）` : '';
+                      return (
+                        <div key={i} className="flex items-center space-x-2 text-xs">
+                          <span className="font-mono text-gray-400">#{i + 1}</span>
+                          <span>{dot}</span>
+                          <span className="font-medium text-gray-700 dark:text-gray-300">
+                            {(b.raw_confidence * 100).toFixed(1)}%
+                          </span>
+                          {reason && (
+                            <span className="text-red-500 dark:text-red-400">{reason}</span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
+                <span>
+                  YOLO 原始框总数:{' '}
+                  <span className="font-medium text-gray-700 dark:text-gray-300">
+                    {message.debug!.yolo_total_boxes}
+                  </span>
+                </span>
+              </div>
+
+              {Object.keys(debugStats.discardCounts).length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {Object.entries(debugStats.discardCounts).map(([reason, count]) => (
+                    <span
+                      key={reason}
+                      className="px-2 py-1 text-xs bg-red-100 text-red-600 dark:bg-red-900/50 dark:text-red-400 rounded-full"
+                    >
+                      {reason}: {count}
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500 dark:text-gray-400 pt-1 border-t border-gray-200 dark:border-gray-600">
+                <span>🟢 保留且已知角色</span>
+                <span>🟡 保留但被判未知（开集兜底）</span>
+                <span>🔴 被阈值/未知过滤丢弃</span>
               </div>
             </div>
           )}
