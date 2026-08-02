@@ -94,6 +94,7 @@ export const useRecognition = () => {
     if (options.multiRole) {
       const roles = data.roles || [];
       const count = data.count || 0;
+      const fallback = data.fallback || false;
 
       return {
         id: Date.now().toString(),
@@ -117,6 +118,7 @@ export const useRecognition = () => {
         text_detections: data.text_detections || [],
         nsfw: data.nsfw,
         summary: data.summary,
+        fallback,
         thoughts: ['正在分析图片...', '正在检测多个角色...', '正在提取特征...', '识别完成！'],
         isThinkingFinished: true,
         timestamp: Date.now(),
@@ -213,11 +215,19 @@ export const useRecognition = () => {
       try {
         const response = await RecognitionService.classify(file, options);
 
-        if (response.success && response.data) {
-          const resultMessage = createRecognitionResponse(response.data, options);
+        // 防御性兼容：无论路由返回的是标准信封（{success, data}）
+        // 还是被多包一层（{data:{success, data}}），都能正确取值。
+        // response 的静态类型为 RecognitionResponse，但运行时可能为被多包一层的结构，
+        // 故以 any 访问，兼容两种形态。
+        const resp: any = response;
+        const success = resp.success ?? resp.data?.success;
+        const payload = resp.data?.data ?? resp.data;
+
+        if (success && payload) {
+          const resultMessage = createRecognitionResponse(payload, options);
           messages.push(resultMessage);
         } else {
-          const errorMessage = createErrorResponse(new Error(response.message || '识别失败'));
+          const errorMessage = createErrorResponse(new Error(resp.message || resp.data?.message || '识别失败'));
           messages.push(errorMessage);
         }
       } catch (error: any) {

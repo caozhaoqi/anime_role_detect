@@ -91,12 +91,12 @@ export async function POST(request: NextRequest) {
       const result = await response.json();
       console.log('后端API返回结果:', result);
 
-      // 将后端响应包装成前端期望的格式
-      const wrappedResult = {
-        data: result
-      };
-
-      return NextResponse.json(wrappedResult, { status: 200 });
+      // 后端返回标准信封 {success, data, message}（经 api-gateway 映射 model-service 的 /api/model/detect-multiple），
+      // 直接透传，避免外层丢失 success 字段导致前端误判失败（与已修的 /api/classify 路由一致）
+      return NextResponse.json(
+        { success: result.success, data: result.data, message: result.message },
+        { status: 200 }
+      );
     } catch (fetchError) {
       console.error('发送请求到后端API失败:', fetchError);
       return NextResponse.json({ error: 'Failed to connect to backend API' }, { status: 500 });

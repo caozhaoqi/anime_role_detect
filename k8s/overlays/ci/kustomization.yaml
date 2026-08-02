@@ -72,7 +72,7 @@ patches:
         path: /spec/template/spec/containers/0/startupProbe
         value:
           exec:
-            command: ["mysqladmin", "ping", "-h", "localhost"]
+            command: ["mysqladmin", "ping", "-h", "127.0.0.1"]
           initialDelaySeconds: 20
           periodSeconds: 5
           failureThreshold: 30
@@ -269,7 +269,7 @@ patches:
         value:
           httpGet:
             path: /live
-            port: 8000
+            port: 8001
           initialDelaySeconds: 30
           periodSeconds: 10
           failureThreshold: 30
@@ -282,7 +282,7 @@ patches:
         value:
           httpGet:
             path: /live
-            port: 8000
+            port: 8002
           initialDelaySeconds: 20
           periodSeconds: 10
           failureThreshold: 30
@@ -295,7 +295,7 @@ patches:
         value:
           httpGet:
             path: /live
-            port: 8000
+            port: 8003
           initialDelaySeconds: 20
           periodSeconds: 10
           failureThreshold: 30
@@ -308,7 +308,7 @@ patches:
         value:
           httpGet:
             path: /live
-            port: 8000
+            port: 9000
           initialDelaySeconds: 20
           periodSeconds: 10
           failureThreshold: 30

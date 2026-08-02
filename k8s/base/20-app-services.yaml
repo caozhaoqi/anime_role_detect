@@ -79,6 +79,9 @@ spec:
 ---
 # ============================================================
 # API Service — 核心业务 API
+# 实际监听端口 8001（见 deployment/Dockerfile.api-service: EXPOSE 8001 /
+# CMD ["python","src/api/app.py"]，app.py 内 uvicorn 绑定 8001）。
+# 探针/Service 必须与实际端口一致，否则 startup probe 永远 connection refused。
 # ============================================================
 apiVersion: apps/v1
 kind: Deployment
@@ -101,14 +104,14 @@ spec:
       annotations:
         prometheus.io/scrape: "true"
         prometheus.io/path: "/api/v1/metrics/prometheus"
-        prometheus.io/port: "8000"
+        prometheus.io/port: "8001"
     spec:
       containers:
         - name: api-service
           image: ardc/api-service:latest
           imagePullPolicy: IfNotPresent
           ports:
-            - containerPort: 8000
+            - containerPort: 8001
           envFrom:
             - configMapRef:
                 name: ard-config
@@ -133,14 +136,14 @@ spec:
           livenessProbe:
             httpGet:
               path: /live
-              port: 8000
+              port: 8001
             initialDelaySeconds: 20
             periodSeconds: 30
             timeoutSeconds: 5
           readinessProbe:
             httpGet:
               path: /ready
-              port: 8000
+              port: 8001
             initialDelaySeconds: 15
             periodSeconds: 10
             timeoutSeconds: 5
@@ -154,11 +157,13 @@ spec:
   selector:
     app: api-service
   ports:
-    - port: 8000
-      targetPort: 8000
+    - port: 8001
+      targetPort: 8001
 ---
 # ============================================================
 # Multimedia Service — 图片/视频处理
+# 实际监听端口 8002（deployment/Dockerfile.multimedia-service: EXPOSE 8002 /
+# multimedia_service_app.py default --port 8002）。
 # ============================================================
 apiVersion: apps/v1
 kind: Deployment
@@ -181,14 +186,14 @@ spec:
       annotations:
         prometheus.io/scrape: "true"
         prometheus.io/path: "/api/v1/metrics/prometheus"
-        prometheus.io/port: "8000"
+        prometheus.io/port: "8002"
     spec:
       containers:
         - name: multimedia-service
           image: ardc/multimedia-service:latest
           imagePullPolicy: IfNotPresent
           ports:
-            - containerPort: 8000
+            - containerPort: 8002
           envFrom:
             - configMapRef:
                 name: ard-config
@@ -211,13 +216,13 @@ spec:
           livenessProbe:
             httpGet:
               path: /live
-              port: 8000
+              port: 8002
             initialDelaySeconds: 15
             periodSeconds: 30
           readinessProbe:
             httpGet:
               path: /ready
-              port: 8000
+              port: 8002
             initialDelaySeconds: 10
             periodSeconds: 10
           volumeMounts:
@@ -237,8 +242,8 @@ spec:
   selector:
     app: multimedia-service
   ports:
-    - port: 8000
-      targetPort: 8000
+    - port: 8002
+      targetPort: 8002
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -253,6 +258,8 @@ spec:
 ---
 # ============================================================
 # Search Service — CLIP/FAISS 检索
+# 实际监听端口 8003（deployment/Dockerfile.search-service: EXPOSE 8003 /
+# CMD ["python","src/services/search_service/app_queue.py"]）。
 # ============================================================
 apiVersion: apps/v1
 kind: Deployment
@@ -275,14 +282,14 @@ spec:
       annotations:
         prometheus.io/scrape: "true"
         prometheus.io/path: "/api/v1/metrics/prometheus"
-        prometheus.io/port: "8000"
+        prometheus.io/port: "8003"
     spec:
       containers:
         - name: search-service
           image: ardc/search-service:latest
           imagePullPolicy: IfNotPresent
           ports:
-            - containerPort: 8000
+            - containerPort: 8003
           envFrom:
             - configMapRef:
                 name: ard-config
@@ -305,13 +312,13 @@ spec:
           livenessProbe:
             httpGet:
               path: /live
-              port: 8000
+              port: 8003
             initialDelaySeconds: 15
             periodSeconds: 30
           readinessProbe:
             httpGet:
               path: /ready
-              port: 8000
+              port: 8003
             initialDelaySeconds: 10
             periodSeconds: 10
 ---
@@ -324,11 +331,12 @@ spec:
   selector:
     app: search-service
   ports:
-    - port: 8000
-      targetPort: 8000
+    - port: 8003
+      targetPort: 8003
 ---
 # ============================================================
 # Monitoring — 监控面板 (Flask)
+# 实际监听端口 9000（src/run/monitor/monitor_dashboard.py: MONITOR_PORT = 9000）。
 # ============================================================
 apiVersion: apps/v1
 kind: Deployment
@@ -351,14 +359,14 @@ spec:
       annotations:
         prometheus.io/scrape: "true"
         prometheus.io/path: "/api/v1/metrics/prometheus"
-        prometheus.io/port: "8000"
+        prometheus.io/port: "9000"
     spec:
       containers:
         - name: monitoring
           image: ardc/monitoring:latest
           imagePullPolicy: IfNotPresent
           ports:
-            - containerPort: 8000
+            - containerPort: 9000
           envFrom:
             - configMapRef:
                 name: ard-config
@@ -385,13 +393,13 @@ spec:
           livenessProbe:
             httpGet:
               path: /live
-              port: 8000
+              port: 9000
             initialDelaySeconds: 15
             periodSeconds: 30
           readinessProbe:
             httpGet:
               path: /ready
-              port: 8000
+              port: 9000
             initialDelaySeconds: 10
             periodSeconds: 10
 ---
@@ -404,5 +412,5 @@ spec:
   selector:
     app: monitoring
   ports:
-    - port: 8000
-      targetPort: 8000
+    - port: 9000
+      targetPort: 9000

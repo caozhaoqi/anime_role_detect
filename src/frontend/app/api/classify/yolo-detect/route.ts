@@ -59,8 +59,9 @@ export async function POST(request: NextRequest) {
     console.log('YOLO检测结果:', result);
 
     return NextResponse.json({
-      data: result,
-      success: true,
+      success: result.success,
+      data: result.data,
+      message: result.message,
     }, { status: 200 });
 
   } catch (error) {

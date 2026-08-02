@@ -95,6 +95,12 @@ const MessageItem: React.FC<MessageItemProps> = ({ message, darkMode, handleCopy
                 <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
                 <h4 className="font-semibold text-sm">多角色识别结果</h4>
               </div>
+              {message.fallback && (
+                <div className="mt-2 mb-3 p-2 rounded-lg bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300 text-xs flex items-center space-x-1">
+                  <span>⚠️</span>
+                  <span>未检出多个人体框，已使用整图识别（单角色兜底），结果仅供参考。</span>
+                </div>
+              )}
               <div className="space-y-2">
                 {message.multi_roles.map((role, index) => (
                   <div key={index} className={`p-3 ${darkMode ? 'bg-gray-600' : 'bg-gray-200'} rounded-lg transform hover:scale-[1.02] transition-transform`}>

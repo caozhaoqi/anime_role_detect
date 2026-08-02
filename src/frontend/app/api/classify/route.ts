@@ -77,12 +77,12 @@ export async function POST(request: NextRequest) {
       const result = await response.json();
       console.log('后端API返回结果:', result);
 
-      // 将后端响应包装成前端期望的格式
-      const wrappedResult = {
-        data: result
-      };
-
-      return NextResponse.json(wrappedResult, { status: 200 });
+      // 后端返回的标准信封结构即为 { success, data, message }，
+      // 直接透传，避免再包一层 data 导致前端取不到 success 字段
+      return NextResponse.json(
+        { success: result.success, data: result.data, message: result.message },
+        { status: 200 }
+      );
     } catch (fetchError) {
       console.error('发送请求到后端API失败:', fetchError);
       return NextResponse.json({ error: 'Failed to connect to backend API' }, { status: 500 });

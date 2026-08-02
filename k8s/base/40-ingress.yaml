@@ -3,7 +3,7 @@
 # Ingress — 统一入口路由
 # 前端 → /  → frontend:3000
 # API   → /api → api-gateway:8080
-# 监控  → /monitor → monitoring:8000
+# 监控  → /monitor → monitoring:9000
 # ============================================================
 apiVersion: networking.k8s.io/v1
 kind: Ingress
@@ -33,7 +33,7 @@ spec:
               service:
                 name: monitoring
                 port:
-                  number: 8000
+                  number: 9000
           - path: /
             pathType: Prefix
             backend:

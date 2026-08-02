@@ -77,6 +77,7 @@ export interface Message {
   role_info?: any;
   model_name?: string;
   summary?: string;
+  fallback?: boolean;
   thoughts?: string[];
   isThinking?: boolean;
   isThinkingFinished?: boolean;
