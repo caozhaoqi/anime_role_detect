@@ -53,13 +53,10 @@ export default function ChatPanel({
   }, [messages]);
 
   return (
-    <div className={`w-full ${darkMode ? 'bg-gray-800' : 'bg-white'} rounded-xl shadow-lg border ${darkMode ? 'border-gray-700' : 'border-gray-200'} transform transition-all duration-300 hover:shadow-xl`}>
-      <div className={`p-4 md:p-6 border-b ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
-        <h2 className="text-lg md:text-xl font-semibold">Anime Role detect</h2>
-      </div>
-      <div className="p-4 md:p-6 max-h-[calc(100vh-24rem)] overflow-y-auto">
+    <div className={`w-full flex-1 flex flex-col min-h-0 ${darkMode ? 'bg-gray-800' : 'bg-white'} rounded-xl shadow-lg border ${darkMode ? 'border-gray-700' : 'border-gray-200'} transform transition-all duration-300 hover:shadow-xl`}>
+      <div className="flex-1 overflow-y-auto min-h-0 px-4 md:px-6 py-3 md:py-4">
         {messages.map((message, index) => (
-          <div key={message.id} className="space-y-4 md:space-y-6 mb-6">
+          <div key={message.id} className="space-y-3 mb-4">
             <MessageItem
               message={message}
               darkMode={darkMode}
@@ -70,7 +67,7 @@ export default function ChatPanel({
         ))}
         <div ref={messagesEndRef} />
       </div>
-      <div className={`p-4 md:p-6 border-t ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+      <div className={`shrink-0 p-3 md:p-4 border-t ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
         <div className="flex flex-col md:flex-row items-stretch md:items-center space-y-3 md:space-y-0 md:space-x-4">
           <input
             type="file"

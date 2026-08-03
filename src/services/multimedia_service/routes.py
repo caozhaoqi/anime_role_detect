@@ -123,7 +123,12 @@ def classify_with_model(image: Image.Image, model_name: str = "efficientnet_b0")
 @router.get("/health")
 @router.get("/api/health")
 async def health_check():
-    return {"status": "healthy", "service": "multimedia_service", "version": "1.0.0"}
+    return {
+        "status": "healthy",
+        "service": "multimedia_service",
+        "version": "2.3.0",
+        "checks": {"self": "up"},
+    }
 
 
 @router.get("/live")

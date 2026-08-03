@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+# @deprecated: 遗留统一启动脚本，未被 supervisord/k8s/docker 使用，仅作开发工具保留。计划于下一优化轮次（OPTIMIZATION_PLAN 3.3）移除。
 """
 动漫角色识别系统 - 统一启动脚本
 将所有服务集中管理，合理分配端口
@@ -263,7 +264,7 @@ def start_monitor():
         print("   ❌ 监控仪表板启动失败")
         return False
 
-
+@deprecated
 def main():
     # 解析命令行参数
     parser = argparse.ArgumentParser(description="启动动漫角色识别系统服务")

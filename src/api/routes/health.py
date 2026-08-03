@@ -3,6 +3,7 @@
 """
 import sys
 import os
+import asyncio
 
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.."))
 
@@ -18,13 +19,146 @@ logger = get_logger("api.routes.health")
 router = APIRouter()
 
 
+async def _probe_sqlite() -> dict:
+    try:
+        from src.core.config.database import _local_session, _local_engine
+        if _local_session is None or _local_engine is None:
+            return {"status": "down", "mode": "sqlite", "error": "not initialized"}
+        from sqlalchemy import text
+
+        def _ping():
+            with _local_session() as s:
+                s.execute(text("SELECT 1"))
+
+        await asyncio.wait_for(asyncio.to_thread(_ping), timeout=1.0)
+        return {"status": "up", "mode": "sqlite"}
+    except asyncio.TimeoutError:
+        return {"status": "down", "mode": "sqlite", "error": "timeout"}
+    except Exception as e:
+        return {"status": "down", "mode": "sqlite", "error": str(e)}
+
+
+async def _probe_mysql() -> dict:
+    try:
+        from src.core.config.database import _remote_session, _remote_engine
+        if _remote_session is None or _remote_engine is None:
+            return {"status": "down", "mode": "mysql", "error": "not initialized"}
+        from sqlalchemy import text
+
+        def _ping():
+            with _remote_session() as s:
+                s.execute(text("SELECT 1"))
+
+        await asyncio.wait_for(asyncio.to_thread(_ping), timeout=1.0)
+        return {"status": "up", "mode": "mysql"}
+    except asyncio.TimeoutError:
+        return {"status": "down", "mode": "mysql", "error": "timeout"}
+    except Exception as e:
+        return {"status": "down", "mode": "mysql", "error": str(e)}
+
+
+async def _check_database(storage_mode: str) -> dict:
+    """按 AuthService.storage_mode 探测当前存储依赖（memory/sqlite/mysql）。
+
+    注：本项目 AuthService 在 MySQL 不可达时并不会把 storage_mode 改回 sqlite，
+    但双引擎已初始化、本地 SQLite 仍可用。因此当声明模式为 mysql 且探测失败时，
+    补充探测 SQLite 以反映服务真实可用的存储，避免误报 degraded；两者皆不可用才判 down。
+    """
+    if storage_mode == "memory":
+        return {"status": "ok", "mode": "memory"}
+    if storage_mode == "sqlite":
+        return await _probe_sqlite()
+    if storage_mode == "mysql":
+        res = await _probe_mysql()
+        if res["status"] == "up":
+            return res
+        sqlite_res = await _probe_sqlite()
+        if sqlite_res["status"] == "up":
+            return {
+                "status": "up",
+                "mode": "sqlite",
+                "note": "mysql unavailable, sqlite fallback active",
+            }
+        res["fallback_sqlite"] = "down"
+        return res
+    return {"status": "down", "mode": storage_mode, "error": "unknown mode"}
+
+
+async def _check_redis() -> dict:
+    """探测 Redis 连通性（短超时，失败仅标记 down）。"""
+    try:
+        from src.services.cache_service.redis_cache import get_redis_cache
+        redis_cache = get_redis_cache()
+        if not getattr(redis_cache, "available", False):
+            return {"status": "down", "error": "redis not available"}
+        ok = await asyncio.wait_for(
+            asyncio.to_thread(redis_cache.redis_client.ping), timeout=1.0
+        )
+        return {"status": "up" if ok else "down"}
+    except asyncio.TimeoutError:
+        return {"status": "down", "error": "timeout"}
+    except Exception as e:
+        return {"status": "down", "error": str(e)}
+
+
+async def _check_model_service() -> dict:
+    """探测 Model Service 可达性（失败仅标记 down，不影响主响应）。"""
+    try:
+        from src.core.config.service_config import ServiceConfig
+        cfg = ServiceConfig()
+        if not getattr(cfg, "USE_MODEL_SERVICE", False):
+            return {"status": "skipped", "reason": "USE_MODEL_SERVICE=False"}
+        url = cfg.MODEL_SERVICE_URL.rstrip("/") + "/api/health"
+        import httpx
+        async with httpx.AsyncClient(timeout=1.0, trust_env=False) as client:
+            resp = await client.get(url)
+        return {
+            "status": "up" if resp.status_code == 200 else "down",
+            "status_code": resp.status_code,
+        }
+    except asyncio.TimeoutError:
+        return {"status": "down", "error": "timeout"}
+    except Exception as e:
+        return {"status": "down", "error": str(e)}
+
+
 @router.get("/api/health")
 async def health_check():
-    """健康检查"""
+    """健康检查 - 返回结构化状态（含真实依赖探测，绝不抛 500）。"""
+    # 1. 数据库：依据 AuthService 当前存储层级
+    try:
+        from src.services.support.auth_service import get_auth_service
+        try:
+            storage_mode = getattr(get_auth_service(), "storage_mode", "memory")
+        except Exception:
+            storage_mode = "memory"
+    except Exception:
+        storage_mode = "memory"
+    database = await _check_database(storage_mode)
+
+    # 2. Redis
+    redis = await _check_redis()
+
+    # 3. Model Service 可达性
+    model_service = await _check_model_service()
+
+    checks = {
+        "database": database,
+        "redis": redis,
+        "model_service": model_service,
+    }
+
+    # 任意依赖不可用 -> degraded（不抛异常，K8s 探针拿到真实状态）
+    degraded = any(
+        c.get("status") in ("down", "unavailable", "error") for c in checks.values()
+    )
+    overall = "degraded" if degraded else "healthy"
+
     return {
-        "status": "healthy",
+        "status": overall,
         "service": "Anime Role Detect API",
         "version": APP_VERSION,
+        "checks": checks,
         "timestamp": time.time(),
     }
 

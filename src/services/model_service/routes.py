@@ -128,7 +128,34 @@ def import_core_modules():
 
 @router.get("/api/health")
 async def health_check():
-    return {"status": "healthy", "service": "Model Service", "version": APP_VERSION}
+    """健康检查 - 返回结构化状态（模型文件存在 + 模型已加载）。"""
+    # 1. EfficientNet-B3 模型文件是否存在
+    model_best = os.path.join(project_root, "models", "efficientnet_b3", "model_best.pth")
+    model_file_ok = os.path.exists(model_best)
+    checks = {
+        "model_file": {
+            "status": "ok" if model_file_ok else "missing",
+            "path": model_best,
+        },
+        # 2. 模型是否已加载（服务内全局变量 / 单例非空）
+        "preprocessor_loaded": preprocessor is not None,
+        "feature_extractor_loaded": feature_extractor is not None,
+        "classifier_loaded": _efficientnet_classifier is not None,
+    }
+
+    if not model_file_ok:
+        overall = "unhealthy"
+    elif preprocessor is None:
+        overall = "degraded"
+    else:
+        overall = "healthy"
+
+    return {
+        "status": overall,
+        "service": "Model Service",
+        "version": APP_VERSION,
+        "checks": checks,
+    }
 
 
 @router.get("/live")

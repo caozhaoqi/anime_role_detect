@@ -1,16 +1,17 @@
 import React, { useState } from 'react';
 import { X, Save, RefreshCw, Check, Sun, Moon, Eye, EyeOff, Sparkles, Download, Upload, History, Settings, Code } from 'lucide-react';
+import { useAppStore } from '../store/useAppStore';
 
 interface ConfigPanelProps {
   darkMode: boolean;
   config: any;
   onConfigUpdate: (config: any) => void;
   onClose: () => void;
-  useDebug: boolean;
-  onDebugChange: (value: boolean) => void;
 }
 
-const ConfigPanel: React.FC<ConfigPanelProps> = ({ darkMode, config, onConfigUpdate, onClose, useDebug, onDebugChange }) => {
+const ConfigPanel: React.FC<ConfigPanelProps> = ({ darkMode, config, onConfigUpdate, onClose }) => {
+  const debugEnabled = useAppStore((s) => s.debugEnabled);
+  const toggleDebug = useAppStore((s) => s.toggleDebug);
   const [localConfig, setLocalConfig] = useState({ ...config });
   const [activeTab, setActiveTab] = useState('ui');
   const [isSaving, setIsSaving] = useState(false);
@@ -273,10 +274,10 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ darkMode, config, onConfigUpd
                 <div className="flex items-center justify-between">
                   <label className="text-sm">🐞 Debug 辅助框（调试视图，生成 YOLO/分类辅助框标注图）</label>
                   <button
-                    onClick={() => onDebugChange(!useDebug)}
-                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${useDebug ? 'bg-blue-600' : 'bg-gray-300'}`}
+                    onClick={() => toggleDebug()}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${debugEnabled ? 'bg-blue-600' : 'bg-gray-300'}`}
                   >
-                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${useDebug ? 'translate-x-6' : 'translate-x-1'}`} />
+                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${debugEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
                   </button>
                 </div>
               </div>

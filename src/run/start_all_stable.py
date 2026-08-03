@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+# @deprecated: 遗留稳健启动脚本，未被 supervisord/k8s/docker 使用，仅作开发工具保留。计划于下一优化轮次（OPTIMIZATION_PLAN 3.3）移除。
 """
 动漫角色识别系统 - 稳健启动脚本
-参考 ardc-core 设计模式，支持：
+支持：
 - 服务依赖管理
 - 启动重试机制
 - 资源监控
@@ -209,7 +210,7 @@ def signal_handler(_sig, _frame):
     stop_all_services()
     sys.exit(0)
 
-
+@deprecated
 def main():
     """主函数"""
     import argparse

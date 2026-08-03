@@ -95,6 +95,14 @@ class ModelCache:
         """"""
         return len(self.cache)
 
+    def __len__(self) -> int:
+        """支持 len(model_cache) 与 `if not _model_cache` 等兼容判断。"""
+        return len(self.cache)
+
+    def __bool__(self) -> bool:
+        """空缓存为 False；供路由层 `if not _model_cache` / `bool(_model_cache)` 判断使用。"""
+        return len(self.cache) > 0
+
     def keys(self):
         """"""
         return list(self.cache.keys())

@@ -31,6 +31,10 @@ from torchvision import transforms, models
 from torchvision.datasets import ImageFolder
 from torchvision.transforms.autoaugment import AutoAugment, AutoAugmentPolicy
 
+# 防泄漏：以角色目录为 group 做分组切分（同角色图整体进 train 或 val，不拆散）。
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
+from src.core.data.split_utils import grouped_split  # noqa: E402
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
@@ -341,24 +345,18 @@ def main():
 
     train_ratio = config["train_ratio"]
 
-    # 按类别分层划分
-    class_samples = {}
-    for path, label in all_samples:
-        if label not in class_samples:
-            class_samples[label] = []
-        class_samples[label].append((path, label))
-
-    train_samples = []
-    val_samples = []
-    for label, samples in class_samples.items():
-        n_train = int(len(samples) * train_ratio)
-        # 随机打乱后划分
-        import random
-        random.seed(config["seed"])
-        shuffled = samples.copy()
-        random.shuffle(shuffled)
-        train_samples.extend(shuffled[:n_train])
-        val_samples.extend(shuffled[n_train:])
+    # ── 按角色分组切分（MUST group by character to avoid leakage）──
+    # 旧逻辑按"类内逐图洗牌"会把同一角色的图同时放进 train/val（泄漏）。
+    # 改为以角色目录（路径倒数第 2 段）为 group 做 GroupShuffleSplit：
+    # 同一角色的所有图整体进 train 或整体进 val，杜绝 train/val 同源。
+    char_groups = [Path(path).parts[-2] for path, _ in all_samples]
+    train_idx, val_idx, _ = grouped_split(
+        all_samples, char_groups,
+        ratios=(train_ratio, 1.0 - train_ratio, 0.0),
+        seed=config["seed"],
+    )
+    train_samples = [all_samples[i] for i in train_idx]
+    val_samples = [all_samples[i] for i in val_idx]
 
     logger.info(f"Train: {len(train_samples)} images, Val: {len(val_samples)} images")
     sys.stdout.flush()

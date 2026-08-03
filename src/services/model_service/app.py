@@ -39,9 +39,13 @@ import uvicorn
 from src.core.config.service_config import get_service_config
 from src.core.config.device_manager import DeviceManager
 from src.core.logging import get_enhanced_logger as get_logger
+from src.core.logging_setup import setup_logging
 
 config = get_service_config()
 logger = None
+
+# 2.5 结构化日志：统一 loguru 输出为 JSON 行（幂等，仅配置一次）
+setup_logging("model-service")
 
 # HEIF/HEIC解码器
 try:

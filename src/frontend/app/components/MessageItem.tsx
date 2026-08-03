@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { Bot, User, Copy, Download, X, Sparkles, CheckCircle, Flame, Pencil, Check, ChevronDown } from 'lucide-react';
+import { Bot, User, Copy, Download, ChevronDown } from 'lucide-react';
 import { Message } from '../types';
+import CollapsibleSection from './CollapsibleSection';
 import { useGradcam } from '../hooks/useGradcam';
 import { useFeedback } from '../hooks/useFeedback';
 
@@ -10,6 +11,51 @@ interface MessageItemProps {
   handleCopyMessage: (content: string) => void;
   handleDownloadMessage: (content: string, role: string) => void;
 }
+
+// ---- 置信度 → 颜色工具 ----
+const confidenceGradient = (v: number) =>
+  v >= 0.8 ? 'from-green-500 to-green-600' :
+  v >= 0.5 ? 'from-yellow-500 to-yellow-600' : 'from-red-500 to-red-600';
+
+const confidenceText = (v: number) =>
+  v >= 0.8 ? 'text-green-600 dark:text-green-400' :
+  v >= 0.5 ? 'text-yellow-600 dark:text-yellow-400' : 'text-red-600 dark:text-red-400';
+
+/** 相似度进度条 */
+const ConfidenceBar: React.FC<{ value: number; gradient?: string; className?: string }> = ({ value, gradient, className }) => {
+  const pct = Math.min(100, Math.max(0, value * 100));
+  return (
+    <div className={`h-2 ${className ?? ''} rounded-full bg-gray-200 dark:bg-gray-700 overflow-hidden`}>
+      <div
+        className={`h-full rounded-full bg-gradient-to-r ${gradient ?? confidenceGradient(value)} transition-all duration-500`}
+        style={{ width: `${pct}%` }}
+      />
+    </div>
+  );
+};
+
+/** Grad-CAM 结果（可折叠，默认收起，新生成自动展开） */
+const GradcamBlock: React.FC<{
+  result: { target_label: string; confidence: number; cam_heatmap_base64: string };
+  collapsed: boolean;
+  onToggle: () => void;
+}> = ({ result, collapsed, onToggle }) => (
+  <div className="mt-2 rounded-lg overflow-hidden border border-orange-200 dark:border-orange-800">
+    <button
+      onClick={onToggle}
+      className="w-full flex items-center justify-between gap-2 text-left px-2 py-1.5 text-xs text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/30 hover:bg-orange-100 dark:hover:bg-orange-900/50 transition-colors"
+      title={collapsed ? '展开热力图' : '收起热力图'}
+    >
+      <span className="truncate">
+        🔥 Grad-CAM：模型关注区域（目标: {result.target_label}，置信度: {(result.confidence * 100).toFixed(1)}%）
+      </span>
+      <ChevronDown className={`h-3.5 w-3.5 shrink-0 transition-transform ${collapsed ? '' : 'rotate-180'}`} />
+    </button>
+    {!collapsed && (
+      <img src={result.cam_heatmap_base64} alt="grad-cam" className="w-full h-auto" />
+    )}
+  </div>
+);
 
 const MessageItem: React.FC<MessageItemProps> = ({ message, darkMode, handleCopyMessage, handleDownloadMessage }) => {
   const getCategoryInfo = (key: string) => {
@@ -35,6 +81,7 @@ const MessageItem: React.FC<MessageItemProps> = ({ message, darkMode, handleCopy
   const feedback = useFeedback();
   const [gradcamLoading, setGradcamLoading] = useState<number | null>(null);
   const [gradcamResult, setGradcamResult] = useState<{ [key: number]: any }>({});
+  const [gradcamCollapsed, setGradcamCollapsed] = useState<{ [key: number]: boolean }>({});
   const [correctingRole, setCorrectingRole] = useState<number | null>(null);
   const [correctionSelect, setCorrectionSelect] = useState<string>('');
   const [submittedCorrections, setSubmittedCorrections] = useState<Set<number>>(new Set());
@@ -55,7 +102,11 @@ const MessageItem: React.FC<MessageItemProps> = ({ message, darkMode, handleCopy
     const file = await imageToFile();
     if (!file) { setGradcamLoading(null); return; }
     const result = await gradcam.generate(file, targetClass);
-    if (result) setGradcamResult(prev => ({ ...prev, [roleIndex]: result }));
+    if (result) {
+      setGradcamResult(prev => ({ ...prev, [roleIndex]: result }));
+      // 新生成的热力图自动展开，便于用户立即查看
+      setGradcamCollapsed(prev => ({ ...prev, [roleIndex]: false }));
+    }
     setGradcamLoading(null);
   };
 
@@ -113,7 +164,7 @@ const MessageItem: React.FC<MessageItemProps> = ({ message, darkMode, handleCopy
         className={`max-w-full ${message.role === "user" ? "order-1" : "order-2"}`}
       >
         <div
-          className={`rounded-xl p-4 ${message.role === "user" ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white' : (darkMode ? 'bg-gray-700 text-gray-100' : 'bg-gray-100 text-gray-900')} shadow-sm transition-all hover:shadow-md`}
+          className={`rounded-xl p-3 ${message.role === "user" ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white' : (darkMode ? 'bg-gray-700 text-gray-100' : 'bg-gray-100 text-gray-900')} shadow-sm transition-all hover:shadow-md`}
         >
           {message.image && (
             <div className="mb-3 rounded-lg overflow-hidden shadow-md transform hover:scale-[1.02] transition-transform">
@@ -124,35 +175,44 @@ const MessageItem: React.FC<MessageItemProps> = ({ message, darkMode, handleCopy
               />
             </div>
           )}
-          <p className="whitespace-pre-wrap break-words">{message.content}</p>
+          <p className="whitespace-pre-wrap break-words mb-0">{message.content}</p>
 
           {message.classification && (
-            <div className="mt-4 space-y-3 animate-fade-in">
-              <div className="flex items-center space-x-2">
-                <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
-                <h4 className="font-semibold text-sm">识别结果</h4>
+            <div className={`mt-3 p-3 md:p-4 rounded-2xl border-2 animate-fade-in ${
+              darkMode ? 'border-blue-500/40 bg-blue-500/5' : 'border-blue-400 bg-blue-50/80'
+            } shadow-lg`}>
+              <div className="flex items-center space-x-2 mb-3">
+                <div className="w-2.5 h-2.5 rounded-full bg-blue-500 animate-pulse" />
+                <h3 className="font-bold text-base">🎯 识别结果</h3>
+                <span className={`ml-auto px-2 py-0.5 text-xs rounded-full ${darkMode ? 'bg-blue-900/50 text-blue-300' : 'bg-blue-100 text-blue-600'}`}>主体</span>
               </div>
-              <div className={`grid grid-cols-2 gap-3 ${darkMode ? 'text-gray-100' : 'text-gray-900'}`}>
-                <div className={`p-3 ${darkMode ? 'bg-gray-600' : 'bg-gray-200'} rounded-lg transform hover:scale-[1.02] transition-transform`}>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">角色</p>
-                  <p className="text-sm font-medium">{message.classification.role}</p>
+              <div className={`grid grid-cols-1 sm:grid-cols-2 gap-3 ${darkMode ? 'text-gray-100' : 'text-gray-900'}`}>
+                <div className={`p-4 ${darkMode ? 'bg-gray-600' : 'bg-white'} rounded-xl shadow-sm transform hover:scale-[1.02] transition-transform`}>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">角色</p>
+                  <p className="text-xl md:text-2xl font-bold leading-tight break-words">{message.classification.role}</p>
                   {message.classification.role_cn && message.classification.role_cn !== message.classification.role && (
-                    <p className="text-xs text-blue-500 mt-1">{message.classification.role_cn}</p>
+                    <p className="text-sm text-blue-500 mt-2">{message.classification.role_cn}</p>
                   )}
                   {message.classification.role_jp && (
-                    <p className="text-xs text-pink-500 mt-1">{message.classification.role_jp}</p>
+                    <p className="text-sm text-pink-500 mt-1">{message.classification.role_jp}</p>
                   )}
                   {message.classification.role_anime && (
                     <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{message.classification.role_anime}</p>
                   )}
                 </div>
-                <div className={`p-3 ${darkMode ? 'bg-gray-600' : 'bg-gray-200'} rounded-lg transform hover:scale-[1.02] transition-transform`}>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">相似度</p>
-                  <p className="text-sm font-medium">{(message.classification.similarity * 100).toFixed(1)}%</p>
+                <div className={`p-4 ${darkMode ? 'bg-gray-600' : 'bg-white'} rounded-xl shadow-sm`}>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">相似度</p>
+                  <p className="text-2xl md:text-3xl font-extrabold text-blue-500 leading-none">{(message.classification.similarity * 100).toFixed(1)}%</p>
+                  <div className={`mt-3 h-2.5 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-full overflow-hidden`}>
+                    <div
+                      className="h-full bg-gradient-to-r from-blue-500 to-purple-500 rounded-full transition-all duration-500"
+                      style={{ width: `${Math.min(100, message.classification.similarity * 100)}%` }}
+                    />
+                  </div>
                 </div>
               </div>
               {/* Phase1: Grad-CAM 热力图 + 纠错反馈 */}
-              <div className="flex items-center space-x-2 flex-wrap gap-y-2">
+              <div className="flex items-center space-x-2 flex-wrap gap-y-2 mt-4">
                 {message.classification?.used_model !== false && (
                 <button
                   onClick={() => handleGradcam(-1)}
@@ -194,35 +254,37 @@ const MessageItem: React.FC<MessageItemProps> = ({ message, darkMode, handleCopy
                 )}
               </div>
               {gradcamResult[-1] && (
-                <div className="mt-2 rounded-lg overflow-hidden border border-orange-200 dark:border-orange-800">
-                  <p className="text-xs text-orange-600 dark:text-orange-400 p-2 bg-orange-50 dark:bg-orange-900/30">
-                    🔥 Grad-CAM：模型关注区域（目标: {gradcamResult[-1].target_label}，置信度: {(gradcamResult[-1].confidence * 100).toFixed(1)}%）
-                  </p>
-                  <img src={gradcamResult[-1].cam_heatmap_base64} alt="grad-cam" className="w-full h-auto" />
-                </div>
+                <GradcamBlock
+                  result={gradcamResult[-1]}
+                  collapsed={gradcamCollapsed[-1] ?? true}
+                  onToggle={() => setGradcamCollapsed(prev => ({ ...prev, [-1]: !(prev[-1] ?? true) }))}
+                />
               )}
             </div>
           )}
 
           {message.multi_roles && message.multi_roles.length > 0 && (
-            <div className="mt-4 space-y-3 animate-fade-in">
-              <div className="flex items-center space-x-2">
-                <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
-                <h4 className="font-semibold text-sm">多角色识别结果</h4>
+            <div className={`mt-3 p-3 md:p-4 rounded-2xl border-2 animate-fade-in ${
+              darkMode ? 'border-indigo-500/40 bg-indigo-500/5' : 'border-indigo-300 bg-indigo-50/70'
+            } shadow-lg`}>
+              <div className="flex items-center space-x-2 mb-3">
+                <div className="w-2.5 h-2.5 rounded-full bg-indigo-500 animate-pulse" />
+                <h3 className="font-bold text-base">🎯 多角色识别结果</h3>
+                <span className={`ml-auto px-2 py-0.5 text-xs rounded-full ${darkMode ? 'bg-indigo-900/50 text-indigo-300' : 'bg-indigo-100 text-indigo-600'}`}>{message.multi_roles.length} 个角色</span>
               </div>
               {message.fallback && (
-                <div className="mt-2 mb-3 p-2 rounded-lg bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300 text-xs flex items-center space-x-1">
+                <div className="mt-2 mb-2 p-2 rounded-lg bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300 text-xs flex items-center space-x-1">
                   <span>⚠️</span>
                   <span>未检出多个人体框，已使用整图识别（单角色兜底），结果仅供参考。</span>
                 </div>
               )}
               <div className="space-y-2">
                 {message.multi_roles.map((role, index) => (
-                  <div key={index} className={`p-3 ${darkMode ? 'bg-gray-600' : 'bg-gray-200'} rounded-lg transform hover:scale-[1.02] transition-transform`}>
+                  <div key={index} className={`p-3 ${darkMode ? 'bg-gray-600' : 'bg-white'} rounded-xl shadow-sm transform hover:scale-[1.02] transition-transform`}>
                     <div className="flex justify-between items-start">
-                      <div className="flex-1">
+                      <div className="flex-1 min-w-0">
                         <div className="flex items-center space-x-2 flex-wrap gap-y-1">
-                          <p className="text-sm font-medium">{role.role}</p>
+                          <p className="text-base font-semibold break-words">{role.role}</p>
                           {role.is_unknown && (
                             <span className="px-2 py-0.5 text-xs bg-red-100 text-red-600 dark:bg-red-900 dark:text-red-400 rounded-full">未知</span>
                           )}
@@ -275,29 +337,26 @@ const MessageItem: React.FC<MessageItemProps> = ({ message, darkMode, handleCopy
                           )}
                         </div>
                         {role.role_cn && role.role_cn !== role.role && (
-                          <p className="text-xs text-blue-500 mt-1">{role.role_cn}</p>
+                          <p className="text-sm text-blue-500 mt-1">{role.role_cn}</p>
                         )}
                         {role.role_jp && (
-                          <p className="text-xs text-pink-500 mt-1">{role.role_jp}</p>
+                          <p className="text-sm text-pink-500 mt-1">{role.role_jp}</p>
                         )}
                         {role.role_anime && (
                           <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{role.role_anime}</p>
                         )}
                       </div>
-                      <div className="flex flex-col items-end space-y-1">
-                        <p className="text-sm">{(role.similarity * 100).toFixed(1)}%</p>
-                        <div
-                          className={`w-2 h-2 rounded-full ${role.similarity >= 0.8 ? "bg-green-500" : role.similarity >= 0.5 ? "bg-yellow-500" : "bg-red-500"}`}
-                        />
+                      <div className="flex flex-col items-end space-y-1 flex-shrink-0">
+                        <p className={`text-lg font-bold ${confidenceText(role.similarity)}`}>{(role.similarity * 100).toFixed(1)}%</p>
+                        <ConfidenceBar value={role.similarity} className="w-24" />
                       </div>
                     </div>
                     {gradcamResult[index] && (
-                      <div className="mt-2 rounded-lg overflow-hidden border border-orange-200 dark:border-orange-800">
-                        <p className="text-xs text-orange-600 dark:text-orange-400 p-2 bg-orange-50 dark:bg-orange-900/30">
-                          🔥 Grad-CAM：模型关注区域（目标: {gradcamResult[index].target_label}，置信度: {(gradcamResult[index].confidence * 100).toFixed(1)}%）
-                        </p>
-                        <img src={gradcamResult[index].cam_heatmap_base64} alt="grad-cam" className="w-full h-auto" />
-                      </div>
+                      <GradcamBlock
+                        result={gradcamResult[index]}
+                        collapsed={gradcamCollapsed[index] ?? true}
+                        onToggle={() => setGradcamCollapsed(prev => ({ ...prev, [index]: !(prev[index] ?? true) }))}
+                      />
                     )}
                   </div>
                 ))}
@@ -306,14 +365,17 @@ const MessageItem: React.FC<MessageItemProps> = ({ message, darkMode, handleCopy
           )}
 
           {debugStats && (
-            <div className="mt-4 space-y-3 animate-fade-in">
-              <div className="flex items-center space-x-2">
-                <div className="w-2 h-2 rounded-full bg-purple-500 animate-pulse" />
-                <h4 className="font-semibold text-sm">🐞 Debug 辅助框</h4>
-                <span className="px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-600 dark:bg-purple-900/50 dark:text-purple-400">
+            <CollapsibleSection
+              title="🐞 Debug 辅助框"
+              darkMode={darkMode}
+              defaultCollapsed
+              dotColor="bg-purple-500"
+              badge={
+                <span className="px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-600 dark:bg-purple-900/50 dark:text-purple-400 shrink-0">
                   调试视图
                 </span>
-              </div>
+              }
+            >
 
               {message.debug!.degraded_path && (
                 <div className="mt-2 mb-3 p-2 rounded-lg bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300 text-xs flex items-center space-x-1">
@@ -403,15 +465,11 @@ const MessageItem: React.FC<MessageItemProps> = ({ message, darkMode, handleCopy
                 <span>🟡 保留但被判未知（开集兜底）</span>
                 <span>🔴 被阈值/未知过滤丢弃</span>
               </div>
-            </div>
+            </CollapsibleSection>
           )}
 
           {message.attributes && message.attributes.length > 0 && (
-            <div className="mt-4 space-y-3 animate-fade-in">
-              <div className="flex items-center space-x-2">
-                <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
-                <h4 className="font-semibold text-sm">角色属性</h4>
-              </div>
+            <CollapsibleSection title="角色属性" darkMode={darkMode} defaultCollapsed dotColor="bg-blue-500" badge={<span className={`px-2 py-0.5 text-xs rounded-full ${darkMode ? 'bg-blue-900/50 text-blue-300' : 'bg-blue-100 text-blue-600'}`}>{message.attributes.length}</span>}>
               <div className="flex flex-wrap gap-2">
                 {message.attributes.map((attr, index) => (
                   <span
@@ -422,16 +480,12 @@ const MessageItem: React.FC<MessageItemProps> = ({ message, darkMode, handleCopy
                   </span>
                 ))}
               </div>
-            </div>
+            </CollapsibleSection>
           )}
 
           {/* 只有当消息包含图片或识别结果时才显示文本检测 */}
           {(message.image || message.classification || message.multi_roles || message.attributes) && (
-            <div className="mt-4 space-y-3 animate-fade-in">
-              <div className="flex items-center space-x-2">
-                <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
-                <h4 className="font-semibold text-sm">文本检测</h4>
-              </div>
+            <CollapsibleSection title="文本检测" darkMode={darkMode} defaultCollapsed dotColor="bg-blue-500">
               {message.text_detections && message.text_detections.length > 0 ? (
                 <div className="space-y-2">
                   {message.text_detections.map((text, index) => (
@@ -445,27 +499,19 @@ const MessageItem: React.FC<MessageItemProps> = ({ message, darkMode, handleCopy
                   <p className="text-sm font-medium">图片中无文字</p>
                 </div>
               )}
-            </div>
+            </CollapsibleSection>
           )}
 
           {message.ai_predicted_role && (
-            <div className="mt-4 space-y-3 animate-fade-in">
-              <div className="flex items-center space-x-2">
-                <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                <h4 className="font-semibold text-sm">AI预测角色</h4>
-              </div>
+            <CollapsibleSection title="AI 预测角色" darkMode={darkMode} defaultCollapsed dotColor="bg-green-500">
               <div className={`p-3 ${darkMode ? 'bg-gray-600' : 'bg-gray-200'} rounded-lg transform hover:scale-[1.02] transition-transform`}>
                 <p className="text-sm font-medium">{message.ai_predicted_role}</p>
               </div>
-            </div>
+            </CollapsibleSection>
           )}
 
           {message.thoughts && !message.isThinkingFinished && (
-            <div className="mt-4 space-y-3 animate-fade-in">
-              <div className="flex items-center space-x-2">
-                <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
-                <h4 className="font-semibold text-sm">识别过程</h4>
-              </div>
+            <CollapsibleSection title="识别过程" darkMode={darkMode} defaultCollapsed dotColor="bg-blue-500">
               <div className="space-y-2">
                 {message.thoughts.map((thought, index) => (
                   <div key={index} className="flex items-center space-x-2">
@@ -474,22 +520,25 @@ const MessageItem: React.FC<MessageItemProps> = ({ message, darkMode, handleCopy
                   </div>
                 ))}
               </div>
-            </div>
+            </CollapsibleSection>
           )}
 
           {message.nsfw && (
-            <div className="mt-4 space-y-3 animate-fade-in">
-              <div className="flex items-center space-x-2">
-                <div className={`w-2 h-2 rounded-full ${message.nsfw.is_nsfw ? "bg-red-500 animate-pulse" : "bg-green-500"}`} />
-                <h4 className="font-semibold text-sm">NSFW 内容检测</h4>
-                <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+            <CollapsibleSection
+              title="NSFW 内容检测"
+              darkMode={darkMode}
+              defaultCollapsed
+              dotColor={message.nsfw.is_nsfw ? "bg-red-500" : "bg-green-500"}
+              badge={
+                <span className={`px-2 py-0.5 rounded text-xs font-medium shrink-0 ${
                   message.nsfw.is_nsfw
                     ? 'bg-red-100 text-red-600 dark:bg-red-900/50 dark:text-red-400'
                     : 'bg-green-100 text-green-600 dark:bg-green-900/50 dark:text-green-400'
                 }`}>
                   {message.nsfw.is_nsfw ? "⚠️ 包含敏感内容" : "✅ 安全内容"}
                 </span>
-              </div>
+              }
+            >
               <div className={`grid grid-cols-3 gap-3 ${darkMode ? 'text-gray-100' : 'text-gray-900'}`}>
                 <div className={`p-3 ${message.nsfw.is_nsfw ? 'bg-red-900/20 border border-red-800' : darkMode ? 'bg-gray-600' : 'bg-gray-200'} rounded-lg transform hover:scale-[1.02] transition-transform`}>
                   <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">检测结果</p>
@@ -552,15 +601,11 @@ const MessageItem: React.FC<MessageItemProps> = ({ message, darkMode, handleCopy
                   </div>
                 </div>
               )}
-            </div>
+            </CollapsibleSection>
           )}
 
           {message.tags && message.tags.length > 0 && (
-            <div className="mt-4 space-y-3 animate-fade-in">
-              <div className="flex items-center space-x-2">
-                <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
-                <h4 className="font-semibold text-sm">标签</h4>
-              </div>
+            <CollapsibleSection title="标签" darkMode={darkMode} defaultCollapsed dotColor="bg-purple-500" badge={<span className={`px-2 py-0.5 text-xs rounded-full ${darkMode ? 'bg-purple-900/50 text-purple-300' : 'bg-purple-100 text-purple-600'}`}>{message.tags.length}</span>}>
               <div className="flex flex-wrap gap-2">
                 {message.tags.map((tag, index) => (
                   <span
@@ -571,15 +616,11 @@ const MessageItem: React.FC<MessageItemProps> = ({ message, darkMode, handleCopy
                   </span>
                 ))}
               </div>
-            </div>
+            </CollapsibleSection>
           )}
 
           {message.possible_roles && message.possible_roles.length > 0 && (
-            <div className="mt-4 space-y-3 animate-fade-in">
-              <div className="flex items-center space-x-2">
-                <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
-                <h4 className="font-semibold text-sm">其他模型检测结果</h4>
-              </div>
+            <CollapsibleSection title="其他模型检测结果" darkMode={darkMode} defaultCollapsed dotColor="bg-blue-500">
               <div className="space-y-2">
                 {message.possible_roles.map((role, index) => (
                   <div key={index} className={`p-3 ${darkMode ? 'bg-gray-600' : 'bg-gray-200'} rounded-lg transform hover:scale-[1.02] transition-transform`}>
@@ -595,15 +636,11 @@ const MessageItem: React.FC<MessageItemProps> = ({ message, darkMode, handleCopy
                   </div>
                 ))}
               </div>
-            </div>
+            </CollapsibleSection>
           )}
           
           {message.batch_results && message.batch_results.length > 0 && (
-            <div className="mt-4 space-y-3 animate-fade-in">
-              <div className="flex items-center space-x-2">
-                <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
-                <h4 className="font-semibold text-sm">批量识别结果</h4>
-              </div>
+            <CollapsibleSection title="批量识别结果" darkMode={darkMode} defaultCollapsed dotColor="bg-blue-500" badge={<span className={`px-2 py-0.5 text-xs rounded-full ${darkMode ? 'bg-blue-900/50 text-blue-300' : 'bg-blue-100 text-blue-600'}`}>{message.batch_results.length}</span>}>
               <div className="space-y-3">
                 {message.batch_results.map((result, index) => (
                   <div key={index} className={`p-3 ${darkMode ? 'bg-gray-600' : 'bg-gray-200'} rounded-lg transform hover:scale-[1.02] transition-transform`}>
@@ -635,7 +672,7 @@ const MessageItem: React.FC<MessageItemProps> = ({ message, darkMode, handleCopy
                   </div>
                 ))}
               </div>
-            </div>
+            </CollapsibleSection>
           )}
 
           <div className="flex items-center justify-between mt-3 text-xs text-gray-400 dark:text-gray-500">

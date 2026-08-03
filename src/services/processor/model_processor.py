@@ -433,70 +433,10 @@ async def process_with_local_model(file, content, model_name):
 
         if model_info is None:
             logger.warning(f"未找到训练好的模型: {model_name}")
-            # 如果模型不存在，使用传统模型处理
-            text_detections, keypoints, ai_predicted_role = process_image_features(
-                temp_path, file.content_type, []
-            )
-            nsfw_result = detect_nsfw(temp_path)
-            logger.info(f"传统模型分类结果: {ai_predicted_role or 'unknown'}")
-            # 使用AI预测的角色名作为主要角色
-            final_role = ai_predicted_role or "unknown"
-            return {
-                "role": final_role,
-                "similarity": 0.0,
-                "possible_roles": [],
-                "attributes": [],
-                "text_detections": text_detections,
-                "keypoints": keypoints,
-                "ai_predicted_role": final_role,
-                "nsfw": nsfw_result,
-            }
+            # 如果模型不存在，使用传统模型处理（复用兜底逻辑）
+            return _trained_model_missing_fallback(temp_path, file.content_type)
         else:
-            model, class_to_idx = model_info
-            idx_to_class = {v: k for k, v in class_to_idx.items()}
-
-            # 预处理图像
-            img = preprocess_image(temp_path)
-
-            # 预测
-            import torch
-
-            with torch.no_grad():
-                outputs = model(img)
-                _, predicted = torch.max(outputs, 1)
-                confidence = torch.nn.functional.softmax(outputs, dim=1)[0][predicted.item()].item()
-
-            # 获取预测结果
-            role = idx_to_class.get(predicted.item(), "unknown")
-            similarity = float(confidence)
-
-            # 转换为中文角色名
-            chinese_role = _get_chinese_role_name(role)
-
-        logger.info(f"本地模型分类结果: {role} -> {chinese_role}, 相似度: {similarity:.4f}")
-
-        # 处理图像特征
-        text_detections, keypoints, ai_predicted_role = process_image_features(
-            temp_path, file.content_type, []
-        )
-
-        # 执行NSFW检测
-        nsfw_result = detect_nsfw(temp_path)
-
-        # 构建结果
-        result = {
-            "role": chinese_role,
-            "similarity": similarity,
-            "possible_roles": [],
-            "attributes": [],
-            "tags": ["digital art", "anime", "character"],  # 默认标签
-            "text_detections": text_detections,
-            "keypoints": keypoints,
-            "ai_predicted_role": _get_chinese_role_name(ai_predicted_role),
-            "nsfw": nsfw_result,
-        }
-
-        return result
+            return _classify_with_loaded_model(model_info, temp_path, file.content_type, label="本地模型")
 
     except Exception as e:
         logger.error(f"使用本地模型处理图像失败: {e}")
@@ -508,6 +448,63 @@ async def process_with_local_model(file, content, model_name):
                 os.remove(temp_path)
             except Exception as e:
                 logger.error(f"清理临时文件失败: {e}")
+
+
+def _classify_with_loaded_model(model_info, image_source, content_type, label="模型"):
+    """用已加载的模型预测并构建标准结果 dict（local/trained 主路径共用）。"""
+    model, class_to_idx = model_info
+    idx_to_class = {v: k for k, v in class_to_idx.items()}
+
+    img = preprocess_image(image_source)
+    import torch
+    with torch.no_grad():
+        outputs = model(img)
+        _, predicted = torch.max(outputs, 1)
+        confidence = torch.nn.functional.softmax(outputs, dim=1)[0][predicted.item()].item()
+
+    role = idx_to_class.get(predicted.item(), "unknown")
+    similarity = float(confidence)
+    chinese_role = _get_chinese_role_name(role)
+    logger.info(f"{label}分类结果: {role} -> {chinese_role}, 相似度: {similarity:.4f}")
+
+    text_detections, keypoints, ai_predicted_role = process_image_features(
+        image_source, content_type, []
+    )
+    nsfw_result = detect_nsfw(image_source)
+    return {
+        "role": chinese_role,
+        "similarity": similarity,
+        "possible_roles": [],
+        "attributes": [],
+        "tags": ["digital art", "anime", "character"],
+        "text_detections": text_detections,
+        "keypoints": keypoints,
+        "ai_predicted_role": _get_chinese_role_name(ai_predicted_role),
+        "nsfw": nsfw_result,
+    }
+
+
+def _trained_model_missing_fallback(image_source, content_type):
+    """
+    训练模型缺失时的兜底分类：特征提取 + NSFW 检测，返回标准结果 dict。
+    被 process_with_local_model 与 process_with_trained_model 共用，消除重复分支。
+    """
+    text_detections, keypoints, ai_predicted_role = process_image_features(
+        image_source, content_type, []
+    )
+    nsfw_result = detect_nsfw(image_source)
+    final_role = ai_predicted_role or "unknown"
+    logger.info(f"传统模型分类结果: {final_role}")
+    return {
+        "role": final_role,
+        "similarity": 0.0,
+        "possible_roles": [],
+        "attributes": [],
+        "text_detections": text_detections,
+        "keypoints": keypoints,
+        "ai_predicted_role": final_role,
+        "nsfw": nsfw_result,
+    }
 
 
 def _get_chinese_role_name(role_name):
@@ -563,70 +560,10 @@ def process_with_trained_model(file, image_source, model_name):
 
         if model_info is None:
             logger.warning(f"未找到训练好的模型: {model_name}")
-            # 如果模型不存在，使用传统模型处理
-            text_detections, keypoints, ai_predicted_role = process_image_features(
-                image_source, file.content_type, []
-            )
-            nsfw_result = detect_nsfw(image_source)
-            logger.info(f"传统模型分类结果: {ai_predicted_role or 'unknown'}")
-            # 使用AI预测的角色名作为主要角色
-            final_role = ai_predicted_role or "unknown"
-            return {
-                "role": final_role,
-                "similarity": 0.0,
-                "possible_roles": [],
-                "attributes": [],
-                "text_detections": text_detections,
-                "keypoints": keypoints,
-                "ai_predicted_role": final_role,
-                "nsfw": nsfw_result,
-            }
+            # 如果模型不存在，使用传统模型处理（复用兜底逻辑）
+            return _trained_model_missing_fallback(image_source, file.content_type)
 
-        model, class_to_idx = model_info
-        idx_to_class = {v: k for k, v in class_to_idx.items()}
-
-        # 预处理图像
-        img = preprocess_image(image_source)
-
-        # 预测
-        import torch
-
-        with torch.no_grad():
-            outputs = model(img)
-            _, predicted = torch.max(outputs, 1)
-            confidence = torch.nn.functional.softmax(outputs, dim=1)[0][predicted.item()].item()
-
-        # 获取预测结果
-        role = idx_to_class.get(predicted.item(), "unknown")
-        similarity = float(confidence)
-
-        # 转换为中文角色名
-        chinese_role = _get_chinese_role_name(role)
-
-        logger.info(f"训练模型分类结果: {role} -> {chinese_role}, 相似度: {similarity:.4f}")
-
-        # 处理图像特征
-        text_detections, keypoints, ai_predicted_role = process_image_features(
-            image_source, file.content_type, []
-        )
-
-        # 执行NSFW检测
-        nsfw_result = detect_nsfw(image_source)
-
-        # 构建结果
-        result = {
-            "role": chinese_role,
-            "similarity": similarity,
-            "possible_roles": [],
-            "attributes": [],
-            "tags": ["digital art", "anime", "character"],  # 默认标签
-            "text_detections": text_detections,
-            "keypoints": keypoints,
-            "ai_predicted_role": _get_chinese_role_name(ai_predicted_role),
-            "nsfw": nsfw_result,
-        }
-
-        return result
+        return _classify_with_loaded_model(model_info, image_source, file.content_type, label="训练模型")
 
     except Exception as e:
         logger.error(f"使用训练模型处理图像失败: {e}")
