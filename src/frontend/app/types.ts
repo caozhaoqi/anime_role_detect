@@ -8,6 +8,7 @@ export interface YoloDetection {
   person_confidence: number;
   bbox: number[];
   class_id: number;
+  used_model?: boolean;
 }
 
 export interface YoloDetectionResponse {
@@ -30,6 +31,7 @@ export interface Message {
     role_anime?: string;
     similarity: number;
     confidence: "high" | "medium" | "low";
+    used_model?: boolean;
   };
   attributes?: Array<{
     tag: string;
@@ -73,11 +75,37 @@ export interface Message {
     decision?: string;
     is_unknown?: boolean;
     is_fuzzy?: boolean;
+    used_model?: boolean;
   }>;
   role_info?: any;
   model_name?: string;
   summary?: string;
   fallback?: boolean;
+  debug?: {
+    enabled: boolean;
+    degraded_path: boolean;
+    yolo_total_boxes: number;
+    annotated_image: string;
+    boxes: Array<{
+      bbox: number[];
+      class_id: number;
+      raw_confidence: number;
+      passed_conf_threshold: boolean;
+      cropped_role: boolean;
+      is_known_character: boolean;
+      kept: boolean;
+      discard_reason: string | null;
+      candidates: Array<{ role: string; prob: number }>;
+    }>;
+  };
+  // Phase1: Grad-CAM 热力图（懒加载，按角色生成）
+  gradcam?: {
+    target_label: string;
+    confidence: number;
+    cam_heatmap_base64: string;
+  };
+  // Phase1: 纠错反馈状态
+  feedbackSubmitted?: boolean;
   thoughts?: string[];
   isThinking?: boolean;
   isThinkingFinished?: boolean;
@@ -97,6 +125,30 @@ export interface Message {
     }>;
   }>;
   timestamp: number;
+}
+
+// Phase1: Grad-CAM / 角色列表 / 反馈类型
+export interface GradCAMResult {
+  target_class: number;
+  target_label: string;
+  confidence: number;
+  cam_heatmap_base64: string;
+}
+
+export interface RoleInfo {
+  idx: number;
+  name: string;
+}
+
+export interface FeedbackPayload {
+  recognition_id: string;
+  endpoint: string;
+  original_prediction: string;
+  original_confidence: number;
+  corrected_label: string;
+  image_ref?: string;
+  image_data?: string;
+  timestamp: string;
 }
 
 export interface Model {

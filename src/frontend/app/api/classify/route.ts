@@ -8,6 +8,7 @@ export async function POST(request: NextRequest) {
     const formData = await request.formData();
     console.log('FormData解析完成');
     const file = formData.get('file') as File;
+    const debug = formData.get('debug') === 'true';
 
     console.log('请求参数:', {
       hasFile: !!file
@@ -35,6 +36,7 @@ export async function POST(request: NextRequest) {
     backendFormData.append('cache_bypass', 'false');
     backendFormData.append('multi_role', formData.get('multi_role') as string || 'false');
     backendFormData.append('use_deepdanbooru', formData.get('use_deepdanbooru') as string || 'true');
+    backendFormData.append('debug', debug ? 'true' : 'false');
 
     const authHeader = request.headers.get('authorization');
     const headers: HeadersInit = {};

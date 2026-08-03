@@ -10,6 +10,7 @@ interface RecognitionOptions {
   multiRole?: boolean;
   threshold?: number;
   useYolo?: boolean;
+  debug?: boolean;
 }
 
 export const useRecognition = () => {
@@ -81,6 +82,7 @@ export const useRecognition = () => {
           decision: '',
           is_unknown: false,
           is_fuzzy: false,
+          used_model: true,
         })),
         tags: [],
         text_detections: [],
@@ -88,6 +90,7 @@ export const useRecognition = () => {
         thoughts: ['正在分析图片...', 'YOLOv8 人体检测...', '角色分类...', '检测完成！'],
         isThinkingFinished: true,
         timestamp: Date.now(),
+        debug: data.debug || undefined,
       };
     }
 
@@ -113,6 +116,7 @@ export const useRecognition = () => {
           decision: role.decision || '',
           is_unknown: role.is_unknown || false,
           is_fuzzy: role.is_fuzzy || false,
+          used_model: role.used_model || false,
         })),
         tags: data.tags || [],
         text_detections: data.text_detections || [],
@@ -122,6 +126,7 @@ export const useRecognition = () => {
         thoughts: ['正在分析图片...', '正在检测多个角色...', '正在提取特征...', '识别完成！'],
         isThinkingFinished: true,
         timestamp: Date.now(),
+        debug: data.debug || undefined,
       };
     }
 
@@ -136,6 +141,7 @@ export const useRecognition = () => {
         role_anime: data.role_anime || '',
         similarity: data.similarity || 0,
         confidence: (data.confidence as 'high' | 'medium' | 'low') || 'medium',
+        used_model: true,
       },
       attributes: data.attributes || [],
       tags: data.tags || [],

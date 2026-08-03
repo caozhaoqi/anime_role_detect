@@ -8,6 +8,7 @@ interface RecognitionOptions {
   multiRole?: boolean;
   threshold?: number;
   useYolo?: boolean;
+  debug?: boolean;
 }
 
 interface RecognitionResponse {
@@ -73,6 +74,7 @@ export class RecognitionService {
     formData.append('model_name', options.modelName ?? 'efficientnet_b3');
     formData.append('multi_role', (options.multiRole ?? false).toString());
     formData.append('use_deepdanbooru', 'true');
+    formData.append('debug', (options.debug ?? false).toString());
 
     let endpoint = '/classify';
     if (options.useYolo) {

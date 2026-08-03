@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { User, LogOut, History, Settings, Moon, Sun, Activity } from "lucide-react";
+import { User, LogOut, History, Settings, Moon, Sun, Activity, SlidersHorizontal } from "lucide-react";
 import { AuthState } from "../types";
 
 interface HeaderProps {
@@ -56,6 +56,7 @@ export default function Header({
   onBatchUploadChange,
 }: HeaderProps) {
   const [internalBatchUpload, setInternalBatchUpload] = useState(isBatchUpload);
+  const [showOptions, setShowOptions] = useState(false);
 
   const handleBatchUploadToggle = () => {
     const newValue = !internalBatchUpload;
@@ -69,11 +70,19 @@ export default function Header({
         <div className="flex flex-wrap items-center justify-between gap-4">
           {/* 左侧：标题 */}
           <div className="flex items-center">
-            <h1 className="text-2xl font-semibold bg-gradient-to-r from-blue-500 to-purple-600 bg-clip-text text-transparent">动漫角色识别</h1>
+            <h1 className="text-2xl font-semibold bg-gradient-to-r from-blue-500 to-purple-600 bg-clip-text text-transparent">Anime Role detect</h1>
           </div>
           
           {/* 右侧：配置和个人信息 */}
           <div className="flex flex-wrap items-center gap-4">
+            <button
+              onClick={() => setShowOptions(!showOptions)}
+              className={`p-2 rounded-lg ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'} transition-colors ${showOptions ? 'text-blue-500' : ''}`}
+              title={showOptions ? '收起识别选项' : '展开识别选项（模型/开关）'}
+            >
+              <SlidersHorizontal className={`h-5 w-5 transition-transform duration-300 ${showOptions ? 'rotate-90' : ''}`} />
+            </button>
+
             {config.features.enableHistoryPanel && (
               <button
                 onClick={() => onShowHistoryChange(!showHistory)}
@@ -135,7 +144,8 @@ export default function Header({
           </div>
         </div>
         
-        <div className="flex flex-wrap items-center gap-4 mt-4">
+        {showOptions && (
+          <div className="flex flex-wrap items-center gap-4 mt-3 animate-fade-in">
           {config.features.enableModelSelection && (
             <div className="flex items-center space-x-2">
               <label className="text-sm font-medium">模型:</label>
@@ -211,8 +221,9 @@ export default function Header({
             </button>
           </div>
         </div>
-        
-        {isMacPlatform && useCoreML && (
+        )}
+
+        {showOptions && isMacPlatform && useCoreML && (
           <div className="mt-2 text-xs text-blue-600 dark:text-blue-400">
             🍎 检测到 Mac 平台，已启用 CoreML 加速
           </div>

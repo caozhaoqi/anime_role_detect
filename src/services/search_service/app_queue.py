@@ -73,7 +73,12 @@ app.add_middleware(
 @app.get("/api/health")
 async def health_check():
     """健康检查"""
-    return {"status": "healthy", "service": "Search Service (Queue)"}
+    return {
+        "status": "healthy",
+        "service": "Search Service (Queue)",
+        "version": "2.3.0",
+        "checks": {"self": "up"},
+    }
 
 
 @app.get("/live")

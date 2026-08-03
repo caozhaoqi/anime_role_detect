@@ -13,9 +13,13 @@ from fastapi.responses import Response
 
 from src.core.logging import get_enhanced_logger as get_logger
 from src.core.config.service_config import get_service_config
+from src.core.logging_setup import setup_logging
 
 config = get_service_config()
 logger = get_logger("api")
+
+# 2.5 结构化日志：统一 loguru 输出为 JSON 行（幂等，仅配置一次）
+setup_logging("api-service")
 
 # 设置缓存目录
 os.environ["HF_HOME"] = config.HF_CACHE_DIR

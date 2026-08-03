@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+# @deprecated: 遗留统一应用入口，未被 supervisord/k8s/docker 使用，仅作开发工具保留。计划于下一优化轮次（OPTIMIZATION_PLAN 3.3）移除。
 """
 统一应用入口
 
@@ -102,7 +103,7 @@ def show_status():
     for name, state in status.items():
         logger.info(f"   {name}: {state}")
 
-
+@deprecated
 def main():
     """主函数"""
     parser = argparse.ArgumentParser(description="动漫角色识别系统 - 统一应用入口")

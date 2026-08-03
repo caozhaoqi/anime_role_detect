@@ -3,8 +3,8 @@ import './globals.css';
 import ErrorBoundary from './components/ErrorBoundary';
 
 export const metadata: Metadata = {
-  title: '动漫角色识别',
-  description: '基于深度学习的动漫角色识别系统',
+  title: 'Anime Role detect',
+  description: 'A role role detection system based on deep learning',
 };
 
 export default function RootLayout({

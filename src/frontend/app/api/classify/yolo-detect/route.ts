@@ -7,8 +7,9 @@ export async function POST(request: NextRequest) {
     const formData = await request.formData();
     const file = formData.get('file') as File;
     const yoloModel = formData.get('yolo_model') as string || 'yolov8n.pt';
-    const personConfThreshold = parseFloat(formData.get('person_conf_threshold') as string) || 0.5;
+    const personConfThreshold = parseFloat(formData.get('person_conf_threshold') as string) || 0.2;
     const maxDetections = parseInt(formData.get('max_detections') as string) || 10;
+    const debug = formData.get('debug') === 'true';
 
     if (!file) {
       console.error('没有提供文件');
@@ -31,6 +32,7 @@ export async function POST(request: NextRequest) {
     backendFormData.append('yolo_model', yoloModel);
     backendFormData.append('person_conf_threshold', personConfThreshold.toString());
     backendFormData.append('max_detections', maxDetections.toString());
+    backendFormData.append('debug', debug ? 'true' : 'false');
 
     const authHeader = request.headers.get('authorization');
     const headers: HeadersInit = {};

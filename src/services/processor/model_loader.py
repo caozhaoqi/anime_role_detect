@@ -21,11 +21,15 @@ from typing import Optional, Tuple, Dict, Any
 from pathlib import Path
 
 from src.core.logging import get_enhanced_logger as get_logger
+from src.core.cache.model_cache import ModelCache
 
 logger = get_logger("model_loader")
 
-# 全局模型缓存
-_model_cache: Dict[str, Tuple[Any, Dict]] = {}
+# 全局模型缓存（带 TTL + LRU 淘汰，避免模型实例常驻内存无回收）
+# 复用 src.core.cache.model_cache.ModelCache（已有 TTL + LRU 实现）。
+# 保留全局变量名 `_model_cache` 以维持 classification.py / health.py 的向后兼容。
+# 缓存值为 (model_instance, class_to_idx) 元组；TTL 默认 600s（=10 分钟），上限 5 个模型。
+_model_cache: "ModelCache" = ModelCache(max_size=5, ttl_seconds=600)
 
 
 class ModelLoadingError(Exception):
@@ -141,10 +145,12 @@ def load_trained_model(
         ModelLoadingError: 如果模型加载失败
     """
     try:
-        # 检查缓存
-        if model_name in _model_cache and not force_reload:
-            logger.info(f"使用缓存的模型：{model_name}")
-            return _model_cache[model_name]
+        # 检查缓存（命中且未过期则返回；过期/未命中由 ModelCache 视为未命中触发重载）
+        if not force_reload:
+            cached = _model_cache.get(model_name)
+            if cached is not None:
+                logger.info(f"使用缓存的模型：{model_name}")
+                return cached
 
         # 处理默认模型
         if model_name == "default":
@@ -239,8 +245,8 @@ def load_trained_model(
         # 验证模型架构
         validate_model_architecture(model, num_classes, model_name)
 
-        # 缓存模型
-        _model_cache[model_name] = (model, class_to_idx)
+        # 缓存模型（写入时记录 TTL 过期时间；超 max_size 自动 LRU 淘汰最久未用）
+        _model_cache.set(model_name, (model, class_to_idx))
         logger.info(f"成功加载模型：{model_name} ({num_classes}个类别)")
 
         return model, class_to_idx

@@ -9,9 +9,12 @@ import sys
 import traceback
 import asyncio
 import time
+import hashlib
+import math
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, HTMLResponse, StreamingResponse
+from starlette.middleware.base import BaseHTTPMiddleware
 import uvicorn
 import httpx
 
@@ -23,8 +26,12 @@ from src.core.config.service_config import get_service_config
 config = get_service_config()
 
 from src.core.logging import get_enhanced_logger as get_logger
+from src.core.logging_setup import setup_logging
 
 logger = get_logger("api_gateway")
+
+# 2.5 结构化日志：统一 loguru 输出为 JSON 行（幂等，仅配置一次）
+setup_logging("api-gateway")
 
 # 微服务配置 - 使用配置文件中的端口
 SERVICES = {
@@ -129,6 +136,130 @@ try:
 except Exception as e:
     logger.warning(f"请求追踪中间件初始化失败: {e}")
 
+# ======================================================================
+# 2.4 API Gateway 增强：入口级限流 + 上游轻量熔断（无新增第三方依赖）
+# ----------------------------------------------------------------------
+# 限流：基于内存令牌桶，按客户端标识（JWT Bearer token 哈希 或 客户端 IP）限流，
+#       防止单一客户端刷爆网关。可通过环境变量 GATEWAY_RATE_LIMIT_PER_MIN 等调整。
+# 熔断：仅在网关入口层对"上游不可达 / 5xx"做快速失败，与 circuit_breaker_service
+#       （api-service 侧"服务间调用级熔断"，含 HALF_OPEN 与降级 fallback）明确分层，
+#       不重复造轮子——网关不实现降级/半开，仅做内存单进程的固定窗口快速失败。
+# ======================================================================
+
+# --- 入口级限流（令牌桶） ---
+_RATE_LIMIT_EXEMPT = {"/health", "/live", "/ready", "/api/health"}
+
+
+def _rate_limit_client_key(request):
+    # type: (Request) -> str
+    """客户端标识：优先用 JWT Bearer token 哈希（近似 JWT sub），否则用客户端 IP。"""
+    auth = request.headers.get("Authorization", "")
+    if auth.startswith("Bearer "):
+        token = auth[len("Bearer "):].strip()
+        if token:
+            return "tok:" + hashlib.sha256(token.encode()).hexdigest()[:16]
+    xff = request.headers.get("X-Forwarded-For")
+    if xff:
+        ip = xff.split(",")[0].strip()
+    elif request.client is not None:
+        ip = request.client.host
+    else:
+        ip = "unknown"
+    return "ip:" + ip
+
+
+class _TokenBucketRateLimiter:
+    """极简内存令牌桶限流（单进程；多 worker 时各进程独立计数）。"""
+
+    def __init__(self, rate_per_min, burst=None):
+        self.rate = float(rate_per_min)
+        self.capacity = float(burst if burst is not None else rate_per_min)
+        self.refill_per_sec = self.rate / 60.0
+        self._buckets = {}
+
+    def check(self, key):
+        now = time.time()
+        bucket = self._buckets.get(key, [self.capacity, now])
+        tokens, last = bucket[0], bucket[1]
+        elapsed = now - last
+        tokens = min(self.capacity, tokens + elapsed * self.refill_per_sec)
+        if tokens >= 1.0:
+            tokens -= 1.0
+            self._buckets[key] = [tokens, now]
+            return True, 0.0
+        retry_after = (1.0 - tokens) / self.refill_per_sec
+        self._buckets[key] = [tokens, now]
+        return False, retry_after
+
+
+class RateLimitMiddleware(BaseHTTPMiddleware):
+    def __init__(self, app, limiter):
+        super().__init__(app)
+        self.limiter = limiter
+
+    async def dispatch(self, request, call_next):
+        if request.url.path in _RATE_LIMIT_EXEMPT:
+            return await call_next(request)
+        client_key = _rate_limit_client_key(request)
+        allowed, retry_after = self.limiter.check(client_key)
+        if allowed:
+            return await call_next(request)
+        retry_after_int = int(math.ceil(retry_after))
+        logger.warning("限流触发 path=%s key=%s", request.url.path, client_key)
+        resp = JSONResponse(
+            status_code=429,
+            content={
+                "error": "rate_limit_exceeded",
+                "message": "请求过于频繁，请稍后再试",
+                "retry_after": retry_after_int,
+            },
+        )
+        resp.headers["Retry-After"] = str(retry_after_int)
+        return resp
+
+
+_gateway_rate_limiter = _TokenBucketRateLimiter(
+    rate_per_min=int(os.getenv("GATEWAY_RATE_LIMIT_PER_MIN", "60")),
+    burst=int(os.getenv("GATEWAY_RATE_LIMIT_BURST", os.getenv("GATEWAY_RATE_LIMIT_PER_MIN", "60"))),
+)
+app.add_middleware(RateLimitMiddleware, limiter=_gateway_rate_limiter)
+
+
+# --- 网关层轻量熔断（仅针对上游不可达 / 5xx，与 circuit_breaker_service 分层）---
+_GATEWAY_CB_THRESHOLD = int(os.getenv("GATEWAY_CB_THRESHOLD", "5"))
+_GATEWAY_CB_OPEN_SECONDS = int(os.getenv("GATEWAY_CB_OPEN_SECONDS", "30"))
+_GATEWAY_BREAKERS = {}
+
+
+def _breaker_is_open(service):
+    # type: (str) -> bool
+    b = _GATEWAY_BREAKERS.get(service)
+    if b is None or b["open_until"] is None:
+        return False
+    if time.time() < b["open_until"]:
+        return True
+    # 开路到期自动恢复（固定窗口，无半开态）：重置后放行
+    b["open_until"] = None
+    b["failures"] = 0
+    return False
+
+
+def _breaker_record_success(service):
+    # type: (str) -> None
+    b = _GATEWAY_BREAKERS.setdefault(service, {"failures": 0, "open_until": None})
+    b["failures"] = 0
+    b["open_until"] = None
+
+
+def _breaker_record_failure(service):
+    # type: (str) -> None
+    b = _GATEWAY_BREAKERS.setdefault(service, {"failures": 0, "open_until": None})
+    b["failures"] += 1
+    if b["failures"] >= _GATEWAY_CB_THRESHOLD and b["open_until"] is None:
+        b["open_until"] = time.time() + _GATEWAY_CB_OPEN_SECONDS
+        logger.warning("网关熔断开启[%s]，%ss 内对该上游快速失败", service, _GATEWAY_CB_OPEN_SECONDS)
+
+
 # CORS 配置：生产环境应通过 CORS_ORIGINS 环境变量限定，默认仅允许本地开发
 _cors_origins_env = os.getenv("CORS_ORIGINS", "")
 if _cors_origins_env:
@@ -190,9 +321,53 @@ async def shutdown_event():
     logger.info("API网关服务已关闭")
 
 
+GATEWAY_VERSION = "2.3.0"
+
+
+async def _aggregate_downstream_health(http_client) -> dict:
+    """探测各下游微服务的 /api/health，返回结构化状态（失败仅标记 down，不抛异常）。
+
+    读取下游 JSON 中的顶层 status 字段（healthy/degraded/unhealthy）以正确传播降级状态：
+    HTTP 非 200 或连接异常 -> down；200 且 status=healthy -> up；
+    200 但 status=degraded/unhealthy -> degraded（网关自身随之降级）。
+    """
+    results = {}
+    for svc_key, svc_cfg in SERVICES.items():
+        url = svc_cfg["url"].rstrip("/") + "/api/health"
+        try:
+            resp = await http_client.get(url, timeout=1.0)
+            if resp.status_code != 200:
+                results[svc_key] = {"status": "down", "status_code": resp.status_code}
+                continue
+            try:
+                body = resp.json()
+                downstream_status = body.get("status", "healthy")
+            except Exception:
+                downstream_status = "healthy"
+            if downstream_status == "healthy":
+                mapped = "up"
+            elif downstream_status in ("degraded", "unhealthy"):
+                mapped = "degraded"
+            else:
+                mapped = "up"
+            results[svc_key] = {
+                "status": mapped,
+                "status_code": resp.status_code,
+                "reported": downstream_status,
+            }
+        except Exception as e:
+            results[svc_key] = {"status": "down", "error": str(e)}
+    return results
+
+
 @app.get("/health")
-async def health_check():
-    return {"status": "healthy", "service": "api-gateway"}
+async def health_check_root():
+    return {
+        "status": "healthy",
+        "service": "api-gateway",
+        "version": GATEWAY_VERSION,
+        "checks": {"self": "up"},
+    }
 
 
 @app.get("/live")
@@ -358,8 +533,27 @@ async def root():
 
 
 @app.get("/api/health")
-async def health_check():
-    return {"status": "healthy", "service": "API Gateway"}
+async def health_check_api():
+    # 复用网关启动时创建的 httpx client；TestClient / 未启动时临时创建
+    http_client = client
+    own_client = False
+    if http_client is None:
+        http_client = httpx.AsyncClient(timeout=2.0, trust_env=False)
+        own_client = True
+    try:
+        downstream = await _aggregate_downstream_health(http_client)
+    finally:
+        if own_client:
+            await http_client.aclose()
+
+    downstream_down = [k for k, v in downstream.items() if v.get("status") != "up"]
+    overall = "degraded" if downstream_down else "healthy"
+    return {
+        "status": overall,
+        "service": "API Gateway",
+        "version": GATEWAY_VERSION,
+        "checks": {"self": "up", "downstream": downstream},
+    }
 
 
 @app.get("/api/services")
@@ -391,12 +585,16 @@ async def proxy_video_download(request: Request, filename: str):
     """
     视频下载代理 — 使用流式响应传输二进制视频文件
     """
+    # 网关层熔断（multimedia）：已开路则直接快速失败，避免反复重试打爆已故障上游
+    if _breaker_is_open("multimedia"):
+        raise HTTPException(status_code=503, detail="多媒体服务暂时不可用（熔断保护）")
     url = f"{config.MULTIMEDIA_SERVICE_URL}/video/result/{filename}"
     logger.info(f"代理视频下载: {url}")
     async with httpx.AsyncClient(timeout=60.0) as client:
         try:
             response = await client.get(url)
             content = response.content
+            _breaker_record_success("multimedia")
             return StreamingResponse(
                 iter([content]),
                 media_type=response.headers.get("content-type", "video/mp4"),
@@ -407,6 +605,7 @@ async def proxy_video_download(request: Request, filename: str):
                 status_code=response.status_code,
             )
         except httpx.ConnectError as e:
+            _breaker_record_failure("multimedia")
             raise HTTPException(status_code=503, detail=f"多媒体服务连接失败: {e}")
 
 
@@ -460,6 +659,11 @@ async def proxy_request(request: Request, path: str):
     headers.pop("expect", None)
     body = await request.body()
 
+    # 网关层熔断：已开路则直接快速失败（避免反复重试打爆已故障的上游）
+    if _breaker_is_open(service):
+        logger.warning(f"上游[{service}]熔断中，快速失败返回 503")
+        raise HTTPException(status_code=503, detail=f"上游服务[{service}]暂时不可用（熔断保护）")
+
     max_retries = 3
     retry_delay = 0.5
 
@@ -469,11 +673,21 @@ async def proxy_request(request: Request, path: str):
                 method=request.method, url=url, headers=headers, content=body
             )
 
+            # 5xx 视为上游故障：计入熔断，但仍把上游 5xx 转发给客户端（保持原有语义）
+            if response.status_code >= 500:
+                _breaker_record_failure(service)
+                try:
+                    content = response.json()
+                except ValueError:
+                    content = response.text
+                return JSONResponse(content=content, status_code=response.status_code)
+
             try:
                 content = response.json()
             except ValueError:
                 content = response.text
 
+            _breaker_record_success(service)  # 上游可达 → 重置熔断计数
             return JSONResponse(content=content, status_code=response.status_code)
 
         except (httpx.ConnectError, httpx.RemoteProtocolError, httpx.ReadTimeout) as e:
@@ -482,12 +696,15 @@ async def proxy_request(request: Request, path: str):
                 await asyncio.sleep(retry_delay * (attempt + 1))
                 continue
             logger.error(f"代理请求最终失败: {e}")
+            _breaker_record_failure(service)  # 上游不可达 → 累计失败
             raise HTTPException(status_code=503, detail=f"服务不可用: {str(e)}")
         except httpx.HTTPError as e:
             logger.error(f"代理请求失败: {e}")
+            _breaker_record_failure(service)
             raise HTTPException(status_code=503, detail=f"服务不可用: {str(e)}")
         except Exception as e:
             logger.error(f"代理请求处理失败: {e}\n{traceback.format_exc()}")
+            # 网关内部错误（非上游故障）不计入熔断
             raise HTTPException(status_code=500, detail="内部服务器错误")
 
 

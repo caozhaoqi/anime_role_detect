@@ -13,6 +13,7 @@ export async function POST(request: NextRequest) {
     const useAttributes = formData.get('use_attributes') as string;
     const modelName = formData.get('model_name') as string;
     const cacheBypass = formData.get('cache_bypass') as string;
+    const debug = formData.get('debug') === 'true';
 
     console.log('请求参数:', {
       hasFile: !!file,
@@ -61,6 +62,10 @@ export async function POST(request: NextRequest) {
 
     if (cacheBypass === 'true') {
       backendFormData.append('cache_bypass', 'true');
+    }
+
+    if (debug) {
+      backendFormData.append('debug', 'true');
     }
 
     console.log('开始发送请求到后端API...');

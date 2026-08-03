@@ -80,7 +80,7 @@ def start_core_service(service):
         log_error(f"❌ {name} 启动异常: {str(e)}")
         return None
 
-
+@deprecated
 def main():
     """主函数"""
     print("=" * 60)

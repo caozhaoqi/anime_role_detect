@@ -54,7 +54,12 @@ async def health_check():
 @app.get("/api/health")
 async def api_health_check():
     """统一API健康检查"""
-    return {"status": "healthy", "service": "video_service", "version": "1.0.0"}
+    return {
+        "status": "healthy",
+        "service": "video_service",
+        "version": "2.3.0",
+        "checks": {"self": "up"},
+    }
 
 
 @app.post("/video/extract")

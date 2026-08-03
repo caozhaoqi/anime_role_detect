@@ -6,18 +6,20 @@ import sys
 import time
 import asyncio
 import gc
+import json
 from concurrent.futures import ThreadPoolExecutor
 from typing import List
 
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.."))
 
-from fastapi import APIRouter, UploadFile, File, HTTPException, Form, Request
+from fastapi import APIRouter, UploadFile, File, HTTPException, Form, Request, Body
 from fastapi.responses import Response
 from PIL import Image
 import io
 
 from src.core.logging import get_enhanced_logger as get_logger
 from src.services.model_service.classifiers import EfficientNetClassifier
+from src.core.detection.gradcam import GradCAMGenerator
 from src.services.cache_service.cache_service import model_cache
 from src.core.utils.role_info_loader import get_role_info
 from src.core.utils.utils import safe_temp_path as _safe_temp_path
@@ -71,6 +73,54 @@ def _cleanup_after_inference():
         pass
 
 
+def _append_role_records(endpoint: str, filename: str, roles, debug_boxes=None):
+    """Task B：把每个角色的明细写成一行 JSON 追加到结构化日志，使重启后可回查。
+
+    所有请求都会写入 per-role 明细；debug=True 时额外写一行 debug_boxes。
+    写入失败不影响主流程（诊断日志，best-effort）。
+    """
+    try:
+        from datetime import datetime
+
+        today = datetime.now().strftime("%Y-%m-%d")
+        log_dir = os.path.join(project_root, "logs")
+        os.makedirs(log_dir, exist_ok=True)
+        log_path = os.path.join(log_dir, f"anime_role_detect_structured_{today}.jsonl")
+
+        ts = datetime.now().isoformat()
+        lines = []
+        for r in roles:
+            rec = {
+                "type": "role_record",
+                "endpoint": endpoint,
+                "filename": filename,
+                "timestamp": ts,
+                "role": r.get("role"),
+                "confidence": r.get("confidence"),
+                "class_id": r.get("class_id"),
+                "fallback": bool(r.get("fallback", False)),
+                "bbox": r.get("box") or r.get("bbox"),
+            }
+            lines.append(json.dumps(rec, ensure_ascii=False))
+
+        if debug_boxes is not None:
+            dbg = {
+                "type": "debug_boxes",
+                "endpoint": endpoint,
+                "filename": filename,
+                "timestamp": ts,
+                "boxes": debug_boxes,
+            }
+            lines.append(json.dumps(dbg, ensure_ascii=False))
+
+        with open(log_path, "a", encoding="utf-8") as f:
+            for line in lines:
+                f.write(line + "\n")
+    except Exception:
+        # 诊断日志写入失败不应影响主流程
+        pass
+
+
 # 延迟导入核心模块
 def import_core_modules():
     pass  # 由 app.py 初始化时调用
@@ -78,7 +128,34 @@ def import_core_modules():
 
 @router.get("/api/health")
 async def health_check():
-    return {"status": "healthy", "service": "Model Service", "version": APP_VERSION}
+    """健康检查 - 返回结构化状态（模型文件存在 + 模型已加载）。"""
+    # 1. EfficientNet-B3 模型文件是否存在
+    model_best = os.path.join(project_root, "models", "efficientnet_b3", "model_best.pth")
+    model_file_ok = os.path.exists(model_best)
+    checks = {
+        "model_file": {
+            "status": "ok" if model_file_ok else "missing",
+            "path": model_best,
+        },
+        # 2. 模型是否已加载（服务内全局变量 / 单例非空）
+        "preprocessor_loaded": preprocessor is not None,
+        "feature_extractor_loaded": feature_extractor is not None,
+        "classifier_loaded": _efficientnet_classifier is not None,
+    }
+
+    if not model_file_ok:
+        overall = "unhealthy"
+    elif preprocessor is None:
+        overall = "degraded"
+    else:
+        overall = "healthy"
+
+    return {
+        "status": overall,
+        "service": "Model Service",
+        "version": APP_VERSION,
+        "checks": checks,
+    }
 
 
 @router.get("/live")
@@ -497,6 +574,7 @@ async def extract_features(file: UploadFile = File(...)):
 async def detect_multiple_characters(
     file: UploadFile = File(...),
     max_characters: int = Form(5),
+    debug: bool = Form(False),
 ):
     """检测图片中的多个角色"""
     global preprocessor, feature_extractor, tagger
@@ -514,7 +592,7 @@ async def detect_multiple_characters(
                 enable_open_set=True, enable_fuzzy_record=True,
                 unknown_threshold=0.3, fuzzy_threshold=0.5,
             )
-            detection_results = detector.detect_roles(temp_path)
+            detection_results = detector.detect_roles(temp_path, debug=debug)
         except Exception:
             from src.core.detection.multi_role_detection import MultiRoleDetector
             detector = MultiRoleDetector(model_name="efficientnet_b3")
@@ -570,14 +648,41 @@ async def detect_multiple_characters(
                 role_result["is_fuzzy"] = detection["is_fuzzy"]
             if "fallback" in detection:
                 role_result["fallback"] = detection["fallback"]
+            if "used_model" in detection:
+                role_result["used_model"] = detection["used_model"]
             results.append(role_result)
 
         # 在 Model Service 内部完成 OCR + NSFW 检测，避免 API Service 重复推理
         multi_image = Image.open(temp_path).convert("RGB")
         text_detections, nsfw_result = await _run_ocr_and_nsfw(multi_image, content, file.filename)
 
-        fallback_used = any(det.get("fallback", False) for det in detection_results)
-        return {"success": True, "data": {"roles": results, "count": len(results), "fallback": fallback_used, "text_detections": text_detections, "nsfw": nsfw_result}}
+        fallback_used = any(d.get("fallback", False) for d in detection_results)
+
+        # B. 落盘 per-role 明细（所有请求都写；debug 时额外写 debug_boxes）
+        _append_role_records("detect-multiple", file.filename, results, getattr(detector, "_debug_boxes", None) if debug else None)
+
+        debug_payload = None
+        if debug:
+            from src.core.detection.debug_annotator import annotate
+            debug_payload = {
+                "enabled": True,
+                "degraded_path": bool(getattr(detector, "_debug_degraded_path", False)),
+                "yolo_total_boxes": int(getattr(detector, "_debug_total_boxes", 0)),
+                "annotated_image": annotate(full_image, getattr(detector, "_debug_boxes", [])),
+                "boxes": getattr(detector, "_debug_boxes", []),
+            }
+
+        return {
+            "success": True,
+            "data": {
+                "roles": results,
+                "count": len(results),
+                "fallback": fallback_used,
+                "text_detections": text_detections,
+                "nsfw": nsfw_result,
+                **({"debug": debug_payload} if debug_payload is not None else {}),
+            },
+        }
     except HTTPException:
         raise
     except Exception as e:
@@ -598,6 +703,7 @@ async def detect_with_yolo(
     yolo_model: str = Form("yolov8n.pt"),
     person_conf_threshold: float = Form(0.2),
     max_detections: int = Form(10),
+    debug: bool = Form(False),
 ):
     """使用 YOLOv8 进行多目标检测"""
     from src.core.detection.multi_target_detector import MultiTargetDetector
@@ -614,7 +720,7 @@ async def detect_with_yolo(
 
         detector = detect_with_yolo._detector
         image = Image.open(temp_path).convert("RGB")
-        results = detector.detect_and_classify(image, person_conf_threshold=person_conf_threshold)
+        results = detector.detect_and_classify(image, person_conf_threshold=person_conf_threshold, debug=debug)
 
         response_results = []
         for i, detection in enumerate(results.get("detections", [])[:max_detections]):
@@ -631,7 +737,43 @@ async def detect_with_yolo(
                 "person_confidence": float(detection.get("person_confidence", 0.0)),
                 "bbox": detection.get("bbox", []),
                 "class_id": role_pred.get("class_id", -1),
+                # detect-yolo 走纯 EfficientNet 模型分类，无 FAISS，恒为 True
+                "used_model": True,
             })
+
+        fallback_used = False
+        if len(response_results) == 0:
+            fallback_crop = image.resize((224, 224), Image.BILINEAR)
+            role_pred = detector._classify_crop(fallback_crop)
+            role_name = role_pred.get("role", "unknown")
+            role_full_info = get_role_info(role_name)
+            response_results.append({
+                "id": 1, "role": role_name,
+                "role_cn": role_full_info.get("cn", role_name),
+                "role_jp": role_full_info.get("jp", ""),
+                "role_anime": role_full_info.get("anime", ""),
+                "confidence": float(role_pred.get("confidence", 0.0)),
+                "person_confidence": 0.0,
+                "bbox": [0, 0, image.width, image.height],
+                "class_id": role_pred.get("class_id", -1),
+                "fallback": True,
+                "used_model": True,
+            })
+            fallback_used = True
+
+        # B. 落盘 per-role 明细（所有请求都写；debug 时额外写 debug_boxes）
+        _append_role_records("detect-yolo", file.filename, response_results, results.get("debug_boxes") if debug else None)
+
+        debug_payload = None
+        if debug:
+            from src.core.detection.debug_annotator import annotate
+            debug_payload = {
+                "enabled": True,
+                "degraded_path": fallback_used,
+                "yolo_total_boxes": int(results.get("yolo_total_boxes", 0)),
+                "annotated_image": annotate(image, results.get("debug_boxes", [])),
+                "boxes": results.get("debug_boxes", []),
+            }
 
         return {
             "success": True,
@@ -639,6 +781,8 @@ async def detect_with_yolo(
                 "roles": response_results, "count": len(response_results),
                 "image_size": results.get("image_size", []),
                 "detector": "YOLOv8 + EfficientNet", "model": yolo_model,
+                "fallback": fallback_used,
+                **({"debug": debug_payload} if debug_payload is not None else {}),
             }
         }
     except Exception as e:
@@ -838,3 +982,117 @@ def set_globals(prep, feat_ext, tag, device, kp_pool=None):
     if _executor is None:
         _executor = ThreadPoolExecutor(max_workers=4)
         logger.info("全局 ThreadPoolExecutor 已初始化 (max_workers=4)")
+
+
+# ============ Phase1: Grad-CAM + Roles + Feedback ============
+
+@router.post("/api/model/gradcam")
+async def gradcam_endpoint(file: UploadFile = File(...), target_class: int = Form(None)):
+    """生成 Grad-CAM 热力图（懒加载 FP32 模型副本）"""
+    try:
+        contents = await file.read()
+        image = Image.open(io.BytesIO(contents)).convert("RGB")
+
+        loop = asyncio.get_running_loop()
+
+        def _generate():
+            gen = GradCAMGenerator.get_instance()
+            return gen.generate(image, target_class)
+
+        result = await loop.run_in_executor(_executor, _generate)
+
+        if "error" in result:
+            logger.warning(f"GradCAM 生成失败: {result['error']}")
+            return {"code": 1, "message": result["error"]}
+
+        # cam_raw 是 np.ndarray，不可 JSON 序列化，从响应中移除
+        result.pop("cam_raw", None)
+        return {"code": 0, "data": result}
+    except Exception as e:
+        logger.error(f"GradCAM 端点异常: {e}", exc_info=True)
+        return {"code": 1, "message": str(e)}
+
+
+@router.get("/api/model/roles")
+async def get_roles():
+    """返回 51 类角色标签列表"""
+    try:
+        clf = EfficientNetClassifier.get_instance()
+        idx_to_class = clf.idx_to_class
+        if not idx_to_class:
+            return {"code": 1, "message": "角色标签未加载"}
+        roles = [
+            {"idx": int(idx), "name": name}
+            for idx, name in sorted(idx_to_class.items(), key=lambda x: int(x[0]))
+        ]
+        return {"code": 0, "data": {"roles": roles, "total": len(roles)}}
+    except Exception as e:
+        logger.error(f"获取角色列表异常: {e}", exc_info=True)
+        return {"code": 1, "message": str(e)}
+
+
+@router.post("/api/model/feedback")
+async def feedback_endpoint(payload: dict = Body(...)):
+    """用户纠错反馈，落盘 JSONL"""
+    try:
+        corrected_label = payload.get("corrected_label")
+        if not corrected_label:
+            return {"code": 1, "message": "缺少 corrected_label 字段"}
+
+        # 校验 corrected_label ∈ 51 类
+        clf = EfficientNetClassifier.get_instance()
+        valid_labels = set(clf.idx_to_class.values())
+        if corrected_label not in valid_labels:
+            return {
+                "code": 1,
+                "message": f"corrected_label '{corrected_label}' 不在 {len(valid_labels)} 类标签中",
+            }
+
+        # 图像缓存与时间戳均需用到 datetime（将局部导入前置，确保缓存块可用）
+        from datetime import datetime
+
+        # Phase2: 图像缓存 —— 把纠错对应的原图落地磁盘，让 image_ref 指向真实文件（支撑增量训练）
+        image_data = payload.get("image_data")
+        if image_data:
+            try:
+                import base64 as _b64
+                if "," in image_data:
+                    _header, _b64data = image_data.split(",", 1)
+                else:
+                    _b64data = image_data
+                _img_bytes = _b64data.encode("utf-8") if isinstance(_b64data, str) else _b64data
+                _img_bytes = _b64.b64decode(_img_bytes)
+                _img_dir = os.path.join(project_root, "data", "feedback_images")
+                os.makedirs(_img_dir, exist_ok=True)
+                _rid = payload.get("recognition_id") or datetime.now().strftime("%Y%m%d%H%M%S")
+                _img_path = os.path.join(_img_dir, f"{_rid}.jpg")
+                with open(_img_path, "wb") as _f:
+                    _f.write(_img_bytes)
+                payload["image_ref"] = f"data/feedback_images/{_rid}.jpg"
+            except Exception as _ie:
+                logger.warning(f"反馈图像缓存失败（仅影响后续增量训练）: {_ie}")
+
+        # 补充服务端时间戳（datetime 已在上方函数内导入）
+        payload["server_timestamp"] = datetime.now().isoformat()
+
+        # 落盘 logs/feedback/feedback_<date>.jsonl（append）
+        log_dir = os.path.join(project_root, "logs", "feedback")
+        os.makedirs(log_dir, exist_ok=True)
+        today = datetime.now().strftime("%Y-%m-%d")
+        log_path = os.path.join(log_dir, f"feedback_{today}.jsonl")
+
+        # Phase2: 落盘 JSONL 不再冗余存储 base64 原图（image_ref 已指向真实文件）
+        payload.pop("image_data", None)
+
+        try:
+            with open(log_path, "a", encoding="utf-8") as f:
+                f.write(json.dumps(payload, ensure_ascii=False) + "\n")
+        except Exception as write_err:
+            logger.error(f"反馈落盘失败: {write_err}")
+            return {"code": 1, "message": f"反馈记录写入失败: {write_err}"}
+
+        logger.info(f"用户反馈已记录: corrected_label={corrected_label} → {log_path}")
+        return {"code": 0, "message": "反馈已记录"}
+    except Exception as e:
+        logger.error(f"反馈端点异常: {e}", exc_info=True)
+        return {"code": 1, "message": str(e)}

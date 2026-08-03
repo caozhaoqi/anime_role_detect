@@ -11,8 +11,8 @@ from src.data_pipeline.webui.utils import get_db_stats_optimized, load_stats
 
 def display_overview():
     """显示概览页面"""
-    st.title("🎬 动漫角色识别系统")
-    st.subheader("数据流水线管理控制台")
+    st.title("🎬 Anime Role detect")
+    st.subheader("Data Pipeline Management Console")
     
     db_stats = get_db_stats_optimized()
     annot_stats = load_stats()

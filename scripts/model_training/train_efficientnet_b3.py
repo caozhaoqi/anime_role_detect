@@ -31,6 +31,10 @@ from torchvision import transforms, models
 from torchvision.datasets import ImageFolder
 from torchvision.transforms.autoaugment import AutoAugment, AutoAugmentPolicy
 
+# 防泄漏：以角色目录为 group 做分组切分（同角色图整体进 train 或 val，不拆散）。
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
+from src.core.data.split_utils import grouped_split  # noqa: E402
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
@@ -76,9 +80,14 @@ def get_best_device():
         return torch.device("cpu")
 
 
-def create_efficientnet_b3(num_classes: int) -> nn.Module:
-    """创建与 model_loader.py 完全一致的 EfficientNet-B3 架构"""
-    model = models.efficientnet_b3(weights=models.EfficientNet_B3_Weights.DEFAULT)
+def create_efficientnet_b3(num_classes: int, weights=models.EfficientNet_B3_Weights.DEFAULT) -> nn.Module:
+    """创建与 model_loader.py 完全一致的 EfficientNet-B3 架构
+
+    weights: 默认使用 ImageNet 预训练权重（v1 训练 / train_clean_split 需要）；
+    增量微调与评测场景应传入 weights=None，跳过 47MB 权重下载——
+    因为随即 strict 加载 checkpoint 会把整个主干覆盖掉，下载的权重永不使用。
+    """
+    model = models.efficientnet_b3(weights=weights)
     model.classifier = nn.Sequential(
         nn.Dropout(p=0.3),
         nn.Linear(model.classifier[1].in_features, 768),
@@ -336,24 +345,18 @@ def main():
 
     train_ratio = config["train_ratio"]
 
-    # 按类别分层划分
-    class_samples = {}
-    for path, label in all_samples:
-        if label not in class_samples:
-            class_samples[label] = []
-        class_samples[label].append((path, label))
-
-    train_samples = []
-    val_samples = []
-    for label, samples in class_samples.items():
-        n_train = int(len(samples) * train_ratio)
-        # 随机打乱后划分
-        import random
-        random.seed(config["seed"])
-        shuffled = samples.copy()
-        random.shuffle(shuffled)
-        train_samples.extend(shuffled[:n_train])
-        val_samples.extend(shuffled[n_train:])
+    # ── 按角色分组切分（MUST group by character to avoid leakage）──
+    # 旧逻辑按"类内逐图洗牌"会把同一角色的图同时放进 train/val（泄漏）。
+    # 改为以角色目录（路径倒数第 2 段）为 group 做 GroupShuffleSplit：
+    # 同一角色的所有图整体进 train 或整体进 val，杜绝 train/val 同源。
+    char_groups = [Path(path).parts[-2] for path, _ in all_samples]
+    train_idx, val_idx, _ = grouped_split(
+        all_samples, char_groups,
+        ratios=(train_ratio, 1.0 - train_ratio, 0.0),
+        seed=config["seed"],
+    )
+    train_samples = [all_samples[i] for i in train_idx]
+    val_samples = [all_samples[i] for i in val_idx]
 
     logger.info(f"Train: {len(train_samples)} images, Val: {len(val_samples)} images")
     sys.stdout.flush()
