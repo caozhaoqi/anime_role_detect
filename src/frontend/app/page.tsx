@@ -14,6 +14,7 @@ import { useRecognition } from './hooks/useRecognition';
 import { useChat } from './hooks/useChat';
 import { useAppStore } from './store/useAppStore';
 import ErrorBoundary, { useGlobalErrorHandler } from './components/ErrorBoundary';
+import ToastContainer from './components/ToastContainer';
 import dynamic from 'next/dynamic';
 
 const HistoryPanel = dynamic(() => import('./components/HistoryPanel'), {
@@ -123,6 +124,11 @@ export default function AnimeRoleDetect() {
     }
   }, [authState.isAuthenticated, authState.accessToken]);
 
+  // 暗色模式：把 .dark 同步到 <html>，激活 dark: 类 + .dark 主题变量
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', darkMode);
+  }, [darkMode]);
+
   useEffect(() => {
     const handler = () => {
       handleLogout();
@@ -202,6 +208,10 @@ export default function AnimeRoleDetect() {
 
   const handleDarkModeToggle = useCallback(() => {
     const newDarkMode = !darkMode;
+    // 主题切换过渡：临时挂载全局 transition 类，350ms 后移除
+    const html = document.documentElement;
+    html.classList.add('theme-transition');
+    setTimeout(() => html.classList.remove('theme-transition'), 350);
     setDarkMode(newDarkMode);
     localStorage.setItem('darkMode', newDarkMode.toString());
   }, [darkMode]);
@@ -299,7 +309,7 @@ export default function AnimeRoleDetect() {
 
           <div className="flex-1 flex overflow-hidden">
             <main className={`flex-1 transition-all duration-300 ${showHistory ? 'md:mr-96' : ''} ${activePanel === 'classify' ? 'flex flex-col overflow-hidden' : 'overflow-y-auto'}`}>
-              <div className={activePanel === 'classify' ? 'flex-1 flex flex-col min-h-0 overflow-hidden' : 'flex-1 overflow-y-auto'}>
+              <div key={activePanel} className={`${activePanel === 'classify' ? 'flex-1 flex flex-col min-h-0 overflow-hidden' : 'flex-1 overflow-y-auto'} animate-panel-in`}>
                 <div className={`container mx-auto px-4 md:px-6 py-2 md:py-3 ${activePanel === 'classify' ? 'flex-1 flex flex-col min-h-0' : ''}`}>
                   {activePanel === 'classify' ? (
                     <ChatPanel
@@ -368,6 +378,8 @@ export default function AnimeRoleDetect() {
               <span>A role detection system based on deep learning</span>
             </div>
           </footer>
+
+          <ToastContainer />
         </>
       )}
     </div>

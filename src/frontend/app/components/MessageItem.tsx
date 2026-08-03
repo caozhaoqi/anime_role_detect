@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { Bot, User, Copy, Download, ChevronDown } from 'lucide-react';
+import { Bot, User, Copy, Download, ChevronDown, Flame, Pencil, Target, TriangleAlert, Bug, CheckCircle, Loader2 } from 'lucide-react';
 import { Message } from '../types';
 import CollapsibleSection from './CollapsibleSection';
+import AutoCollapse from './AutoCollapse';
 import { useGradcam } from '../hooks/useGradcam';
 import { useFeedback } from '../hooks/useFeedback';
 
@@ -46,8 +47,9 @@ const GradcamBlock: React.FC<{
       className="w-full flex items-center justify-between gap-2 text-left px-2 py-1.5 text-xs text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/30 hover:bg-orange-100 dark:hover:bg-orange-900/50 transition-colors"
       title={collapsed ? '展开热力图' : '收起热力图'}
     >
-      <span className="truncate">
-        🔥 Grad-CAM：模型关注区域（目标: {result.target_label}，置信度: {(result.confidence * 100).toFixed(1)}%）
+      <span className="flex items-center gap-1 truncate">
+        <Flame className="h-3.5 w-3.5 shrink-0" />
+        <span className="truncate">Grad-CAM：模型关注区域（目标: {result.target_label}，置信度: {(result.confidence * 100).toFixed(1)}%）</span>
       </span>
       <ChevronDown className={`h-3.5 w-3.5 shrink-0 transition-transform ${collapsed ? '' : 'rotate-180'}`} />
     </button>
@@ -175,7 +177,20 @@ const MessageItem: React.FC<MessageItemProps> = ({ message, darkMode, handleCopy
               />
             </div>
           )}
-          <p className="whitespace-pre-wrap break-words mb-0">{message.content}</p>
+          {message.content && (
+            <AutoCollapse
+              maxHeight={220}
+              overlayFromClass={
+                message.role === "user"
+                  ? "from-blue-600 dark:from-blue-600"
+                  : darkMode
+                  ? "from-gray-700 dark:from-gray-700"
+                  : "from-gray-100 dark:from-gray-100"
+              }
+            >
+              <p className="whitespace-pre-wrap break-words mb-0">{message.content}</p>
+            </AutoCollapse>
+          )}
 
           {message.classification && (
             <div className={`mt-3 p-3 md:p-4 rounded-2xl border-2 animate-fade-in ${
@@ -183,7 +198,8 @@ const MessageItem: React.FC<MessageItemProps> = ({ message, darkMode, handleCopy
             } shadow-lg`}>
               <div className="flex items-center space-x-2 mb-3">
                 <div className="w-2.5 h-2.5 rounded-full bg-blue-500 animate-pulse" />
-                <h3 className="font-bold text-base">🎯 识别结果</h3>
+                <Target className="h-4 w-4 text-blue-500" />
+                <h3 className="font-bold text-base">识别结果</h3>
                 <span className={`ml-auto px-2 py-0.5 text-xs rounded-full ${darkMode ? 'bg-blue-900/50 text-blue-300' : 'bg-blue-100 text-blue-600'}`}>主体</span>
               </div>
               <div className={`grid grid-cols-1 sm:grid-cols-2 gap-3 ${darkMode ? 'text-gray-100' : 'text-gray-900'}`}>
@@ -220,7 +236,17 @@ const MessageItem: React.FC<MessageItemProps> = ({ message, darkMode, handleCopy
                   className="px-2 py-0.5 text-xs rounded-full bg-orange-100 text-orange-600 dark:bg-orange-900/50 dark:text-orange-400 hover:scale-105 transition-transform disabled:opacity-50"
                   title="查看 Grad-CAM 热力图"
                 >
-                  {gradcamLoading === -1 ? '⏳ 生成中...' : '🔥 热力图'}
+                  {gradcamLoading === -1 ? (
+                    <>
+                      <Loader2 className="h-3 w-3 animate-spin inline mr-1" />
+                      生成中...
+                    </>
+                  ) : (
+                    <>
+                      <Flame className="h-3 w-3 inline mr-1" />
+                      热力图
+                    </>
+                  )}
                 </button>
                 )}
                 {submittedCorrections.has(-1) ? (
@@ -250,7 +276,10 @@ const MessageItem: React.FC<MessageItemProps> = ({ message, darkMode, handleCopy
                     onClick={() => { setCorrectingRole(-1); setCorrectionSelect(''); }}
                     className="px-2 py-0.5 text-xs rounded-full bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-300 hover:scale-105 transition-transform"
                     title="纠错：这个角色识别错了？"
-                  >✏️ 纠错</button>
+                  >
+                    <Pencil className="h-3 w-3 inline mr-1" />
+                    纠错
+                  </button>
                 )}
               </div>
               {gradcamResult[-1] && (
@@ -269,12 +298,13 @@ const MessageItem: React.FC<MessageItemProps> = ({ message, darkMode, handleCopy
             } shadow-lg`}>
               <div className="flex items-center space-x-2 mb-3">
                 <div className="w-2.5 h-2.5 rounded-full bg-indigo-500 animate-pulse" />
-                <h3 className="font-bold text-base">🎯 多角色识别结果</h3>
+                <Target className="h-4 w-4 text-indigo-500" />
+                <h3 className="font-bold text-base">多角色识别结果</h3>
                 <span className={`ml-auto px-2 py-0.5 text-xs rounded-full ${darkMode ? 'bg-indigo-900/50 text-indigo-300' : 'bg-indigo-100 text-indigo-600'}`}>{message.multi_roles.length} 个角色</span>
               </div>
               {message.fallback && (
                 <div className="mt-2 mb-2 p-2 rounded-lg bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300 text-xs flex items-center space-x-1">
-                  <span>⚠️</span>
+                  <TriangleAlert className="h-3.5 w-3.5 shrink-0" />
                   <span>未检出多个人体框，已使用整图识别（单角色兜底），结果仅供参考。</span>
                 </div>
               )}
@@ -302,7 +332,17 @@ const MessageItem: React.FC<MessageItemProps> = ({ message, darkMode, handleCopy
                             className="px-2 py-0.5 text-xs rounded-full bg-orange-100 text-orange-600 dark:bg-orange-900/50 dark:text-orange-400 hover:scale-105 transition-transform disabled:opacity-50"
                             title="查看 Grad-CAM 热力图"
                           >
-                            {gradcamLoading === index ? '⏳ 生成中...' : '🔥 热力图'}
+                            {gradcamLoading === index ? (
+                              <>
+                                <Loader2 className="h-3 w-3 animate-spin inline mr-1" />
+                                生成中...
+                              </>
+                            ) : (
+                              <>
+                                <Flame className="h-3 w-3 inline mr-1" />
+                                热力图
+                              </>
+                            )}
                           </button>
                           )}
                           {/* Phase1: 纠错反馈 */}
@@ -333,7 +373,10 @@ const MessageItem: React.FC<MessageItemProps> = ({ message, darkMode, handleCopy
                               onClick={() => { setCorrectingRole(index); setCorrectionSelect(''); }}
                               className="px-2 py-0.5 text-xs rounded-full bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-300 hover:scale-105 transition-transform"
                               title="纠错：这个角色识别错了？"
-                            >✏️ 纠错</button>
+                            >
+                              <Pencil className="h-3 w-3 inline mr-1" />
+                              纠错
+                            </button>
                           )}
                         </div>
                         {role.role_cn && role.role_cn !== role.role && (
@@ -366,7 +409,12 @@ const MessageItem: React.FC<MessageItemProps> = ({ message, darkMode, handleCopy
 
           {debugStats && (
             <CollapsibleSection
-              title="🐞 Debug 辅助框"
+              title={
+                <span className="flex items-center gap-1.5">
+                  <Bug className="h-3.5 w-3.5 text-purple-500" />
+                  Debug 辅助框
+                </span>
+              }
               darkMode={darkMode}
               defaultCollapsed
               dotColor="bg-purple-500"
@@ -379,7 +427,7 @@ const MessageItem: React.FC<MessageItemProps> = ({ message, darkMode, handleCopy
 
               {message.debug!.degraded_path && (
                 <div className="mt-2 mb-3 p-2 rounded-lg bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300 text-xs flex items-center space-x-1">
-                  <span>⚠️</span>
+                  <TriangleAlert className="h-3.5 w-3.5 shrink-0" />
                   <span>降级路径（未检测到人体，使用整图分类）</span>
                 </div>
               )}
@@ -411,7 +459,7 @@ const MessageItem: React.FC<MessageItemProps> = ({ message, darkMode, handleCopy
 
               {message.debug!.boxes && message.debug!.boxes.length > 0 && (
                 <div className="mt-3 space-y-1">
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">📊 逐框置信度</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">逐框置信度</p>
                   <div className={`rounded-lg ${darkMode ? 'bg-gray-600' : 'bg-gray-200'} p-2 space-y-1 max-h-48 overflow-y-auto`}>
                     {message.debug!.boxes.map((b, i) => {
                       const dot = b.kept
@@ -530,12 +578,22 @@ const MessageItem: React.FC<MessageItemProps> = ({ message, darkMode, handleCopy
               defaultCollapsed
               dotColor={message.nsfw.is_nsfw ? "bg-red-500" : "bg-green-500"}
               badge={
-                <span className={`px-2 py-0.5 rounded text-xs font-medium shrink-0 ${
+                <span className={`px-2 py-0.5 rounded text-xs font-medium shrink-0 flex items-center gap-1 ${
                   message.nsfw.is_nsfw
                     ? 'bg-red-100 text-red-600 dark:bg-red-900/50 dark:text-red-400'
                     : 'bg-green-100 text-green-600 dark:bg-green-900/50 dark:text-green-400'
                 }`}>
-                  {message.nsfw.is_nsfw ? "⚠️ 包含敏感内容" : "✅ 安全内容"}
+                  {message.nsfw.is_nsfw ? (
+                    <>
+                      <TriangleAlert className="h-3 w-3" />
+                      包含敏感内容
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle className="h-3 w-3" />
+                      安全内容
+                    </>
+                  )}
                 </span>
               }
             >

@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useCallback, useEffect, useRef } from "react";
-import { Video, Play, Pause, X, Clock, AlertTriangle, CheckCircle, Download, Loader2 } from "lucide-react";
+import { Video, Play, Pause, X, Clock, AlertTriangle, CheckCircle, Download, Loader2, UploadCloud, Film, SlidersHorizontal } from "lucide-react";
 import axios from "axios";
+import EmptyState from "./EmptyState";
 
 interface VideoResult {
   timestamp: number;
@@ -43,6 +44,23 @@ export default function VideoPanel({ darkMode, accessToken }: VideoPanelProps) {
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const pollTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isDragging, setIsDragging] = useState(false);
+
+  // 拖拽上传视频
+  const applyVideoFile = useCallback((file: File) => {
+    setSelectedVideo(file);
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setVideoPreview(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+    setResults([]);
+    setResultVideoUrl(null);
+    setShowSuccess(false);
+    setShowError(null);
+    setProgress(0);
+  }, []);
 
   // 清理轮询
   useEffect(() => {
@@ -64,17 +82,16 @@ export default function VideoPanel({ darkMode, accessToken }: VideoPanelProps) {
   const handleVideoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      setSelectedVideo(file);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setVideoPreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
-      setResults([]);
-      setResultVideoUrl(null);
-      setShowSuccess(false);
-      setShowError(null);
-      setProgress(0);
+      applyVideoFile(file);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file && file.type.startsWith("video/")) {
+      applyVideoFile(file);
     }
   };
 
@@ -230,14 +247,18 @@ export default function VideoPanel({ darkMode, accessToken }: VideoPanelProps) {
     : "bg-gradient-to-r from-blue-500 to-indigo-500";
 
   return (
-    <div className={`${darkMode ? "bg-gray-800" : "bg-white"} rounded-xl shadow-lg border ${darkMode ? "border-gray-700" : "border-gray-200"} overflow-hidden`}>
+    <div className={`${darkMode ? "bg-gray-800" : "bg-white"} rounded-xl shadow-lg border ${darkMode ? "border-gray-700" : "border-gray-200"} overflow-hidden animate-fade-in`}>
       {/* 标题栏 */}
       <div className={`p-4 border-b ${darkMode ? "border-gray-700" : "border-gray-200"}`}>
-        <div className="flex items-center space-x-2">
-          <Video className="h-5 w-5 text-green-500" />
-          <h2 className="text-lg font-semibold">视频实时识别</h2>
+        <div className="flex items-center space-x-3">
+          <div className="w-9 h-9 rounded-xl bg-green-100 dark:bg-green-900/50 flex items-center justify-center">
+            <Video className="h-4.5 w-4.5 text-green-500" />
+          </div>
+          <div>
+            <h2 className="text-lg font-semibold leading-tight">视频实时识别</h2>
+            <p className="text-xs text-gray-500 mt-0.5">上传视频，抽帧识别画面角色</p>
+          </div>
         </div>
-        <p className="text-sm text-gray-500 mt-1">上传视频进行实时抽帧识别角色</p>
       </div>
 
       {/* 成功提示横幅 */}
@@ -262,49 +283,74 @@ export default function VideoPanel({ darkMode, accessToken }: VideoPanelProps) {
       )}
 
       {/* 内容区 */}
-      <div className="p-4">
-        {/* 视频上传区 */}
-        <div className="mb-4">
-          <label className="block text-sm font-medium mb-2">
-            上传视频
-          </label>
-          <input
-            type="file"
-            accept="video/*"
-            onChange={handleVideoSelect}
-            className={`w-full px-3 py-2 rounded-lg ${darkMode ? "bg-gray-700 border-gray-600 text-white" : "bg-gray-50 border-gray-200"} border focus:outline-none focus:ring-2 focus:ring-blue-500`}
-          />
-        </div>
+      <div className="p-4 md:p-5">
+        {/* 视频上传区（拖拽） */}
+        {!videoPreview && (
+          <div
+            onClick={() => fileInputRef.current?.click()}
+            onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+            onDragLeave={() => setIsDragging(false)}
+            onDrop={handleDrop}
+            className={`relative border-2 border-dashed rounded-xl p-8 md:p-10 flex flex-col items-center justify-center text-center cursor-pointer transition-all duration-200 mb-4 ${
+              isDragging
+                ? "border-green-500 bg-green-50 dark:bg-green-900/20 scale-[1.01]"
+                : darkMode
+                ? "border-gray-600 hover:border-green-500 hover:bg-gray-700/40"
+                : "border-gray-300 hover:border-green-400 hover:bg-green-50/40"
+            }`}
+          >
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="video/*"
+              onChange={handleVideoSelect}
+              className="hidden"
+            />
+            <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mb-3 transition-transform ${isDragging ? "scale-110" : ""} ${darkMode ? "bg-gray-700 text-green-400" : "bg-green-50 text-green-500"}`}>
+              <UploadCloud className="h-8 w-8" />
+            </div>
+            <p className="font-medium text-sm md:text-base">点击选择或拖拽视频到此处</p>
+            <p className={`text-xs mt-1.5 ${darkMode ? "text-gray-400" : "text-gray-500"}`}>
+              支持 MP4 / WebM / MOV，≤ 200MB
+            </p>
+          </div>
+        )}
 
         {/* 参数设置 */}
-        <div className="grid grid-cols-2 gap-4 mb-4">
-          <div>
-            <label className="block text-sm font-medium mb-2">
-              抽帧间隔: {frameInterval}s
-            </label>
-            <input
-              type="range"
-              min="0.1"
-              max="10"
-              step="0.1"
-              value={frameInterval}
-              onChange={(e) => setFrameInterval(Number(e.target.value))}
-              className="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-lg appearance-none cursor-pointer accent-green-500"
-            />
+        <div className={`p-3 rounded-lg border mb-4 ${darkMode ? "bg-gray-700/50 border-gray-600" : "bg-gray-50 border-gray-200"}`}>
+          <div className="flex items-center space-x-2 mb-3">
+            <SlidersHorizontal className={`h-4 w-4 ${darkMode ? "text-green-400" : "text-green-500"}`} />
+            <span className="text-sm font-medium">识别参数</span>
           </div>
-          <div>
-            <label className="block text-sm font-medium mb-2">
-              置信度阈值: {(confidenceThreshold * 100).toFixed(0)}%
-            </label>
-            <input
-              type="range"
-              min="0"
-              max="1"
-              step="0.05"
-              value={confidenceThreshold}
-              onChange={(e) => setConfidenceThreshold(Number(e.target.value))}
-              className="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-lg appearance-none cursor-pointer accent-green-500"
-            />
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium mb-2">
+                抽帧间隔: <span className={darkMode ? "text-green-400" : "text-green-600"}>{frameInterval}s</span>
+              </label>
+              <input
+                type="range"
+                min="0.1"
+                max="10"
+                step="0.1"
+                value={frameInterval}
+                onChange={(e) => setFrameInterval(Number(e.target.value))}
+                className="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-lg appearance-none cursor-pointer accent-green-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-2">
+                置信度阈值: <span className={darkMode ? "text-green-400" : "text-green-600"}>{(confidenceThreshold * 100).toFixed(0)}%</span>
+              </label>
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.05"
+                value={confidenceThreshold}
+                onChange={(e) => setConfidenceThreshold(Number(e.target.value))}
+                className="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-lg appearance-none cursor-pointer accent-green-500"
+              />
+            </div>
           </div>
         </div>
 
@@ -497,13 +543,16 @@ export default function VideoPanel({ darkMode, accessToken }: VideoPanelProps) {
                 {results.map((result, index) => (
                   <div
                     key={index}
-                    className={`p-3 rounded-lg ${darkMode ? "bg-gray-700" : "bg-gray-50"}`}
+                    className={`p-3 rounded-lg border ${darkMode ? "bg-gray-700 border-gray-600" : "bg-gray-50 border-gray-200"} transition-all hover:border-green-400 hover:shadow-sm`}
                   >
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center space-x-2">
-                        <Clock className="h-4 w-4 text-gray-500" />
+                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${darkMode ? "bg-green-900/60 text-green-300" : "bg-green-100 text-green-700"}`}>
+                          #{index + 1}
+                        </span>
+                        <Clock className={`h-3.5 w-3.5 ${darkMode ? "text-gray-400" : "text-gray-500"}`} />
                         <span className="text-sm font-medium">第 {result.frame_number} 帧</span>
-                        <span className="text-xs text-gray-500">({result.timestamp.toFixed(2)}s)</span>
+                        <span className={`text-xs ${darkMode ? "text-gray-400" : "text-gray-500"}`}>({result.timestamp.toFixed(2)}s)</span>
                       </div>
                       {result.roles.length > 0 ? (
                         <CheckCircle className="h-4 w-4 text-green-500" />

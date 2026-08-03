@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Clock, Trash2, Image, Brain, Tag, AlertTriangle, FileText, Check, X, LogIn } from 'lucide-react';
+import { Clock, Trash2, Image, Brain, Tag, AlertTriangle, FileText, Check, X, LogIn, RefreshCw } from 'lucide-react';
 import { Message } from '../types';
+import EmptyState from './EmptyState';
 
 interface HistoryPanelProps {
   darkMode: boolean;
@@ -93,22 +94,25 @@ const HistoryPanel: React.FC<HistoryPanelProps> = ({ darkMode, onViewRecord, onD
   };
 
   return (
-    <div className={`p-4 rounded-lg ${darkMode ? 'bg-gray-800' : 'bg-white'} shadow-md`}>
+    <div className={`p-4 rounded-xl ${darkMode ? 'bg-gray-800' : 'bg-white'} border ${darkMode ? 'border-gray-700' : 'border-gray-200'} shadow-lg h-full`}>
       <div className="flex justify-between items-center mb-4">
         <h3 className="text-lg font-semibold flex items-center gap-2">
-          <Clock className="h-5 w-5" />
+          <span className={`w-8 h-8 rounded-lg flex items-center justify-center ${darkMode ? 'bg-gray-700 text-blue-400' : 'bg-blue-50 text-blue-500'}`}>
+            <Clock className="h-4 w-4" />
+          </span>
           识别历史
         </h3>
         <div className="flex items-center gap-2">
           <button
             onClick={fetchHistory}
-            className={`px-3 py-1 rounded-md text-sm ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'} transition-colors`}
+            className={`flex items-center space-x-1 px-3 py-1.5 rounded-lg text-sm transition-colors ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'}`}
           >
-            刷新
+            <RefreshCw className="h-3.5 w-3.5" />
+            <span>刷新</span>
           </button>
           <button
             onClick={onClose}
-            className={`p-1 rounded-md transition-colors ${darkMode ? 'hover:bg-gray-700 text-gray-400 hover:text-white' : 'hover:bg-gray-200 text-gray-500 hover:text-gray-700'}`}
+            className={`p-1.5 rounded-lg transition-colors ${darkMode ? 'hover:bg-gray-700 text-gray-400 hover:text-white' : 'hover:bg-gray-200 text-gray-500 hover:text-gray-700'}`}
             title="关闭"
           >
             <X className="h-4 w-4" />
@@ -141,16 +145,18 @@ const HistoryPanel: React.FC<HistoryPanelProps> = ({ darkMode, onViewRecord, onD
           )}
         </div>
       ) : history.length === 0 ? (
-        <div className={`p-8 text-center ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-          <Image className="h-12 w-12 mx-auto mb-2 opacity-50" />
-          <p>暂无识别历史</p>
-        </div>
+        <EmptyState
+          darkMode={darkMode}
+          icon={<Image className="h-7 w-7" />}
+          title="暂无识别历史"
+          description="完成一次角色识别后，记录会自动保存在这里"
+        />
       ) : (
-        <div className="space-y-3 max-h-96 overflow-y-auto pr-2">
+        <div className="space-y-3 max-h-[calc(100vh-280px)] overflow-y-auto pr-2">
           {history.map((record) => (
             <div
               key={record.id}
-              className={`p-3 rounded-lg cursor-pointer transition-all hover:shadow-md ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-50 hover:bg-gray-100'}`}
+              className={`p-3 rounded-xl border cursor-pointer transition-all hover:shadow-md hover:-translate-y-0.5 ${darkMode ? 'bg-gray-700 border-gray-600 hover:border-blue-500' : 'bg-gray-50 border-gray-200 hover:border-blue-300'}`}
               onClick={() => onViewRecord(record)}
             >
               <div className="flex justify-between items-start">
@@ -206,13 +212,23 @@ const HistoryPanel: React.FC<HistoryPanelProps> = ({ darkMode, onViewRecord, onD
               </div>
               
               {record.recognition_result.role && (
-                <div className="mt-2 flex items-center gap-2">
-                  <Tag className="h-4 w-4 text-purple-500" />
-                  <span className="text-sm font-medium">{record.recognition_result.role}</span>
+                <div className="mt-2">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Tag className={`h-4 w-4 ${darkMode ? 'text-purple-400' : 'text-purple-500'}`} />
+                    <span className="text-sm font-medium">{record.recognition_result.role}</span>
+                    {record.recognition_result.similarity && (
+                      <span className={`text-xs font-semibold ${record.recognition_result.similarity >= 0.8 ? 'text-green-500' : record.recognition_result.similarity >= 0.5 ? 'text-yellow-500' : 'text-red-500'}`}>
+                        {(record.recognition_result.similarity * 100).toFixed(1)}%
+                      </span>
+                    )}
+                  </div>
                   {record.recognition_result.similarity && (
-                    <span className="text-xs text-gray-500 dark:text-gray-400">
-                      ({(record.recognition_result.similarity * 100).toFixed(1)}%)
-                    </span>
+                    <div className={`h-1.5 rounded-full overflow-hidden ${darkMode ? 'bg-gray-600' : 'bg-gray-200'}`}>
+                      <div
+                        className={`h-full rounded-full ${record.recognition_result.similarity >= 0.8 ? 'bg-green-500' : record.recognition_result.similarity >= 0.5 ? 'bg-yellow-500' : 'bg-red-500'}`}
+                        style={{ width: `${Math.min(100, record.recognition_result.similarity * 100)}%` }}
+                      />
+                    </div>
                   )}
                 </div>
               )}

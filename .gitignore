@@ -56,6 +56,9 @@ Thumbs.db
 # Data
 data/
 dataset/
+# 例外：源码包 src/core/data（非数据集，必须纳入版本控制，勿被上面的 data/ 吞掉）
+!src/core/data/
+!src/core/data/**
 *.csv
 *.parquet
 # Models

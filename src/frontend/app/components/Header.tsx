@@ -204,7 +204,7 @@ export default function Header({
               <label className="text-sm font-medium" title="使用 YOLOv8 进行精确人体框选 + 角色识别">YOLO:</label>
               <button
                 onClick={() => onYoloChange(!useYolo)}
-                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${useYolo ? 'bg-green-600' : 'bg-gray-300'}`}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${useYolo ? 'bg-blue-600' : 'bg-gray-300'}`}
               >
                 <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${useYolo ? 'translate-x-6' : 'translate-x-1'}`} />
               </button>
@@ -225,7 +225,7 @@ export default function Header({
 
         {showOptions && isMacPlatform && useCoreML && (
           <div className="mt-2 text-xs text-blue-600 dark:text-blue-400">
-            🍎 检测到 Mac 平台，已启用 CoreML 加速
+            检测到 Mac 平台，已启用 CoreML 加速
           </div>
         )}
       </div>

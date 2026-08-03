@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useEffect, useCallback } from 'react';
-import { Play, Settings, FolderOpen, Clock, CheckCircle, XCircle, Loader2, RefreshCw, Trash2, Download, ChevronDown, ChevronUp, AlertCircle, X, ChevronLeft, Folder } from 'lucide-react';
+import { Play, Settings, FolderOpen, Clock, CheckCircle, XCircle, Loader2, RefreshCw, Trash2, Download, ChevronDown, ChevronUp, AlertCircle, X, ChevronLeft, Folder, Sparkles } from 'lucide-react';
 import axios from 'axios';
 import { CleaningConfig, CleaningResponse, CleaningTask, CleaningProgress } from '../types';
+import EmptyState from './EmptyState';
 
 interface CleaningPanelProps {
   darkMode: boolean;
@@ -357,17 +358,24 @@ export default function CleaningPanel({ darkMode, accessToken }: CleaningPanelPr
   };
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
+    <div className="space-y-5 animate-fade-in">
       {/* 标题区域 */}
-      <div className={`p-6 rounded-xl ${darkMode ? 'bg-gray-800' : 'bg-gradient-to-r from-blue-50 to-purple-50'}`}>
-        <h2 className="text-2xl font-bold text-center mb-2">数据清洗流水线</h2>
-        <p className={`text-sm text-center ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-          自动化清洗角色数据集，支持CLIP去重、角色一致性过滤、HDBSCAN聚类过滤和错误标签检测
-        </p>
+      <div className={`p-4 md:p-5 rounded-xl border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} shadow-lg`}>
+        <div className="flex items-center space-x-3">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shadow-md">
+            <Sparkles className="h-5 w-5 text-white" />
+          </div>
+          <div>
+            <h2 className="text-lg md:text-xl font-semibold leading-tight">数据清洗流水线</h2>
+            <p className={`text-xs mt-0.5 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+              去重 · 一致性过滤 · 聚类 · 错误标签检测
+            </p>
+          </div>
+        </div>
       </div>
 
       {/* 输入输出目录 */}
-      <div className={`p-4 rounded-lg ${darkMode ? 'bg-gray-800' : 'bg-white'} border ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+      <div className={`p-4 rounded-xl ${darkMode ? 'bg-gray-800' : 'bg-white'} border ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
         <div className="grid md:grid-cols-2 gap-4">
           <div>
             <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
@@ -421,7 +429,7 @@ export default function CleaningPanel({ darkMode, accessToken }: CleaningPanelPr
       </div>
 
       {/* 异步模式切换 */}
-      <div className={`p-4 rounded-lg ${darkMode ? 'bg-gray-800' : 'bg-white'} border ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+      <div className={`p-4 rounded-xl ${darkMode ? 'bg-gray-800' : 'bg-white'} border ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
         <div className="flex items-center justify-between">
           <div>
             <label className={`block text-sm font-medium mb-1 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
@@ -444,7 +452,7 @@ export default function CleaningPanel({ darkMode, accessToken }: CleaningPanelPr
       </div>
 
       {/* 配置面板 */}
-      <div className={`rounded-lg ${darkMode ? 'bg-gray-800' : 'bg-white'} border ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+      <div className={`rounded-xl ${darkMode ? 'bg-gray-800' : 'bg-white'} border ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
         <button
           onClick={() => setShowConfig(!showConfig)}
           className="w-full p-4 flex items-center justify-between"
@@ -524,7 +532,7 @@ export default function CleaningPanel({ darkMode, accessToken }: CleaningPanelPr
                   step="0.01"
                   value={config.similarity_threshold}
                   onChange={(e) => setConfig(prev => ({ ...prev, similarity_threshold: parseFloat(e.target.value) }))}
-                  className="w-full h-2 rounded-lg appearance-none cursor-pointer bg-gray-200 dark:bg-gray-700"
+                  className="w-full h-2 rounded-lg appearance-none cursor-pointer bg-gray-200 dark:bg-gray-700 accent-blue-500"
                 />
               </div>
               <div>
@@ -538,7 +546,7 @@ export default function CleaningPanel({ darkMode, accessToken }: CleaningPanelPr
                   step="0.01"
                   value={config.consistency_threshold}
                   onChange={(e) => setConfig(prev => ({ ...prev, consistency_threshold: parseFloat(e.target.value) }))}
-                  className="w-full h-2 rounded-lg appearance-none cursor-pointer bg-gray-200 dark:bg-gray-700"
+                  className="w-full h-2 rounded-lg appearance-none cursor-pointer bg-gray-200 dark:bg-gray-700 accent-blue-500"
                 />
               </div>
               <div>
@@ -552,7 +560,7 @@ export default function CleaningPanel({ darkMode, accessToken }: CleaningPanelPr
                   step="0.01"
                   value={config.outlier_threshold}
                   onChange={(e) => setConfig(prev => ({ ...prev, outlier_threshold: parseFloat(e.target.value) }))}
-                  className="w-full h-2 rounded-lg appearance-none cursor-pointer bg-gray-200 dark:bg-gray-700"
+                  className="w-full h-2 rounded-lg appearance-none cursor-pointer bg-gray-200 dark:bg-gray-700 accent-blue-500"
                 />
               </div>
               <div>
@@ -566,7 +574,7 @@ export default function CleaningPanel({ darkMode, accessToken }: CleaningPanelPr
                   step="0.01"
                   value={config.text_threshold}
                   onChange={(e) => setConfig(prev => ({ ...prev, text_threshold: parseFloat(e.target.value) }))}
-                  className="w-full h-2 rounded-lg appearance-none cursor-pointer bg-gray-200 dark:bg-gray-700"
+                  className="w-full h-2 rounded-lg appearance-none cursor-pointer bg-gray-200 dark:bg-gray-700 accent-blue-500"
                 />
               </div>
               <div>
@@ -580,7 +588,7 @@ export default function CleaningPanel({ darkMode, accessToken }: CleaningPanelPr
                   step="0.01"
                   value={config.confusion_gap}
                   onChange={(e) => setConfig(prev => ({ ...prev, confusion_gap: parseFloat(e.target.value) }))}
-                  className="w-full h-2 rounded-lg appearance-none cursor-pointer bg-gray-200 dark:bg-gray-700"
+                  className="w-full h-2 rounded-lg appearance-none cursor-pointer bg-gray-200 dark:bg-gray-700 accent-blue-500"
                 />
               </div>
               <div>
@@ -594,7 +602,7 @@ export default function CleaningPanel({ darkMode, accessToken }: CleaningPanelPr
                   step="1"
                   value={config.min_images_per_character}
                   onChange={(e) => setConfig(prev => ({ ...prev, min_images_per_character: parseInt(e.target.value) }))}
-                  className="w-full h-2 rounded-lg appearance-none cursor-pointer bg-gray-200 dark:bg-gray-700"
+                  className="w-full h-2 rounded-lg appearance-none cursor-pointer bg-gray-200 dark:bg-gray-700 accent-blue-500"
                 />
               </div>
               <div>
@@ -608,7 +616,7 @@ export default function CleaningPanel({ darkMode, accessToken }: CleaningPanelPr
                   step="1"
                   value={config.max_workers}
                   onChange={(e) => setConfig(prev => ({ ...prev, max_workers: parseInt(e.target.value) }))}
-                  className="w-full h-2 rounded-lg appearance-none cursor-pointer bg-gray-200 dark:bg-gray-700"
+                  className="w-full h-2 rounded-lg appearance-none cursor-pointer bg-gray-200 dark:bg-gray-700 accent-blue-500"
                 />
               </div>
             </div>
@@ -650,7 +658,7 @@ export default function CleaningPanel({ darkMode, accessToken }: CleaningPanelPr
           className={`flex items-center space-x-2 px-8 py-3 rounded-lg font-medium transition-all ${
             isRunning
               ? 'bg-gray-500 cursor-not-allowed'
-              : 'bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white shadow-lg hover:shadow-xl'
+              : 'bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white shadow-lg hover:shadow-xl'
           }`}
         >
           {isRunning ? (
@@ -668,7 +676,7 @@ export default function CleaningPanel({ darkMode, accessToken }: CleaningPanelPr
       </div>
 
       {/* 数据清理进度面板 */}
-      <div className={`rounded-lg ${darkMode ? 'bg-gray-800' : 'bg-white'} border ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+      <div className={`rounded-xl ${darkMode ? 'bg-gray-800' : 'bg-white'} border ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
         <button
           onClick={() => setShowProgressPanel(!showProgressPanel)}
           className="w-full p-4 flex items-center justify-between"
@@ -811,7 +819,7 @@ export default function CleaningPanel({ darkMode, accessToken }: CleaningPanelPr
 
       {/* 当前任务状态（异步模式） */}
       {currentTaskStatus && (
-        <div className={`p-4 rounded-lg ${darkMode ? 'bg-gray-800' : 'bg-white'} border ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+        <div className={`p-4 rounded-xl ${darkMode ? 'bg-gray-800' : 'bg-white'} border ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
           <div className="flex items-center justify-between mb-3">
             <h3 className={`font-medium ${darkMode ? 'text-gray-200' : 'text-gray-800'}`}>当前任务状态</h3>
             <div className={`flex items-center space-x-2 ${getStatusColor(currentTaskStatus.status)}`}>
@@ -902,7 +910,7 @@ export default function CleaningPanel({ darkMode, accessToken }: CleaningPanelPr
 
       {/* 清洗结果 */}
       {lastResult && (
-        <div className={`p-4 rounded-lg ${lastResult.success ? (darkMode ? 'bg-gray-800' : 'bg-green-50') : (darkMode ? 'bg-gray-800' : 'bg-red-50')} border ${lastResult.success ? (darkMode ? 'border-green-700' : 'border-green-200') : (darkMode ? 'border-red-700' : 'border-red-200')}`}>
+        <div className={`p-4 rounded-xl ${lastResult.success ? (darkMode ? 'bg-gray-800' : 'bg-green-50') : (darkMode ? 'bg-gray-800' : 'bg-red-50')} border ${lastResult.success ? (darkMode ? 'border-green-700' : 'border-green-200') : (darkMode ? 'border-red-700' : 'border-red-200')}`}>
           <div className="flex items-center justify-between mb-4">
             <h3 className={`font-medium ${lastResult.success ? (darkMode ? 'text-green-400' : 'text-green-800') : (darkMode ? 'text-red-400' : 'text-red-800')}`}>
               {lastResult.success ? '清洗完成' : '清洗失败'}
@@ -984,12 +992,16 @@ export default function CleaningPanel({ darkMode, accessToken }: CleaningPanelPr
       )}
 
       {/* 任务历史 */}
-      <div className={`p-4 rounded-lg ${darkMode ? 'bg-gray-800' : 'bg-white'} border ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+      <div className={`p-4 rounded-xl ${darkMode ? 'bg-gray-800' : 'bg-white'} border ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
         <h3 className={`font-medium mb-4 ${darkMode ? 'text-gray-200' : 'text-gray-800'}`}>任务历史</h3>
         {tasks.length === 0 ? (
-          <p className={`text-center py-8 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
-            暂无任务记录
-          </p>
+          <EmptyState
+            compact
+            darkMode={darkMode}
+            icon={<Clock className="h-6 w-6" />}
+            title="暂无任务记录"
+            description="运行一次清洗任务后，历史记录会显示在这里"
+          />
         ) : (
           <div className="space-y-2 max-h-96 overflow-y-auto">
             {tasks.map((task) => (
