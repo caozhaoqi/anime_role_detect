@@ -39,7 +39,7 @@ loguru==0.7.3
 httpx==0.28.1
 
 # 图像处理
-Pillow==11.3.0
+Pillow==12.3.0
 scikit-image==0.22.0
 
 # 数值计算
