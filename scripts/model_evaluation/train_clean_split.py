@@ -6,11 +6,11 @@
 与 train_efficientnet_b3.py 的关系：
   - 复用其架构 / 训练配方（AutoAugment + Mixup + label smoothing + 余弦重启 + 加权采样）
   - 关键区别：只吃 data/splits/seed42/train.json 训练，val.json 早停选模型，
-    test.json 全程不参与；训练产物写到 models/efficientnet_b3_v2/，**不覆盖现模型**。
+    test.json 全程不参与；训练产物写到 models/efficientnet_b3_v4/，**不覆盖现模型**。
 
 用法：
   python scripts/model_evaluation/train_clean_split.py            # 从头训
-  python scripts/model_evaluation/train_clean_split.py --resume  # 从 v2 断点续训
+  python scripts/model_evaluation/train_clean_split.py --resume  # 从 v4 断点续训
 训练结束后自动调用 eval_on_manifest.py 在 test.json 上评测，输出真实 Top-1/MacroF1。
 """
 import argparse
@@ -73,7 +73,7 @@ class FocalLoss(nn.Module):
 ROOT = Path(__file__).resolve().parent.parent.parent
 SPLIT_DIR = ROOT / "data" / "splits" / "seed42"
 MODEL_DIR = ROOT / "models" / "efficientnet_b3"          # 只读：架构/class_to_idx
-OUT_DIR = ROOT / "models" / "efficientnet_b3_v2"          # 写：新模型，保护现模型
+OUT_DIR = ROOT / "models" / "efficientnet_b3_v4"          # 写：新模型（v2 已被旧数据占用，用 v4 避免覆盖）
 DATA_DIR = ROOT / "data" / "final_dataset"
 
 CONFIG = {
@@ -91,20 +91,27 @@ CONFIG = {
 }
 
 
-def build_clean_model(num_classes: int, device: torch.device):
+def build_clean_model(num_classes: int, device: torch.device, try_imagenet: bool = True):
     """构建训练模型：优先 ImageNet 冷启动（无泄漏），失败则域适应热启动。
 
     热启动策略：backbone 从生产模型加载（域适应特征），分类头重建为随机初始化，
     避免分类头直接“记住” test 标签；仍需在 train-only 上重训、在 test 上评测。
     """
     init_mode = "imagenet"
-    try:
-        logger.info("尝试加载 ImageNet 预训练 EfficientNet-B3（冷启动）...")
-        model = models.efficientnet_b3(weights=models.EfficientNet_B3_Weights.DEFAULT)
-        logger.info("ImageNet 预训练权重加载成功")
-    except Exception as e:
-        logger.warning(f"ImageNet 权重不可用({e})，回退到生产模型热启动（域适应初始化）")
+    model = None
+    if try_imagenet:
+        try:
+            logger.info("尝试加载 ImageNet 预训练 EfficientNet-B3（冷启动）...")
+            model = models.efficientnet_b3(weights=models.EfficientNet_B3_Weights.DEFAULT)
+            logger.info("ImageNet 预训练权重加载成功")
+        except Exception as e:
+            logger.warning(f"ImageNet 权重不可用({e})，回退到生产模型热启动（域适应初始化）")
+            model = None
+    if model is None:
         init_mode = "warmstart"
+        if not try_imagenet:
+            logger.info("跳过 ImageNet 权重下载，直接域适应热启动（--no-imagenet）")
+        logger.info("从生产模型加载 backbone 做域适应热启动...")
         model = models.efficientnet_b3(weights=None)
         # 先按本项目架构重建分类头，避免默认 1000 类头部 shape 不匹配导致 load_state_dict 失败
         model.classifier = nn.Sequential(
@@ -117,7 +124,21 @@ def build_clean_model(num_classes: int, device: torch.device):
         )
         ckpt = torch.load(MODEL_DIR / "model_best.pth", map_location="cpu", weights_only=False)
         w = ckpt.get("model_state_dict") or ckpt
-        model.load_state_dict(w, strict=False)
+        # 只加载与当前 num_classes 模型 shape 兼容的权重（剥离分类头等 shape
+        # 不匹配的键），避免 size mismatch 导致 load_state_dict 直接抛错；
+        # 分类头将在下方统一重建为随机初始化。
+        model_sd = model.state_dict()
+        filtered = {
+            k: v
+            for k, v in w.items()
+            if k in model_sd and tuple(v.shape) == tuple(model_sd[k].shape)
+        }
+        skipped = [k for k in w if k not in filtered]
+        model.load_state_dict(filtered, strict=False)
+        logger.info(
+            f"域适应热启动：加载 {len(filtered)}/{len(model_sd)} 层权重；"
+            f"{len(skipped)} 个键 shape 不匹配已跳过（分类头等将随机初始化）"
+        )
     # 统一重建分类头（num_classes 一致也重建，保证结构确定）
     model.classifier = nn.Sequential(
         nn.Dropout(p=0.3),
@@ -144,13 +165,16 @@ def main():
     ap.add_argument("--image-size", type=int, default=256)
     ap.add_argument("--no-auto-augment", action="store_true")
     ap.add_argument("--focal", action="store_true", help="使用 Focal Loss + 类别均衡 alpha（聚焦弱类/混淆样本）")
-    ap.add_argument("--out-dir", default=None, help="输出目录（默认 models/efficientnet_b3_v2）")
+    ap.add_argument("--out-dir", default=None, help="输出目录（默认 models/efficientnet_b3_v4）")
+    ap.add_argument("--no-imagenet", action="store_true",
+                    help="跳过 ImageNet 权重下载，直接域适应热启动（本机代理会污染下载时必加）")
     args = ap.parse_args()
 
     config = CONFIG.copy()
     if args.epochs:
         config["num_epochs"] = args.epochs
     config["image_size"] = args.image_size
+    config["use_focal"] = bool(args.focal)
     if args.no_auto_augment:
         config["use_auto_augment"] = False
     nw = args.num_workers
@@ -163,7 +187,23 @@ def main():
     out_dir = Path(args.out_dir) if args.out_dir else OUT_DIR
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    c2i = json.load(open(MODEL_DIR / "class_to_idx.json", encoding="utf-8"))
+    # 类目来源必须与切分完全一致：仅计入「含图」子目录（sorted），排除空壳，
+    # 得到连续 0..N-1 的 175 类 label，与 make_character_grouped_split 的
+    # label_map fallback 完全相同。否则 label 会出现空洞 / num_classes 虚高
+    #（如把 30 个空壳算进 205 类，而训练数据只出现 175 个有效 label），导致
+    # 输出层浪费维度、评测时空洞类 F1=0 拉低 macro 指标。
+    _exts = (".jpg", ".jpeg", ".png", ".webp")
+    c2i = {
+        d.name: i
+        for i, d in enumerate(
+            sorted(
+                p
+                for p in DATA_DIR.iterdir()
+                if p.is_dir()
+                and any(f.is_file() and f.suffix.lower() in _exts for f in p.iterdir())
+            )
+        )
+    }
     i2c = {v: k for k, v in c2i.items()}
     num_classes = len(c2i)
 
@@ -177,8 +217,8 @@ def main():
     logger.info(f"train={len(train_samples)} val={len(val_samples)} test={len(test_samples)} (test 不参与训练)")
 
     train_tf, val_tf = get_transforms(config["image_size"], config["use_auto_augment"])
-    train_ds = FilteredImageDataset(train_samples, train_tf, i2c)
-    val_ds = FilteredImageDataset(val_samples, val_tf, i2c)
+    train_ds = FilteredImageDataset(train_samples, train_tf, i2c, config["image_size"])
+    val_ds = FilteredImageDataset(val_samples, val_tf, i2c, config["image_size"])
 
     nw = args.num_workers
     pin = device.type == "cuda"
@@ -192,7 +232,7 @@ def main():
     val_loader = DataLoader(val_ds, batch_size=config["batch_size"], shuffle=False,
                             num_workers=nw, pin_memory=pin)
 
-    model, init_mode = build_clean_model(num_classes, device)
+    model, init_mode = build_clean_model(num_classes, device, try_imagenet=not args.no_imagenet)
     config["init_mode"] = init_mode
 
     if args.focal:
@@ -228,9 +268,9 @@ def main():
         best_wts = copy.deepcopy(model.state_dict())
         for _ in range(start_epoch):
             scheduler.step()
-        logger.info(f"Resumed v2 at epoch {start_epoch}, best_val={best_acc:.4%}")
+        logger.info(f"Resumed v4 at epoch {start_epoch}, best_val={best_acc:.4%}")
     else:
-        logger.info("Fresh clean training (v2)")
+        logger.info("Fresh clean training (v4)")
 
     t0 = time.time()
     for epoch in range(start_epoch, start_epoch + config["num_epochs"]):
@@ -257,7 +297,7 @@ def main():
     logger.info(f"Clean training done in {dur/60:.1f}min, best_val={best_acc:.4%}")
     save_training_results(out_dir, c2i, config, metrics, best_acc, dur)
 
-    # 复制 class_to_idx 到 v3（eval 需要）
+    # 复制 class_to_idx 到 v4（eval 需要）
     with open(out_dir / "class_to_idx.json", "w", encoding="utf-8") as f:
         json.dump(c2i, f, ensure_ascii=False, indent=2)
 

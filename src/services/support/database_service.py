@@ -12,7 +12,6 @@ from src.core.config.database import get_db, get_db_session, init_database, crea
 from src.core.logging import get_enhanced_logger as get_logger
 from src.core.query_helper import QueryHelper, QueryBuilder
 from src.core.helpers import json_utils, datetime_utils
-from src.core.cache.thread_cache import ThreadLocalCache
 from src.core.cache.timed_lru_cache import timed_lru_cache
 from src.models.database_models import RecognitionRecordModel, UserFeedbackModel, CleaningRecordModel
 
@@ -84,26 +83,19 @@ class RecognitionRecordDB:
 
     @staticmethod
     def get_by_id(db: Session, record_id: str) -> Optional[RecognitionRecordModel]:
-        """根据ID获取识别记录（使用请求级缓存）"""
-        cache_key = f"recognition_record:{record_id}"
-        cached = ThreadLocalCache.get(cache_key)
-        if cached is not None:
-            return cached
-        record = QueryBuilder.get_by_id(db, RecognitionRecordModel, record_id)
-        if record:
-            ThreadLocalCache.set(cache_key, record)
-        return record
+        """根据ID获取识别记录（不做 ThreadLocal 缓存，避免线程复用导致的跨请求残留）"""
+        return QueryBuilder.get_by_id(db, RecognitionRecordModel, record_id)
 
     @staticmethod
     def get_by_user(
         db: Session, user_id: str, limit: int = 100, offset: int = 0
     ) -> List[RecognitionRecordModel]:
-        """获取用户的所有识别记录（使用请求级缓存）"""
-        cache_key = f"recognition_records_by_user:{user_id}:{limit}:{offset}"
-        cached = ThreadLocalCache.get(cache_key)
-        if cached is not None:
-            return cached
-        records = (
+        """获取用户的所有识别记录
+
+        注：不做 ThreadLocal 缓存 —— 线程池会复用线程，固定 key 缓存会跨请求残留，
+        导致新写入的历史记录永远查不到（已踩坑）。识别历史是实时数据，应每次查库。
+        """
+        return (
             QueryHelper(db, RecognitionRecordModel)
             .filter(user_id=user_id)
             .order_by("created_at", descending=True)
@@ -111,8 +103,6 @@ class RecognitionRecordDB:
             .limit(limit)
             .all()
         )
-        ThreadLocalCache.set(cache_key, records)
-        return records
 
     @staticmethod
     def get_all(db: Session, limit: int = 100, offset: int = 0) -> List[RecognitionRecordModel]:

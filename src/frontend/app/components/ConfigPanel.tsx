@@ -12,6 +12,7 @@ interface ConfigPanelProps {
 const ConfigPanel: React.FC<ConfigPanelProps> = ({ darkMode, config, onConfigUpdate, onClose }) => {
   const debugEnabled = useAppStore((s) => s.debugEnabled);
   const toggleDebug = useAppStore((s) => s.toggleDebug);
+  const addToast = useAppStore((s) => s.addToast);
   const [localConfig, setLocalConfig] = useState({ ...config });
   const [activeTab, setActiveTab] = useState('ui');
   const [isSaving, setIsSaving] = useState(false);
@@ -37,6 +38,7 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ darkMode, config, onConfigUpd
     setTimeout(() => {
       onConfigUpdate(localConfig);
       setIsSaving(false);
+      addToast('配置已保存', 'success');
     }, 500);
   };
 
@@ -56,7 +58,9 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ darkMode, config, onConfigUpd
       {/* 面板头部 */}
       <div className={`p-4 border-b ${darkMode ? 'border-gray-700' : 'border-gray-200'} flex items-center justify-between`}>
         <h3 className="text-lg font-semibold flex items-center space-x-2">
-          <Settings className="h-5 w-5 text-blue-500" />
+          <span className={`w-8 h-8 rounded-lg flex items-center justify-center ${darkMode ? 'bg-gray-700 text-blue-400' : 'bg-blue-50 text-blue-500'}`}>
+            <Settings className="h-4 w-4" />
+          </span>
           <span>配置</span>
         </h3>
         <div className="flex items-center space-x-2">
@@ -84,16 +88,27 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ darkMode, config, onConfigUpd
 
       {/* 标签页 */}
       <div className={`flex border-b ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
-        {tabs.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`flex items-center space-x-1 px-4 py-3 text-sm font-medium transition-colors ${activeTab === tab.id ? (darkMode ? 'border-b-2 border-blue-500 text-blue-400' : 'border-b-2 border-blue-500 text-blue-600') : (darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100')}`}
-          >
-            {tab.icon}
-            <span>{tab.label}</span>
-          </button>
-        ))}
+        {tabs.map((tab) => {
+          const isActive = activeTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex items-center space-x-1.5 px-4 py-3 text-sm font-medium transition-all ${
+                isActive
+                  ? darkMode
+                    ? 'border-b-2 border-blue-500 text-blue-400 bg-blue-500/5'
+                    : 'border-b-2 border-blue-500 text-blue-600 bg-blue-50/60'
+                  : darkMode
+                  ? 'hover:bg-gray-700/60 text-gray-400 hover:text-gray-200'
+                  : 'hover:bg-gray-50 text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              {tab.icon}
+              <span>{tab.label}</span>
+            </button>
+          );
+        })}
       </div>
 
       {/* 配置内容 */}
@@ -102,7 +117,10 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ darkMode, config, onConfigUpd
         {activeTab === 'ui' && (
           <div className="space-y-4">
             <div>
-              <h4 className="text-md font-medium mb-3">界面设置</h4>
+              <h4 className="text-md font-medium mb-3 flex items-center gap-2">
+                <span className={`w-1 h-4 rounded-full bg-gradient-to-b ${darkMode ? 'from-blue-400 to-purple-500' : 'from-blue-500 to-purple-600'}`} />
+                界面设置
+              </h4>
               
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
@@ -160,7 +178,10 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ darkMode, config, onConfigUpd
             </div>
 
             <div>
-              <h4 className="text-md font-medium mb-3">消息设置</h4>
+              <h4 className="text-md font-medium mb-3 flex items-center gap-2">
+                <span className={`w-1 h-4 rounded-full bg-gradient-to-b ${darkMode ? 'from-blue-400 to-purple-500' : 'from-blue-500 to-purple-600'}`} />
+                消息设置
+              </h4>
               <div className="space-y-3">
                 <div>
                   <label className="block text-sm mb-1">欢迎消息</label>
@@ -189,7 +210,10 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ darkMode, config, onConfigUpd
         {activeTab === 'features' && (
           <div className="space-y-4">
             <div>
-              <h4 className="text-md font-medium mb-3">功能开关</h4>
+              <h4 className="text-md font-medium mb-3 flex items-center gap-2">
+                <span className={`w-1 h-4 rounded-full bg-gradient-to-b ${darkMode ? 'from-blue-400 to-purple-500' : 'from-blue-500 to-purple-600'}`} />
+                功能开关
+              </h4>
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <label className="text-sm">启用模型选择</label>
@@ -272,7 +296,7 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ darkMode, config, onConfigUpd
                 </div>
 
                 <div className="flex items-center justify-between">
-                  <label className="text-sm">🐞 Debug 辅助框（调试视图，生成 YOLO/分类辅助框标注图）</label>
+                  <label className="text-sm">Debug 辅助框（调试视图，生成 YOLO/分类辅助框标注图）</label>
                   <button
                     onClick={() => toggleDebug()}
                     className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${debugEnabled ? 'bg-blue-600' : 'bg-gray-300'}`}
@@ -289,7 +313,10 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ darkMode, config, onConfigUpd
         {activeTab === 'api' && (
           <div className="space-y-4">
             <div>
-              <h4 className="text-md font-medium mb-3">API 设置</h4>
+              <h4 className="text-md font-medium mb-3 flex items-center gap-2">
+                <span className={`w-1 h-4 rounded-full bg-gradient-to-b ${darkMode ? 'from-blue-400 to-purple-500' : 'from-blue-500 to-purple-600'}`} />
+                API 设置
+              </h4>
               <div className="space-y-3">
                 <div>
                   <label className="block text-sm mb-1">基础 URL</label>
@@ -331,7 +358,10 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ darkMode, config, onConfigUpd
             </div>
 
             <div>
-              <h4 className="text-md font-medium mb-3">验证设置</h4>
+              <h4 className="text-md font-medium mb-3 flex items-center gap-2">
+                <span className={`w-1 h-4 rounded-full bg-gradient-to-b ${darkMode ? 'from-blue-400 to-purple-500' : 'from-blue-500 to-purple-600'}`} />
+                验证设置
+              </h4>
               <div className="space-y-3">
                 <div>
                   <label className="block text-sm mb-1">最大图片大小 (字节)</label>
@@ -360,7 +390,10 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ darkMode, config, onConfigUpd
         {activeTab === 'appearance' && (
           <div className="space-y-4">
             <div>
-              <h4 className="text-md font-medium mb-3">颜色设置</h4>
+              <h4 className="text-md font-medium mb-3 flex items-center gap-2">
+                <span className={`w-1 h-4 rounded-full bg-gradient-to-b ${darkMode ? 'from-blue-400 to-purple-500' : 'from-blue-500 to-purple-600'}`} />
+                颜色设置
+              </h4>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-sm mb-1">主色调</label>
@@ -420,7 +453,10 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ darkMode, config, onConfigUpd
             </div>
 
             <div>
-              <h4 className="text-md font-medium mb-3">布局设置</h4>
+              <h4 className="text-md font-medium mb-3 flex items-center gap-2">
+                <span className={`w-1 h-4 rounded-full bg-gradient-to-b ${darkMode ? 'from-blue-400 to-purple-500' : 'from-blue-500 to-purple-600'}`} />
+                布局设置
+              </h4>
               <div className="space-y-3">
                 <div>
                   <label className="block text-sm mb-1">侧边栏宽度</label>

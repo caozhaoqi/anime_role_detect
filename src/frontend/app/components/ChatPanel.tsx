@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { X, Sparkles } from "lucide-react";
+import { X, Sparkles, ImagePlus, MessageSquare } from "lucide-react";
 import { Message } from "../types";
 import MessageItem from "./MessageItem";
+import EmptyState from "./EmptyState";
 
 interface ChatPanelProps {
   darkMode: boolean;
@@ -47,26 +48,93 @@ export default function ChatPanel({
   onDownloadMessage,
 }: ChatPanelProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [messagesHeight, setMessagesHeight] = useState<number | null>(null);
+  const dragState = useRef<{ startY: number; startHeight: number } | null>(null);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  // 可拖拽分隔条：调整消息区高度
+  useEffect(() => {
+    const onMouseMove = (e: MouseEvent) => {
+      if (!dragState.current) return;
+      const delta = e.clientY - dragState.current.startY;
+      const next = Math.min(
+        Math.max(dragState.current.startHeight + delta, 120),
+        window.innerHeight * 0.65
+      );
+      setMessagesHeight(next);
+    };
+    const onMouseUp = () => {
+      dragState.current = null;
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
+    return () => {
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+    };
+  }, []);
+
+  const startResize = (e: React.MouseEvent) => {
+    e.preventDefault();
+    const el = e.currentTarget.parentElement?.querySelector<HTMLElement>(".chat-messages");
+    dragState.current = {
+      startY: e.clientY,
+      startHeight: el ? el.offsetHeight : 300,
+    };
+    document.body.style.cursor = "row-resize";
+    document.body.style.userSelect = "none";
+  };
+
   return (
     <div className={`w-full flex-1 flex flex-col min-h-0 ${darkMode ? 'bg-gray-800' : 'bg-white'} rounded-xl shadow-lg border ${darkMode ? 'border-gray-700' : 'border-gray-200'} transform transition-all duration-300 hover:shadow-xl`}>
-      <div className="flex-1 overflow-y-auto min-h-0 px-4 md:px-6 py-3 md:py-4">
-        {messages.map((message, index) => (
-          <div key={message.id} className="space-y-3 mb-4">
-            <MessageItem
-              message={message}
+      <div
+        className="chat-messages flex-1 overflow-y-auto min-h-0 px-4 md:px-6 py-3 md:py-4"
+        style={messagesHeight !== null ? { height: messagesHeight, flex: "none" } : undefined}
+      >
+        {messages.length === 0 ? (
+          <div className="h-full flex items-center justify-center py-6">
+            <EmptyState
               darkMode={darkMode}
-              handleCopyMessage={onCopyMessage}
-              handleDownloadMessage={onDownloadMessage}
+              icon={<ImagePlus className="h-8 w-8" />}
+              title="开始识别动漫角色"
+              description="上传图片或输入文字，识别动漫角色。支持单图 / 多角色 / 批量。"
+              action={
+                <span className={`inline-flex items-center space-x-2 text-xs px-3 py-1.5 rounded-full ${darkMode ? 'bg-blue-900/50 text-blue-300' : 'bg-blue-100 text-blue-600'}`}>
+                  <MessageSquare className="h-3.5 w-3.5" />
+                  从下方输入框或文件选择开始
+                </span>
+              }
             />
           </div>
-        ))}
+        ) : (
+          messages.map((message, index) => (
+            <div key={message.id} className="space-y-3 mb-4">
+              <MessageItem
+                message={message}
+                darkMode={darkMode}
+                handleCopyMessage={onCopyMessage}
+                handleDownloadMessage={onDownloadMessage}
+              />
+            </div>
+          ))
+        )}
         <div ref={messagesEndRef} />
       </div>
+
+      {/* 可拖拽分隔条 */}
+      <div
+        onMouseDown={startResize}
+        className={`group shrink-0 h-1.5 cursor-row-resize border-t ${darkMode ? 'border-gray-700' : 'border-gray-200'} transition-colors hover:bg-blue-400/40 dark:hover:bg-blue-500/40`}
+        title="拖动调整消息区高度"
+      >
+        <div className={`mx-auto h-full w-0 group-hover:w-16 transition-all duration-200 ${darkMode ? 'bg-blue-400/60' : 'bg-blue-400/60'}`} />
+      </div>
+
       <div className={`shrink-0 p-3 md:p-4 border-t ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
         <div className="flex flex-col md:flex-row items-stretch md:items-center space-y-3 md:space-y-0 md:space-x-4">
           <input

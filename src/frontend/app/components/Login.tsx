@@ -59,13 +59,17 @@ export default function Login({ darkMode, onLogin, onRegister, isLoading, error 
   const currentError = isRegistering ? registrationError : error;
 
   return (
-    <div className={`min-h-screen flex items-center justify-center ${darkMode ? 'bg-gray-900' : 'bg-gray-50'} px-4`}>
-      <div className={`max-w-md w-full space-y-8 ${darkMode ? 'bg-gray-800' : 'bg-white'} p-8 rounded-xl shadow-2xl`}>
+    <div className={`min-h-screen flex items-center justify-center ${darkMode ? 'bg-gray-900' : 'bg-gray-50'} px-4 relative overflow-hidden`}>
+      {/* 背景装饰 */}
+      <div className="pointer-events-none absolute -top-24 -left-24 w-96 h-96 rounded-full bg-gradient-to-br from-blue-400/20 to-purple-500/20 blur-3xl" />
+      <div className="pointer-events-none absolute -bottom-24 -right-24 w-96 h-96 rounded-full bg-gradient-to-br from-pink-400/20 to-orange-400/20 blur-3xl" />
+
+      <div className={`relative max-w-md w-full space-y-8 ${darkMode ? 'bg-gray-800' : 'bg-white'} p-8 rounded-2xl shadow-2xl border ${darkMode ? 'border-gray-700' : 'border-gray-100'}`}>
         <div>
-          <div className={`mx-auto h-16 w-16 rounded-full flex items-center justify-center ${
+          <div className={`mx-auto h-16 w-16 rounded-2xl flex items-center justify-center shadow-lg ${
             isRegistering
-              ? 'bg-gradient-to-r from-green-500 to-teal-600'
-              : 'bg-gradient-to-r from-blue-500 to-purple-600'
+              ? 'bg-gradient-to-r from-green-500 to-teal-600 animate-float'
+              : 'bg-gradient-to-r from-blue-500 to-purple-600 animate-float'
           }`}>
             {isRegistering ? (
               <UserPlus className="h-8 w-8 text-white" />
@@ -73,11 +77,14 @@ export default function Login({ darkMode, onLogin, onRegister, isLoading, error 
               <Lock className="h-8 w-8 text-white" />
             )}
           </div>
-          <h2 className={`mt-6 text-center text-3xl font-extrabold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+          <h1 className={`mt-6 text-center text-2xl font-bold bg-gradient-to-r from-blue-500 to-purple-600 bg-clip-text text-transparent`}>
+            Anime Role detect
+          </h1>
+          <h2 className={`mt-2 text-center text-xl font-extrabold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
             {isRegistering ? '用户注册' : '用户登录'}
           </h2>
           <p className={`mt-2 text-center text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-            {isRegistering ? '创建新账号以使用全部功能' : '请输入您的账号和密码'}
+            {isRegistering ? '创建新账号以使用全部功能' : '请输入账号密码'}
           </p>
         </div>
 
@@ -325,9 +332,8 @@ export default function Login({ darkMode, onLogin, onRegister, isLoading, error 
               </button>
             </div>
 
-            <div className={`text-center text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-              <p>请使用环境变量配置的账号密码登录</p>
-              <p>首次启动时默认密码会打印在日志中</p>
+            <div className={`text-center text-xs ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>
+              账号由环境变量配置 · 首次启动默认密码见日志
             </div>
           </form>
         )}

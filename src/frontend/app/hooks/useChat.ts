@@ -1,8 +1,10 @@
 import { useState, useCallback } from 'react';
 import { Message } from '../types';
 import { HistoryRecord } from '../api/services/HistoryService';
+import { useAppStore } from '../store/useAppStore';
 
 export const useChat = () => {
+  const addToast = useAppStore((s) => s.addToast);
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
@@ -62,12 +64,14 @@ export const useChat = () => {
       .writeText(content)
       .then(() => {
         setCopySuccess('复制成功！');
+        addToast('已复制到剪贴板', 'success');
         setTimeout(() => setCopySuccess(null), 3000);
       })
       .catch((err) => {
         console.error('复制失败:', err);
+        addToast('复制失败，请重试', 'error');
       });
-  }, []);
+  }, [addToast]);
 
   const handleDownloadMessage = useCallback((content: string, role: string) => {
     const blob = new Blob([content], { type: 'text/plain' });

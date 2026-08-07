@@ -119,14 +119,14 @@ def create_efficientnet_b3(num_classes: int) -> nn.Module:
     return model
 
 
-def benchmark_efficientnet():
+def benchmark_efficientnet(model_dir: Path = MODEL_DIR, manifest: Path | None = None):
     print("=" * 70)
     print("EfficientNet-B3 分类模型基准测试")
     print("=" * 70)
 
-    model_path = MODEL_DIR / "model_best.pth"
-    results_path = MODEL_DIR / "training_results.json"
-    class_to_idx_path = MODEL_DIR / "class_to_idx.json"
+    model_path = model_dir / "model_best.pth"
+    results_path = model_dir / "training_results.json"
+    class_to_idx_path = model_dir / "class_to_idx.json"
 
     if not model_path.exists():
         raise FileNotFoundError(f"模型文件不存在: {model_path}")
@@ -145,6 +145,10 @@ def benchmark_efficientnet():
     print(f"类别数: {num_classes}")
     print(f"输入分辨率: {image_size}x{image_size}")
     print(f"模型文件: {model_path.name} ({get_model_file_size(model_path):.2f} MB)")
+    if manifest is not None:
+        print(f"评测数据: held-out manifest → {manifest.name} (无泄漏)")
+    else:
+        print(f"评测数据: 从 final_dataset 采样 (每类上限 {MAX_PER_CLASS})")
 
     # 构建并加载模型
     model = create_efficientnet_b3(num_classes)
@@ -165,10 +169,16 @@ def benchmark_efficientnet():
     ])
 
     # 采样测试集
-    samples, missing = build_test_samples(class_to_idx, MAX_PER_CLASS)
-    print(f"测试样本数: {len(samples)} (每类上限 {MAX_PER_CLASS})")
-    if missing:
-        print(f"⚠️ 缺少数据目录的类别 ({len(missing)}): {missing[:5]}{'...' if len(missing) > 5 else ''}")
+    if manifest is not None:
+        raw = json.load(open(manifest, "r", encoding="utf-8"))
+        samples = [(str(DATA_DIR / s["path"]), int(s["label"])) for s in raw]
+        missing = []
+        print(f"测试样本数: {len(samples)} (held-out manifest，无泄漏)")
+    else:
+        samples, missing = build_test_samples(class_to_idx, MAX_PER_CLASS)
+        print(f"测试样本数: {len(samples)} (每类上限 {MAX_PER_CLASS})")
+        if missing:
+            print(f"⚠️ 缺少数据目录的类别 ({len(missing)}): {missing[:5]}{'...' if len(missing) > 5 else ''}")
 
     # ----- 准确率测试 -----
     print("\n[1/3] 准确率评估...")
@@ -488,26 +498,47 @@ def benchmark_yolov8n():
 # ---------------------------------------------------------------------------
 
 def main():
+    import argparse
+    ap = argparse.ArgumentParser(description="模型基准测试 (EfficientNet-B3 + YOLOv8n)")
+    ap.add_argument("--model-dir", default=str(MODEL_DIR),
+                    help="EfficientNet 模型目录，默认 models/efficientnet_b3")
+    ap.add_argument("--manifest", default=None,
+                    help="held-out 测试集 manifest (test.json)；提供则做无泄漏评测")
+    ap.add_argument("--out", default=None,
+                    help="结果输出路径；默认：默认模型写 scripts/.../benchmark_results.json，其余写 <model-dir>/benchmark_results.json")
+    ap.add_argument("--skip-yolo", action="store_true", help="跳过 YOLOv8n 测试")
+    args = ap.parse_args()
+
+    model_dir = Path(args.model_dir).resolve()
+    manifest = Path(args.manifest).resolve() if args.manifest else None
+    if args.out:
+        out_path = Path(args.out)
+    elif model_dir == MODEL_DIR.resolve():
+        out_path = Path(__file__).parent / "benchmark_results.json"
+    else:
+        out_path = model_dir / "benchmark_results.json"
+
     results = {
         "benchmark_at": time.strftime("%Y-%m-%d %H:%M:%S"),
         "project": "anime_role_detect",
     }
 
     try:
-        results["efficientnet_b3"] = benchmark_efficientnet()
+        results["efficientnet_b3"] = benchmark_efficientnet(model_dir, manifest)
     except Exception as e:
         print(f"❌ EfficientNet-B3 基准测试失败: {e}")
         traceback.print_exc()
         results["efficientnet_b3"] = {"error": str(e)}
 
-    try:
-        results["yolov8n"] = benchmark_yolov8n()
-    except Exception as e:
-        print(f"❌ YOLOv8n 基准测试失败: {e}")
-        traceback.print_exc()
-        results["yolov8n"] = {"error": str(e)}
+    if not args.skip_yolo:
+        try:
+            results["yolov8n"] = benchmark_yolov8n()
+        except Exception as e:
+            print(f"❌ YOLOv8n 基准测试失败: {e}")
+            traceback.print_exc()
+            results["yolov8n"] = {"error": str(e)}
 
-    out_path = Path(__file__).parent / "benchmark_results.json"
+    out_path.parent.mkdir(parents=True, exist_ok=True)
     with open(out_path, "w", encoding="utf-8") as f:
         json.dump(results, f, indent=2, ensure_ascii=False)
     print(f"\n✅ 结果已保存: {out_path}")
