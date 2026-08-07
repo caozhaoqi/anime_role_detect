@@ -33,7 +33,7 @@ from torchvision.transforms.autoaugment import AutoAugment, AutoAugmentPolicy
 
 # 防泄漏：以角色目录为 group 做分组切分（同角色图整体进 train 或 val，不拆散）。
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
-from src.core.data.split_utils import grouped_split  # noqa: E402
+from src.core.data.split_utils import grouped_split, post_group_key  # noqa: E402
 
 logging.basicConfig(
     level=logging.INFO,
@@ -165,22 +165,37 @@ def filter_dataset_by_min_images(data_dir: str, min_images: int):
 
 
 class FilteredImageDataset(torch.utils.data.Dataset):
-    """自定义 Dataset，直接从 (path, label) 样本列表构建"""
-    def __init__(self, samples, transform, idx_to_class):
+    """自定义 Dataset，直接从 (path, label) 样本列表构建。
+
+    对损坏图 / 超大图做兜底：放宽 Pillow 像素上限让超大图可 decode，
+    单样本 decode 失败时自动跳到下一张合格样本，避免训练中断。
+    """
+    def __init__(self, samples, transform, idx_to_class, image_size=256):
         self.samples = samples
         self.transform = transform
         self.idx_to_class = idx_to_class
+        self._img_size = image_size
 
     def __len__(self):
         return len(self.samples)
 
     def __getitem__(self, idx):
-        path, label = self.samples[idx]
         from PIL import Image
-        img = Image.open(path).convert("RGB")
-        if self.transform:
-            img = self.transform(img)
-        return img, label
+        # 放宽像素上限，允许超大图 decode（transform 的 Resize 随后降采样并释放内存）
+        Image.MAX_IMAGE_PIXELS = 200_000_000
+        n = len(self.samples)
+        for attempt in range(n):  # 最多遍历整个数据集寻找可解码样本
+            path, label = self.samples[(idx + attempt) % n]
+            try:
+                with Image.open(path) as im:
+                    img = im.convert("RGB")
+                if self.transform:
+                    img = self.transform(img)
+                return img, label
+            except Exception:  # noqa: BLE001 - 损坏 / 解码失败的超大图跳过
+                continue
+        # 极端兜底：整个数据集都无法解码时返回占位张量，保证训练循环不中断
+        return torch.zeros(3, self._img_size, self._img_size), self.samples[idx][1]
 
 
 def create_weighted_sampler_from_samples(samples):
@@ -345,13 +360,20 @@ def main():
 
     train_ratio = config["train_ratio"]
 
-    # ── 按角色分组切分（MUST group by character to avoid leakage）──
-    # 旧逻辑按"类内逐图洗牌"会把同一角色的图同时放进 train/val（泄漏）。
-    # 改为以角色目录（路径倒数第 2 段）为 group 做 GroupShuffleSplit：
-    # 同一角色的所有图整体进 train 或整体进 val，杜绝 train/val 同源。
-    char_groups = [Path(path).parts[-2] for path, _ in all_samples]
+    # ── 按 post-id（图片来源 / 近重复簇）分组切分 ──
+    # 演进史：
+    #   v1「类内逐图洗牌」  -> 同一张原图的近重复变体同时进 train/val（真泄漏）。
+    #   v2「按角色分组」    -> 不泄漏但矫枉过正：整个角色只进 train 或只进 val，
+    #                         大量类在 train 零样本，闭集分类器只能盲猜。
+    #   v3（当前）「按 post-id 分组」-> 同一来源 post 的所有变体整体进一个 split
+    #                         （杜绝近重复泄漏），而同角色的不同 post 允许跨集，
+    #                         这正是闭集分类器需要学习的目标。
+    source_groups = [
+        post_group_key(Path(path).parts[-2], Path(path).name)
+        for path, _ in all_samples
+    ]
     train_idx, val_idx, _ = grouped_split(
-        all_samples, char_groups,
+        all_samples, source_groups,
         ratios=(train_ratio, 1.0 - train_ratio, 0.0),
         seed=config["seed"],
     )

@@ -154,17 +154,16 @@ def init_remote_database():
         return
 
     try:
-        # P1-3: 从 ServiceConfig 读取连接池参数
-        try:
-            from src.core.config.service_config import get_service_config
-            _svc_config = get_service_config()
-            _mysql_pool_size = _svc_config.DB_POOL_SIZE
-            _mysql_max_overflow = _svc_config.DB_MAX_OVERFLOW
-        except Exception:
-            _mysql_pool_size = 5
-            _mysql_max_overflow = 10
+        from src.core.config.service_config import get_service_config
+        _svc_config = get_service_config()
+        _mysql_pool_size = _svc_config.DB_POOL_SIZE
+        _mysql_max_overflow = _svc_config.DB_MAX_OVERFLOW
+    except Exception:
+        _mysql_pool_size = 5
+        _mysql_max_overflow = 10
 
-        _remote_engine = create_engine(
+    try:
+        _engine = create_engine(
             REMOTE_DB_URL,
             pool_pre_ping=True,
             pool_size=_mysql_pool_size,
@@ -172,6 +171,20 @@ def init_remote_database():
             connect_args={"connect_timeout": 10},
             echo=False,
         )
+
+        # 真实连接探测：create_engine 是懒连接，必须实际连一次确认可用，
+        # 否则后续所有 DB 操作都会抛 OperationalError，且无法触发本地降级
+        try:
+            from sqlalchemy import text as _sa_text
+            with _engine.connect() as _conn:
+                _conn.execute(_sa_text("SELECT 1"))
+        except Exception as e:
+            logger.error(f"远程MySQL连接探测失败，降级使用本地SQLite: {e}")
+            _remote_engine = None
+            _remote_session = None
+            return False
+
+        _remote_engine = _engine
         logger.info(f"远程MySQL数据库初始化: {REMOTE_DB_URL}")
 
         _remote_session = sessionmaker(autocommit=False, autoflush=False, bind=_remote_engine)
