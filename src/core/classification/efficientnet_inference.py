@@ -279,7 +279,9 @@ class EfficientNetInference:
         if torch.cuda.is_available():
             try:
                 # 创建示例输入
-                sample_input = torch.randn(1, 3, 224, 224, device=self.device)
+                from src.common.preprocess import IMAGE_SIZE as _IN
+
+                sample_input = torch.randn(1, 3, _IN, _IN, device=self.device)
                 if torch.cuda.is_available():
                     sample_input = sample_input.half()
 
@@ -295,14 +297,13 @@ class EfficientNetInference:
         return model
 
     def _get_transforms(self):
-        """预处理转换"""
-        return transforms.Compose(
-            [
-                transforms.Resize((224, 224)),
-                transforms.ToTensor(),
-                transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-            ]
-        )
+        """预处理转换 —— 委托给 src/common/preprocess 的唯一真源（256）。
+
+        原先这里硬编码 Resize((224,224))，与按 256 训练的 B3 权重存在尺度鸿沟。
+        """
+        from src.common.preprocess import build_eval_transform
+
+        return build_eval_transform()
 
     def predict_with_tags(self, image_path, top_k=5, tags=None, return_keypoints=True):
         """使用标签辅助预测图片角色

@@ -45,13 +45,21 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # ─── 项目路径 ───
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
+# 修正：原先写的是 parent.parent，指向 scripts/ 而非项目根，
+# 导致 DATA_DIR=scripts/data/final_dataset（不存在）。__file__ 在
+# scripts/model_training/ 下，必须回溯三级。
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 DATA_DIR = PROJECT_ROOT / "data" / "final_dataset"
-MODEL_DIR = PROJECT_ROOT / "models" / "efficientnet_b3"
+# 默认输出目录：不要覆盖 v3 生产模型(models/efficientnet_b3) 或 v6。
+MODEL_DIR = PROJECT_ROOT / "models" / "efficientnet_b3_v7"
+DEFAULT_SPLIT_DIR = PROJECT_ROOT / "data" / "splits" / "seed42"
 
 # ─── 默认训练配置 ───
 DEFAULT_CONFIG = {
-    "image_size": 300,       # EfficientNet-B3 推荐输入尺寸
+    # 256 = src/common/preprocess.IMAGE_SIZE 唯一真源。
+    # 原默认 300 与统一口径冲突（Phase0 实测 300 相对 256 仅 +0.0019 MacroF1，
+    # 属噪声级，却多约 37% 算力），已按实测结论改为 256。
+    "image_size": 256,
     "batch_size": 16,
     "num_epochs": 40,
     "learning_rate": 3e-4,
@@ -80,13 +88,41 @@ def get_best_device():
         return torch.device("cpu")
 
 
-def create_efficientnet_b3(num_classes: int, weights=models.EfficientNet_B3_Weights.DEFAULT) -> nn.Module:
+def create_efficientnet_b3(
+    num_classes: int,
+    weights=models.EfficientNet_B3_Weights.DEFAULT,
+    pretrained_file: "str | None" = None,
+) -> nn.Module:
     """创建与 model_loader.py 完全一致的 EfficientNet-B3 架构
 
     weights: 默认使用 ImageNet 预训练权重（v1 训练 / train_clean_split 需要）；
     增量微调与评测场景应传入 weights=None，跳过 47MB 权重下载——
     因为随即 strict 加载 checkpoint 会把整个主干覆盖掉，下载的权重永不使用。
+
+    pretrained_file: 从**本地文件**加载 ImageNet 主干权重，绕开 torch.hub 下载。
+        存在的理由：本机实测 torch.hub 下载 efficientnet_b3 会 hash 校验失败
+        （期望 cf984f9c，实得 b3899882…），torchvision 直接抛 RuntimeError
+        导致训练无法启动。取回的文件本身结构完好、经统计判定确为真实 ImageNet
+        训练产物（BN running_var 离散、num_batches_tracked=1,971,260），
+        只是容器字节与官方记录不一致。用本地文件显式加载，比关闭 hash 校验更可控。
     """
+    if pretrained_file:
+        model = models.efficientnet_b3(weights=None)
+        state = torch.load(pretrained_file, map_location="cpu")
+        if isinstance(state, dict) and "model_state_dict" in state:
+            state = state["model_state_dict"]
+        missing, unexpected = model.load_state_dict(state, strict=True), None
+        logger.info(f"已从本地文件加载 ImageNet 主干权重: {pretrained_file}")
+        model.classifier = nn.Sequential(
+            nn.Dropout(p=0.3),
+            nn.Linear(model.classifier[1].in_features, 768),
+            nn.ReLU(inplace=True),
+            nn.BatchNorm1d(768),
+            nn.Dropout(p=0.15),
+            nn.Linear(768, num_classes),
+        )
+        return model
+
     model = models.efficientnet_b3(weights=weights)
     model.classifier = nn.Sequential(
         nn.Dropout(p=0.3),
@@ -122,32 +158,104 @@ class MixupCriterion:
 
 
 def get_transforms(image_size: int, use_auto_augment: bool = True):
-    """创建训练和验证的数据变换"""
-    train_transform = transforms.Compose([
-        transforms.Resize((image_size + 32, image_size + 32)),
-        transforms.RandomCrop((image_size, image_size)),
-        transforms.RandomHorizontalFlip(p=0.5),
-        transforms.RandomRotation(degrees=15),
-        transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.1),
-        transforms.RandomAffine(degrees=0, translate=(0.1, 0.1)),
-        AutoAugment(policy=AutoAugmentPolicy.IMAGENET) if use_auto_augment else transforms.RandomHorizontalFlip(p=0.0),
-        transforms.ToTensor(),
-        transforms.Normalize(
-            mean=[0.485, 0.456, 0.406],
-            std=[0.229, 0.224, 0.225],
-        ),
-    ])
+    """创建训练和验证的数据变换 —— 委托给 src/common/preprocess 唯一真源。
 
-    val_transform = transforms.Compose([
-        transforms.Resize((image_size, image_size)),
-        transforms.ToTensor(),
-        transforms.Normalize(
-            mean=[0.485, 0.456, 0.406],
-            std=[0.229, 0.224, 0.225],
-        ),
-    ])
+    这里不再自己拼 transform，原因是历史上出现过两类不一致：
+      1. val 用 Resize((256,256)) 直接压缩，而 train 是 Resize(288)->RandomCrop(256)，
+         同一物体在 val 里比 train 里小 1.125 倍（尺度偏移，早停据此判断不可靠）。
+      2. 服务端另写了一份 Resize((224,224))，与训练尺寸完全脱节。
+    现在 train / val / 线上服务全部由同一个模块产出，改一处即全局生效。
+    """
+    from src.common.preprocess import build_eval_transform, build_train_transform
 
+    train_transform = build_train_transform(
+        image_size=image_size, use_auto_augment=use_auto_augment
+    )
+    # val 与 train 尺度对齐：Resize(image_size+32) -> CenterCrop(image_size)
+    val_transform = build_eval_transform(image_size=image_size)
     return train_transform, val_transform
+
+
+def load_frozen_split(split_dir: Path, data_dir: Path):
+    """消费 make_split.py 产出的**冻结切分**，而不是在训练脚本里临时重切。
+
+    为什么必须这样做
+    ----------------
+    此前 main() 是自己扫目录 + 内存里 grouped_split(post_id) 重切一遍，带来三个问题：
+      1. 绕开了 #2 的内容哈希(sha256+union-find)去重 —— 同内容不同 post_id 的图
+         会重新泄漏进 train/val。
+      2. 切分不可复现、无法追溯：产物里没有 split_hash，事后无法判断某个模型
+         有没有被污染（v6 就是这么变成一笔糊涂账的）。
+      3. min_images_per_class 过滤会得到 151 类，与冻结切分的 171 类对不上。
+
+    安全护栏：拒绝 test.json（评测集绝不进训练）、拒绝备份目录、
+    校验文件确实存在、校验 label 空间连续无空洞。
+
+    Returns:
+        (train_samples, val_samples, class_to_idx, split_meta)
+    """
+    split_dir = Path(split_dir)
+    name = split_dir.name.lower()
+    if "backup" in name or "bak" in name:
+        raise ValueError(
+            f"拒绝使用备份切分目录 {split_dir} —— 备份仅供事后比对，不可用于训练"
+        )
+
+    train_path = split_dir / "train.json"
+    val_path = split_dir / "val.json"
+    summary_path = split_dir / "summary.json"
+    for p in (train_path, val_path, summary_path):
+        if not p.exists():
+            raise FileNotFoundError(f"切分文件缺失: {p}")
+
+    with open(train_path, encoding="utf-8") as f:
+        train_rows = json.load(f)
+    with open(val_path, encoding="utf-8") as f:
+        val_rows = json.load(f)
+    with open(summary_path, encoding="utf-8") as f:
+        summary = json.load(f)
+
+    # 标签空间以 train ∪ val 的并集为准，排序后编号，保证连续无空洞
+    labels = sorted({r["label"] for r in train_rows} | {r["label"] for r in val_rows})
+    class_to_idx = {c: i for i, c in enumerate(labels)}
+
+    def to_samples(rows, tag):
+        out = []
+        missing = []
+        for r in rows:
+            p = Path(data_dir) / r["path"]
+            if not p.exists():
+                missing.append(r["path"])
+                continue
+            out.append((str(p), class_to_idx[r["label"]]))
+        if missing:
+            raise FileNotFoundError(
+                f"{tag} 中有 {len(missing)} 个文件在 {data_dir} 下不存在，"
+                f"切分与数据集不同步。示例: {missing[:3]}"
+            )
+        return out
+
+    train_samples = to_samples(train_rows, "train.json")
+    val_samples = to_samples(val_rows, "val.json")
+
+    # train/val 路径不得相交（冻结切分理应已保证，这里再兜一道）
+    overlap = {p for p, _ in train_samples} & {p for p, _ in val_samples}
+    if overlap:
+        raise AssertionError(
+            f"FATAL: train 与 val 路径相交 {len(overlap)} 条，切分已损坏。"
+            f" 示例: {list(overlap)[:3]}"
+        )
+
+    split_meta = {
+        "split_dir": str(split_dir),
+        "split_hash": summary.get("split_hash"),
+        "split_schema_version": summary.get("schema_version"),
+        "group_by": summary.get("group_by"),
+        "n_train": len(train_samples),
+        "n_val": len(val_samples),
+        "excluded_from_eval_characters": summary.get("excluded_from_eval_characters"),
+    }
+    return train_samples, val_samples, class_to_idx, split_meta
 
 
 def filter_dataset_by_min_images(data_dir: str, min_images: int):
@@ -167,34 +275,65 @@ def filter_dataset_by_min_images(data_dir: str, min_images: int):
 class FilteredImageDataset(torch.utils.data.Dataset):
     """自定义 Dataset，直接从 (path, label) 样本列表构建。
 
-    对损坏图 / 超大图做兜底：放宽 Pillow 像素上限让超大图可 decode，
-    单样本 decode 失败时自动跳到下一张合格样本，避免训练中断。
+    解码策略统一由 src/common/preprocess 提供（LOAD_TRUNCATED_IMAGES=True、
+    放宽 MAX_IMAGE_PIXELS），本类不再自行设置——保持唯一真源。
+
+    坏数据可见性
+    ------------
+    这里**曾经**是 `except Exception: continue` 静默吞异常：坏图被悄悄跳过，
+    既不报错也不记日志。后果是数据集里 16 张截断 JPEG 计入切分总数、
+    却从不贡献梯度，而且没有任何人能从日志里发现这件事。
+    现在改为 warning 级日志（文件路径 + 异常类型 + 消息），每个文件每进程只报
+    一次以免刷屏，并累计计数供训练结束后复盘。静默跳过一律不再保留。
     """
+
     def __init__(self, samples, transform, idx_to_class, image_size=256):
         self.samples = samples
         self.transform = transform
         self.idx_to_class = idx_to_class
         self._img_size = image_size
+        # 坏样本可追溯：路径 -> "异常类型: 消息"；DataLoader 多 worker 时各进程独立
+        self.decode_failures = {}
 
     def __len__(self):
         return len(self.samples)
 
+    def _record_failure(self, path, exc):
+        """记录一次解码失败——每个文件每进程只 warning 一次，避免逐 epoch 刷屏。"""
+        key = str(path)
+        if key in self.decode_failures:
+            return
+        detail = f"{type(exc).__name__}: {exc}"
+        self.decode_failures[key] = detail
+        logger.warning(
+            "[decode-fail] 跳过无法解码的样本 path=%s reason=%s "
+            "(该文件仍在切分内计数，但不贡献梯度)",
+            key,
+            detail,
+        )
+
     def __getitem__(self, idx):
-        from PIL import Image
-        # 放宽像素上限，允许超大图 decode（transform 的 Resize 随后降采样并释放内存）
-        Image.MAX_IMAGE_PIXELS = 200_000_000
+        # 注意：不在这里设 MAX_IMAGE_PIXELS / LOAD_TRUNCATED_IMAGES，
+        # 二者已由 src.common.preprocess 在 import 时全局生效。
+        from src.common.preprocess import load_image
+
         n = len(self.samples)
         for attempt in range(n):  # 最多遍历整个数据集寻找可解码样本
             path, label = self.samples[(idx + attempt) % n]
             try:
-                with Image.open(path) as im:
-                    img = im.convert("RGB")
+                img = load_image(path)
                 if self.transform:
                     img = self.transform(img)
                 return img, label
-            except Exception:  # noqa: BLE001 - 损坏 / 解码失败的超大图跳过
+            except Exception as exc:  # noqa: BLE001 - 结构性损坏图跳过，但必须留痕
+                self._record_failure(path, exc)
                 continue
         # 极端兜底：整个数据集都无法解码时返回占位张量，保证训练循环不中断
+        logger.error(
+            "[decode-fail] 从 idx=%d 起遍历全部 %d 个样本均无法解码，返回占位张量！",
+            idx,
+            n,
+        )
         return torch.zeros(3, self._img_size, self._img_size), self.samples[idx][1]
 
 
@@ -213,7 +352,7 @@ def create_weighted_sampler_from_samples(samples):
     )
 
 
-def train_one_epoch(model, dataloader, criterion, optimizer, device, phase="train"):
+def train_one_epoch(model, dataloader, criterion, optimizer, device, phase="train", max_steps=None):
     """训练/验证一个 epoch"""
     if phase == "train":
         model.train()
@@ -225,6 +364,8 @@ def train_one_epoch(model, dataloader, criterion, optimizer, device, phase="trai
     total_samples = 0
 
     for batch_idx, (inputs, labels) in enumerate(dataloader):
+        if max_steps is not None and batch_idx >= max_steps:
+            break  # 仅用于计时/冒烟，正式训练不传该参数
         inputs = inputs.to(device, non_blocking=True)
         labels = labels.to(device, non_blocking=True)
 
@@ -269,20 +410,37 @@ def save_checkpoint(model, optimizer, epoch, best_acc, class_to_idx, model_dir, 
     return path
 
 
-def save_training_results(model_dir, class_to_idx, train_config, metrics, best_acc, training_time):
-    """保存训练结果（与 model_loader.py 兼容格式）"""
+def save_training_results(
+    model_dir, class_to_idx, train_config, metrics, best_acc, training_time,
+    split_meta=None,
+):
+    """保存训练结果（与 model_loader.py 兼容格式）
+
+    split_meta 必须写入
+    -------------------
+    v6 的教训：产物里没有任何切分指纹，事后完全无法判断它是否被污染
+    （只能靠 "test Top-1 0.7419 反超自报 val 0.6114" 这种间接反常来推断）。
+    从 v7 起，split_hash / group_by / 预处理规格一律固化进 training_results.json，
+    后续任何评测都能一眼确认模型与评测集是否同源。
+    """
+    from src.common.preprocess import describe as describe_preprocess
+
     results = {
         "model_name": "efficientnet_b3",
         "architecture": "EfficientNet-B3",
         "num_classes": len(class_to_idx),
         "class_to_idx": class_to_idx,
         "class_names": sorted(class_to_idx.keys()),
-        "image_size": train_config.get("image_size", 300),
+        "image_size": train_config.get("image_size", 256),
         "best_accuracy": float(best_acc),
         "training_time_seconds": training_time,
         "training_config": train_config,
         "metrics": metrics,
         "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
+        # ── 可追溯性字段（v6 缺失，v7 起强制）──
+        "split": split_meta or {},
+        "split_hash": (split_meta or {}).get("split_hash"),
+        "preprocess": describe_preprocess(train_config.get("image_size", 256)),
     }
 
     results_path = model_dir / "training_results.json"
@@ -310,6 +468,22 @@ def main():
     parser.add_argument("--no-auto-augment", action="store_true")
     parser.add_argument("--resume", action="store_true", help="Resume from latest checkpoint")
     parser.add_argument("--device", type=str, default=None, choices=["mps", "cpu", "cuda"])
+    parser.add_argument(
+        "--split-dir", type=str, default=None,
+        help=f"冻结切分目录（含 train/val/summary.json），默认 {DEFAULT_SPLIT_DIR}",
+    )
+    parser.add_argument(
+        "--model-dir", type=str, default=None,
+        help=f"输出目录，默认 {MODEL_DIR}（勿指向 v3/v6 以免覆盖）",
+    )
+    parser.add_argument(
+        "--max-steps", type=int, default=None,
+        help="仅用于计时/冒烟：每个 epoch 最多跑 N 个 batch 后停止",
+    )
+    parser.add_argument(
+        "--pretrained-weights", type=str, default=None,
+        help="本地 ImageNet 主干权重文件；用于绕开 torch.hub 下载 hash 校验失败",
+    )
     args = parser.parse_args()
 
     # 合并配置
@@ -334,58 +508,38 @@ def main():
     logger.info(f"Config: {json.dumps(config, indent=2)}")
 
     # ─── 创建模型目录 ───
-    MODEL_DIR.mkdir(parents=True, exist_ok=True)
+    model_dir = Path(args.model_dir) if args.model_dir else MODEL_DIR
+    model_dir.mkdir(parents=True, exist_ok=True)
+    logger.info(f"输出目录: {model_dir}")
 
-    # ─── 直接扫描有足够图片的类别目录 ───
-    valid_classes = filter_dataset_by_min_images(str(DATA_DIR), config["min_images_per_class"])
-    logger.info(f"Valid classes (>= {config['min_images_per_class']} images): {len(valid_classes)}")
-
-    # 收集所有有效样本路径
-    new_class_to_idx = {cls: idx for idx, cls in enumerate(sorted(valid_classes))}
+    # ─── 消费冻结切分（不再在此临时重切）───
+    # 切分由 scripts/model_evaluation/make_split.py 产出并冻结，含 #2 的
+    # sha256+union-find 内容去重。训练脚本只读不切，保证可复现、可追溯。
+    train_samples, val_samples, new_class_to_idx, split_meta = load_frozen_split(
+        Path(args.split_dir) if args.split_dir else DEFAULT_SPLIT_DIR,
+        DATA_DIR,
+    )
     num_classes = len(new_class_to_idx)
-    logger.info(f"Number of classes: {num_classes}")
-
-    all_samples = []  # (image_path, class_label_idx)
-    for class_name, class_idx in new_class_to_idx.items():
-        class_dir = os.path.join(str(DATA_DIR), class_name)
-        for fname in sorted(os.listdir(class_dir)):
-            if fname.lower().endswith(('.jpg', '.png', '.jpeg', '.webp')):
-                all_samples.append((os.path.join(class_dir, fname), class_idx))
-
-    logger.info(f"Total valid samples: {len(all_samples)} images")
-
-    # ─── 划分训练/验证集 ───
-    train_transform, val_transform = get_transforms(config["image_size"], config["use_auto_augment"])
     new_idx_to_class = {idx: cls for cls, idx in new_class_to_idx.items()}
 
-    train_ratio = config["train_ratio"]
-
-    # ── 按 post-id（图片来源 / 近重复簇）分组切分 ──
-    # 演进史：
-    #   v1「类内逐图洗牌」  -> 同一张原图的近重复变体同时进 train/val（真泄漏）。
-    #   v2「按角色分组」    -> 不泄漏但矫枉过正：整个角色只进 train 或只进 val，
-    #                         大量类在 train 零样本，闭集分类器只能盲猜。
-    #   v3（当前）「按 post-id 分组」-> 同一来源 post 的所有变体整体进一个 split
-    #                         （杜绝近重复泄漏），而同角色的不同 post 允许跨集，
-    #                         这正是闭集分类器需要学习的目标。
-    source_groups = [
-        post_group_key(Path(path).parts[-2], Path(path).name)
-        for path, _ in all_samples
-    ]
-    train_idx, val_idx, _ = grouped_split(
-        all_samples, source_groups,
-        ratios=(train_ratio, 1.0 - train_ratio, 0.0),
-        seed=config["seed"],
+    logger.info(
+        "切分: %s | split_hash=%s | group_by=%s",
+        split_meta["split_dir"], split_meta["split_hash"], split_meta["group_by"],
     )
-    train_samples = [all_samples[i] for i in train_idx]
-    val_samples = [all_samples[i] for i in val_idx]
-
+    logger.info(f"Number of classes: {num_classes}")
     logger.info(f"Train: {len(train_samples)} images, Val: {len(val_samples)} images")
+
+    # ─── 数据变换 ───
+    train_transform, val_transform = get_transforms(config["image_size"], config["use_auto_augment"])
     sys.stdout.flush()
 
     print("[DEBUG] Creating datasets...", flush=True)
-    train_dataset = FilteredImageDataset(train_samples, train_transform, new_idx_to_class)
-    val_dataset = FilteredImageDataset(val_samples, val_transform, new_idx_to_class)
+    train_dataset = FilteredImageDataset(
+        train_samples, train_transform, new_idx_to_class, image_size=config["image_size"]
+    )
+    val_dataset = FilteredImageDataset(
+        val_samples, val_transform, new_idx_to_class, image_size=config["image_size"]
+    )
     print("[DEBUG] Datasets created", flush=True)
 
     # macOS 上统一用 num_workers=0 避免多进程 pickle 问题
@@ -413,7 +567,9 @@ def main():
 
     # ─── 创建模型 ───
     print("[DEBUG] Creating EfficientNet-B3 model...", flush=True)
-    model = create_efficientnet_b3(num_classes)
+    model = create_efficientnet_b3(
+        num_classes, pretrained_file=args.pretrained_weights
+    )
     print("[DEBUG] Model created, moving to device...", flush=True)
     model = model.to(device)
     print("[DEBUG] Model on device", flush=True)
@@ -446,7 +602,7 @@ def main():
     patience_counter = 0
     metrics_history = []
 
-    resume_path = MODEL_DIR / "model_best.pth"
+    resume_path = model_dir / "model_best.pth"
     if args.resume and resume_path.exists():
         logger.info(f"Resuming from {resume_path}")
         ckpt = torch.load(resume_path, map_location=device, weights_only=False)
@@ -461,7 +617,7 @@ def main():
             scheduler.step()
         logger.info(f"Resumed at epoch {start_epoch}, best_acc={best_acc:.4%}")
         # 加载已有 metrics
-        results_path = MODEL_DIR / "training_results.json"
+        results_path = model_dir / "training_results.json"
         if results_path.exists():
             with open(results_path) as f:
                 old_results = json.load(f)
@@ -480,12 +636,14 @@ def main():
 
         # 训练
         train_loss, train_acc = train_one_epoch(
-            model, train_loader, mixup_criterion, optimizer, device, phase="train"
+            model, train_loader, mixup_criterion, optimizer, device, phase="train",
+            max_steps=args.max_steps,
         )
 
         # 验证
         val_loss, val_acc = train_one_epoch(
-            model, val_loader, base_criterion, optimizer, device, phase="val"
+            model, val_loader, base_criterion, optimizer, device, phase="val",
+            max_steps=args.max_steps,
         )
 
         # 更新学习率
@@ -517,7 +675,7 @@ def main():
             # 保存 checkpoint
             save_checkpoint(
                 model, optimizer, epoch, best_acc,
-                new_class_to_idx, MODEL_DIR, "model_best.pth"
+                new_class_to_idx, model_dir, "model_best.pth"
             )
         else:
             patience_counter += 1
@@ -536,7 +694,8 @@ def main():
 
     # 保存训练结果
     save_training_results(
-        MODEL_DIR, new_class_to_idx, config, metrics_history, best_acc, training_time
+        model_dir, new_class_to_idx, config, metrics_history, best_acc, training_time,
+        split_meta=split_meta,
     )
 
     # 同时保存 model_full.pth（完整模型权重，model_loader 优先加载）
@@ -546,10 +705,10 @@ def main():
         "best_acc": best_acc,
         "class_to_idx": new_class_to_idx,
     }
-    torch.save(checkpoint_final, MODEL_DIR / "model_full.pth")
-    logger.info(f"Saved model_full.pth to {MODEL_DIR}")
+    torch.save(checkpoint_final, model_dir / "model_full.pth")
+    logger.info(f"Saved model_full.pth to {model_dir}")
 
-    logger.info(f"\nAll training artifacts saved to {MODEL_DIR}/")
+    logger.info(f"\nAll training artifacts saved to {model_dir}/")
     logger.info(f"  - model_best.pth")
     logger.info(f"  - model_full.pth")
     logger.info(f"  - class_to_idx.json")

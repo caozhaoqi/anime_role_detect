@@ -63,13 +63,19 @@ class ONNXEngine:
 
     def preprocess(self, image: Image.Image) -> np.ndarray:
         """预处理图像"""
+        # 统一到 RGB：RGBA/CMYK 会产生 4 通道（与 mean/std 的 (3,1,1) 广播失败），
+        # 调色板图 P 经 np.array 得到的是**调色板索引**而非亮度，若按灰度分支处理
+        # 会静默产出错误像素值。必须在转 numpy 之前归一化通道。
+        if image.mode != "RGB":
+            image = image.convert("RGB")
+
         # 调整大小
         image = image.resize((self.input_size, self.input_size))
 
         # 转换为 numpy array
         image = np.array(image).astype(np.float32)
 
-        # 如果是灰度图，转换为 RGB
+        # 如果是灰度图，转换为 RGB（convert("RGB") 后通常不会再触发，保留作兜底）
         if len(image.shape) == 2:
             image = np.stack([image] * 3, axis=-1)
 

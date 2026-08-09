@@ -12,7 +12,6 @@ import numpy as np
 from typing import List, Tuple, Optional
 from PIL import Image
 import torch
-from torchvision import transforms
 from src.core.logging import get_enhanced_logger as get_logger
 
 logger = get_logger("multi_target_detector")
@@ -20,6 +19,19 @@ logger = get_logger("multi_target_detector")
 # 添加项目根目录
 project_root = os.path.dirname(
     os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+)
+
+# ---------------------------------------------------------------------------
+# 分类器输入规格：全部来自 src/common/preprocess.py（唯一真源）
+# 历史缺陷 1：resize 尺寸曾在 self.transform 与 _classify_crop 中各写一遍 (224)，
+#             改一处漏一处会造成静默尺寸错配。
+# 历史缺陷 2：这里是 224，而权重是按 256 训练的 —— 训练/生产尺度鸿沟。
+# 现在两者都由 build_eval_transform() 单点决定。
+# ---------------------------------------------------------------------------
+from src.common.preprocess import (  # noqa: E402
+    IMAGE_SIZE as CLASSIFIER_INPUT_SIZE,
+    build_eval_transform,
+    ensure_rgb,
 )
 
 class MultiTargetDetector:
@@ -51,14 +63,9 @@ class MultiTargetDetector:
         self.role_model, self.class_names = self._load_role_model(role_model_path)
         print(f"✅ 角色分类模型加载成功: {len(self.class_names)} 个角色")
 
-        # 图像预处理
-        self.transform = transforms.Compose(
-            [
-                transforms.Resize((224, 224)),
-                transforms.ToTensor(),
-                transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
-            ]
-        )
+        # 图像预处理：与训练端 val 变换、与所有其它推理路径共用同一个函数。
+        # resize 只在这里做一次，_classify_crop 不再重复 resize。
+        self.transform = build_eval_transform()
 
     def _load_role_model(self, model_path: str = None):
         """加载角色分类模型"""
@@ -153,6 +160,10 @@ class MultiTargetDetector:
         Returns:
             检测结果字典
         """
+        # 入口统一到 RGB：调用方可能传入 RGBA/P/L/CMYK。
+        # crop() 会保留原 mode，所以这里转一次即可覆盖后续所有裁剪分支。
+        image = ensure_rgb(image)
+
         results = {"image_size": image.size, "total_detections": 0, "detections": []}
         if debug:
             results["debug_boxes"] = []
@@ -259,11 +270,13 @@ class MultiTargetDetector:
 
     def _classify_crop(self, crop: Image.Image) -> dict:
         """对裁剪区域进行角色分类（返回 top-1 决策 + top-3 候选，用于 debug 模式）"""
-        # 调整大小
-        crop_resized = crop.resize((224, 224), Image.BILINEAR)
+        # 防御性兜底：_classify_crop 可能被其他路径直接调用，不依赖上游已转 RGB
+        crop = ensure_rgb(crop)
 
         # 转换为 tensor
-        input_tensor = self.transform(crop_resized).unsqueeze(0).to(self.device)
+        # 注意：resize 由 self.transform 内的 Resize(CLASSIFIER_INPUT_SIZE) 单点负责，
+        # 这里不再手动 resize，避免"两处尺寸各写一遍、改一处漏一处"的静默错配。
+        input_tensor = self.transform(crop).unsqueeze(0).to(self.device)
 
         # 推理
         with torch.no_grad():
@@ -321,7 +334,7 @@ def main():
         image_files = [f for f in os.listdir(test_image_path) if f.endswith((".jpg", ".png"))]
 
         if image_files:
-            test_image = Image.open(os.path.join(test_image_path, image_files[0]))
+            test_image = ensure_rgb(Image.open(os.path.join(test_image_path, image_files[0])))
             print(f"\n📷 测试图像: {image_files[0]}")
 
             # 检测

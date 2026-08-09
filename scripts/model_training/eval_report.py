@@ -5,13 +5,16 @@
 """
 import os, sys, json, torch
 from pathlib import Path
+
+# 解码策略统一由 src/common/preprocess 提供，导入即继承，本脚本不再自行设置。
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+import src.common.preprocess  # noqa: E402
+
 from collections import Counter, defaultdict
 from datetime import datetime
 
 import numpy as np
 from PIL import Image
-from PIL import ImageFile
-ImageFile.LOAD_TRUNCATED_IMAGES = True  # 允许加载截断图片
 from torchvision import transforms, datasets, models
 from tqdm import tqdm
 
