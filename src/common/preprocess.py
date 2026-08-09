@@ -42,6 +42,7 @@ CenterCrop 而不是直接 Resize((256,256))：只有 Resize(288)->CenterCrop(25
 
 from __future__ import annotations
 
+import contextlib
 from typing import List, Sequence, Union
 
 import torch
@@ -71,6 +72,34 @@ ImageFile.LOAD_TRUNCATED_IMAGES = True
 # （如 verina/5153039.jpg 17.9MB）。Resize 随后会立刻降采样并释放内存。
 Image.MAX_IMAGE_PIXELS = 200_000_000
 
+
+@contextlib.contextmanager
+def allow_unlimited_pixels():
+    """显式请求"临时关闭解压炸弹上限"的例外通道。
+
+    仅数据清洗等需逐张扫描原始超大图的场景才允许使用，正常训练/推理一律继承
+    模块级的 200_000_000。要点：
+
+      * 调用方**声明**"我要用宽松模式"，策略仍归 preprocess 管、例外也归它管——
+        不允许在任意脚本里裸写 `Image.MAX_IMAGE_PIXELS = None` 悄悄关闭全局防护
+        （那会污染后续所有解码且无法追溯，正是我们要收口的坏味道）。
+      * 进入上下文时暂存当前上限并设为 None（不触发 DecompressionBombError），
+        退出时**自动恢复**模块级上限，无残留副作用。
+
+    用法：
+        from src.common.preprocess import allow_unlimited_pixels
+        with allow_unlimited_pixels():
+            Image.open(maybe_huge_path)  # 此刻不触发 DecompressionBombError
+        # 离开 with 后自动恢复 200_000_000
+    """
+    saved = Image.MAX_IMAGE_PIXELS
+    Image.MAX_IMAGE_PIXELS = None
+    try:
+        yield
+    finally:
+        Image.MAX_IMAGE_PIXELS = saved
+
+
 __all__ = [
     "IMAGE_SIZE",
     "RESIZE_MARGIN",
@@ -85,6 +114,7 @@ __all__ = [
     "preprocess_image",
     "preprocess_batch",
     "describe",
+    "allow_unlimited_pixels",
 ]
 
 # --- 固化的预处理规格 -------------------------------------------------------

@@ -17,13 +17,16 @@ from collections import defaultdict
 import numpy as np
 import json
 
+# 解码策略统一收口到 src/common/preprocess 唯一真源（导入即继承截断图/像素上限策略）
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
+
 # 配置路径
 TRAIN_DATA_DIR = Path("/Users/caozhaoqi/PycharmProjects/anime_role_detect/data/training_dataset")
 FINAL_DATA_DIR = Path("/Users/caozhaoqi/PycharmProjects/anime_role_detect/data/final_dataset")
 MODEL_DIR = Path("/Users/caozhaoqi/PycharmProjects/anime_role_detect/models")
 WD_TAGGER_DIR = Path("/Users/caozhaoqi/PycharmProjects/anime_role_detect/src/services")
 
-Image.MAX_IMAGE_PIXELS = None
+import src.common.preprocess  # noqa: E402,F401  (解码策略已收口到唯一真源，导入即继承)
 
 
 def get_device():

@@ -8,8 +8,11 @@ from pathlib import Path
 from PIL import Image
 from torchvision import transforms, models
 
+# 解码策略统一收口到 src/common/preprocess 唯一真源（导入即继承）
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
+import src.common.preprocess  # noqa: E402,F401
+
 warnings.filterwarnings("ignore")
-Image.MAX_IMAGE_PIXELS = None
 
 MODEL_DIR = Path("models/efficientnet_b3_anime_20260616_132028")
 CKPT = MODEL_DIR / "model_best.pth"

@@ -410,9 +410,72 @@ def save_checkpoint(model, optimizer, epoch, best_acc, class_to_idx, model_dir, 
     return path
 
 
+def compute_val_coverage_gap(split_dir, class_to_idx, val_samples, data_dir):
+    """计算验证集覆盖缺口 —— **仅写入元数据，绝不把 test 喂给训练**。
+
+    时序问题（不是偏好问题）：某些角色在 val.json 中完全没有样本，于是它们
+    永远无法参与早停 / 最佳模型选择 / val 指标。其中部分在 test.json 中仍有
+    样本（至少还能评测），部分是 train/test 双盲（完全不可评）。
+
+    本函数显式列出这些"无 val 类"及其覆盖状态，固化进 training_results.json，
+    避免事后无法判断"为什么某些类的指标永远缺失"。
+
+    val_samples / test.json 只读标签空间，不进训练循环；与 load_frozen_split
+    一样遵守护栏：test.json 仅作元数据消费，绝不泄漏进训练。
+
+    注意：class_to_idx 的 key 是切分 JSON 里的 int label（不是类名），
+    真实类名取自 path 的父目录，需重新解析切片文件建立 idx -> 类名映射。
+    """
+    split_dir = Path(split_dir)
+    idx_to_label = {i: lbl for lbl, i in class_to_idx.items()}
+
+    # 建立 idx -> 类名（path 父目录）。train/val/test 都扫，因为个别类
+    # （如 theresa_apocalypse）只在 test 出现，需要从 test 补名字。
+    idx_to_name = {}
+    for fname in ("train.json", "val.json", "test.json"):
+        fp = split_dir / fname
+        if not fp.exists():
+            continue
+        with open(fp, encoding="utf-8") as f:
+            rows = json.load(f)
+        for r in rows:
+            idx_to_name[class_to_idx[r["label"]]] = Path(r["path"]).parent.name
+
+    val_labels = {idx for _, idx in val_samples}
+
+    test_path = split_dir / "test.json"
+    test_idx = set()
+    if test_path.exists():
+        with open(test_path, encoding="utf-8") as f:
+            test_rows = json.load(f)
+        test_idx = {class_to_idx[r["label"]] for r in test_rows}
+
+    missing_val = []
+    for idx in sorted(class_to_idx.values()):
+        has_val = idx in val_labels
+        has_test = idx in test_idx
+        if not has_val:
+            missing_val.append({
+                "class_index": idx,
+                "class_name": idx_to_name.get(idx, f"<label {idx_to_label.get(idx)}>"),
+                "has_val": False,
+                "has_test": has_test,
+                "note": (
+                    "无 val 也无 test，完全不可评"
+                    if not has_test
+                    else "有 test 但无 val，可评测但无法参与早停/最佳模型选择"
+                ),
+            })
+
+    return {
+        "val_class_coverage": f"{len(val_labels)}/{len(class_to_idx)}",
+        "missing_val_classes": missing_val,
+    }
+
+
 def save_training_results(
     model_dir, class_to_idx, train_config, metrics, best_acc, training_time,
-    split_meta=None,
+    split_meta=None, val_coverage_gap=None,
 ):
     """保存训练结果（与 model_loader.py 兼容格式）
 
@@ -422,6 +485,8 @@ def save_training_results(
     （只能靠 "test Top-1 0.7419 反超自报 val 0.6114" 这种间接反常来推断）。
     从 v7 起，split_hash / group_by / 预处理规格一律固化进 training_results.json，
     后续任何评测都能一眼确认模型与评测集是否同源。
+
+    val_coverage_gap 同理：某些类无 val 样本是无法事后推断的，必须显式记录。
     """
     from src.common.preprocess import describe as describe_preprocess
 
@@ -441,6 +506,8 @@ def save_training_results(
         "split": split_meta or {},
         "split_hash": (split_meta or {}).get("split_hash"),
         "preprocess": describe_preprocess(train_config.get("image_size", 256)),
+        # ── val 覆盖缺口（时序问题：部分类无 val，事后无法判断为何指标缺失）──
+        "val_coverage_gap": val_coverage_gap or {},
     }
 
     results_path = model_dir / "training_results.json"
@@ -528,6 +595,20 @@ def main():
     )
     logger.info(f"Number of classes: {num_classes}")
     logger.info(f"Train: {len(train_samples)} images, Val: {len(val_samples)} images")
+
+    # ─── val 覆盖缺口（仅元数据，绝不进训练）───
+    # 部分类在 val.json 中无样本，无法参与早停/最佳模型选择；其中个别在
+    # test.json 中仍有样本。显式列出并固化进 training_results.json。
+    val_coverage_gap = compute_val_coverage_gap(
+        Path(args.split_dir) if args.split_dir else DEFAULT_SPLIT_DIR,
+        new_class_to_idx, val_samples, DATA_DIR,
+    )
+    logger.info(
+        "val 覆盖: %s | 无 val 类 %d 个: %s",
+        val_coverage_gap["val_class_coverage"],
+        len(val_coverage_gap["missing_val_classes"]),
+        ", ".join(c["class_name"] for c in val_coverage_gap["missing_val_classes"]),
+    )
 
     # ─── 数据变换 ───
     train_transform, val_transform = get_transforms(config["image_size"], config["use_auto_augment"])
@@ -695,7 +776,7 @@ def main():
     # 保存训练结果
     save_training_results(
         model_dir, new_class_to_idx, config, metrics_history, best_acc, training_time,
-        split_meta=split_meta,
+        split_meta=split_meta, val_coverage_gap=val_coverage_gap,
     )
 
     # 同时保存 model_full.pth（完整模型权重，model_loader 优先加载）

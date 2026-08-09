@@ -250,10 +250,11 @@ def test_truncation_policy_owned_by_preprocess_only():
     正则字符串，已排除。其余任何 .py 重复设置都会失败——形成回归护栏，能拦住
     未来在任何文件里重新写死解码策略的行为。
 
-    已知遗留站点（known_legacy）：本轮只收口了 team-lead 批准的 5 个脚本；
-    全仓扫描又发现以下 5 个遗留脚本仍在本地设置 MAX_IMAGE_PIXELS=None
-    （完全关闭解压炸弹防护），其中 data_cleaning/* 可能**有意**关闭以扫描原始大图，
-    需 team-lead 单独决策，故暂列为例外。收口后从本列表移除即可让护栏收紧。
+    已知遗留站点（known_legacy）：现已完全清空——全仓除 preprocess.py 自身外
+    再无任何 `LOAD_TRUNCATED_IMAGES=` / `MAX_IMAGE_PIXELS=` 赋值点。3 个训练
+    辅助脚本已收口到唯一真源；2 个 data_cleaning 脚本改用 preprocess 暴露的
+    allow_unlimited_pixels() 显式 API（而非裸写 MAX_IMAGE_PIXELS=None）。
+    护栏放行该 API 调用（不匹配赋值正则），但继续禁止任何裸赋值——达到"全仓零例外"。
     """
     import re
     from pathlib import Path
@@ -270,15 +271,13 @@ def test_truncation_policy_owned_by_preprocess_only():
     self_file = Path(__file__).resolve()
     # 跳过的目录（虚拟环境 / 第三方 / 构建产物）
     skip_dirs = {".venv", "node_modules", "__pycache__", ".git", "build", "dist"}
-    # 已知遗留站点：本轮未收口（data_cleaning/* 可能需有意关闭解压炸弹防护）。
-    # 收口后从此列表移除即可让护栏收紧到“全仓零例外”。
-    known_legacy = {
-        root / "scripts" / "data_cleaning" / "clean_corrupted_images.py",
-        root / "scripts" / "data_cleaning" / "clean_final_dataset.py",
-        root / "scripts" / "model_training" / "three_experiments.py",
-        root / "scripts" / "model_training" / "compare_train_test.py",
-        root / "scripts" / "model_training" / "train_three_models.py",
-    }
+    # 已知遗留站点：现已全部收口，本列表清空——护栏达到"全仓零例外"状态。
+    #   * 3 个训练辅助脚本（three_experiments/compare_train_test/train_three_models）
+    #     已收口到唯一真源；
+    #   * 2 个 data_cleaning 脚本改用 preprocess.allow_unlimited_pixels() 显式
+    #     API（不再裸写 MAX_IMAGE_PIXELS=None）。全仓扫描确认除 preprocess.py
+    #     自身外再无任何赋值点，故不再需要白名单。
+    known_legacy = set()
     known_legacy = {p.resolve() for p in known_legacy}
     offenders = []
     for py in root.rglob("*.py"):

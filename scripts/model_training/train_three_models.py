@@ -46,8 +46,8 @@ LEARNING_RATE = 1e-4
 NUM_EPOCHS = 30
 PATIENCE = 10
 
-# 允许加载截断的图片
-Image.MAX_IMAGE_PIXELS = None
+# 解码策略统一收口到 src/common/preprocess 唯一真源（导入即继承截断图/像素上限策略）
+import src.common.preprocess  # noqa: E402,F401
 
 
 def supplement_missing_images():
