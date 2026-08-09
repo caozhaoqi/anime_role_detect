@@ -10,9 +10,22 @@ import os
 from PIL import Image
 from src.core.logging import get_enhanced_logger as get_logger
 from src.core.classification.classifiers.general_classifier import GeneralClassification
-from src.services.processor.model_loader import get_role_predictor
+from src.core.ports import get_port
 
 logger = get_logger("general_classification")
+
+
+# ---- core 端口访问（解耦 core→services 反向依赖，见 ADR-003）----
+# 具体实现由 services 层在启动时通过 register_port 注入
+# （src/api/lifecycle._init_services），core 不再 import src.services.*。
+def _get_role_predictor():
+    """获取 AI 角色预测器（经端口，避免 core 直接依赖 services）。"""
+    return get_port("role_predictor")()
+
+
+def _process_image_features(image, mime, attributes):
+    """从图像提取特征（经端口）。"""
+    return get_port("feature_processor")(image, mime, attributes)
 
 
 # 全局分类器实例
@@ -52,13 +65,11 @@ def classify_image(image_path, use_model=False):
     try:
         if use_model:
             # 使用AI角色预测器
-            role_predictor = get_role_predictor()
+            role_predictor = _get_role_predictor()
             if role_predictor:
-                # 从图像中提取标签
-                from src.services.processor.feature_processor import process_image_features
-
+                # 从图像中提取标签（经端口）
                 attributes = []
-                text_detections, keypoints, ai_predicted_role = process_image_features(
+                text_detections, keypoints, ai_predicted_role = _process_image_features(
                     image_path, "image/jpeg", attributes
                 )
                 return [(ai_predicted_role or "unknown", 1.0)]
@@ -85,19 +96,17 @@ def classify_pil_image(pil_image, use_model=False):
     try:
         if use_model:
             # 使用AI角色预测器
-            role_predictor = get_role_predictor()
+            role_predictor = _get_role_predictor()
             if role_predictor:
-                # 从图像中提取标签
+                # 从图像中提取标签（经端口）
                 import io
 
                 img_io = io.BytesIO()
                 pil_image.save(img_io, format="PNG")
                 img_io.seek(0)
 
-                from src.services.processor.feature_processor import process_image_features
-
                 attributes = []
-                text_detections, keypoints, ai_predicted_role = process_image_features(
+                text_detections, keypoints, ai_predicted_role = _process_image_features(
                     img_io, "image/png", attributes
                 )
                 return [(ai_predicted_role or "unknown", 1.0)]

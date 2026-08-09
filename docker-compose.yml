@@ -197,6 +197,36 @@ services:
           memory: 4G        # 压缩：8G -> 4G（深度学习模型，保留最大的一块）
           cpus: "4"
 
+  # Celery Worker — 消费 classify_image_task 等异步任务（broker=RabbitMQ，backend=Redis）
+  # 修复此前「.delay() 无 worker 消费」的异步黑盒：RabbitMQ 现承担真实任务流量
+  celery-worker:
+    image: ardc/api-service:latest
+    pull_policy: if_not_present
+    container_name: anime-celery-worker
+    command: ["python", "-m", "celery", "-A", "src.tasks.celery_app", "worker", "--loglevel=info", "-Q", "celery", "-n", "classify@%h"]
+    environment:
+      - PYTHONUNBUFFERED=1
+      - PYTHONPATH=/app
+      - REDIS_HOST=redis
+      - REDIS_CACHE_DB=0
+      - REDIS_QUEUE_DB=1
+      - RABBITMQ_HOST=rabbitmq
+      - CELERY_BROKER_URL=amqp://${RABBITMQ_USER:-ard_admin}:${RABBITMQ_PASSWORD:-CHANGE_ME_rabbit_pwd}@rabbitmq:5672//
+      - LOG_LEVEL=INFO
+    networks:
+      - backend
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "1"
+
   api-gateway:
     build:
       context: .

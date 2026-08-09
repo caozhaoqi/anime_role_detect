@@ -27,6 +27,7 @@ config = get_service_config()
 
 from src.core.logging import get_enhanced_logger as get_logger
 from src.core.logging_setup import setup_logging
+from src.services.api_gateway.routing import resolve_route
 
 logger = get_logger("api_gateway")
 
@@ -616,37 +617,8 @@ async def proxy_request(request: Request, path: str):
     """
     logger.info(f"收到请求: {request.method} /api/{path}")
 
-    # 1. 路由分配逻辑
-    if (
-        path.startswith("search/image")
-        or path.startswith("search/build-index")
-        or path.startswith("search/stats")
-    ):
-        service = "search"
-        url = f"{config.SEARCH_SERVICE_URL}/api/{path}"
-    elif path.startswith("video/"):
-        service = "multimedia"
-        url = f"{config.MULTIMEDIA_SERVICE_URL}/video/{path[6:]}"
-    elif path.startswith("classify") or path.startswith("model/"):
-        service = "model"
-        if path.startswith("classify"):
-            # 处理 classify 路径
-            classify_path = path
-            # 将 /api/classify/multi-role 映射到 /api/model/detect-multiple
-            if classify_path == "classify/multi-role":
-                url = f"{config.MODEL_SERVICE_URL}/api/model/detect-multiple"
-            else:
-                url = f"{config.MODEL_SERVICE_URL}/api/{classify_path}"
-        else:
-            model_path = path[6:]
-            url = f"{config.MODEL_SERVICE_URL}/api/model/{model_path}"
-    elif path == "model" or path == "model/health":
-        service = "model"
-        url = f"{config.MODEL_SERVICE_URL}/api/health"
-    else:
-        service = "api"
-        url = f"{config.CORE_API_URL}/api/{path}"
-
+    # 1. 路由分配逻辑（声明化：单一事实源见 src/services/api_gateway/routing.ROUTE_TABLE）
+    service, url = resolve_route(path, SERVICES)
     logger.info(f"转发请求到 [{service}]: {url}")
 
     # 保留原始请求的查询参数

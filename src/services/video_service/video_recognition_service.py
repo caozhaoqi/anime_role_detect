@@ -1,8 +1,15 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-视频实时抽帧识别服务
-支持实时视频流抽帧和角色识别，用于弹幕实时显示角色信息
+视频实时抽帧识别库（进程内使用，非独立部署服务）
+
+支持实时视频流抽帧和角色识别，用于弹幕实时显示角色信息。
+
+注意：本模块**不**作为独立 HTTP 服务部署。历史上曾存在
+``video_service_app.py`` 将其包装为 FastAPI 服务，但该入口从未被 supervisord/
+compose/K8s 启动，且视频路由已由 multimedia-service 的 ``/video/*`` 端点接管，
+故于 2026-08-09 删除。当前本模块仅由 api-service 的 ``video_routes`` /
+``search_routes`` 通过延迟 import 以**库**的形式调用。
 """
 
 import os

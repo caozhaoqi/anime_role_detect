@@ -31,9 +31,11 @@ Deployment/StatefulSet 的 ``containerPort`` 与每个 Service 的 ``targetPort`
 --------
 * K8s 中监控资源名为 ``monitoring``（容器 args 用 ``monitor-dashboard``，但
   metadata.name / Service 名均为 ``monitoring``），故映射键为 ``"monitoring"``。
-* ``video-service`` 当前**不在** K8s base 部署（仅存在于代码
-  src/services/video_service/video_service_app.py:242 port=8003），故不纳入必须校验的
-  ``K8S_PORT_MAP``，仅列入 ``CODE_ONLY_SERVICES`` 供参考，避免误杀未来新增部署。
+* ``video-service`` 的 HTTP 入口 ``src/services/video_service/video_service_app.py``
+  已于 2026-08-09 删除：它从未被 supervisord/compose/K8s 启动，且 8003 端口被
+  search-service 占用；视频能力已由 multimedia-service 的 ``/video/*`` 路由完整提供。
+  视频业务逻辑 ``VideoRecognitionService`` 仅作为进程内库被 api-service 使用，
+  故不再有"代码-only"的独立服务需纳入反向校验（见 ``CODE_ONLY_SERVICES``）。
 * 端口本质稳定不易变，脚本零重型依赖（不 import torch 等），仅依赖 PyYAML。
 * 设计原则：
   - 正向校验：映射中每个服务，若 K8s 中存在对应资源，其端口必须等于映射值；否则 ERROR 并 exit 1。
@@ -79,9 +81,9 @@ K8S_PORT_MAP = {
 }
 
 # 仅存在于代码、尚未部署到 K8s 的服务（反向校验时跳过，避免误报）。
-CODE_ONLY_SERVICES = {
-    "video-service": 8003,
-}
+# 历史上含 "video-service"（video_service_app.py），该 HTTP 入口已于 2026-08-09
+# 删除（从未部署，视频能力由 multimedia-service 接管），故当前无代码-only 服务。
+CODE_ONLY_SERVICES = {}
 
 # 需要在 K8s 中作为资源存在的 Kind（其余 Kind 如 Kustomization/ConfigMap 直接跳过）。
 WORKLOAD_KINDS = {"Deployment", "StatefulSet"}
