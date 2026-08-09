@@ -5,7 +5,7 @@
 # ==============================================
 
 # Web UI 调试 (scripts/api/web_ui.py)
-streamlit==1.50.0
+streamlit==1.53.1
 
 # 数据可视化 (scripts/evaluation/benchmark_model.py)
 matplotlib==3.9.4
