@@ -102,6 +102,7 @@ class MultiRoleDetector:
                 "mobilenet_v2_loli8": "models/mobilenet_v2_loli8/model_best.pth",
                 "efficientnet_b0_loli8": "models/efficientnet_b0_loli8/model_best.pth",
                 "efficientnet_b3": "models/efficientnet_b3/model_best.pth",
+                "efficientnet_b3_v4": "models/efficientnet_b3_v4/model_best.pth",
                 "efficientnet_b3_loli_optimized_v2_20260529_133654": "models/efficientnet_b3_loli_optimized_v2_20260529_133654/model_best.pth",
                 "efficientnet_b3_loli_optimized_v2_20260522_165046": "models/efficientnet_b3_loli_optimized_v2_20260522_165046/model_best.pth",
             }
@@ -109,7 +110,7 @@ class MultiRoleDetector:
             # 处理默认模型
             model_name = self.model_name
             if model_name == "default":
-                model_name = "efficientnet_b3"
+                model_name = "efficientnet_b3_v4"
                 logger.info(f"使用默认模型: {model_name}")
 
             # 检查模型是否存在

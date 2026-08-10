@@ -16,6 +16,13 @@ logger = get_logger("model_service.classifiers")
 class EfficientNetClassifier:
     """EfficientNet直接分类器，不依赖Faiss索引"""
 
+    # 活跃 EfficientNet 模型目录（相对 models/）。
+    # 默认使用修复数据泄漏后的 174 类重训模型 efficientnet_b3_v4，
+    # 替换老旧的 51 类泄漏模型 efficientnet_b3（#2 / #4 根因：
+    # 51 类模型仅覆盖 51/171 个角色，且准确率指标来自训练集泄漏）。
+    # 可通过环境变量 EFFICIENTNET_MODEL_DIR 回滚到任意历史模型目录。
+    MODEL_DIR_NAME = os.environ.get("EFFICIENTNET_MODEL_DIR", "efficientnet_b3_v4")
+
     _instance = None
     _model = None
     _class_to_idx = None
@@ -42,8 +49,9 @@ class EfficientNetClassifier:
             return
 
         model_dir = os.path.join(
-            project_root, "models", "efficientnet_b3"
+            project_root, "models", self.MODEL_DIR_NAME
         )
+        self.model_dir_name = self.MODEL_DIR_NAME
         model_best_path = os.path.join(model_dir, "model_best.pth")
 
         if not os.path.exists(model_best_path):
@@ -168,7 +176,7 @@ class EfficientNetClassifier:
                 if not hasattr(self, '_projection'):
                     # P2-7: 尝试从训练好的权重文件加载投影层
                     projection_weights_path = os.path.join(
-                        project_root, "models", "efficientnet_b3", "projection_weights.pth"
+                        project_root, "models", self.model_dir_name, "projection_weights.pth"
                     )
                     projection = torch.nn.Linear(1536, 512, bias=False)
                     if os.path.exists(projection_weights_path):
@@ -200,6 +208,31 @@ class EfficientNetClassifier:
         except Exception as e:
             logger.error(f"EfficientNet分类+特征提取失败: {e}")
             return "unknown", 0.0, np.zeros(512, dtype=np.float32)
+
+    def classify_topk(self, image, k: int = 5):
+        """返回 top-k 候选角色及其置信度（用于丰富识别结果输出，#3）。
+
+        Returns:
+            list[dict]: [{"role": str, "similarity": float}, ...] 按置信度降序
+        """
+        import torch
+        if self.model is None:
+            return []
+        try:
+            input_tensor = self.transform(image).unsqueeze(0).to(self._device)
+            if self._is_half:
+                input_tensor = input_tensor.half()
+            with torch.no_grad():
+                outputs = self.model(input_tensor)
+                probabilities = torch.nn.functional.softmax(outputs, dim=1)
+            topk = torch.topk(probabilities, k=min(k, probabilities.size(1)))
+            results = []
+            for prob, idx in zip(topk.values[0].tolist(), topk.indices[0].tolist()):
+                results.append({"role": self.idx_to_class.get(idx, "unknown"), "similarity": float(prob)})
+            return results
+        except Exception as e:
+            logger.error(f"EfficientNet top-k 分类失败: {e}")
+            return []
 
     def classify_batch(self, images: list, batch_size: int = 8) -> list:
         """批量推理分类（P1-1）

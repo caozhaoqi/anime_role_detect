@@ -14,9 +14,9 @@ EfficientNet-B3 角色分类模型训练脚本
   classifier: Dropout(0.3) → Linear(1536→768) → ReLU → BN(768) → Dropout(0.15) → Linear(768→num_classes)
 """
 
-import os
 import sys
 import json
+import math
 import time
 import copy
 import logging
@@ -30,6 +30,9 @@ from torch.utils.data import DataLoader, random_split, WeightedRandomSampler
 from torchvision import transforms, models
 from torchvision.datasets import ImageFolder
 from torchvision.transforms.autoaugment import AutoAugment, AutoAugmentPolicy
+# v8：最佳模型按 Macro-F1 选型（头条指标），需要 sklearn.metrics.f1_score。
+# scikit-learn==1.6.1 已在 requirements.txt / requirements-base.txt 中声明。
+from sklearn.metrics import f1_score
 
 # 防泄漏：以角色目录为 group 做分组切分（同角色图整体进 train 或 val，不拆散）。
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
@@ -61,13 +64,26 @@ DEFAULT_CONFIG = {
     # 属噪声级，却多约 37% 算力），已按实测结论改为 256。
     "image_size": 256,
     "batch_size": 16,
-    "num_epochs": 40,
+    # v8：45 与调度器 CosineAnnealingLR(T_max=num_epochs) 对齐，单周期退火到底。
+    "num_epochs": 45,
     "learning_rate": 3e-4,
     "weight_decay": 1e-4,
-    "patience": 8,           # 早停耐心
-    "min_images_per_class": 30,
+    # v8：patience 8→15。v7 周期 2 从 restart 恢复用了 6ep，而周期 3 只拿到 7ep
+    # 预算就被砍（ep37，退火仅完成 15%）；且 val n=1585，单点二项 SE=1.22 点，
+    # patience=8 极易被噪声误杀。详见 outputs/v7_audit/v8_training_recommendations.md
+    "patience": 15,          # 早停耐心
+    # v8：早停/最佳模型判据的最小改善量，避免浮点平局被当成"无改善"计入 patience。
+    "min_delta": 1e-4,
+    # 注意：这里**不再有** min_images_per_class。它曾是死配置——训练消费的是
+    # load_frozen_split 的冻结切分，该阈值从未生效，却被完整写进
+    # training_results.json，让任何读产物的人都以为"每类至少 30 张"（实际
+    # train 里 59 个类 <30 张，最小 1 张）。连同 --min-images CLI 一起移除。
     "train_ratio": 0.85,
     "seed": 42,
+    # 真正生效的减类开关（与已移除的死配置 min_images_per_class 不同）：
+    # 它作用在 load_frozen_split 之后、num_classes 之前，直接裁剪样本列表并
+    # 连续重编号，因此 num_classes / class_names / dataset 全部自动跟随。
+    "min_samples_per_class": 0,  # 0=不减类；>0=丢弃 train+val 合计样本<该值的类
     "use_auto_augment": True,
     "use_weighted_sampler": True,
     "label_smoothing": 0.1,
@@ -186,13 +202,19 @@ def load_frozen_split(split_dir: Path, data_dir: Path):
          会重新泄漏进 train/val。
       2. 切分不可复现、无法追溯：产物里没有 split_hash，事后无法判断某个模型
          有没有被污染（v6 就是这么变成一笔糊涂账的）。
-      3. min_images_per_class 过滤会得到 151 类，与冻结切分的 171 类对不上。
+      3. min_images_per_class 过滤会得到 151 类，与冻结切分的类数对不上
+         （该死配置已随本次清理一并移除，见 DEFAULT_CONFIG 注释）。
 
     安全护栏：拒绝 test.json（评测集绝不进训练）、拒绝备份目录、
     校验文件确实存在、校验 label 空间连续无空洞。
 
     Returns:
-        (train_samples, val_samples, class_to_idx, split_meta)
+        (train_samples, val_samples, class_to_idx, idx_to_name, split_meta)
+
+    ``class_to_idx`` 的 key 是切分 JSON 里的**整数 label**（不是类名），因此单靠
+    它无法还原真实角色名 —— 这正是 training_results.json 的 class_names 一度写成
+    ``[0,1,...,170]`` 的原因。故这里额外返回 ``idx_to_name``（连续索引 -> 角色名，
+    取自样本 path 的父目录），供产物写盘时输出真实类名。
     """
     split_dir = Path(split_dir)
     name = split_dir.name.lower()
@@ -218,6 +240,11 @@ def load_frozen_split(split_dir: Path, data_dir: Path):
     # 标签空间以 train ∪ val 的并集为准，排序后编号，保证连续无空洞
     labels = sorted({r["label"] for r in train_rows} | {r["label"] for r in val_rows})
     class_to_idx = {c: i for i, c in enumerate(labels)}
+
+    # 连续索引 -> 真实角色名（path 的父目录即类名，与切分文件自洽，不依赖外部映射）
+    idx_to_name = {}
+    for r in train_rows + val_rows:
+        idx_to_name[class_to_idx[r["label"]]] = r["path"].split("/", 1)[0]
 
     def to_samples(rows, tag):
         out = []
@@ -255,21 +282,7 @@ def load_frozen_split(split_dir: Path, data_dir: Path):
         "n_val": len(val_samples),
         "excluded_from_eval_characters": summary.get("excluded_from_eval_characters"),
     }
-    return train_samples, val_samples, class_to_idx, split_meta
-
-
-def filter_dataset_by_min_images(data_dir: str, min_images: int):
-    """过滤出图片数量 >= min_images 的类别"""
-    valid_classes = []
-    for class_name in sorted(os.listdir(data_dir)):
-        class_dir = os.path.join(data_dir, class_name)
-        if not os.path.isdir(class_dir):
-            continue
-        count = len([f for f in os.listdir(class_dir)
-                     if f.lower().endswith(('.jpg', '.png', '.jpeg', '.webp'))])
-        if count >= min_images:
-            valid_classes.append(class_name)
-    return valid_classes
+    return train_samples, val_samples, class_to_idx, idx_to_name, split_meta
 
 
 class FilteredImageDataset(torch.utils.data.Dataset):
@@ -343,7 +356,12 @@ def create_weighted_sampler_from_samples(samples):
     for _, label in samples:
         class_counts[label] = class_counts.get(label, 0) + 1
 
-    sample_weights = [1.0 / class_counts[label] for _, label in samples]
+    # v8：平方根采样取代全逆频。全逆频(1/count)让 k=1 的单张图每 epoch 被重复
+    # 采样约 43 次，纯粹制造过拟合；平方根采样保留部分重平衡又不极端。
+    # 依据：v7 test balanced_acc 0.5681 vs top1 0.5989 仅差 3.08 点，说明头部偏置
+    # 已被基本抵消，无需继续用最激进的逆频权重。
+    # 详见 outputs/v7_audit/v8_training_recommendations.md 建议表 #9
+    sample_weights = [1.0 / math.sqrt(class_counts[label]) for _, label in samples]
 
     return WeightedRandomSampler(
         weights=sample_weights,
@@ -395,8 +413,91 @@ def train_one_epoch(model, dataloader, criterion, optimizer, device, phase="trai
     return epoch_loss, epoch_acc
 
 
-def save_checkpoint(model, optimizer, epoch, best_acc, class_to_idx, model_dir, filename="model_best.pth"):
-    """保存 checkpoint（与 model_loader.py 兼容格式）"""
+def evaluate_val_metrics(model, val_loader, device, num_classes, criterion, max_steps=None):
+    """在 val 集上完整评估，返回 {loss, acc(Top-1), macro_f1, n_present_classes, n_samples}。
+
+    为什么不复用 train_one_epoch(phase="val")
+    -----------------------------------------
+    v7 用 Top-1(`val_acc`) 选 best checkpoint，但对外头条指标是 **Macro-F1**
+    （171 类长尾，Top-1 被大类掩盖）—— **选型目标与考核目标不一致**，
+    v7 的 best 只保证 Top-1 最优。train_one_epoch 只做流式累加，拿不到
+    全量 preds/labels，算不出 Macro-F1，所以这里单独收集全量预测再统一计算。
+
+    macro_f1 口径 = **present-class（val 中 support>=1 的类）**
+    ------------------------------------------------------
+    对应 v7 复盘中的 `macro_f1_present_only` 167 类口径。若按全 171 类算，
+    jean / rina / seth / yae_miko 这 4 个 TRAIN_ONLY 单图类（全库各仅 1 张图
+    且全在 train，`summary.json` 已声明 eval_status=TRAIN_ONLY）会以 F1=0
+    计入分母，等价于施加一个固定 167/171 = 2.34% 的会计折扣，没有任何信息量。
+    详见 outputs/v7_audit/v8_training_recommendations.md §2。
+
+    注意：`criterion` 由调用方显式传入。v7 的 val loss 实际用的是
+    `nn.CrossEntropyLoss(label_smoothing=0.0)`（train_one_epoch L382 硬编码），
+    并非传入的 base_criterion(label_smoothing=0.1)。为保持 val_loss 与 v7 可比，
+    调用方应传入 label_smoothing=0.0 的 criterion。
+    """
+    model.eval()
+
+    running_loss = 0.0
+    running_corrects = 0
+    total_samples = 0
+    all_preds = []
+    all_labels = []
+
+    with torch.no_grad():
+        for batch_idx, (inputs, labels) in enumerate(val_loader):
+            if max_steps is not None and batch_idx >= max_steps:
+                break  # 仅用于计时/冒烟，正式训练不传该参数
+            inputs = inputs.to(device, non_blocking=True)
+            labels = labels.to(device, non_blocking=True)
+
+            outputs = model(inputs)
+            loss = criterion(outputs, labels)
+            _, preds = torch.max(outputs, 1)
+
+            running_loss += loss.item() * inputs.size(0)
+            running_corrects += (preds == labels).sum().item()
+            total_samples += inputs.size(0)
+            all_preds.append(preds.detach().cpu())
+            all_labels.append(labels.detach().cpu())
+
+    if total_samples == 0:
+        logger.warning("[val] 验证集为空（或 max_steps=0），返回全零指标")
+        return {"loss": 0.0, "acc": 0.0, "macro_f1": 0.0,
+                "n_present_classes": 0, "n_samples": 0}
+
+    y_true = torch.cat(all_labels).tolist()
+    y_pred = torch.cat(all_preds).tolist()
+    # present_classes：本次 val 中 support>=1 的类；显式传给 f1_score 的 labels=，
+    # 保证分母只含可评类，不受 num_classes 里的 TRAIN_ONLY 类影响。
+    present_classes = sorted(set(y_true))
+    macro_f1 = float(
+        f1_score(y_true, y_pred, average="macro",
+                 labels=present_classes, zero_division=0)
+    )
+
+    return {
+        "loss": running_loss / total_samples,
+        "acc": running_corrects / total_samples,
+        "macro_f1": macro_f1,
+        # 保留 present/total 对照，便于事后判断口径（v7 = 166/171 on val）
+        "n_present_classes": len(present_classes),
+        "n_total_classes": num_classes,
+        "n_samples": total_samples,
+    }
+
+
+def save_checkpoint(model, optimizer, epoch, best_acc, class_to_idx, model_dir,
+                    filename="model_best.pth", best_macro_f1=None):
+    """保存 checkpoint（与 model_loader.py 兼容格式）
+
+    `best_macro_f1` 为 v8 新增的**尾部关键字参数**：v8 起最佳模型按 Macro-F1 选型，
+    resume 时必须能恢复该值，否则续训会用 0.0 起跳、第一个 epoch 必然"改善"并覆盖
+    best。放在参数表末尾且带默认值，是为了不破坏既有 7 位置参调用
+    （scripts/model_evaluation/train_clean_split.py:287）。
+    `best_acc` 字段保持不变且仍为 float —— outputs/v7_audit/eval_v7_audit.py:129
+    直接对它做 `:.6f` 格式化，改类型会炸。
+    """
     checkpoint = {
         "epoch": epoch,
         "model_state_dict": model.state_dict(),
@@ -404,6 +505,8 @@ def save_checkpoint(model, optimizer, epoch, best_acc, class_to_idx, model_dir, 
         "best_acc": best_acc,
         "class_to_idx": class_to_idx,
     }
+    if best_macro_f1 is not None:
+        checkpoint["best_macro_f1"] = float(best_macro_f1)
     path = model_dir / filename
     torch.save(checkpoint, path)
     logger.info(f"Saved checkpoint to {path}")
@@ -439,6 +542,10 @@ def compute_val_coverage_gap(split_dir, class_to_idx, val_samples, data_dir):
         with open(fp, encoding="utf-8") as f:
             rows = json.load(f)
         for r in rows:
+            # 减类（min_samples_per_class>0）后 class_to_idx 只含保留类，
+            # 被丢弃的 label 在这里必须跳过，否则 KeyError 直接崩在训练前。
+            if r["label"] not in class_to_idx:
+                continue
             idx_to_name[class_to_idx[r["label"]]] = Path(r["path"]).parent.name
 
     val_labels = {idx for _, idx in val_samples}
@@ -448,7 +555,9 @@ def compute_val_coverage_gap(split_dir, class_to_idx, val_samples, data_dir):
     if test_path.exists():
         with open(test_path, encoding="utf-8") as f:
             test_rows = json.load(f)
-        test_idx = {class_to_idx[r["label"]] for r in test_rows}
+        test_idx = {
+            class_to_idx[r["label"]] for r in test_rows if r["label"] in class_to_idx
+        }
 
     missing_val = []
     for idx in sorted(class_to_idx.values()):
@@ -475,9 +584,22 @@ def compute_val_coverage_gap(split_dir, class_to_idx, val_samples, data_dir):
 
 def save_training_results(
     model_dir, class_to_idx, train_config, metrics, best_acc, training_time,
-    split_meta=None, val_coverage_gap=None,
+    split_meta=None, val_coverage_gap=None, best_macro_f1=None, class_names=None,
 ):
     """保存训练结果（与 model_loader.py 兼容格式）
+
+    best_macro_f1（v8 新增，尾部关键字参数）
+    ---------------------------------------
+    v8 起最佳模型按 val present-class Macro-F1 选型，而不是 Top-1。
+    schema 兼容策略：**`best_accuracy` 字段保留且语义仍是 float Top-1**
+    （= 最佳 Macro-F1 那个 epoch 的 val Top-1），因为下列消费方直接读它并做
+    数值格式化 / 比较：
+      - scripts/model_training/predict.py:15         `:.4f`
+      - scripts/model_evaluation/cross_validate.py:200/210
+      - scripts/model_evaluation/quick_benchmark.py:141
+      - src/core/version/model_version_manager.py:243
+    新指标以**新增字段** `best_macro_f1` 写入，不改动任何既有字段，
+    因此 training_results.json 对旧 eval 脚本保持完全向后兼容。
 
     split_meta 必须写入
     -------------------
@@ -487,6 +609,13 @@ def save_training_results(
     后续任何评测都能一眼确认模型与评测集是否同源。
 
     val_coverage_gap 同理：某些类无 val 样本是无法事后推断的，必须显式记录。
+
+    class_names（真实角色名）
+    ------------------------
+    class_to_idx 的 key 是切分 JSON 里的整数 label，所以 `sorted(class_to_idx)`
+    只会得到 [0,1,2,...] 这种毫无信息量的"类名"（v7 产物即如此）。调用方应从
+    load_frozen_split 返回的 idx_to_name 传入真实角色名列表（按索引升序）；
+    未传时退回旧行为，仅为兼容不掌握名字的调用方。
     """
     from src.common.preprocess import describe as describe_preprocess
 
@@ -495,9 +624,16 @@ def save_training_results(
         "architecture": "EfficientNet-B3",
         "num_classes": len(class_to_idx),
         "class_to_idx": class_to_idx,
-        "class_names": sorted(class_to_idx.keys()),
+        "class_names": (
+            list(class_names) if class_names is not None
+            else sorted(class_to_idx.keys())
+        ),
         "image_size": train_config.get("image_size", 256),
+        # 兼容字段：仍是 Top-1 float，语义 = 最佳 Macro-F1 那个 epoch 的 val Top-1
         "best_accuracy": float(best_acc),
+        # v8 新增：头条指标。present-class 口径（val 中 support>=1 的类）
+        "best_macro_f1": float(best_macro_f1) if best_macro_f1 is not None else None,
+        "model_selection_metric": "val_macro_f1_present_only",
         "training_time_seconds": training_time,
         "training_config": train_config,
         "metrics": metrics,
@@ -528,8 +664,12 @@ def main():
     parser.add_argument("--batch-size", type=int, default=None)
     parser.add_argument("--lr", type=float, default=None)
     parser.add_argument("--image-size", type=int, default=None)
-    parser.add_argument("--min-images", type=int, default=None)
     parser.add_argument("--patience", type=int, default=None)
+    parser.add_argument(
+        "--min-delta", type=float, default=None,
+        help="最佳模型/早停判据的最小改善量（作用于 val Macro-F1），默认 "
+             f"{DEFAULT_CONFIG['min_delta']}",
+    )
     parser.add_argument("--no-mixup", action="store_true")
     parser.add_argument("--no-weighted-sampler", action="store_true")
     parser.add_argument("--no-auto-augment", action="store_true")
@@ -538,6 +678,10 @@ def main():
     parser.add_argument(
         "--split-dir", type=str, default=None,
         help=f"冻结切分目录（含 train/val/summary.json），默认 {DEFAULT_SPLIT_DIR}",
+    )
+    parser.add_argument(
+        "--min-samples-per-class", type=int, default=None,
+        help="按最小样本数减类：丢弃 train+val 合计样本数 < 该值的类（0=不减）。用于压低长尾、提高精度",
     )
     parser.add_argument(
         "--model-dir", type=str, default=None,
@@ -559,8 +703,12 @@ def main():
     if args.batch_size: config["batch_size"] = args.batch_size
     if args.lr: config["learning_rate"] = args.lr
     if args.image_size: config["image_size"] = args.image_size
-    if args.min_images: config["min_images_per_class"] = args.min_images
     if args.patience: config["patience"] = args.patience
+    # 用 is not None 而非真值判断：--min-delta 0 是合法输入（退回严格 > 比较）
+    if args.min_delta is not None: config["min_delta"] = args.min_delta
+    # 同理用 is not None：--min-samples-per-class 0 是合法输入（显式声明不减类）
+    if args.min_samples_per_class is not None:
+        config["min_samples_per_class"] = args.min_samples_per_class
     if args.no_mixup: config["mixup_alpha"] = 0.0
     if args.no_weighted_sampler: config["use_weighted_sampler"] = False
     if args.no_auto_augment: config["use_auto_augment"] = False
@@ -582,12 +730,48 @@ def main():
     # ─── 消费冻结切分（不再在此临时重切）───
     # 切分由 scripts/model_evaluation/make_split.py 产出并冻结，含 #2 的
     # sha256+union-find 内容去重。训练脚本只读不切，保证可复现、可追溯。
-    train_samples, val_samples, new_class_to_idx, split_meta = load_frozen_split(
+    train_samples, val_samples, new_class_to_idx, idx_to_name, split_meta = load_frozen_split(
         Path(args.split_dir) if args.split_dir else DEFAULT_SPLIT_DIR,
         DATA_DIR,
     )
+
+    # ─── 可选：按最小样本数减类（提高精度、压低长尾噪声）───
+    # min_samples_per_class>0 时，丢弃 train+val 合计样本数 < 该阈值的类，
+    # 其余类连续重编号为 0..M-1。下游 num_classes / class_names / dataset 全部自动跟随。
+    min_sp = int(config.get("min_samples_per_class", 0) or 0)
+    if min_sp > 0:
+        from collections import Counter
+        _cnt = Counter(lbl for _, lbl in train_samples + val_samples)
+        _keep = sorted(i for i, n in _cnt.items() if n >= min_sp)
+        if not _keep:
+            raise ValueError(
+                f"min_samples_per_class={min_sp} 过滤后剩余 0 类，请降低阈值"
+            )
+        _remap = {old: new for new, old in enumerate(_keep)}   # 旧 idx(0..166) -> 新 idx(0..M-1)
+        train_samples = [(p, _remap[l]) for p, l in train_samples if l in _remap]
+        val_samples = [(p, _remap[l]) for p, l in val_samples if l in _remap]
+        new_class_to_idx = {
+            old_label: _remap[old_idx]
+            for old_label, old_idx in new_class_to_idx.items()
+            if old_idx in _remap
+        }
+        idx_to_name = {_remap[o]: idx_to_name[o] for o in _keep}
+        logger.info(
+            f"[减类] min_samples_per_class={min_sp}: 保留 {len(_keep)} 类, "
+            f"丢弃 {len(_cnt) - len(_keep)} 类"
+        )
+        split_meta = dict(split_meta)
+        split_meta["min_samples_per_class"] = min_sp
+        split_meta["n_classes_after_filter"] = len(_keep)
+        # n_train/n_val 会原样写进 training_results.json 的 "split"；减类后必须
+        # 同步为实际训练消费的样本数，否则产物又变成"配置说一套、训练做一套"。
+        split_meta["n_train"] = len(train_samples)
+        split_meta["n_val"] = len(val_samples)
+
     num_classes = len(new_class_to_idx)
     new_idx_to_class = {idx: cls for cls, idx in new_class_to_idx.items()}
+    # 真实角色名，按连续索引升序 —— 写进 training_results.json 的 class_names
+    class_names = [idx_to_name[i] for i in range(num_classes)]
 
     logger.info(
         "切分: %s | split_hash=%s | group_by=%s",
@@ -671,13 +855,25 @@ def main():
         weight_decay=config["weight_decay"],
     )
 
-    # 学习率调度器：Cosine Annealing with Warm Restarts
-    scheduler = optim.lr_scheduler.CosineAnnealingWarmRestarts(
-        optimizer, T_0=10, T_mult=2, eta_min=1e-6,
+    # 学习率调度器：单周期余弦退火到 eta_min（T_max=总 epoch 数）
+    # 旧 CosineAnnealingWarmRestarts(T_0=10,T_mult=2) 与 patience=8+epochs=40 三重冲突，
+    # 周期3 在退火仅 15% 时被早停砍掉，白烧约 1/3。详见 outputs/v7_audit/v8_training_recommendations.md
+    scheduler = optim.lr_scheduler.CosineAnnealingLR(
+        optimizer, T_max=config["num_epochs"], eta_min=1e-6,
     )
+
+    # val loss 专用 criterion：label_smoothing=0.0。
+    # v7 的 train_one_epoch(phase="val") 内部硬编码用 LS=0.0 计算 val loss
+    # （忽略了传入的 base_criterion），此处显式化以保持 val_loss 与 v7 可比。
+    val_criterion = nn.CrossEntropyLoss(label_smoothing=0.0)
 
     # ─── 断点续训 ───
     start_epoch = 0
+    # v8：最佳模型按 present-class Macro-F1 选型（头条指标）。
+    # best_acc 仍保留 —— 它是"最佳 Macro-F1 那个 epoch 的 val Top-1"，
+    # 既用于 training_results.json 的 best_accuracy 兼容字段，
+    # 也是泄漏健康检查信号（test Top-1 − val Top-1 ≈ −2.0 点为健康）。
+    best_macro_f1 = 0.0
     best_acc = 0.0
     best_model_wts = copy.deepcopy(model.state_dict())
     patience_counter = 0
@@ -692,11 +888,19 @@ def main():
             optimizer.load_state_dict(ckpt["optimizer_state_dict"])
         start_epoch = ckpt.get("epoch", 0) + 1
         best_acc = ckpt.get("best_acc", 0.0)
+        # v8：恢复 Macro-F1 选型基准。从 **v7 及更早的 checkpoint** 续训时该键不存在，
+        # 回退 0.0 —— 此时第一个 epoch 必然被判为"改善"并覆盖 best，这是刻意的：
+        # 旧 ckpt 的 best 是按 Top-1 选出来的，本就不能作为 Macro-F1 的基准。
+        best_macro_f1 = ckpt.get("best_macro_f1", 0.0)
         best_model_wts = copy.deepcopy(model.state_dict())
-        # 推进 scheduler 到正确位置
+        # 推进 scheduler 到正确位置（CosineAnnealingLR 同样是每 epoch step 一次，
+        # 逐次 step 到 start_epoch 后相位正确，此处无需改动）
         for _ in range(start_epoch):
             scheduler.step()
-        logger.info(f"Resumed at epoch {start_epoch}, best_acc={best_acc:.4%}")
+        logger.info(
+            f"Resumed at epoch {start_epoch}, "
+            f"best_macro_f1={best_macro_f1:.4f}, best_acc={best_acc:.4%}"
+        )
         # 加载已有 metrics
         results_path = model_dir / "training_results.json"
         if results_path.exists():
@@ -721,11 +925,14 @@ def main():
             max_steps=args.max_steps,
         )
 
-        # 验证
-        val_loss, val_acc = train_one_epoch(
-            model, val_loader, base_criterion, optimizer, device, phase="val",
+        # 验证：v8 起走 evaluate_val_metrics，额外产出 present-class Macro-F1
+        val_metrics = evaluate_val_metrics(
+            model, val_loader, device, num_classes, val_criterion,
             max_steps=args.max_steps,
         )
+        val_loss = val_metrics["loss"]
+        val_acc = val_metrics["acc"]
+        val_macro_f1 = val_metrics["macro_f1"]
 
         # 更新学习率
         scheduler.step()
@@ -738,25 +945,37 @@ def main():
             "train_acc": train_acc,
             "val_loss": val_loss,
             "val_acc": val_acc,
+            "val_macro_f1": val_macro_f1,
+            "val_present_classes": val_metrics["n_present_classes"],
             "lr": current_lr,
         })
 
         logger.info(
             f"  Train Loss: {train_loss:.4f}, Train Acc: {train_acc:.4%} | "
-            f"Val Loss: {val_loss:.4f}, Val Acc: {val_acc:.4%} | LR: {current_lr:.6f}"
+            f"Val Loss: {val_loss:.4f}, Val Acc: {val_acc:.4%}, "
+            f"Val MacroF1: {val_macro_f1:.4f} "
+            f"({val_metrics['n_present_classes']}/{num_classes} present) | "
+            f"LR: {current_lr:.6f}"
         )
 
-        # 保存最佳模型
-        if val_acc > best_acc:
+        # 保存最佳模型 —— v8 判据换成 Macro-F1（头条指标），并引入 min_delta
+        # 避免浮点平局/噪声级回落驱动 patience 计数器。
+        if val_macro_f1 - best_macro_f1 > config["min_delta"]:
+            best_macro_f1 = val_macro_f1
+            # Top-1 同步记录：作为 best_accuracy 兼容字段 + 泄漏健康检查信号
             best_acc = val_acc
             best_model_wts = copy.deepcopy(model.state_dict())
             patience_counter = 0
-            logger.info(f"  *** Best model saved! Val Acc: {best_acc:.4%} ***")
+            logger.info(
+                f"  *** Best model saved! Val Macro-F1: {best_macro_f1:.4f} "
+                f"(Top-1 {val_acc:.4%}) ***"
+            )
 
             # 保存 checkpoint
             save_checkpoint(
                 model, optimizer, epoch, best_acc,
-                new_class_to_idx, model_dir, "model_best.pth"
+                new_class_to_idx, model_dir, "model_best.pth",
+                best_macro_f1=best_macro_f1,
             )
         else:
             patience_counter += 1
@@ -770,13 +989,15 @@ def main():
 
     logger.info("=" * 60)
     logger.info(f"Training completed in {training_time:.0f}s ({training_time/60:.1f}min)")
-    logger.info(f"Best validation accuracy: {best_acc:.4%}")
+    logger.info(f"Best validation Macro-F1 (present-class): {best_macro_f1:.4f}  <-- 选型指标")
+    logger.info(f"Val Top-1 at that epoch: {best_acc:.4%}")
     logger.info("=" * 60)
 
     # 保存训练结果
     save_training_results(
         model_dir, new_class_to_idx, config, metrics_history, best_acc, training_time,
         split_meta=split_meta, val_coverage_gap=val_coverage_gap,
+        best_macro_f1=best_macro_f1, class_names=class_names,
     )
 
     # 同时保存 model_full.pth（完整模型权重，model_loader 优先加载）
@@ -784,6 +1005,7 @@ def main():
         "epoch": len(metrics_history),
         "model_state_dict": model.state_dict(),
         "best_acc": best_acc,
+        "best_macro_f1": float(best_macro_f1),
         "class_to_idx": new_class_to_idx,
     }
     torch.save(checkpoint_final, model_dir / "model_full.pth")

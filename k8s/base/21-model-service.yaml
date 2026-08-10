@@ -106,7 +106,10 @@ metadata:
   name: model-pvc
   namespace: anime-role-detect
 spec:
-  accessModes: ["ReadWriteMany"]
+  # RWO：模型目录单副本只读挂载，无需 RWX。
+  # 修复（PVC Pending 根因之一）：RWX 需要支持多读多写的存储类，
+  # 而 kind/local-path 等常见默认存储类只支持 RWO → PVC 永真 Pending。
+  accessModes: ["ReadWriteOnce"]
   resources:
     requests:
       storage: 2Gi

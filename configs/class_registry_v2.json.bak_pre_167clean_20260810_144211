@@ -1,7 +1,7 @@
 {
   "schema_version": 2,
   "frozen_at": "2026-08-04",
-  "split_hash": "ecbe69e07387397d31fdd7c93a233b4e852a5560697100e39f36888aac297ca6",
+  "split_hash": "6a5575decd56ee5b675af4f3b9c06b6ea9d8f77f786dc59f2a54c886b63d063b",
   "seed": 42,
   "classes": [
     {
@@ -905,19 +905,19 @@
       "suggested_action": null
     },
     {
-      "id": null,
+      "id": 75,
       "name": "jean",
       "booru_tag": "jean",
       "aliases": [],
-      "status": "EXCLUDED_FROM_LABEL_SPACE",
+      "status": "ACTIVE",
       "img_count": 1,
       "distinct_post_ids": 1,
-      "eval_status": "NOT_IN_LABEL_SPACE",
+      "eval_status": "TRAIN_ONLY",
       "collect_target": 30,
-      "suggested_action": "补图到 >=3 张（含 val/test 各 >=1）后方可重新入选标签空间"
+      "suggested_action": null
     },
     {
-      "id": 75,
+      "id": 76,
       "name": "kafka",
       "booru_tag": "kafka",
       "aliases": [],
@@ -929,7 +929,7 @@
       "suggested_action": null
     },
     {
-      "id": 76,
+      "id": 77,
       "name": "kafuu_chino",
       "booru_tag": "kafuu_chino",
       "aliases": [],
@@ -941,7 +941,7 @@
       "suggested_action": null
     },
     {
-      "id": 77,
+      "id": 78,
       "name": "kagura_(onmyouji)",
       "booru_tag": "kagura_(onmyouji)",
       "aliases": [],
@@ -953,7 +953,7 @@
       "suggested_action": null
     },
     {
-      "id": 78,
+      "id": 79,
       "name": "kaname_madoka",
       "booru_tag": "kaname_madoka",
       "aliases": [],
@@ -965,7 +965,7 @@
       "suggested_action": null
     },
     {
-      "id": 79,
+      "id": 80,
       "name": "kanna_kamui",
       "booru_tag": "kanna_kamui",
       "aliases": [],
@@ -977,7 +977,7 @@
       "suggested_action": null
     },
     {
-      "id": 80,
+      "id": 81,
       "name": "keqing",
       "booru_tag": "keqing",
       "aliases": [],
@@ -989,7 +989,7 @@
       "suggested_action": null
     },
     {
-      "id": 81,
+      "id": 82,
       "name": "kirisame_marisa",
       "booru_tag": "kirisame_marisa",
       "aliases": [],
@@ -1001,7 +1001,7 @@
       "suggested_action": null
     },
     {
-      "id": 82,
+      "id": 83,
       "name": "kokomi",
       "booru_tag": "kokomi",
       "aliases": [],
@@ -1013,7 +1013,7 @@
       "suggested_action": null
     },
     {
-      "id": 83,
+      "id": 84,
       "name": "koleda_belobog",
       "booru_tag": "koleda_belobog",
       "aliases": [],
@@ -1025,7 +1025,7 @@
       "suggested_action": null
     },
     {
-      "id": 84,
+      "id": 85,
       "name": "komeiji_koishi",
       "booru_tag": "komeiji_koishi",
       "aliases": [],
@@ -1037,7 +1037,7 @@
       "suggested_action": null
     },
     {
-      "id": 85,
+      "id": 86,
       "name": "komeiji_satori",
       "booru_tag": "komeiji_satori",
       "aliases": [],
@@ -1049,7 +1049,7 @@
       "suggested_action": null
     },
     {
-      "id": 86,
+      "id": 87,
       "name": "konomori_kanon",
       "booru_tag": "konomori_kanon",
       "aliases": [],
@@ -1061,7 +1061,7 @@
       "suggested_action": null
     },
     {
-      "id": 87,
+      "id": 88,
       "name": "kosaka_wakamo",
       "booru_tag": "kosaka_wakamo",
       "aliases": [],
@@ -1073,7 +1073,7 @@
       "suggested_action": null
     },
     {
-      "id": 88,
+      "id": 89,
       "name": "kuda_izuna",
       "booru_tag": "kuda_izuna",
       "aliases": [],
@@ -1085,7 +1085,7 @@
       "suggested_action": null
     },
     {
-      "id": 89,
+      "id": 90,
       "name": "kujou_sara",
       "booru_tag": "kujou_sara",
       "aliases": [],
@@ -1097,7 +1097,7 @@
       "suggested_action": null
     },
     {
-      "id": 90,
+      "id": 91,
       "name": "kurodate_haruna",
       "booru_tag": "kurodate_haruna",
       "aliases": [],
@@ -1109,7 +1109,7 @@
       "suggested_action": null
     },
     {
-      "id": 91,
+      "id": 92,
       "name": "kuromi_serika",
       "booru_tag": "kuromi_serika",
       "aliases": [],
@@ -1121,7 +1121,7 @@
       "suggested_action": null
     },
     {
-      "id": 92,
+      "id": 93,
       "name": "kurumi_tokisaki",
       "booru_tag": "kurumi_tokisaki",
       "aliases": [],
@@ -1133,7 +1133,7 @@
       "suggested_action": null
     },
     {
-      "id": 93,
+      "id": 94,
       "name": "kyaru_(princess_connect!)",
       "booru_tag": "kyaru_(princess_connect!)",
       "aliases": [],
@@ -1145,7 +1145,7 @@
       "suggested_action": null
     },
     {
-      "id": 94,
+      "id": 95,
       "name": "kyouka_(princess_connect!)",
       "booru_tag": "kyouka_(princess_connect!)",
       "aliases": [],
@@ -1157,7 +1157,7 @@
       "suggested_action": null
     },
     {
-      "id": 95,
+      "id": 96,
       "name": "layla",
       "booru_tag": "layla",
       "aliases": [],
@@ -1169,7 +1169,7 @@
       "suggested_action": null
     },
     {
-      "id": 96,
+      "id": 97,
       "name": "lisa",
       "booru_tag": "lisa",
       "aliases": [],
@@ -1181,7 +1181,7 @@
       "suggested_action": null
     },
     {
-      "id": 97,
+      "id": 98,
       "name": "lita",
       "booru_tag": "lita",
       "aliases": [],
@@ -1193,7 +1193,7 @@
       "suggested_action": null
     },
     {
-      "id": 98,
+      "id": 99,
       "name": "lucia_(punishing:_gray_raven)",
       "booru_tag": "lucia_(punishing:_gray_raven)",
       "aliases": [],
@@ -1205,7 +1205,7 @@
       "suggested_action": null
     },
     {
-      "id": 99,
+      "id": 100,
       "name": "lumine",
       "booru_tag": "lumine",
       "aliases": [],
@@ -1217,7 +1217,7 @@
       "suggested_action": null
     },
     {
-      "id": 100,
+      "id": 101,
       "name": "lynx",
       "booru_tag": "lynx",
       "aliases": [],
@@ -1229,7 +1229,7 @@
       "suggested_action": null
     },
     {
-      "id": 101,
+      "id": 102,
       "name": "march_7th",
       "booru_tag": "march_7th",
       "aliases": [],
@@ -1241,7 +1241,7 @@
       "suggested_action": null
     },
     {
-      "id": 102,
+      "id": 103,
       "name": "miki_sayaka",
       "booru_tag": "miki_sayaka",
       "aliases": [],
@@ -1253,7 +1253,7 @@
       "suggested_action": null
     },
     {
-      "id": 103,
+      "id": 104,
       "name": "mint",
       "booru_tag": "mint",
       "aliases": [],
@@ -1265,7 +1265,7 @@
       "suggested_action": null
     },
     {
-      "id": 104,
+      "id": 105,
       "name": "misono_mika",
       "booru_tag": "misono_mika",
       "aliases": [],
@@ -1277,7 +1277,7 @@
       "suggested_action": null
     },
     {
-      "id": 105,
+      "id": 106,
       "name": "miyamizu_mitsuha",
       "booru_tag": "miyamizu_mitsuha",
       "aliases": [],
@@ -1289,7 +1289,7 @@
       "suggested_action": null
     },
     {
-      "id": 106,
+      "id": 107,
       "name": "mona",
       "booru_tag": "mona",
       "aliases": [],
@@ -1301,7 +1301,7 @@
       "suggested_action": null
     },
     {
-      "id": 107,
+      "id": 108,
       "name": "nahida",
       "booru_tag": "nahida",
       "aliases": [],
@@ -1313,7 +1313,7 @@
       "suggested_action": null
     },
     {
-      "id": 108,
+      "id": 109,
       "name": "natasha",
       "booru_tag": "natasha",
       "aliases": [],
@@ -1325,7 +1325,7 @@
       "suggested_action": null
     },
     {
-      "id": 109,
+      "id": 110,
       "name": "nekomiya_mana",
       "booru_tag": "nekomiya_mana",
       "aliases": [],
@@ -1337,7 +1337,7 @@
       "suggested_action": null
     },
     {
-      "id": 110,
+      "id": 111,
       "name": "nilou",
       "booru_tag": "nilou",
       "aliases": [],
@@ -1349,7 +1349,7 @@
       "suggested_action": null
     },
     {
-      "id": 111,
+      "id": 112,
       "name": "ningguang",
       "booru_tag": "ningguang",
       "aliases": [],
@@ -1361,7 +1361,7 @@
       "suggested_action": null
     },
     {
-      "id": 112,
+      "id": 113,
       "name": "nishimiya_shouko",
       "booru_tag": "nishimiya_shouko",
       "aliases": [],
@@ -1373,7 +1373,7 @@
       "suggested_action": null
     },
     {
-      "id": 113,
+      "id": 114,
       "name": "noelle",
       "booru_tag": "noelle",
       "aliases": [],
@@ -1385,7 +1385,7 @@
       "suggested_action": null
     },
     {
-      "id": 114,
+      "id": 115,
       "name": "okusora_ayane",
       "booru_tag": "okusora_ayane",
       "aliases": [],
@@ -1397,7 +1397,7 @@
       "suggested_action": null
     },
     {
-      "id": 115,
+      "id": 116,
       "name": "onikata_kayoko",
       "booru_tag": "onikata_kayoko",
       "aliases": [],
@@ -1409,7 +1409,7 @@
       "suggested_action": null
     },
     {
-      "id": 116,
+      "id": 117,
       "name": "paimon",
       "booru_tag": "paimon",
       "aliases": [],
@@ -1421,7 +1421,7 @@
       "suggested_action": null
     },
     {
-      "id": 117,
+      "id": 118,
       "name": "pearl",
       "booru_tag": "pearl",
       "aliases": [],
@@ -1433,7 +1433,7 @@
       "suggested_action": null
     },
     {
-      "id": 118,
+      "id": 119,
       "name": "pelagia",
       "booru_tag": "pelagia",
       "aliases": [],
@@ -1445,7 +1445,7 @@
       "suggested_action": null
     },
     {
-      "id": 119,
+      "id": 120,
       "name": "piper",
       "booru_tag": "piper",
       "aliases": [],
@@ -1457,7 +1457,7 @@
       "suggested_action": null
     },
     {
-      "id": 120,
+      "id": 121,
       "name": "popukar",
       "booru_tag": "popukar",
       "aliases": [],
@@ -1469,7 +1469,7 @@
       "suggested_action": null
     },
     {
-      "id": 121,
+      "id": 122,
       "name": "qingque",
       "booru_tag": "qingque",
       "aliases": [],
@@ -1481,7 +1481,7 @@
       "suggested_action": null
     },
     {
-      "id": 122,
+      "id": 123,
       "name": "qiqi",
       "booru_tag": "qiqi",
       "aliases": [],
@@ -1493,7 +1493,7 @@
       "suggested_action": null
     },
     {
-      "id": 123,
+      "id": 124,
       "name": "ram_(re:zero)",
       "booru_tag": "ram_(re:zero)",
       "aliases": [],
@@ -1505,7 +1505,7 @@
       "suggested_action": null
     },
     {
-      "id": 124,
+      "id": 125,
       "name": "rem_(re:zero)",
       "booru_tag": "rem_(re:zero)",
       "aliases": [],
@@ -1517,7 +1517,7 @@
       "suggested_action": null
     },
     {
-      "id": 125,
+      "id": 126,
       "name": "rikuhachima_aru",
       "booru_tag": "rikuhachima_aru",
       "aliases": [],
@@ -1529,19 +1529,19 @@
       "suggested_action": null
     },
     {
-      "id": null,
+      "id": 127,
       "name": "rina",
       "booru_tag": "rina",
       "aliases": [],
-      "status": "EXCLUDED_FROM_LABEL_SPACE",
+      "status": "ACTIVE",
       "img_count": 1,
       "distinct_post_ids": 1,
-      "eval_status": "NOT_IN_LABEL_SPACE",
+      "eval_status": "TRAIN_ONLY",
       "collect_target": 30,
-      "suggested_action": "补图到 >=3 张（含 val/test 各 >=1）后方可重新入选标签空间"
+      "suggested_action": null
     },
     {
-      "id": 126,
+      "id": 128,
       "name": "robin",
       "booru_tag": "robin",
       "aliases": [],
@@ -1553,7 +1553,7 @@
       "suggested_action": null
     },
     {
-      "id": 127,
+      "id": 129,
       "name": "rosaria",
       "booru_tag": "rosaria",
       "aliases": [],
@@ -1565,7 +1565,7 @@
       "suggested_action": null
     },
     {
-      "id": 128,
+      "id": 130,
       "name": "sandrone",
       "booru_tag": "sandrone",
       "aliases": [],
@@ -1577,7 +1577,7 @@
       "suggested_action": null
     },
     {
-      "id": 129,
+      "id": 131,
       "name": "sapphire",
       "booru_tag": "sapphire",
       "aliases": [],
@@ -1589,7 +1589,7 @@
       "suggested_action": null
     },
     {
-      "id": 130,
+      "id": 132,
       "name": "sayu",
       "booru_tag": "sayu",
       "aliases": [],
@@ -1601,7 +1601,7 @@
       "suggested_action": null
     },
     {
-      "id": 131,
+      "id": 133,
       "name": "seele_vollerei",
       "booru_tag": "seele_vollerei",
       "aliases": [],
@@ -1613,7 +1613,7 @@
       "suggested_action": null
     },
     {
-      "id": 132,
+      "id": 134,
       "name": "serval",
       "booru_tag": "serval",
       "aliases": [],
@@ -1625,19 +1625,19 @@
       "suggested_action": null
     },
     {
-      "id": null,
+      "id": 135,
       "name": "seth",
       "booru_tag": "seth",
       "aliases": [],
-      "status": "EXCLUDED_FROM_LABEL_SPACE",
+      "status": "ACTIVE",
       "img_count": 1,
       "distinct_post_ids": 1,
-      "eval_status": "NOT_IN_LABEL_SPACE",
+      "eval_status": "TRAIN_ONLY",
       "collect_target": 30,
-      "suggested_action": "补图到 >=3 张（含 val/test 各 >=1）后方可重新入选标签空间"
+      "suggested_action": null
     },
     {
-      "id": 133,
+      "id": 136,
       "name": "shimoe_koharu",
       "booru_tag": "shimoe_koharu",
       "aliases": [],
@@ -1649,7 +1649,7 @@
       "suggested_action": null
     },
     {
-      "id": 134,
+      "id": 137,
       "name": "shirasu_azusa",
       "booru_tag": "shirasu_azusa",
       "aliases": [],
@@ -1661,7 +1661,7 @@
       "suggested_action": null
     },
     {
-      "id": 135,
+      "id": 138,
       "name": "shirosaki_hana",
       "booru_tag": "shirosaki_hana",
       "aliases": [],
@@ -1673,7 +1673,7 @@
       "suggested_action": null
     },
     {
-      "id": 136,
+      "id": 139,
       "name": "sigewinne",
       "booru_tag": "sigewinne",
       "aliases": [],
@@ -1685,7 +1685,7 @@
       "suggested_action": null
     },
     {
-      "id": 137,
+      "id": 140,
       "name": "silver_wolf",
       "booru_tag": "silver_wolf",
       "aliases": [],
@@ -1697,7 +1697,7 @@
       "suggested_action": null
     },
     {
-      "id": 138,
+      "id": 141,
       "name": "sin_mal",
       "booru_tag": "sin_mal",
       "aliases": [],
@@ -1709,7 +1709,7 @@
       "suggested_action": null
     },
     {
-      "id": 139,
+      "id": 142,
       "name": "sora_ginko",
       "booru_tag": "sora_ginko",
       "aliases": [],
@@ -1721,7 +1721,7 @@
       "suggested_action": null
     },
     {
-      "id": 140,
+      "id": 143,
       "name": "sorasaki_hina",
       "booru_tag": "sorasaki_hina",
       "aliases": [],
@@ -1733,7 +1733,7 @@
       "suggested_action": null
     },
     {
-      "id": 141,
+      "id": 144,
       "name": "sunaookami_shiroko",
       "booru_tag": "sunaookami_shiroko",
       "aliases": [],
@@ -1745,7 +1745,7 @@
       "suggested_action": null
     },
     {
-      "id": 142,
+      "id": 145,
       "name": "sushang",
       "booru_tag": "sushang",
       "aliases": [],
@@ -1757,7 +1757,7 @@
       "suggested_action": null
     },
     {
-      "id": 143,
+      "id": 146,
       "name": "takanashi_hoshino",
       "booru_tag": "takanashi_hoshino",
       "aliases": [],
@@ -1769,7 +1769,7 @@
       "suggested_action": null
     },
     {
-      "id": 144,
+      "id": 147,
       "name": "tendou_aris",
       "booru_tag": "tendou_aris",
       "aliases": [],
@@ -1781,7 +1781,7 @@
       "suggested_action": null
     },
     {
-      "id": 145,
+      "id": 148,
       "name": "theresa_apocalypse",
       "booru_tag": "theresa_apocalypse",
       "aliases": [],
@@ -1793,7 +1793,7 @@
       "suggested_action": null
     },
     {
-      "id": 146,
+      "id": 149,
       "name": "tingyun",
       "booru_tag": "tingyun",
       "aliases": [],
@@ -1805,7 +1805,7 @@
       "suggested_action": null
     },
     {
-      "id": 147,
+      "id": 150,
       "name": "tohka_yatogami",
       "booru_tag": "tohka_yatogami",
       "aliases": [],
@@ -1817,7 +1817,7 @@
       "suggested_action": null
     },
     {
-      "id": 148,
+      "id": 151,
       "name": "tomoe_mami",
       "booru_tag": "tomoe_mami",
       "aliases": [],
@@ -1829,7 +1829,7 @@
       "suggested_action": null
     },
     {
-      "id": 149,
+      "id": 152,
       "name": "topaz",
       "booru_tag": "topaz",
       "aliases": [],
@@ -1841,7 +1841,7 @@
       "suggested_action": null
     },
     {
-      "id": 150,
+      "id": 153,
       "name": "tsukiyo",
       "booru_tag": "tsukiyo",
       "aliases": [],
@@ -1853,7 +1853,7 @@
       "suggested_action": null
     },
     {
-      "id": 151,
+      "id": 154,
       "name": "tsushima_yoshiko",
       "booru_tag": "tsushima_yoshiko",
       "aliases": [],
@@ -1865,7 +1865,7 @@
       "suggested_action": null
     },
     {
-      "id": 152,
+      "id": 155,
       "name": "verina",
       "booru_tag": "verina",
       "aliases": [],
@@ -1877,7 +1877,7 @@
       "suggested_action": null
     },
     {
-      "id": 153,
+      "id": 156,
       "name": "xiangling",
       "booru_tag": "xiangling",
       "aliases": [],
@@ -1889,7 +1889,7 @@
       "suggested_action": null
     },
     {
-      "id": 154,
+      "id": 157,
       "name": "xueyi",
       "booru_tag": "xueyi",
       "aliases": [],
@@ -1901,19 +1901,19 @@
       "suggested_action": null
     },
     {
-      "id": null,
+      "id": 158,
       "name": "yae_miko",
       "booru_tag": "yae_miko",
       "aliases": [],
-      "status": "EXCLUDED_FROM_LABEL_SPACE",
+      "status": "ACTIVE",
       "img_count": 1,
       "distinct_post_ids": 1,
-      "eval_status": "NOT_IN_LABEL_SPACE",
+      "eval_status": "TRAIN_ONLY",
       "collect_target": 30,
-      "suggested_action": "补图到 >=3 张（含 val/test 各 >=1）后方可重新入选标签空间"
+      "suggested_action": null
     },
     {
-      "id": 155,
+      "id": 159,
       "name": "yanfei",
       "booru_tag": "yanfei",
       "aliases": [],
@@ -1925,7 +1925,7 @@
       "suggested_action": null
     },
     {
-      "id": 156,
+      "id": 160,
       "name": "yashajin_teni",
       "booru_tag": "yashajin_teni",
       "aliases": [],
@@ -1937,7 +1937,7 @@
       "suggested_action": null
     },
     {
-      "id": 157,
+      "id": 161,
       "name": "yazawa_nico",
       "booru_tag": "yazawa_nico",
       "aliases": [],
@@ -1949,7 +1949,7 @@
       "suggested_action": null
     },
     {
-      "id": 158,
+      "id": 162,
       "name": "yoimiya",
       "booru_tag": "yoimiya",
       "aliases": [],
@@ -1961,7 +1961,7 @@
       "suggested_action": null
     },
     {
-      "id": 159,
+      "id": 163,
       "name": "yoshino_(date_a_live)",
       "booru_tag": "yoshino_(date_a_live)",
       "aliases": [],
@@ -1973,7 +1973,7 @@
       "suggested_action": null
     },
     {
-      "id": 160,
+      "id": 164,
       "name": "youhu",
       "booru_tag": "youhu",
       "aliases": [],
@@ -1985,7 +1985,7 @@
       "suggested_action": null
     },
     {
-      "id": 161,
+      "id": 165,
       "name": "yukong",
       "booru_tag": "yukong",
       "aliases": [],
@@ -1997,7 +1997,7 @@
       "suggested_action": null
     },
     {
-      "id": 162,
+      "id": 166,
       "name": "yuni_(princess_connect!)",
       "booru_tag": "yuni_(princess_connect!)",
       "aliases": [],
@@ -2009,7 +2009,7 @@
       "suggested_action": null
     },
     {
-      "id": 163,
+      "id": 167,
       "name": "yunjin",
       "booru_tag": "yunjin",
       "aliases": [],
@@ -2021,7 +2021,7 @@
       "suggested_action": null
     },
     {
-      "id": 164,
+      "id": 168,
       "name": "yunli",
       "booru_tag": "yunli",
       "aliases": [],
@@ -2033,7 +2033,7 @@
       "suggested_action": null
     },
     {
-      "id": 165,
+      "id": 169,
       "name": "yuuka",
       "booru_tag": "yuuka",
       "aliases": [],
@@ -2045,7 +2045,7 @@
       "suggested_action": null
     },
     {
-      "id": 166,
+      "id": 170,
       "name": "yuuki_asuna",
       "booru_tag": "yuuki_asuna",
       "aliases": [],

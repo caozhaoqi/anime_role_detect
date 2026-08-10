@@ -29,7 +29,16 @@ RESULT_VIDEO_DIR = os.path.join(project_root, "data", "video_results")
 os.makedirs(RESULT_VIDEO_DIR, exist_ok=True)
 
 # Model Service URL (用于模型推理模式)
-MODEL_SERVICE_URL = "http://localhost:8001"
+# 模型服务地址：优先环境变量覆盖，默认走 service_config（MODEL_SERVICE_URL，端口 8000）。
+# 修复（#1 视频 inference 模式根因）：原硬编码 http://localhost:8001（api-service 端口），
+# 导致 multimedia 调模型服务全部 connection refused → 视频识别永远无结果。
+import os as _os
+from src.core.config.service_config import get_service_config as _get_sc
+
+MODEL_SERVICE_URL = _os.environ.get(
+    "MODEL_SERVICE_URL",
+    getattr(_get_sc(), "MODEL_SERVICE_URL", "http://localhost:8000"),
+)
 
 # 线程锁
 inference_lock = threading.Lock()
@@ -113,7 +122,14 @@ def classify_with_model(image: Image.Image, model_name: str = "efficientnet_b0")
         if response.status_code == 200:
             result = response.json()
             if result.get('success'):
-                return [(result.get('role', 'unknown'), result.get('similarity', 0.0))]
+                # 修复（#1 视频 inference 模式根因）：predict_image 返回
+                # {"success": true, "data": {"role":..., "similarity":...}}，
+                # role/similarity 在 data 内层；原实现读顶层导致恒为 unknown/0.0，
+                # 被置信度阈值过滤 → 视频识别永远无结果。
+                data = result.get('data') or {}
+                role = data.get('role') or result.get('role') or 'unknown'
+                similarity = data.get('similarity', result.get('similarity', 0.0))
+                return [(role, float(similarity))]
         return []
     except Exception as e:
         logger.error(f"Model classification error: {e}")

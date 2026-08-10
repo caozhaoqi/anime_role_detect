@@ -6,13 +6,28 @@ export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
     const file = formData.get('file') as File;
-    const frameInterval = formData.get('frame_interval') as string;
-    const confidenceThreshold = formData.get('confidence_threshold') as string;
+
+    // 修复（2026-08-10，视频识别 0 结果根因）：
+    // VideoPanel 以 URL query 传参（recognition_mode/model_name/frame_interval/...），
+    // 后端 multimedia /video/recognize 也用 Query 参数接收。
+    // 原实现从 formData 读参数（恒 undefined）且用 formData 转发（后端 Query 读不到）
+    // → recognition_mode 恒默认 search → 无 CLIP 索引 → 恒 0 结果。
+    // 现在：从 URL query 读取，并透传到后端 URL query。
+    const searchParams = request.nextUrl.searchParams;
+    const qs = new URLSearchParams();
+    for (const key of ['frame_interval', 'confidence_threshold', 'recognition_mode', 'model_name', 'top_k']) {
+      const val = searchParams.get(key);
+      if (val) {
+        qs.set(key, val);
+      }
+    }
 
     console.log('请求参数:', {
       hasFile: !!file,
-      frameInterval: frameInterval,
-      confidenceThreshold: confidenceThreshold
+      recognition_mode: qs.get('recognition_mode'),
+      frame_interval: qs.get('frame_interval'),
+      confidence_threshold: qs.get('confidence_threshold'),
+      model_name: qs.get('model_name'),
     });
 
     if (!file) {
@@ -20,17 +35,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 });
     }
 
-    const backendUrl = 'http://127.0.0.1:8080/api/video/recognize';
+    const qsStr = qs.toString();
+    const backendUrl = `http://127.0.0.1:8080/api/video/recognize${qsStr ? `?${qsStr}` : ''}`;
     console.log('准备转发请求到后端API:', backendUrl);
 
     const backendFormData = new FormData();
     backendFormData.append('file', file);
-    if (frameInterval) {
-      backendFormData.append('frame_interval', frameInterval);
-    }
-    if (confidenceThreshold) {
-      backendFormData.append('confidence_threshold', confidenceThreshold);
-    }
 
     const authHeader = request.headers.get('authorization');
     const headers: HeadersInit = {};

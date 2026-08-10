@@ -23,6 +23,12 @@ SPLIT_DIR = ROOT / "data" / "splits" / "seed42"
 REG_PATH = ROOT / "configs" / "class_registry_v2.json"
 EXTS = (".jpg", ".jpeg", ".png", ".webp")
 
+# T3-1 已把这 4 个类移出标签空间（各只有 1 张图且全在 train，永远不可评测）。
+# 它们的目录仍在 final_dataset 里，所以下面按目录枚举时必须显式跳过，
+# 否则本脚本会把 registry 静默地重新灌回 171 类、并把 id 全部错位一格。
+# 详见 scripts/_clean_label_space_167.py。
+EXCLUDED_FROM_LABEL_SPACE = {"jean", "rina", "seth", "yae_miko"}
+
 # 与 merge_duplicate_roles.py 的 DUPLICATE_MAP 合并侧保持一致（短名 → 全名）
 MERGED_TO_FULL = {
     "azusa": "shirasu_azusa",
@@ -44,7 +50,9 @@ def main():
     # 实际含图目录（sorted，与 c2i 推导一致）
     dirs = sorted(
         d.name for d in FINAL_DIR.iterdir()
-        if d.is_dir() and any(f.suffix.lower() in EXTS for f in d.iterdir())
+        if d.is_dir()
+        and d.name not in EXCLUDED_FROM_LABEL_SPACE
+        and any(f.suffix.lower() in EXTS for f in d.iterdir())
     )
 
     merged_short_names = set(MERGED_TO_FULL.keys())
@@ -67,6 +75,12 @@ def main():
             "collect_target": meta.get("collect_target", 30),
             "suggested_action": meta.get("suggested_action"),
         })
+
+    # 被移出标签空间的类：保留旧条目（id=None / 非 ACTIVE），否则重冻一次就
+    # 丢掉"它们为什么不在标签空间里"这条记录，下次有人又会把它们加回来。
+    for name in sorted(EXCLUDED_FROM_LABEL_SPACE):
+        if name in old_by_name:
+            new_classes.append(old_by_name[name])
 
     # 合并侧写入 deleted
     new_deleted = list(old.get("deleted", []))

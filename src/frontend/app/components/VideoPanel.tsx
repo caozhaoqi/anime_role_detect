@@ -27,7 +27,9 @@ export default function VideoPanel({ darkMode, accessToken }: VideoPanelProps) {
   const [results, setResults] = useState<VideoResult[]>([]);
   const [frameInterval, setFrameInterval] = useState(1.0);
   const [confidenceThreshold, setConfidenceThreshold] = useState(0.5);
-  const [recognitionMode, setRecognitionMode] = useState("search");
+  // 默认使用模型推理模式：search(搜图)模式依赖本地 FAISS 索引，
+  // 索引未构建时恒返回空结果（2026-08-09 修复，见 deliverables/architecture/）
+  const [recognitionMode, setRecognitionMode] = useState("inference");
   const [modelName, setModelName] = useState("efficientnet_b3_loli_optimized_v2_20260529_133654");
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);

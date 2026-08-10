@@ -44,7 +44,7 @@ except ImportError:
     logger.warning("bcrypt 模块不可用，回退到 SHA-256 加盐哈希")
 
 try:
-    from src.core.config.database import get_db, init_database, create_tables
+    from src.core.config.database import get_db, init_database, create_tables, get_database_mode, is_remote_connected
     from src.models.database_models import UserModel
     HAS_DATABASE = True
 except ImportError as e:
@@ -308,19 +308,31 @@ class AuthService:
             try:
                 init_database()
                 create_tables()
-                try:
-                    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-                        future = executor.submit(self._ensure_default_users)
-                        future.result(timeout=10)
-                    self.storage_mode = self.STORAGE_MODE_MYSQL
-                    mysql_ok = True
-                    logger.info("认证服务初始化完成（MySQL 模式）")
-                except concurrent.futures.TimeoutError:
-                    logger.warning("[DEGRADE] MySQL _ensure_default_users 超时(10s)")
-                except Exception as e:
-                    logger.warning(f"[DEGRADE] MySQL 创建默认用户失败: {e}")
+                # 修复（storage_mode 上报不一致，2026-08-10）：
+                # 仅当 DATABASE_MODE 为 remote/dual 且 MySQL 操作成功才判定 MySQL 模式。
+                # 原实现只看"初始化+建表+建默认用户成功"——在 SQLite 引擎上同样会成功，
+                # 导致 sqlite 降级时误报 MySQL（k8s 里 api-service 降级 sqlite 仍报 mysql）。
+                db_mode = get_database_mode()
+                if db_mode in ("remote", "dual") and is_remote_connected():
+                    try:
+                        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                            future = executor.submit(self._ensure_default_users)
+                            future.result(timeout=10)
+                        self.storage_mode = self.STORAGE_MODE_MYSQL
+                        mysql_ok = True
+                        logger.info(f"认证服务初始化完成（MySQL 模式，DATABASE_MODE={db_mode}）")
+                    except concurrent.futures.TimeoutError:
+                        logger.warning("[DEGRADE] MySQL _ensure_default_users 超时(10s)")
+                    except Exception as e:
+                        logger.warning(f"[DEGRADE] MySQL 创建默认用户失败: {e}")
+                else:
+                    logger.info(
+                        f"数据库模式 {db_mode}（远程未连接），认证存储走 SQLite/内存层"
+                        if db_mode in ("remote", "dual")
+                        else f"数据库模式 {db_mode}，认证存储走 SQLite/内存层"
+                    )
             except Exception as e:
-                logger.warning(f"[DEGRADE] MySQL 初始化失败: {e}")
+                logger.warning(f"[DEGRADE] 数据库初始化失败: {e}")
 
         # ---- 第 2 层：尝试 SQLite ----
         if not mysql_ok:

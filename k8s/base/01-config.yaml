@@ -10,9 +10,17 @@ data:
   REDIS_CACHE_DB: "0"
   REDIS_QUEUE_DB: "1"
   RABBITMQ_HOST: "rabbitmq"
+  # 数据库模式：dual = 远程 MySQL + 本地 SQLite 双引擎（MySQL 不可用自动降级）
+  DATABASE_MODE: "dual"
   DB_HOST: "mysql"
   DB_NAME: "anime_role_detect"
   DB_USER: "anime_user"
+  # database.py 使用 MYSQL_* 构造连接串（见 src/core/config/database.py），
+  # 与 DB_* 是两套键，必须同时提供（DB_* 供其它模块兼容读取）。
+  MYSQL_HOST: "mysql"
+  MYSQL_PORT: "3306"
+  MYSQL_USER: "anime_user"
+  MYSQL_DB: "anime_role_detect"
   MODEL_SERVICE_HOST: "model-service"
   API_SERVICE_HOST: "api-service"
   LOG_LEVEL: "INFO"

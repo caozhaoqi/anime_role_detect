@@ -26,6 +26,10 @@ replicas:
   - name: frontend
     count: 1
 
+# 删除孤儿 PVC（volumes 已换 emptyDir，PVC 无人挂载 → Pending）
+patchesStrategicMerge:
+  - delete-orphan-pvcs.yaml
+
 patches:
   # ---------- 基础设施：降配 + PVC→emptyDir ----------
   - target:

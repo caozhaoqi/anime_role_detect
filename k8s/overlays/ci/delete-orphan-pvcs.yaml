@@ -1,0 +1,33 @@
+# ============================================================
+# CI Overlay — 删除孤儿 PVC（2026-08-10）
+# CI（kind 单节点）已将 Deployment 的 volumes 替换为 emptyDir，
+# 但这些 PVC 资源仍被 apply → 无人挂载 → WaitForFirstConsumer 永真 Pending。
+# CI 无需持久化，直接删除这 4 个 PVC（mysql 的 PVC 由 StatefulSet 生成，保留）。
+# ============================================================
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: redis-pvc
+  namespace: anime-role-detect
+$patch: delete
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: rabbitmq-pvc
+  namespace: anime-role-detect
+$patch: delete
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: multimedia-pvc
+  namespace: anime-role-detect
+$patch: delete
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: model-pvc
+  namespace: anime-role-detect
+$patch: delete
