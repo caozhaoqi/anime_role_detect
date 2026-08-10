@@ -127,7 +127,7 @@ spec:
         - name: celery-worker
           image: ardc/api-service:latest
           imagePullPolicy: IfNotPresent
-          command: ["celery", "-A", "src.core.celery_config", "worker", "--loglevel=info", "-Q", "image_queue,video_queue,model_queue"]
+          command: ["celery", "-A", "src.core.celery_config", "worker", "--loglevel=info", "-Q", "image_queue,video_queue,model_queue,celery"]
           envFrom:
             - configMapRef:
                 name: ard-config

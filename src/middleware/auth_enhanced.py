@@ -289,6 +289,8 @@ async def auth_middleware(request: Request, call_next):
         "/api/redoc",
         "/api/openapi.json",
         "/api/health",
+        "/live",
+        "/ready",
         "/api/models",
         "/api/auth/login",
         "/api/auth/refresh",

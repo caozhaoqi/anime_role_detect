@@ -2,6 +2,13 @@
 """
 生成完整的基准测试报告
 """
+import sys
+import os
+
+# 解码策略统一由 src/common/preprocess 提供，导入即继承，本脚本不再自行设置。
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+import src.common.preprocess  # noqa: E402
+
 import torch
 import torch.nn as nn
 from torchvision import transforms, models
@@ -11,9 +18,6 @@ from PIL import Image, ImageFile
 import warnings
 from datetime import datetime
 
-# 允许加载截断的图片
-ImageFile.LOAD_TRUNCATED_IMAGES = True
-Image.MAX_IMAGE_PIXELS = None
 warnings.filterwarnings('ignore')
 
 # 配置

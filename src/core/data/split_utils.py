@@ -125,6 +125,146 @@ def post_group_key(character: str, filename) -> str:
     return f"file:{character}/{post_id}"
 
 
+# --------------------------------------------------------------------------
+# 内容级去重：sha256 + union-find
+# --------------------------------------------------------------------------
+# 为什么 post_group_key 不够：
+#   post_group_key 只看文件名里的 post-id。同一张图被不同 post 号收录时
+#   （例如 itsuka_kotori/936671.png 与 itsuka_kotori/5373390.png 字节完全相同），
+#   它们的 post-id 不同 -> 被判为两个组 -> 可能一个进 train 一个进 test。
+#   实测全库 sha256 在 seed42 切分下确有 1 处 train/test 内容泄漏。
+#   这是结构性缺陷（换 seed 只是换一处泄漏），不是概率问题。
+# 修法：对全库算 sha256，把"共享同一内容哈希"的 post-id 用并查集合并成超级组，
+#   再喂给 grouped_split，使字节相同的图必然落在同一 split。
+# --------------------------------------------------------------------------
+
+
+def sha256_file(path, chunk_size: int = 1 << 20) -> str:
+    """Stream a file through sha256 (constant memory, safe for large images)."""
+    h = hashlib.sha256()
+    with open(path, "rb") as fh:
+        for block in iter(lambda: fh.read(chunk_size), b""):
+            h.update(block)
+    return h.hexdigest()
+
+
+class _UnionFind:
+    """Minimal union-find with path compression + union by size."""
+
+    def __init__(self):
+        self.parent: Dict[str, str] = {}
+        self.size: Dict[str, int] = {}
+
+    def add(self, x: str) -> None:
+        if x not in self.parent:
+            self.parent[x] = x
+            self.size[x] = 1
+
+    def find(self, x: str) -> str:
+        self.add(x)
+        root = x
+        while self.parent[root] != root:
+            root = self.parent[root]
+        while self.parent[x] != root:  # path compression
+            self.parent[x], x = root, self.parent[x]
+        return root
+
+    def union(self, a: str, b: str) -> None:
+        ra, rb = self.find(a), self.find(b)
+        if ra == rb:
+            return
+        if self.size[ra] < self.size[rb]:
+            ra, rb = rb, ra
+        self.parent[rb] = ra
+        self.size[ra] += self.size[rb]
+
+
+def merge_groups_by_content(
+    groups: Sequence[str], hashes: Sequence[str]
+) -> Tuple[List[str], Dict[str, int]]:
+    """Merge post-id groups that share identical file content into super-groups.
+
+    Args:
+        groups: per-item post-id group key (from ``post_group_key``).
+        hashes: parallel per-item sha256 of the file bytes.
+
+    Returns:
+        ``(super_groups, stats)`` where ``super_groups`` is a parallel list of
+        merged group keys, and ``stats`` reports how much merging happened.
+    """
+    if len(groups) != len(hashes):
+        raise ValueError("groups and hashes must have equal length")
+
+    uf = _UnionFind()
+    for g in groups:
+        uf.add(g)
+
+    # Every group that shares a content hash gets unioned with the first one.
+    first_group_for_hash: Dict[str, str] = {}
+    for g, h in zip(groups, hashes):
+        if h in first_group_for_hash:
+            uf.union(first_group_for_hash[h], g)
+        else:
+            first_group_for_hash[h] = g
+
+    super_groups = [f"sg:{uf.find(g)}" for g in groups]
+    n_before, n_after = len(set(groups)), len(set(super_groups))
+    stats = {
+        "groups_before_merge": n_before,
+        "groups_after_merge": n_after,
+        "groups_merged_away": n_before - n_after,
+        "duplicate_content_clusters": sum(
+            1 for h, c in _count(hashes).items() if c > 1
+        ),
+        "duplicate_files": sum(c for c in _count(hashes).values() if c > 1),
+    }
+    return super_groups, stats
+
+
+def _count(seq: Sequence[str]) -> Dict[str, int]:
+    out: Dict[str, int] = defaultdict(int)
+    for x in seq:
+        out[x] += 1
+    return dict(out)
+
+
+def _assert_no_content_leak(
+    hashes: Sequence[str],
+    train_idx: Sequence[int],
+    val_idx: Sequence[int],
+    test_idx: Sequence[int],
+    items: Optional[Sequence[str]] = None,
+) -> None:
+    """FATAL if the same file CONTENT (sha256) appears in two different splits.
+
+    This is stricter than ``_assert_no_post_id_leak``: it catches the
+    "same image published under two different post-ids" case that filename
+    based grouping is blind to.
+    """
+
+    def hashes_in(idxs: Sequence[int]):
+        return {hashes[i] for i in idxs}
+
+    t, v, e = hashes_in(train_idx), hashes_in(val_idx), hashes_in(test_idx)
+    pairs = (("train", "val", t & v), ("train", "test", t & e), ("val", "test", v & e))
+    problems = [(a, b, ov) for a, b, ov in pairs if ov]
+    if problems:
+        lines = []
+        for a, b, ov in problems:
+            lines.append(f"  {a} ∩ {b}: {len(ov)} colliding content hash(es)")
+            if items is not None:
+                by_hash: Dict[str, List[str]] = defaultdict(list)
+                for i, h in enumerate(hashes):
+                    if h in ov:
+                        by_hash[h].append(str(items[i]))
+                for h in sorted(ov)[:5]:
+                    lines.append(f"    {h[:12]}… -> {by_hash[h]}")
+        raise AssertionError(
+            "FATAL CONTENT LEAKAGE: identical file bytes span multiple splits\n"
+            + "\n".join(lines)
+        )
+
+
 def grouped_split(
     items: Sequence,
     groups: Sequence,
@@ -305,6 +445,107 @@ def _promote_zero_shot_to_train(items, groups, characters, train_idx, val_idx, t
     return new_train, new_val, new_test
 
 
+# --------------------------------------------------------------------------
+# 每类 test 非零门禁
+# --------------------------------------------------------------------------
+# 动机：sapphire(18 张) / tsukiyo(21 张) / theresa_apocalypse(5 张) 在旧切分里
+# test 样本数为 0，却没有任何报错——它们被静默排除出评测，MacroF1 里根本没有
+# 它们的贡献，指标因此虚高。必须硬门禁拦住这种情况。
+#
+# 但门禁不能"只报错不解决"：total==1 的类（jean/rina/seth/yae_miko）物理上
+# 不可能同时出现在 train 和 test。所以策略是：
+#   1) 先尝试自动补救——把该类的某个超级组整体从 train 挪到 test
+#      （整组搬迁，不破坏无泄漏保证；且保证 train 侧不被搬空）
+#   2) 补救后仍为 0 且样本量足够的类 -> FATAL
+#   3) 样本量本就不够的类 -> 标记 EXCLUDED_FROM_EVAL，进 summary，不 FATAL
+# --------------------------------------------------------------------------
+
+MIN_EVAL_CLASS_SIZE = 3
+
+
+def _guarantee_test_coverage(
+    groups: Sequence[str],
+    characters: Sequence[str],
+    train_idx: Sequence[int],
+    val_idx: Sequence[int],
+    test_idx: Sequence[int],
+    min_eval_class_size: int = MIN_EVAL_CLASS_SIZE,
+) -> Tuple[List[int], List[int], List[int], List[str]]:
+    """Move one whole group from train -> test for classes with zero test images.
+
+    Only classes that (a) have >= ``min_eval_class_size`` images overall and
+    (b) own >= 2 groups in train are remediated, so train never loses its last
+    group for a class. Moving a WHOLE group preserves the leak-free guarantee.
+
+    Returns ``(train_idx, val_idx, test_idx, remediated_characters)``.
+    """
+    train_idx = list(train_idx)
+    val_idx = list(val_idx)
+    test_idx = list(test_idx)
+
+    total_per_char: Dict[str, int] = defaultdict(int)
+    for c in characters:
+        total_per_char[c] += 1
+    test_per_char: Dict[str, int] = defaultdict(int)
+    for i in test_idx:
+        test_per_char[characters[i]] += 1
+
+    # class -> {group -> [train indices]}
+    train_groups_per_char: Dict[str, Dict[str, List[int]]] = defaultdict(
+        lambda: defaultdict(list)
+    )
+    for i in train_idx:
+        train_groups_per_char[characters[i]][groups[i]].append(i)
+
+    remediated: List[str] = []
+    moved: set = set()
+    for char in sorted(total_per_char):
+        if test_per_char.get(char, 0) > 0:
+            continue
+        if total_per_char[char] < min_eval_class_size:
+            continue  # inherently ineligible; reported as EXCLUDED_FROM_EVAL
+        gmap = train_groups_per_char.get(char, {})
+        if len(gmap) < 2:
+            continue  # moving the only group would make the class zero-shot
+        # Smallest group first -> least disruption to the 70/15/15 ratio.
+        victim = min(sorted(gmap), key=lambda g: (len(gmap[g]), g))
+        moved.update(gmap[victim])
+        remediated.append(char)
+
+    if moved:
+        train_idx = [i for i in train_idx if i not in moved]
+        test_idx = sorted(test_idx + sorted(moved))
+    return train_idx, val_idx, test_idx, remediated
+
+
+def _assert_test_coverage(
+    per_class: Dict[str, Dict[str, int]],
+    min_eval_class_size: int = MIN_EVAL_CLASS_SIZE,
+) -> List[str]:
+    """FATAL if an ACTIVE class (>= ``min_eval_class_size`` images) has 0 test.
+
+    Returns the list of classes legitimately excluded from evaluation because
+    they are too small to be split at all.
+    """
+    violations = [
+        f"{c}(total={r['total']}, train={r['train']}, val={r['val']}, test=0)"
+        for c, r in sorted(per_class.items())
+        if r["test"] == 0 and r["total"] >= min_eval_class_size
+    ]
+    if violations:
+        raise AssertionError(
+            "FATAL: "
+            f"{len(violations)} ACTIVE class(es) have ZERO test samples and would be "
+            "silently excluded from evaluation (MacroF1 would be inflated):\n  "
+            + "\n  ".join(violations)
+        )
+    return sorted(
+        c
+        for c, r in per_class.items()
+        if r["test"] == 0 and r["total"] < min_eval_class_size
+    )
+
+
 def make_character_grouped_split(
     dataset_dir,
     out_dir=None,
@@ -312,6 +553,9 @@ def make_character_grouped_split(
     seed: int = 42,
     label_map: Optional[Dict[str, int]] = None,
     min_train_guarantee: bool = True,
+    content_hash_grouping: bool = True,
+    enforce_test_coverage: bool = True,
+    min_eval_class_size: int = MIN_EVAL_CLASS_SIZE,
 ) -> Dict[str, object]:
     """Scan ``final_dataset`` and emit post-id-grouped, leak-free splits.
 
@@ -360,6 +604,13 @@ def make_character_grouped_split(
     if not items:
         raise ValueError(f"no images found under {dataset_dir}")
 
+    # ---- content-hash grouping (sha256 + union-find) ----------------------
+    hashes: List[str] = []
+    merge_stats: Dict[str, int] = {}
+    if content_hash_grouping:
+        hashes = [sha256_file(dataset_dir / rel) for rel in items]
+        groups, merge_stats = merge_groups_by_content(groups, hashes)
+
     train_idx, val_idx, test_idx = grouped_split(
         items, groups, ratios=ratios, seed=seed
     )
@@ -367,6 +618,17 @@ def make_character_grouped_split(
         train_idx, val_idx, test_idx = _promote_zero_shot_to_train(
             items, groups, characters, train_idx, val_idx, test_idx
         )
+
+    # ---- per-class test coverage remediation ------------------------------
+    remediated_chars: List[str] = []
+    if enforce_test_coverage:
+        train_idx, val_idx, test_idx, remediated_chars = _guarantee_test_coverage(
+            groups, characters, train_idx, val_idx, test_idx, min_eval_class_size
+        )
+
+    # ---- hard gate #1: no identical CONTENT across splits ------------------
+    if content_hash_grouping:
+        _assert_no_content_leak(hashes, train_idx, val_idx, test_idx, items)
 
     def build(idxs: Sequence[int]) -> List[ImageSample]:
         return [
@@ -416,11 +678,23 @@ def make_character_grouped_split(
         else:
             eval_status[c] = "TRAIN_ONLY"
 
+    # ---- hard gate #2: every ACTIVE class must have >=1 test sample --------
+    excluded_from_eval: List[str] = []
+    if enforce_test_coverage:
+        excluded_from_eval = _assert_test_coverage(per_class, min_eval_class_size)
+
     summary = {
-        "schema_version": 2,
+        "schema_version": 3,
         "seed": seed,
         "ratios": {"train": ratios[0], "val": ratios[1], "test": ratios[2]},
-        "group_by": "post_id",
+        "group_by": "content_sha256+post_id" if content_hash_grouping else "post_id",
+        "content_hash_grouping": content_hash_grouping,
+        "content_merge_stats": merge_stats,
+        "enforce_test_coverage": enforce_test_coverage,
+        "min_eval_class_size": min_eval_class_size,
+        "test_coverage_remediated_characters": remediated_chars,
+        "num_excluded_from_eval": len(excluded_from_eval),
+        "excluded_from_eval_characters": excluded_from_eval,
         "min_train_guarantee": min_train_guarantee,
         "num_classes": len(label_map),
         "num_classes_with_images": len(chars_with_images),

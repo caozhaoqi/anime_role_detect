@@ -7,9 +7,17 @@ import sys
 from src.core.classification.general_classification import get_classifier
 from src.config import InferenceConfig
 DEFAULT_INDEX_PATH = InferenceConfig.DEFAULT_INDEX_PATH
-from src.services.coreml_model import coreml_model, classify_with_coreml
+# CoreML 为可选依赖：模块缺失时置 None，use_coreml 分支自动跳过。
+# 修复（#1 深层根因）：原为硬 import，src/services/coreml_model.py 不存在时
+# classification_service 整个模块无法导入，视频识别 import 阶段即失败。
+try:
+    from src.services.coreml_model import coreml_model, classify_with_coreml
+except Exception:
+    coreml_model = None
+    classify_with_coreml = None
 from src.core.log_fusion.log_recorder import record_classification_log
 from src.services.model.clip_faiss_adapter import get_clip_faiss_classifier
+from src.services.model_service.classifiers import EfficientNetClassifier
 
 # 使用全局日志系统
 from src.core.logging import get_enhanced_logger as get_logger, log_system, log_inference, log_error
@@ -156,62 +164,55 @@ def classify_image(
             f"✅ 图像分类成功: {os.path.basename(image_path)}, 角色: {role}, 相似度: {similarity:.4f}, 模式: {mode}"
         )
     else:
-        # 使用默认模型
+        # 使用 EfficientNet 专用模型直接分类（与 model_service 主路径一致）
+        # 修复（#1 根因）：原实现调用 GeneralClassification.classify_image，
+        # 但该类仅有 classify() 方法，导致 use_model=True 时抛 AttributeError，
+        # 被上层吞掉返回 None —— 视频/批量识别全部“无法识别”。
         logger.info(
-            f"使用默认模型进行分类，use_model={use_model}, use_attributes={use_attributes}, model_name={model_name}"
+            f"使用 EfficientNet 专用模型分类: {image_path}, use_model={use_model}, use_attributes={use_attributes}, model_name={model_name}"
         )
         try:
-            # 如果model_name为default且use_model为True，设置model为None，避免加载不存在的模型
-            if model_name == "default" and use_model:
-                logger.info("模型名称为default，使用CLIP + FAISS索引进行分类")
-                classifier = get_classifier(index_path=DEFAULT_INDEX_PATH, model=None)
-                role, similarity, boxes, attributes, text_detections = classifier.classify_image(
-                    image_path, use_model=False, use_attributes=use_attributes
-                )
+            from PIL import Image
+
+            classifier = EfficientNetClassifier.get_instance()
+            pil_image = Image.open(image_path).convert("RGB")
+            if classifier.model is None:
+                role, similarity = "未知角色", 0.0
+                mode = "EfficientNet (未加载)"
             else:
-                classifier = get_classifier(index_path=DEFAULT_INDEX_PATH, model=model_name)
-                role, similarity, boxes, attributes, text_detections = classifier.classify_image(
-                    image_path, use_model=use_model, use_attributes=use_attributes
-                )
-        except ValueError as e:
-            if "索引尚未构建或加载" in str(e):
-                logger.warning("索引文件不存在，返回默认结果")
-                role = "未知角色"
-                similarity = 0.0
-                boxes = []
-                attributes = []
-                text_detections = []
-            else:
-                raise e
-        if use_attributes:
-            mode = "属性模型 (带属性预测)"
-        else:
-            # 如果model_name为default且use_model为True，使用CLIP + FAISS索引
-            if model_name == "default" and use_model:
-                mode = "通用索引 (CLIP)"
-            else:
-                mode = "专用模型 (EfficientNet)" if use_model else "通用索引 (CLIP)"
-        # 记录分类日志
-        record_classification_log(
-            image_path=image_path,
-            role=role,
-            similarity=similarity,
-            feature=[],  # 简化处理，不记录特征向量
-            boxes=boxes,
-            metadata={
-                "mode": mode,
-                "use_model": use_model,
-                "use_attributes": use_attributes,
-                "attributes": [attr["tag"] for attr in attributes[:5]] if attributes else {},
-                "text_detections": (
-                    [text["text"] for text in text_detections[:5]] if text_detections else {}
-                ),
-            },
-        )
-        # 使用全局日志系统记录推理结果
-        log_inference(
-            f"✅ 图像分类成功: {os.path.basename(image_path)}, 角色: {role}, 相似度: {similarity:.4f}, 模式: {mode}, 属性: {len(attributes)}个, 文本: {len(text_detections)}个"
-        )
+                role, similarity, _ = classifier.classify_with_features(pil_image)
+                mode = "专用模型 (EfficientNet)"
+            boxes = []
+            if use_attributes:
+                try:
+                    from src.core.tagging.wd_vit_v3_tagger import WDViTV3Tagger
+                    tagger = WDViTV3Tagger.get_instance()
+                    tagger.load_model(force_reload=False)
+                    attributes = tagger.generate_tags(pil_image)
+                except Exception as te:
+                    logger.warning(f"属性标签生成失败: {te}")
+                    attributes = []
+            # 记录分类日志
+            record_classification_log(
+                image_path=image_path,
+                role=role,
+                similarity=similarity,
+                feature=[],  # 简化处理，不记录特征向量
+                boxes=boxes,
+                metadata={
+                    "mode": mode,
+                    "use_model": use_model,
+                    "use_attributes": use_attributes,
+                    "attributes": [attr["tag"] for attr in attributes[:5]] if attributes else {},
+                },
+            )
+            # 使用全局日志系统记录推理结果
+            log_inference(
+                f"✅ 图像分类成功: {os.path.basename(image_path)}, 角色: {role}, 相似度: {similarity:.4f}, 模式: {mode}, 属性: {len(attributes)}个"
+            )
+        except Exception as e:
+            logger.error(f"EfficientNet 分类失败: {e}")
+            role, similarity, boxes, mode, attributes, text_detections = "未知角色", 0.0, [], "EfficientNet (错误)", [], []
 
     # 安全检查：处理无穷大或无效值
     if similarity is None or not isinstance(similarity, (int, float)):

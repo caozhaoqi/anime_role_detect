@@ -12,7 +12,6 @@ from PIL import Image
 import torch
 from transformers import CLIPProcessor, CLIPModel
 from src.core.logging import get_enhanced_logger as get_logger
-from src.services.cache_service.cache_service import get_image_transform
 
 logger = get_logger("general_classification")
 

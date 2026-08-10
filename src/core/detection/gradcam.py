@@ -86,13 +86,11 @@ class GradCAMGenerator:
 
         self.model = model
         self.idx_to_class = {v: k for k, v in class_to_idx.items()}
-        self.transform = transforms.Compose([
-            transforms.Resize((224, 224)),
-            transforms.ToTensor(),
-            transforms.Normalize(
-                mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
-            ),
-        ])
+        # 预处理委托给 src/common/preprocess 唯一真源（256），
+        # 保证 Grad-CAM 热力图与线上推理看到的是同一张输入。
+        from src.common.preprocess import build_eval_transform
+
+        self.transform = build_eval_transform()
         # Grad-CAM 目标层：features[8]（最后一个 MBConv block 后的 Conv2dNormActivation）
         self.target_layer = model.features[8]
 
@@ -122,6 +120,12 @@ class GradCAMGenerator:
         saved_gradient = [None]
 
         try:
+            # 统一到 RGB：本函数下方可视化分支已做 image.convert("RGB")，但张量分支
+            # 此前直接送 transform，RGBA/CMYK 会产出 4 通道、L/P 产出 1 通道，
+            # 与模型首层 3 通道不匹配而抛 RuntimeError。两条分支必须一致。
+            if image.mode != "RGB":
+                image = image.convert("RGB")
+
             orig_w, orig_h = image.size
 
             # 1. 预处理：FP32 tensor，开启梯度

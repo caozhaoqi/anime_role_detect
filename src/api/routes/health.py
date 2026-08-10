@@ -275,15 +275,6 @@ async def detailed_health_check():
         health_status["services"]["recognition"] = {"status": "down", "error": str(e)}
 
     try:
-        from src.services.messaging.message_queue_service import MessageQueueService
-        mq_service = MessageQueueService()
-        mq_status = "up" if mq_service.connection and mq_service.channel else "down"
-        health_status["services"]["message_queue"] = {"status": mq_status}
-    except Exception as e:
-        logger.error(f"健康检查-消息队列失败: {e}")
-        health_status["services"]["message_queue"] = {"status": "down", "error": str(e)}
-
-    try:
         import psutil
         memory = psutil.virtual_memory()
         health_status["services"]["system"] = {

@@ -214,7 +214,6 @@ async def _init_services():
         ("认证服务", "src.services.support.auth_service", "init_auth_service"),
         ("缓存管理器", "src.services.cache_service", "init_cache_manager"),
         ("监控服务", "src.services.support.monitoring_service", "init_monitoring_service"),
-        ("消息队列服务", "src.services.messaging.message_queue_service", "init_message_queue_service"),
         ("熔断器服务", "src.services.support.circuit_breaker_service", "init_circuit_breaker_service"),
         ("模型版本服务", "src.services.model.model_version_service", "init_model_version_service"),
         ("多模型服务", "src.services.model.multi_model_service", "init_multi_model_service"),
@@ -232,6 +231,18 @@ async def _init_services():
             logger.warning(f"{service_name}导入失败（可选模块）: {e}")
         except Exception as e:
             logger.error(f"{service_name}初始化失败: {e}")
+
+    # P1-4 续：装配 core 端口（解耦 core→services 反向依赖，见 ADR-003）
+    # 具体实现来自 services 层；core 在导入期不再依赖 services，可独立测试。
+    try:
+        from src.core.ports import register_port
+        from src.services.processor.model_loader import get_role_predictor
+        from src.services.processor.feature_processor import process_image_features
+        register_port("role_predictor", get_role_predictor)
+        register_port("feature_processor", process_image_features)
+        logger.info("core 端口装配完成（role_predictor / feature_processor）")
+    except Exception as e:
+        logger.warning(f"core 端口装配失败（可选）: {e}")
 
 
 async def _shutdown_services():

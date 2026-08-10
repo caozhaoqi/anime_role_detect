@@ -1,0 +1,1040 @@
+{
+  "Bailu": {
+    "cn": "白露",
+    "en": "Bailu",
+    "jp": "",
+    "anime": "崩坏星穹铁道"
+  },
+  "Clara": {
+    "cn": "克拉拉",
+    "en": "Clara",
+    "jp": "",
+    "anime": "崩坏星穹铁道"
+  },
+  "Diona": {
+    "cn": "迪奥娜",
+    "en": "Diona",
+    "jp": "",
+    "anime": "原神"
+  },
+  "Eyjafjalla": {
+    "cn": "艾雅法拉",
+    "en": "Eyjafjalla",
+    "jp": "",
+    "anime": "明日方舟"
+  },
+  "Firefly": {
+    "cn": "流萤",
+    "en": "Firefly",
+    "jp": "",
+    "anime": "崩坏星穹铁道"
+  },
+  "Furina": {
+    "cn": "芙宁娜",
+    "en": "Furina",
+    "jp": "",
+    "anime": "原神"
+  },
+  "Herta": {
+    "cn": "黑塔",
+    "en": "Herta",
+    "jp": "",
+    "anime": "崩坏星穹铁道"
+  },
+  "Kachina": {
+    "cn": "卡齐娜",
+    "en": "Kachina",
+    "jp": "",
+    "anime": "原神"
+  },
+  "Kirara": {
+    "cn": "绮良良",
+    "en": "Kirara",
+    "jp": "",
+    "anime": "原神"
+  },
+  "Klee": {
+    "cn": "可莉",
+    "en": "Klee",
+    "jp": "",
+    "anime": "原神"
+  },
+  "Plana": {
+    "cn": "普拉娜",
+    "en": "Plana",
+    "jp": "",
+    "anime": "蔚蓝档案"
+  },
+  "Rosmontis": {
+    "cn": "迷迭香",
+    "en": "Rosmontis",
+    "jp": "",
+    "anime": "明日方舟"
+  },
+  "Suzuran": {
+    "cn": "铃兰",
+    "en": "Suzuran",
+    "jp": "",
+    "anime": "明日方舟"
+  },
+  "Tribbie": {
+    "cn": "缇宝",
+    "en": "Tribbie",
+    "jp": "",
+    "anime": "崩坏星穹铁道"
+  },
+  "Yaoyao": {
+    "cn": "瑶瑶",
+    "en": "Yaoyao",
+    "jp": "",
+    "anime": "原神"
+  },
+  "aglaea": {
+    "cn": "阿格莱亚",
+    "en": "Aglaea",
+    "jp": "",
+    "anime": "崩坏星穹铁道"
+  },
+  "aino": {
+    "cn": "爱诺",
+    "en": "Aino",
+    "jp": "",
+    "anime": "公主连接"
+  },
+  "ajitani_hifumi": {
+    "cn": "阿慈谷日富美",
+    "en": "Hifumi Ajitani",
+    "jp": "",
+    "anime": "蔚蓝档案"
+  },
+  "akemi_homura": {
+    "cn": "晓美焰",
+    "en": "Homura Akemi",
+    "jp": "",
+    "anime": "魔法少女小圆"
+  },
+  "amami_nodoka": {
+    "cn": "天见和香",
+    "en": "Nodoka Amami",
+    "jp": "",
+    "anime": "蔚蓝档案"
+  },
+  "amau_ako": {
+    "cn": "天雨亚子",
+    "en": "Ako Amau",
+    "jp": "",
+    "anime": "蔚蓝档案"
+  },
+  "amber": {
+    "cn": "安柏",
+    "en": "amber",
+    "jp": "",
+    "anime": "原神"
+  },
+  "anya_forger": {
+    "cn": "阿尼亚",
+    "en": "Anya Forger",
+    "jp": "",
+    "anime": "间谍过家家"
+  },
+  "aqua": {
+    "cn": "阿库娅",
+    "en": "Aqua",
+    "jp": "",
+    "anime": "为美好的世界献上祝福"
+  },
+  "arlecchino": {
+    "cn": "阿蕾奇诺",
+    "en": "arlecchino",
+    "jp": "",
+    "anime": "原神"
+  },
+  "arona": {
+    "cn": "阿洛娜",
+    "en": "Arona",
+    "jp": "",
+    "anime": "蔚蓝档案"
+  },
+  "asagi_mutsuki": {
+    "cn": "浅黄睦月",
+    "en": "Mutsuki Asagi",
+    "jp": "",
+    "anime": "蔚蓝档案"
+  },
+  "azusa": {
+    "cn": "白洲梓",
+    "en": "Azusa Shirasu",
+    "jp": "",
+    "anime": "蔚蓝档案"
+  },
+  "beatrice_(re:zero)": {
+    "cn": "碧翠丝",
+    "en": "Beatrice",
+    "jp": "",
+    "anime": "Re:从零开始的异世界生活"
+  },
+  "black_swan": {
+    "cn": "黑天鹅",
+    "en": "black_swan",
+    "jp": "",
+    "anime": "崩坏星穹铁道"
+  },
+  "bronya_zaychik": {
+    "cn": "布洛妮娅",
+    "en": "Bronya",
+    "jp": "",
+    "anime": "崩坏3"
+  },
+  "castorice": {
+    "cn": "卡斯托莉丝",
+    "en": "Castorice",
+    "jp": "",
+    "anime": "崩坏星穹铁道"
+  },
+  "ceobe": {
+    "cn": "刻俄柏",
+    "en": "Ceobe",
+    "jp": "",
+    "anime": "明日方舟"
+  },
+  "charlotte": {
+    "cn": "夏洛蒂",
+    "en": "charlotte",
+    "jp": "",
+    "anime": "原神"
+  },
+  "chloe_von_einzbern": {
+    "cn": "克洛伊",
+    "en": "liner Prisma Illya Chloe von Einzbern",
+    "jp": "",
+    "anime": "Fate/kaleid"
+  },
+  "cirno": {
+    "cn": "琪露诺",
+    "en": "Cirno",
+    "jp": "",
+    "anime": "东方Project"
+  },
+  "clorinde": {
+    "cn": "克洛琳德",
+    "en": "clorinde",
+    "jp": "",
+    "anime": "原神"
+  },
+  "collei": {
+    "cn": "柯莱",
+    "en": "Collei",
+    "jp": "",
+    "anime": "原神"
+  },
+  "corin_wickes": {
+    "cn": "可琳·威克斯",
+    "en": "Corin Wickes",
+    "jp": "",
+    "anime": "绝区零"
+  },
+  "cyrene": {
+    "cn": "昔涟",
+    "en": "Cyrene",
+    "jp": "",
+    "anime": "崩坏 星穹铁道"
+  },
+  "doma_umaru": {
+    "cn": "小埋",
+    "en": "Umaru Doma",
+    "jp": "",
+    "anime": "干物妹小埋"
+  },
+  "dori": {
+    "cn": "多莉",
+    "en": "Dori",
+    "jp": "",
+    "anime": "原神"
+  },
+  "dunyarzad": {
+    "cn": "迪娜泽黛",
+    "en": "Dunyarzad",
+    "jp": "",
+    "anime": "原神"
+  },
+  "ellen": {
+    "cn": "艾莲",
+    "en": "Ellen",
+    "jp": "",
+    "anime": "绝区零"
+  },
+  "encore": {
+    "cn": "安可",
+    "en": "Encore",
+    "jp": "",
+    "anime": "鸣潮"
+  },
+  "evelyn": {
+    "cn": "伊芙琳",
+    "en": "Evelyn",
+    "jp": "",
+    "anime": "绝区零"
+  },
+  "faruzan": {
+    "cn": "珐露珊",
+    "en": "faruzan",
+    "jp": "",
+    "anime": "原神"
+  },
+  "fern": {
+    "cn": "菲伦",
+    "en": "Fern",
+    "jp": "",
+    "anime": "葬送的芙莉莲"
+  },
+  "fischl": {
+    "cn": "菲谢尔",
+    "en": "fischl",
+    "jp": "",
+    "anime": "原神"
+  },
+  "flandre_scarlet": {
+    "cn": "芙兰朵露",
+    "en": "Flandre Scarlet",
+    "jp": "",
+    "anime": "东方Project"
+  },
+  "fu_xuan": {
+    "cn": "符玄",
+    "en": "Fu Xuan",
+    "jp": "",
+    "anime": "崩坏星穹铁道"
+  },
+  "fuka": {
+    "cn": "符华",
+    "en": "Fuka",
+    "jp": "",
+    "anime": "崩坏3"
+  },
+  "griseo": {
+    "cn": "格蕾修",
+    "en": "Griseo",
+    "jp": "",
+    "anime": "崩坏3"
+  },
+  "hachikuji_mayoi": {
+    "cn": "八九寺真宵",
+    "en": "Mayoi Hachikuji",
+    "jp": "",
+    "anime": "物语系列"
+  },
+  "hakurei_reimu": {
+    "cn": "博丽灵梦",
+    "en": "Reimu Hakurei",
+    "jp": "",
+    "anime": "东方Project"
+  },
+  "hanya": {
+    "cn": "旱亚",
+    "en": "Hanya",
+    "jp": "",
+    "anime": "咒术回战"
+  },
+  "hiiragi_kagami": {
+    "cn": "柊镜",
+    "en": "Kagami Hiiragi",
+    "jp": "",
+    "anime": "幸运星"
+  },
+  "hiiragi_tsukasa": {
+    "cn": "柊司",
+    "en": "Tsukasa Hiiragi",
+    "jp": "",
+    "anime": "幸运星"
+  },
+  "himesaka_noa": {
+    "cn": "姬坂乃爱",
+    "en": "Himesaka Noa",
+    "jp": "",
+    "anime": "天使降临我身边"
+  },
+  "hinatsuru_ai": {
+    "cn": "雏鹤爱",
+    "en": "Ai Hinatsuru",
+    "jp": "",
+    "anime": "龙王的工作"
+  },
+  "hook": {
+    "cn": "虎克",
+    "en": "Hook",
+    "jp": "",
+    "anime": "崩坏星穹铁道"
+  },
+  "hoshimachi_suisei": {
+    "cn": "星街彗星",
+    "en": "hoshimachi_suisei",
+    "jp": "",
+    "anime": "Hololive"
+  },
+  "hoshino_hinata": {
+    "cn": "星野日向",
+    "en": "Hoshino Hinata",
+    "jp": "",
+    "anime": "天使降临我身边"
+  },
+  "hoto_cocoa": {
+    "cn": "香风心爱",
+    "en": "Cocoa Hoto",
+    "jp": "",
+    "anime": "请问您今天要来点兔子吗"
+  },
+  "houshou_marine": {
+    "cn": "宝钟玛琳",
+    "en": "houshou_marine",
+    "jp": "",
+    "anime": "Hololive"
+  },
+  "hu_tao": {
+    "cn": "胡桃",
+    "en": "Hu Tao",
+    "jp": "",
+    "anime": "原神"
+  },
+  "ibuki": {
+    "cn": "伊吹",
+    "en": "Ibuki",
+    "jp": "",
+    "anime": "蔚蓝档案"
+  },
+  "ichinose_asuna": {
+    "cn": "一之濑明日奈",
+    "en": "Ichinose Asuna",
+    "jp": "",
+    "anime": "偶像荣耀"
+  },
+  "illyasviel_von_einzbern": {
+    "cn": "伊莉雅",
+    "en": "illyasviel_von_einzbern",
+    "jp": "",
+    "anime": "Fate/kaleid liner Prisma Illya"
+  },
+  "ilulu_(maid_dragon)": {
+    "cn": "伊露露",
+    "en": "Ilulu",
+    "jp": "",
+    "anime": "小林家的龙女仆"
+  },
+  "itsuka_kotori": {
+    "cn": "五河琴里",
+    "en": "Kotori Itsuka",
+    "jp": "",
+    "anime": "约会大作战"
+  },
+  "izayoi_nonomi": {
+    "cn": "十六夜野乃美",
+    "en": "Nonomi Izayoi",
+    "jp": "",
+    "anime": "蔚蓝档案"
+  },
+  "izumi_konata": {
+    "cn": "泉此方",
+    "en": "Konata Izumi",
+    "jp": "",
+    "anime": "幸运星"
+  },
+  "izumi_sagiri": {
+    "cn": "纱雾",
+    "en": "Sagiri Izumi",
+    "jp": "",
+    "anime": "埃罗芒阿老师"
+  },
+  "izuna": {
+    "cn": "久田泉奈",
+    "en": "Izuna Kuda",
+    "jp": "",
+    "anime": "蔚蓝档案"
+  },
+  "jade": {
+    "cn": "翡翠",
+    "en": "Jade",
+    "jp": "",
+    "anime": "崩坏星穹铁道"
+  },
+  "jean": {
+    "cn": "琴",
+    "en": "jean",
+    "jp": "",
+    "anime": "原神"
+  },
+  "kafka": {
+    "cn": "卡芙卡",
+    "en": "kafka",
+    "jp": "",
+    "anime": "崩坏星穹铁道"
+  },
+  "kafuu_chino": {
+    "cn": "香风智乃",
+    "en": "Chino",
+    "jp": "",
+    "anime": "请问您今天要来点兔子吗"
+  },
+  "kagura_(onmyouji)": {
+    "cn": "神乐",
+    "en": "Kagura",
+    "jp": "",
+    "anime": "阴阳师"
+  },
+  "kaname_madoka": {
+    "cn": "鹿目圆",
+    "en": "Madoka Kaname",
+    "jp": "",
+    "anime": "魔法少女小圆"
+  },
+  "kanna_kamui": {
+    "cn": "康娜",
+    "en": "Kanna",
+    "jp": "",
+    "anime": "小林家的龙女仆"
+  },
+  "keqing": {
+    "cn": "刻晴",
+    "en": "keqing",
+    "jp": "",
+    "anime": "原神"
+  },
+  "kirisame_marisa": {
+    "cn": "雾雨魔理沙",
+    "en": "Marisa Kirisame",
+    "jp": "",
+    "anime": "东方Project"
+  },
+  "kokomi": {
+    "cn": "珊瑚宫心海",
+    "en": "kokomi",
+    "jp": "",
+    "anime": "原神"
+  },
+  "koleda_belobog": {
+    "cn": "珂蕾妲",
+    "en": "Koleda Belobog",
+    "jp": "",
+    "anime": "绝区零"
+  },
+  "komeiji_koishi": {
+    "cn": "古明地恋",
+    "en": "Koishi Komeiji",
+    "jp": "",
+    "anime": "东方Project"
+  },
+  "komeiji_satori": {
+    "cn": "古明地觉",
+    "en": "Satori Komeiji",
+    "jp": "",
+    "anime": "东方Project"
+  },
+  "konomori_kanon": {
+    "cn": "小之森夏音",
+    "en": "Konomori Kanon",
+    "jp": "",
+    "anime": "天使降临我身边"
+  },
+  "kosaka_wakamo": {
+    "cn": "狐坂若藻",
+    "en": "Wakamo Kosaka",
+    "jp": "",
+    "anime": "蔚蓝档案"
+  },
+  "kuda_izuna": {
+    "cn": "久田泉奈",
+    "en": "Izuna Kuda",
+    "jp": "",
+    "anime": "蔚蓝档案"
+  },
+  "kujou_sara": {
+    "cn": "九条裟罗",
+    "en": "kujou_sara",
+    "jp": "",
+    "anime": "原神"
+  },
+  "kurodate_haruna": {
+    "cn": "黑馆羽留奈",
+    "en": "Haruna Kurodate",
+    "jp": "",
+    "anime": "蔚蓝档案"
+  },
+  "kuromi_serika": {
+    "cn": "黑见芹香",
+    "en": "Serika Kuromi",
+    "jp": "",
+    "anime": "蔚蓝档案"
+  },
+  "kurumi_tokisaki": {
+    "cn": "时崎狂三",
+    "en": "Kurumi Tokisaki",
+    "jp": "",
+    "anime": "约会大作战"
+  },
+  "kyaru_(princess_connect!)": {
+    "cn": "凯露",
+    "en": "Kyaru",
+    "jp": "",
+    "anime": "公主连接"
+  },
+  "kyouka_(princess_connect!)": {
+    "cn": "镜华",
+    "en": "Kyouka",
+    "jp": "",
+    "anime": "公主连接"
+  },
+  "layla": {
+    "cn": "莱依拉",
+    "en": "layla",
+    "jp": "",
+    "anime": "原神"
+  },
+  "lisa": {
+    "cn": "丽莎",
+    "en": "lisa",
+    "jp": "",
+    "anime": "原神"
+  },
+  "lita": {
+    "cn": "莉塔拉",
+    "en": "Lita",
+    "jp": "",
+    "anime": "少女前线2：追放"
+  },
+  "lucia_(punishing:_gray_raven)": {
+    "cn": "露西亚",
+    "en": "lucia_(punishing:_gray_raven)",
+    "jp": "",
+    "anime": "战双帕弥什"
+  },
+  "lumine": {
+    "cn": "荧",
+    "en": "Lumine",
+    "jp": "",
+    "anime": "原神"
+  },
+  "lynx": {
+    "cn": "玲可",
+    "en": "lynx",
+    "jp": "",
+    "anime": "崩坏星穹铁道"
+  },
+  "march_7th": {
+    "cn": "三月七",
+    "en": "March 7th",
+    "jp": "",
+    "anime": "崩坏星穹铁道"
+  },
+  "miki_sayaka": {
+    "cn": "美树沙耶香",
+    "en": "Sayaka Miki",
+    "jp": "",
+    "anime": "魔法少女小圆"
+  },
+  "mint": {
+    "cn": "薄荷",
+    "en": "Mint",
+    "jp": "",
+    "anime": "异环"
+  },
+  "misono_mika": {
+    "cn": "圣园未花",
+    "en": "Mika Misono",
+    "jp": "",
+    "anime": "蔚蓝档案"
+  },
+  "miyamizu_mitsuha": {
+    "cn": "宫水三叶",
+    "en": "Mitsuha Miyamizu",
+    "jp": "",
+    "anime": "你的名字"
+  },
+  "mona": {
+    "cn": "莫娜",
+    "en": "mona",
+    "jp": "",
+    "anime": "原神"
+  },
+  "nahida": {
+    "cn": "纳西妲",
+    "en": "Nahida",
+    "jp": "",
+    "anime": "原神"
+  },
+  "natasha": {
+    "cn": "娜塔莎",
+    "en": "Natasha",
+    "jp": "",
+    "anime": "崩坏星穹铁道"
+  },
+  "nekomiya_mana": {
+    "cn": "猫宫玛娜",
+    "en": "Nekomiya Mana",
+    "jp": "",
+    "anime": "蔚蓝档案"
+  },
+  "nilou": {
+    "cn": "妮露",
+    "en": "nilou",
+    "jp": "",
+    "anime": "原神"
+  },
+  "ningguang": {
+    "cn": "凝光",
+    "en": "ningguang",
+    "jp": "",
+    "anime": "原神"
+  },
+  "nishimiya_shouko": {
+    "cn": "西宫硝子",
+    "en": "nishimiya_shouko",
+    "jp": "",
+    "anime": "声之形"
+  },
+  "noelle": {
+    "cn": "诺艾尔",
+    "en": "noelle",
+    "jp": "",
+    "anime": "原神"
+  },
+  "okusora_ayane": {
+    "cn": "奥空绫音",
+    "en": "Ayane Okusora",
+    "jp": "",
+    "anime": "蔚蓝档案"
+  },
+  "onikata_kayoko": {
+    "cn": "鬼方佳代子",
+    "en": "Kayoko Onikata",
+    "jp": "",
+    "anime": "蔚蓝档案"
+  },
+  "paimon": {
+    "cn": "派蒙",
+    "en": "Paimon",
+    "jp": "",
+    "anime": "原神"
+  },
+  "pearl": {
+    "cn": "珀尔",
+    "en": "Pearl",
+    "jp": "",
+    "anime": "公主连接"
+  },
+  "pelagia": {
+    "cn": "佩拉吉娅",
+    "en": "Pelagia",
+    "jp": "",
+    "anime": "少女前线"
+  },
+  "piper": {
+    "cn": "派派",
+    "en": "Piper",
+    "jp": "",
+    "anime": "绝区零"
+  },
+  "popukar": {
+    "cn": "泡普卡",
+    "en": "Popukar",
+    "jp": "",
+    "anime": "明日方舟"
+  },
+  "qingque": {
+    "cn": "青雀",
+    "en": "Qingque",
+    "jp": "",
+    "anime": "崩坏星穹铁道"
+  },
+  "qiqi": {
+    "cn": "七七",
+    "en": "Qiqi",
+    "jp": "",
+    "anime": "原神"
+  },
+  "ram_(re:zero)": {
+    "cn": "拉姆",
+    "en": "Ram",
+    "jp": "",
+    "anime": "Re:从零开始的异世界生活"
+  },
+  "rem_(re:zero)": {
+    "cn": "蕾姆",
+    "en": "Rem",
+    "jp": "",
+    "anime": "Re:从零开始的异世界生活"
+  },
+  "rikuhachima_aru": {
+    "cn": "陆八魔爱露",
+    "en": "Aru Rikuhachima",
+    "jp": "",
+    "anime": "蔚蓝档案"
+  },
+  "rina": {
+    "cn": "丽娜",
+    "en": "Rina",
+    "jp": "",
+    "anime": "绝区零"
+  },
+  "robin": {
+    "cn": "知更鸟",
+    "en": "Robin",
+    "jp": "",
+    "anime": "崩坏星穹铁道"
+  },
+  "rosaria": {
+    "cn": "罗莎莉亚",
+    "en": "rosaria",
+    "jp": "",
+    "anime": "原神"
+  },
+  "sandrone": {
+    "cn": "桑多涅",
+    "en": "Sandrone",
+    "jp": "",
+    "anime": "原神"
+  },
+  "sapphire": {
+    "cn": "纱菲",
+    "en": "Sapphire",
+    "jp": "",
+    "anime": "公主连接"
+  },
+  "sayu": {
+    "cn": "早柚",
+    "en": "Sayu",
+    "jp": "",
+    "anime": "原神"
+  },
+  "seele_vollerei": {
+    "cn": "希儿",
+    "en": "Seele Vollerei",
+    "jp": "",
+    "anime": "崩坏学园2"
+  },
+  "serval": {
+    "cn": "希露瓦",
+    "en": "Serval",
+    "jp": "",
+    "anime": "崩坏星穹铁道"
+  },
+  "seth": {
+    "cn": "赛斯",
+    "en": "Seth",
+    "jp": "",
+    "anime": "绝区零"
+  },
+  "shimoe_koharu": {
+    "cn": "下江小春",
+    "en": "Koharu Shimoe",
+    "jp": "",
+    "anime": "蔚蓝档案"
+  },
+  "shirasu_azusa": {
+    "cn": "白洲梓",
+    "en": "Azusa Shirasu",
+    "jp": "",
+    "anime": "蔚蓝档案"
+  },
+  "shiroko": {
+    "cn": "砂狼白子",
+    "en": "Shiroko Sunaookami",
+    "jp": "",
+    "anime": "蔚蓝档案"
+  },
+  "shirosaki_hana": {
+    "cn": "白咲花",
+    "en": "Shirosaki Hana",
+    "jp": "",
+    "anime": "天使降临我身边"
+  },
+  "sigewinne": {
+    "cn": "希格雯",
+    "en": "Sigewinne",
+    "jp": "",
+    "anime": "原神"
+  },
+  "silver_wolf": {
+    "cn": "银狼",
+    "en": "Silver Wolf",
+    "jp": "",
+    "anime": "崩坏星穹铁道"
+  },
+  "sin_mal": {
+    "cn": "杏·玛尔",
+    "en": "sin_mal",
+    "jp": "",
+    "anime": "崩坏三"
+  },
+  "sora_ginko": {
+    "cn": "空银子",
+    "en": "Ginko Sora",
+    "jp": "",
+    "anime": "龙王的工作"
+  },
+  "sorasaki_hina": {
+    "cn": "空崎日奈",
+    "en": "Hina Sorasaki",
+    "jp": "",
+    "anime": "蔚蓝档案"
+  },
+  "sunaookami_shiroko": {
+    "cn": "砂狼白子",
+    "en": "Shiroko Sunaookami",
+    "jp": "",
+    "anime": "蔚蓝档案"
+  },
+  "sushang": {
+    "cn": "素裳",
+    "en": "sushang",
+    "jp": "",
+    "anime": "崩坏星穹铁道"
+  },
+  "takanashi_hoshino": {
+    "cn": "小鸟游星野",
+    "en": "Hoshino Takanashi",
+    "jp": "",
+    "anime": "蔚蓝档案"
+  },
+  "tendou_aris": {
+    "cn": "天童爱丽丝",
+    "en": "Aris",
+    "jp": "",
+    "anime": "蔚蓝档案"
+  },
+  "theresa_apocalypse": {
+    "cn": "德丽莎",
+    "en": "Theresa",
+    "jp": "",
+    "anime": "崩坏3"
+  },
+  "tingyun": {
+    "cn": "停云",
+    "en": "tingyun",
+    "jp": "",
+    "anime": "崩坏星穹铁道"
+  },
+  "tohka_yatogami": {
+    "cn": "夜刀神十香",
+    "en": "Tohka Yatogami",
+    "jp": "",
+    "anime": "约会大作战"
+  },
+  "tomoe_mami": {
+    "cn": "巴麻美",
+    "en": "Mami Tomoe",
+    "jp": "",
+    "anime": "魔法少女小圆"
+  },
+  "topaz": {
+    "cn": "托帕",
+    "en": "topaz",
+    "jp": "",
+    "anime": "崩坏星穹铁道"
+  },
+  "tsukiyo": {
+    "cn": "月千夜",
+    "en": "Tsukiyo",
+    "jp": "",
+    "anime": "偶像荣耀"
+  },
+  "tsushima_yoshiko": {
+    "cn": "津岛善子",
+    "en": "tsushima_yoshiko",
+    "jp": "",
+    "anime": "Love Live!"
+  },
+  "verina": {
+    "cn": "维里奈",
+    "en": "Verina",
+    "jp": "",
+    "anime": "鸣潮"
+  },
+  "xiangling": {
+    "cn": "香菱",
+    "en": "xiangling",
+    "jp": "",
+    "anime": "原神"
+  },
+  "xueyi": {
+    "cn": "雪衣",
+    "en": "Xueyi",
+    "jp": "",
+    "anime": "崩坏星穹铁道"
+  },
+  "yae_miko": {
+    "cn": "八重神子",
+    "en": "yae_miko",
+    "jp": "",
+    "anime": "原神"
+  },
+  "yanfei": {
+    "cn": "烟绯",
+    "en": "yanfei",
+    "jp": "",
+    "anime": "原神"
+  },
+  "yashajin_teni": {
+    "cn": "夜叉神天衣",
+    "en": "yashajin_teni",
+    "jp": "",
+    "anime": "龙王的工作"
+  },
+  "yazawa_nico": {
+    "cn": "矢泽妮可",
+    "en": "Nico Yazawa",
+    "jp": "",
+    "anime": "Love Live!"
+  },
+  "yoimiya": {
+    "cn": "宵宫",
+    "en": "yoimiya",
+    "jp": "",
+    "anime": "原神"
+  },
+  "yoshino_(date_a_live)": {
+    "cn": "四糸乃",
+    "en": "Yoshino",
+    "jp": "",
+    "anime": "约会大作战"
+  },
+  "youhu": {
+    "cn": "釉瑚",
+    "en": "Youhu",
+    "jp": "",
+    "anime": "鸣潮"
+  },
+  "yukong": {
+    "cn": "驭空",
+    "en": "yukong",
+    "jp": "",
+    "anime": "崩坏星穹铁道"
+  },
+  "yuni_(princess_connect!)": {
+    "cn": "优妮",
+    "en": "Yuni",
+    "jp": "",
+    "anime": "公主连接"
+  },
+  "yunjin": {
+    "cn": "云堇",
+    "en": "Yunjin",
+    "jp": "",
+    "anime": "原神"
+  },
+  "yunli": {
+    "cn": "云璃",
+    "en": "Yunli",
+    "jp": "",
+    "anime": "崩坏星穹铁道"
+  },
+  "yuuka": {
+    "cn": "优香",
+    "en": "yuuka",
+    "jp": "",
+    "anime": "蔚蓝档案"
+  },
+  "yuuki_asuna": {
+    "cn": "结城明日奈",
+    "en": "Yuuki Asuna",
+    "jp": "",
+    "anime": "刀剑神域"
+  }
+}

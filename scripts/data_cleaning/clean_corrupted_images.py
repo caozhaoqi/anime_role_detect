@@ -6,14 +6,18 @@
 from pathlib import Path
 from PIL import Image
 import logging
+import sys
+
+# 解码策略统一收口到 src/common/preprocess 唯一真源（导入即继承截断图/像素上限策略）
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
+# 数据清洗需逐张扫描原始大图，个别图可能超过模块级 2 亿像素上限——
+# 走显式例外 API，而非裸写 Image.MAX_IMAGE_PIXELS = None 全局关闭防护。
+from src.common.preprocess import allow_unlimited_pixels  # noqa: E402
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 DATA_DIR = Path("/Users/caozhaoqi/PycharmProjects/anime_role_detect/data/training_dataset")
-
-# PIL设置：允许加载截断的图片
-Image.MAX_IMAGE_PIXELS = None
 
 # 统计
 total_checked = 0
@@ -25,25 +29,27 @@ logger.info("开始检查图片文件完整性")
 logger.info("=" * 70)
 logger.info(f"数据目录: {DATA_DIR}")
 
-# 检查所有图片
-for char_dir in DATA_DIR.iterdir():
-    if char_dir.is_dir():
-        char_name = char_dir.name
-        logger.info(f"检查角色: {char_name}")
+# 检查所有图片（在显式例外通道内：临时关闭解压炸弹上限以扫描原始超大图，
+# 退出上下文后自动恢复模块级上限，不会污染后续任何解码）
+with allow_unlimited_pixels():
+    for char_dir in DATA_DIR.iterdir():
+        if char_dir.is_dir():
+            char_name = char_dir.name
+            logger.info(f"检查角色: {char_name}")
 
-        for img_file in char_dir.iterdir():
-            if img_file.is_file() and img_file.suffix.lower() in [".jpg", ".jpeg", ".png", ".webp"]:
-                total_checked += 1
+            for img_file in char_dir.iterdir():
+                if img_file.is_file() and img_file.suffix.lower() in [".jpg", ".jpeg", ".png", ".webp"]:
+                    total_checked += 1
 
-                try:
-                    # 尝试打开图片
-                    with Image.open(img_file) as img:
-                        # 尝试加载图片数据
-                        img.load()
-                    valid_files.append(img_file)
-                except (OSError, IOError, Image.DecompressionBombError) as e:
-                    corrupted_files.append(img_file)
-                    logger.warning(f"  发现损坏文件: {img_file.name} - {e}")
+                    try:
+                        # 尝试打开图片
+                        with Image.open(img_file) as img:
+                            # 尝试加载图片数据
+                            img.load()
+                        valid_files.append(img_file)
+                    except (OSError, IOError, Image.DecompressionBombError) as e:
+                        corrupted_files.append(img_file)
+                        logger.warning(f"  发现损坏文件: {img_file.name} - {e}")
 
 logger.info("=" * 70)
 logger.info(f"检查完成:")

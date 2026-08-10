@@ -31,8 +31,11 @@ import cv2
 import numpy as np
 from PIL import Image
 
-# 允许处理超大图
-Image.MAX_IMAGE_PIXELS = None
+# 解码策略统一收口到 src/common/preprocess 唯一真源
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
+# 数据清洗需逐张扫描原始大图，个别可能超模块级 2 亿像素上限——走显式例外通道
+# （不再裸写 Image.MAX_IMAGE_PIXELS = None 全局关闭防护）
+from src.common.preprocess import allow_unlimited_pixels  # noqa: E402
 
 logging.basicConfig(
     level=logging.INFO,
@@ -91,9 +94,11 @@ def classify_image(img_path_str: str, cascade, img_size_limit: int = 2000) -> di
         "error": None,
     }
 
-    # 读取图片
+    # 读取图片（在显式例外通道内：临时关闭解压炸弹上限以扫描原始超大图，
+    # 退出上下文后自动恢复模块级上限）
     try:
-        pil_img = Image.open(img_path_str).convert("RGB")
+        with allow_unlimited_pixels():
+            pil_img = Image.open(img_path_str).convert("RGB")
         # 超大图缩放加速
         w, h = pil_img.size
         scale = 1.0

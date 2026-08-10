@@ -2,6 +2,13 @@
 """
 生成混淆矩阵，分析 Furina/Paimon/Xiangling 等角色被误识别成谁
 """
+import sys
+import os
+
+# 解码策略统一由 src/common/preprocess 提供，导入即继承，本脚本不再自行设置。
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+import src.common.preprocess  # noqa: E402
+
 import torch
 import torch.nn as nn
 from torchvision import transforms, models
@@ -12,8 +19,6 @@ import warnings
 import numpy as np
 from collections import defaultdict
 
-ImageFile.LOAD_TRUNCATED_IMAGES = True
-Image.MAX_IMAGE_PIXELS = None
 warnings.filterwarnings('ignore')
 
 TRAIN_DATA_DIR = Path("/Users/caozhaoqi/PycharmProjects/anime_role_detect/data/training_dataset")

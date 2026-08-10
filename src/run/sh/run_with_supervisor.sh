@@ -29,7 +29,14 @@ error() {
 # 创建日志目录
 create_log_dir() {
     info "创建日志目录..."
-    # 创建所有 service 需要的子目录
+    # 从 supervisord.conf 自动推导所有 service 日志目录，避免新增 program 时遗漏建目录
+    local conf="$SUPERVISOR_CONF"
+    if [ -f "$conf" ]; then
+        grep -oE 'logs/services/[^/]+' "$conf" | sort -u | while IFS= read -r rel; do
+            [ -n "$rel" ] && mkdir -p "$PROJECT_DIR/$rel"
+        done
+    fi
+    # 兜底：硬编码列表（conf 解析异常时仍保证核心目录存在）
     local services=(
         model-service api-service api-gateway multimedia-service
         search-service inference-worker monitoring frontend log-viewer

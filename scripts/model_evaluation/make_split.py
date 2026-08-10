@@ -71,7 +71,36 @@ def main():
     print("train_character_coverage:", summary["train_character_coverage"])
     print("zero_shot_characters:", summary["zero_shot_characters"])
     print("split_hash:", summary["split_hash"][:16])
-    print(f"[OK] post-id 零跨集 + 零样本清零（seed={SEED}）")
+
+    # --- 内容级（sha256）分组统计 ---
+    print("group_by:", summary["group_by"])
+    ms = summary.get("content_merge_stats") or {}
+    if ms:
+        print(
+            "content_merge: groups {} -> {} (merged {}), dup_clusters={} dup_files={}".format(
+                ms.get("groups_before_merge"),
+                ms.get("groups_after_merge"),
+                ms.get("groups_merged_away"),
+                ms.get("duplicate_content_clusters"),
+                ms.get("duplicate_files"),
+            )
+        )
+
+    # --- 每类 test 非零门禁结果 ---
+    print(
+        "test_coverage_remediated:",
+        summary.get("test_coverage_remediated_characters"),
+    )
+    print(
+        "excluded_from_eval (total < {}): {}".format(
+            summary.get("min_eval_class_size"),
+            summary.get("excluded_from_eval_characters"),
+        )
+    )
+
+    print(
+        f"[OK] post-id 零跨集 + 内容 sha256 零跨集 + 零样本清零 + 每类 test 非零（seed={SEED}）"
+    )
 
 
 if __name__ == "__main__":

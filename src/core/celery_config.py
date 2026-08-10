@@ -1,81 +1,37 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Celery 异步任务队列配置
-用于处理耗时任务（如图像处理、视频分析等）
+Celery 异步任务队列配置（统一入口 / re-export 薄壳）
+
+历史背景
+--------
+项目曾同时存在两个 Celery app：
+  * 本文件（src.core.celery_config）—— broker/backend 均为 Redis，供 k8s 的
+    celery-worker / celery-beat 使用，include image/video/model 任务；
+  * src.tasks.celery_app —— broker 为 RabbitMQ（默认）、backend 为 Redis，
+    供 /api/classify 异步接口使用，include classify 任务。
+
+二者 broker 不同、注册表不同，导致 classify 任务在 k8s 环境成为「黑洞」
+（k8s worker 不认识 classify_image_task）。详见 ADR-002。
+
+现统一为单一 canonical app：src.tasks.celery_app 为唯一实例，本文件仅做
+re-export，确保两条入口（`-A src.core.celery_config` 与 `-A src.tasks.celery_app`）
+指向同一对象。所有任务模块（classify/image/video/model/cleanup）现均绑定到该实例。
 """
 
-import os
-from celery import Celery
-from celery.schedules import crontab
+# 关键：直接复用 canonical app，不再各自构造 Celery 实例。
+# celery_app 在导入时不会反向 import src.core（仅运行时延迟 import logging），
+# 因此本文件（位于 src.core）re-export 它不会形成循环依赖。
+from src.tasks.celery_app import celery_app as app
 
-from src.core.config.ports import coerce_port
-
-# 获取 Redis 配置
-REDIS_HOST = os.environ.get("REDIS_HOST", "localhost")
-REDIS_PORT = coerce_port(os.environ.get("REDIS_PORT"), 6379)
-REDIS_DB = int(os.environ.get("REDIS_QUEUE_DB", 1))
-REDIS_URL = f"redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}"
-
-# 初始化 Celery 应用
-app = Celery(
-    "anime_role_detect",
-    broker=REDIS_URL,
-    backend=REDIS_URL,
-    include=["src.tasks.image_tasks", "src.tasks.video_tasks", "src.tasks.model_tasks"],
-)
-
-# Celery 配置
-app.conf.update(
-    # 任务序列化方式
-    task_serializer="json",
-    accept_content=["json"],
-    result_serializer="json",
-    # 任务过期时间（1小时）
-    task_expires=3600,
-    # 并发工作进程数
-    worker_concurrency=4,
-    # 任务预取数量
-    worker_prefetch_multiplier=1,
-    # 任务超时时间（5分钟）
-    task_time_limit=300,
-    # 软超时时间（4分钟）
-    task_soft_time_limit=240,
-    # 结果过期时间（1天）
-    result_expires=86400,
-    # 启用任务时间限制
-    worker_enable_remote_control=True,
-    # 定时任务配置
-    beat_schedule={
-        "cleanup-expired-tasks": {
-            "task": "src.tasks.cleanup.cleanup_expired_tasks",
-            "schedule": crontab(minute=0, hour="*/6"),  # 每6小时执行一次
-        },
-        "sync-images": {
-            "task": "src.tasks.image_tasks.sync_images_task",
-            "schedule": crontab(minute=0, hour="*/4"),  # 每4小时同步一次图片
-        },
-    },
-)
-
-# 配置任务路由
-app.conf.task_routes = {
-    "src.tasks.image_tasks.*": {"queue": "image_queue"},
-    "src.tasks.video_tasks.*": {"queue": "video_queue"},
-    "src.tasks.model_tasks.*": {"queue": "model_queue"},
-}
-
-# 配置任务优先级
-app.conf.task_queue_max_priority = 10
-
-
+# 向后兼容：原 celery_config 暴露的辅助函数
 def get_celery_app():
     """获取 Celery 应用实例"""
     return app
 
 
-def start_worker(queues="image_queue,video_queue,model_queue"):
-    """启动 Celery Worker"""
+def start_worker(queues="image_queue,video_queue,model_queue,celery"):
+    """启动 Celery Worker（默认监听全部队列，含 classify 的默认 celery 队列）"""
     app.worker_main(["worker", "--loglevel=info", "-Q", queues])
 
 
@@ -91,7 +47,7 @@ if __name__ == "__main__":
         command = sys.argv[1]
 
         if command == "worker":
-            queues = sys.argv[2] if len(sys.argv) > 2 else "image_queue,video_queue,model_queue"
+            queues = sys.argv[2] if len(sys.argv) > 2 else "image_queue,video_queue,model_queue,celery"
             start_worker(queues)
         elif command == "beat":
             start_beat()

@@ -12,9 +12,6 @@ import logging
 from datetime import datetime
 from PIL import Image, ImageFile
 
-# 允许加载截断的图片
-ImageFile.LOAD_TRUNCATED_IMAGES = True
-
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -22,8 +19,12 @@ from torch.utils.data import DataLoader, random_split
 from torchvision import datasets, models, transforms
 from torchvision.transforms import v2
 
-# 添加项目根目录到Python路径
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# 添加项目根目录到Python路径（项目根，使 import src.* 可用）
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+
+# 解码策略（LOAD_TRUNCATED_IMAGES / MAX_IMAGE_PIXELS）统一由 src/common/preprocess
+# 在导入时全局生效，本脚本不再自行设置。
+import src.common.preprocess  # noqa: E402
 
 # 配置日志
 logging.basicConfig(

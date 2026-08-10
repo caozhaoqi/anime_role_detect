@@ -95,6 +95,16 @@ def is_remote_available() -> bool:
     return bool(REMOTE_DB_URL)
 
 
+def is_remote_connected() -> bool:
+    """远程 MySQL 引擎是否真正连接成功（init_remote_database 探测通过）。
+
+    与 is_remote_available 不同：即使配置了 MYSQL_URL，
+    若连接探测失败（如 DNS/凭据/端口不通），_remote_engine 为 None，
+    各服务应据此上报真实存储模式（修复 storage_mode 误报，2026-08-10）。
+    """
+    return _remote_engine is not None
+
+
 def get_database_mode() -> str:
     """获取数据库模式"""
     return DATABASE_MODE
