@@ -227,6 +227,23 @@ const MessageItem: React.FC<MessageItemProps> = ({ message, darkMode, handleCopy
                   </div>
                 </div>
               </div>
+              {/* 模型覆盖度透明度标注 */}
+              {message.model_coverage && (
+                <div className="mt-3 flex items-center gap-2 flex-wrap text-xs">
+                  <span className={`px-2 py-0.5 rounded-full ${darkMode ? 'bg-slate-800 text-slate-300' : 'bg-slate-100 text-slate-600'}`}>
+                    模型覆盖 {message.model_coverage.known_class_count ?? '?'} 类
+                  </span>
+                  {message.model_coverage.is_known === true && (
+                    <span className="px-2 py-0.5 rounded-full bg-green-100 text-green-600 dark:bg-green-900/50 dark:text-green-400">已知角色</span>
+                  )}
+                  {message.model_coverage.is_known === false && (
+                    <span className="px-2 py-0.5 rounded-full bg-red-100 text-red-600 dark:bg-red-900/50 dark:text-red-400">未知角色（不在训练集中）</span>
+                  )}
+                  {message.model_coverage.is_known === null && (
+                    <span className="px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400">覆盖状态未知</span>
+                  )}
+                </div>
+              )}
               {/* Phase1: Grad-CAM 热力图 + 纠错反馈 */}
               <div className="flex items-center space-x-2 flex-wrap gap-y-2 mt-4">
                 {message.classification?.used_model !== false && (
@@ -305,6 +322,13 @@ const MessageItem: React.FC<MessageItemProps> = ({ message, darkMode, handleCopy
                 <h3 className="font-bold text-base">多角色识别结果</h3>
                 <span className={`ml-auto px-2 py-0.5 text-xs rounded-full ${darkMode ? 'bg-indigo-900/50 text-indigo-300' : 'bg-indigo-100 text-indigo-600'}`}>{message.multi_roles.length} 个角色</span>
               </div>
+              {message.model_coverage && (
+                <div className="mb-2 flex items-center gap-2 text-xs">
+                  <span className={`px-2 py-0.5 rounded-full ${darkMode ? 'bg-slate-800 text-slate-300' : 'bg-slate-100 text-slate-600'}`}>
+                    模型共训练 {message.model_coverage.known_class_count ?? '?'} 类角色
+                  </span>
+                </div>
+              )}
               {message.fallback && (
                 <div className="mt-2 mb-2 p-2 rounded-lg bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300 text-xs flex items-center space-x-1">
                   <TriangleAlert className="h-3.5 w-3.5 shrink-0" />

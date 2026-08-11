@@ -78,6 +78,13 @@ export interface Message {
     used_model?: boolean;
   }>;
   role_info?: any;
+  // 模型覆盖度透明度标注（后端 annotate_coverage 注入，标识预测角色是否在模型已知类别集合内）
+  model_coverage?: {
+    model_name?: string;
+    known_class_count?: number;
+    predicted_role?: string | null;
+    is_known?: boolean | null;
+  };
   model_name?: string;
   summary?: string;
   fallback?: boolean;
