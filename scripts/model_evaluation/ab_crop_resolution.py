@@ -10,7 +10,7 @@ Phase0 A/B 量化实验：{整图, 裁剪} × {224, 256} (+300 分辨率探索�
 ----
 * 评测集：data/splits/seed42/test.json —— 必须是 #2 内容哈希修复后的新切分。
   脚本会主动拒绝 test.eval.json（已过期作废）。
-* 模型：models/efficientnet_b3_v6（171 类，image_size=256），零训练重测。
+* 模型：models/efficientnet_b3_v7（171 类，image_size=256），零训练重测。
 * 头条指标：MacroF1（长尾场景下 Top-1 会被大类主导而骗人），同时报 Top-1/Top-5。
 * 条件：
     legacy224_whole : 修复前的生产管线 Resize((224,224)) 直压，整图
@@ -56,7 +56,7 @@ from src.common.preprocess import (  # noqa: E402
 
 DATA_DIR = ROOT / "data" / "final_dataset"
 SPLIT_DIR = ROOT / "data" / "splits" / "seed42"
-MODEL_DIR = ROOT / "models" / "efficientnet_b3_v6"
+MODEL_DIR = ROOT / "models" / "efficientnet_b3_v7"
 CACHE_DIR = ROOT / "data" / "cache"
 BOX_CACHE = CACHE_DIR / "yolo_boxes_test.json"
 OUT_JSON = ROOT / "data" / "ab_crop_resolution_results.json"
@@ -96,6 +96,11 @@ def load_model(device: str):
     cfg = json.load(open(MODEL_DIR / "training_results.json"))
     num_classes = cfg["num_classes"]
     class_to_idx = json.load(open(MODEL_DIR / "class_to_idx.json"))
+    # 收敛到评估契约：v7 的 class_to_idx 含 4 个 TRAIN_ONLY 单图类（label 167-170），
+    # 它们不在 seed42 评估切分中。剔除后再比对/评测，模型输出维度仍为 num_classes(171)，
+    # 不影响 logits——这 4 类在 eval 中本就不会作为真实标签出现。
+    split_ci = json.load(open(SPLIT_DIR / "class_to_idx.json"))
+    class_to_idx = {k: v for k, v in class_to_idx.items() if k in split_ci}
     idx_to_class = {v: k for k, v in class_to_idx.items()}
 
     # weights=None：随后 strict 加载会覆盖整个主干，无需下载 ImageNet 权重
