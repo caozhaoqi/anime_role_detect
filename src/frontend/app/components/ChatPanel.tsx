@@ -5,6 +5,7 @@ import { X, Sparkles, ImagePlus, MessageSquare } from "lucide-react";
 import { Message } from "../types";
 import MessageItem from "./MessageItem";
 import EmptyState from "./EmptyState";
+import Spinner from './ui/Spinner';
 
 interface ChatPanelProps {
   darkMode: boolean;
@@ -91,7 +92,7 @@ export default function ChatPanel({
   };
 
   return (
-    <div className={`w-full flex-1 flex flex-col min-h-0 ${darkMode ? 'bg-gray-800' : 'bg-white'} rounded-xl shadow-lg border ${darkMode ? 'border-gray-700' : 'border-gray-200'} transform transition-all duration-300 hover:shadow-xl`}>
+    <div className={`w-full flex-1 flex flex-col min-h-0 ${darkMode ? 'bg-gray-800' : 'bg-white'} rounded-2xl shadow-lg border ${darkMode ? 'border-gray-700' : 'border-gray-200'} transform transition-all duration-300 hover:shadow-xl`}>
       <div
         className="chat-messages flex-1 overflow-y-auto min-h-0 px-4 md:px-6 py-3 md:py-4"
         style={messagesHeight !== null ? { height: messagesHeight, flex: "none" } : undefined}
@@ -156,8 +157,9 @@ export default function ChatPanel({
             />
             <button
               onClick={() => onInputChange("")}
-              className={`absolute right-8 top-1/2 transform -translate-y-1/2 p-1 rounded-full ${darkMode ? 'hover:bg-gray-600' : 'hover:bg-gray-200'} transition-colors transform hover:scale-110`}
+              className={`absolute right-8 top-1/2 transform -translate-y-1/2 p-1 rounded-full ${darkMode ? 'hover:bg-gray-600' : 'hover:bg-gray-200'} transition-colors`}
               title="清空输入"
+              aria-label="清空输入"
               disabled={!inputText.trim() || isProcessing}
             >
               <X className={`h-4 w-4 ${inputText.trim() && !isProcessing ? '' : 'opacity-50 cursor-not-allowed'}`} />
@@ -170,10 +172,7 @@ export default function ChatPanel({
           >
             {isProcessing ? (
               <>
-                <svg className="h-4 w-4 md:h-5 md:w-5 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
+                <Spinner size="sm" />
                 <span className="text-sm font-medium">识别中</span>
               </>
             ) : (
@@ -204,8 +203,9 @@ export default function ChatPanel({
             </div>
             <button
               onClick={onRemoveImage}
-              className={`p-1.5 rounded-full ${darkMode ? 'hover:bg-red-900/20' : 'hover:bg-red-50'} text-red-500 transition-colors transform hover:scale-110`}
+              className={`p-1.5 rounded-full ${darkMode ? 'hover:bg-red-900/20' : 'hover:bg-red-50'} text-red-500 transition-colors`}
               title="移除图片"
+              aria-label="移除图片"
             >
               <X className="h-4 w-4" />
             </button>
@@ -220,6 +220,7 @@ export default function ChatPanel({
                 onClick={onClearBatchImages}
                 className={`text-xs px-2 py-1 rounded ${darkMode ? 'bg-red-900/20 text-red-400' : 'bg-red-50 text-red-600'} hover:opacity-80 transition-opacity`}
                 title="清空所有图片"
+                aria-label="清空所有图片"
               >
                 清空
               </button>
@@ -237,8 +238,9 @@ export default function ChatPanel({
                   <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                     <button
                       onClick={() => onRemoveBatchImage(index)}
-                      className={`p-1.5 rounded-full bg-red-500 text-white hover:bg-red-600 transition-colors transform hover:scale-110`}
+                      className={`p-1.5 rounded-full bg-red-500 text-white hover:bg-red-600 transition-colors`}
                       title="移除图片"
+                      aria-label="移除图片"
                     >
                       <X className="h-4 w-4" />
                     </button>

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, ReactNode } from "react";
+import React, { useState, ReactNode, useId } from "react";
 import { ChevronDown } from "lucide-react";
 
 interface CollapsibleSectionProps {
@@ -21,11 +21,14 @@ const CollapsibleSection: React.FC<CollapsibleSectionProps> = ({
   children,
 }) => {
   const [collapsed, setCollapsed] = useState(defaultCollapsed);
+  const contentId = useId();
 
   return (
     <div className="mt-4 animate-fade-in">
       <button
         type="button"
+        aria-expanded={!collapsed}
+        aria-controls={contentId}
         onClick={() => setCollapsed(!collapsed)}
         className={`group flex items-center justify-between w-full rounded-lg px-3 py-2 transition-colors ${
           darkMode
@@ -48,7 +51,15 @@ const CollapsibleSection: React.FC<CollapsibleSectionProps> = ({
           }`}
         />
       </button>
-      {!collapsed && <div className="mt-3 space-y-3 animate-fade-in">{children}</div>}
+      {!collapsed && (
+        <div
+          id={contentId}
+          role="region"
+          className="mt-3 space-y-3 animate-fade-in"
+        >
+          {children}
+        </div>
+      )}
     </div>
   );
 };

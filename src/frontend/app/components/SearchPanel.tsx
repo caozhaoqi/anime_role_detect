@@ -1,10 +1,13 @@
 "use client";
 
 import { useState, useCallback, useRef } from "react";
-import { Search, Image, X, Download, ExternalLink, UploadCloud, Sparkles, SlidersHorizontal } from "lucide-react";
+import { Search, Image, X, Download, ExternalLink, UploadCloud, Sparkles, SlidersHorizontal, MessageSquare } from "lucide-react";
 import axios from "axios";
 import EmptyState from "./EmptyState";
+import Spinner from './ui/Spinner';
 import { useAppStore } from "../store/useAppStore";
+import { similarityDotColor, confidenceText } from '../lib/confidence';
+import { Message } from '../types';
 
 interface SearchResult {
   role: string;
@@ -15,9 +18,10 @@ interface SearchResult {
 interface SearchPanelProps {
   darkMode: boolean;
   accessToken?: string;
+  onSendToChat?: (msg: Message) => void;
 }
 
-export default function SearchPanel({ darkMode, accessToken }: SearchPanelProps) {
+export default function SearchPanel({ darkMode, accessToken, onSendToChat }: SearchPanelProps) {
   const addToast = useAppStore((s) => s.addToast);
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -103,8 +107,18 @@ export default function SearchPanel({ darkMode, accessToken }: SearchPanelProps)
   const rankText = (index: number) =>
     index < 3 ? ["🥇", "🥈", "🥉"][index] : `#${index + 1}`;
 
+  const downloadImage = (url?: string, name = 'image.jpg') => {
+    if (!url) return;
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
+
   return (
-    <div className={`${darkMode ? "bg-gray-800" : "bg-white"} rounded-xl shadow-lg border ${darkMode ? "border-gray-700" : "border-gray-200"} overflow-hidden animate-fade-in`}>
+    <div className={`${darkMode ? "bg-gray-800" : "bg-white"} rounded-2xl shadow-lg border ${darkMode ? "border-gray-700" : "border-gray-200"} overflow-hidden animate-fade-in`}>
       {/* 标题栏 */}
       <div className={`p-4 border-b ${darkMode ? "border-gray-700" : "border-gray-200"}`}>
         <div className="flex items-center space-x-3">
@@ -127,7 +141,7 @@ export default function SearchPanel({ darkMode, accessToken }: SearchPanelProps)
             onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
             onDragLeave={() => setIsDragging(false)}
             onDrop={handleDrop}
-            className={`relative border-2 border-dashed rounded-xl p-8 md:p-10 flex flex-col items-center justify-center text-center cursor-pointer transition-all duration-200 ${
+            className={`relative border-2 border-dashed rounded-2xl p-8 md:p-10 flex flex-col items-center justify-center text-center cursor-pointer transition-all duration-200 ${
               isDragging
                 ? "border-purple-500 bg-purple-50 dark:bg-purple-900/20 scale-[1.01]"
                 : darkMode
@@ -151,12 +165,13 @@ export default function SearchPanel({ darkMode, accessToken }: SearchPanelProps)
             </p>
           </div>
         ) : (
-          <div className={`relative rounded-xl overflow-hidden border ${darkMode ? "bg-gray-900 border-gray-700" : "bg-gray-50 border-gray-200"}`}>
+          <div className={`relative rounded-2xl overflow-hidden border ${darkMode ? "bg-gray-900 border-gray-700" : "bg-gray-50 border-gray-200"}`}>
             <img src={imagePreview} alt="预览" className="w-full h-56 object-contain" />
             <button
               onClick={removeImage}
-              className="absolute top-2 right-2 p-1.5 bg-black/50 rounded-full text-white hover:bg-black/70 hover:scale-110 transition-all"
+              className="absolute top-2 right-2 p-1.5 bg-black/50 rounded-full text-white hover:bg-black/70 transition-all"
               title="移除图片"
+              aria-label="移除图片"
             >
               <X className="h-4 w-4" />
             </button>
@@ -194,10 +209,7 @@ export default function SearchPanel({ darkMode, accessToken }: SearchPanelProps)
         >
           {isSearching ? (
             <>
-              <svg className="h-5 w-5 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-              </svg>
+              <Spinner size="sm" />
               <span>搜索中...</span>
             </>
           ) : (
@@ -217,6 +229,29 @@ export default function SearchPanel({ darkMode, accessToken }: SearchPanelProps)
                 <span>搜索结果 ({results.length})</span>
               </h3>
               <button
+                onClick={() => {
+                  const multiRoles = results.map((r) => ({
+                    role: r.role,
+                    similarity: r.similarity,
+                    confidence: r.similarity,
+                    bbox: { x1: 0, y1: 0, x2: 0, y2: 0 },
+                    used_model: true,
+                  }));
+                  onSendToChat?.({
+                    id: `search-${Date.now()}`,
+                    role: 'assistant',
+                    image: imagePreview ?? undefined,
+                    content: `以图搜图完成：共 ${results.length} 个相似角色`,
+                    multi_roles: multiRoles,
+                    timestamp: Date.now(),
+                  });
+                }}
+                className="text-xs px-3 py-1 rounded transition-colors bg-purple-500 text-white hover:bg-purple-600 flex items-center space-x-1"
+              >
+                <MessageSquare className="h-3.5 w-3.5" />
+                <span>发送到对话</span>
+              </button>
+              <button
                 onClick={() => { setResults([]); removeImage(); }}
                 className={`text-xs px-2 py-1 rounded transition-colors ${darkMode ? "bg-gray-700 text-gray-300 hover:bg-gray-600" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}
               >
@@ -227,7 +262,7 @@ export default function SearchPanel({ darkMode, accessToken }: SearchPanelProps)
               {results.map((result, index) => (
                 <div
                   key={index}
-                  className={`relative rounded-xl overflow-hidden cursor-pointer group ${darkMode ? "bg-gray-700" : "bg-gray-100"} border ${darkMode ? "border-gray-600" : "border-transparent"} transition-all hover:shadow-xl hover:-translate-y-0.5`}
+                  className={`relative rounded-2xl overflow-hidden cursor-pointer group ${darkMode ? "bg-gray-700" : "bg-gray-100"} border ${darkMode ? "border-gray-600" : "border-transparent"} transition-all hover:shadow-xl`}
                 >
                   {/* 排名徽章 */}
                   <span className={`absolute top-1.5 left-1.5 z-10 text-[10px] font-bold text-white px-1.5 py-0.5 rounded-full shadow ${rankColor(index)}`}>
@@ -238,7 +273,7 @@ export default function SearchPanel({ darkMode, accessToken }: SearchPanelProps)
                       <img
                         src={result.image}
                         alt={result.role}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        className="w-full h-full object-cover transition-transform duration-300"
                       />
                     ) : (
                       <Image className="h-8 w-8 text-gray-400" />
@@ -249,11 +284,11 @@ export default function SearchPanel({ darkMode, accessToken }: SearchPanelProps)
                     <div className="flex items-center space-x-1.5 mt-1">
                       <div className={`flex-1 h-1.5 rounded-full overflow-hidden ${darkMode ? "bg-gray-600" : "bg-gray-200"}`}>
                         <div
-                          className={`h-full rounded-full ${result.similarity >= 0.8 ? "bg-green-500" : result.similarity >= 0.5 ? "bg-yellow-500" : "bg-red-500"}`}
+                          className={`h-full rounded-full ${similarityDotColor(result.similarity)}`}
                           style={{ width: `${Math.min(100, result.similarity * 100)}%` }}
                         />
                       </div>
-                      <span className={`text-[10px] font-semibold ${result.similarity >= 0.8 ? "text-green-500" : result.similarity >= 0.5 ? "text-yellow-500" : "text-red-500"}`}>
+                      <span className={`text-[10px] font-semibold ${confidenceText(result.similarity)}`}>
                         {(result.similarity * 100).toFixed(0)}%
                       </span>
                     </div>
@@ -261,10 +296,31 @@ export default function SearchPanel({ darkMode, accessToken }: SearchPanelProps)
                   {/* 悬停效果 */}
                   <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                     <div className="flex space-x-2">
-                      <button className="p-2 bg-white rounded-full text-gray-800 hover:bg-purple-500 hover:text-white transition-colors" title="查看详情">
+                      <button
+                        onClick={() => {
+                          onSendToChat?.({
+                            id: `search-${Date.now()}-${index}`,
+                            role: 'assistant',
+                            image: result.image ?? undefined,
+                            content: `以图搜图明细：${result.role}（${(result.similarity * 100).toFixed(0)}%）`,
+                            multi_roles: [{
+                              role: result.role,
+                              similarity: result.similarity,
+                              confidence: result.similarity,
+                              bbox: { x1: 0, y1: 0, x2: 0, y2: 0 },
+                              used_model: true,
+                            }],
+                            timestamp: Date.now(),
+                          });
+                        }}
+                        className="p-2 bg-white rounded-full text-gray-800 hover:bg-purple-500 hover:text-white transition-colors" title="查看详情" aria-label="查看详情"
+                      >
                         <ExternalLink className="h-4 w-4" />
                       </button>
-                      <button className="p-2 bg-white rounded-full text-gray-800 hover:bg-purple-500 hover:text-white transition-colors" title="下载图片">
+                      <button
+                        onClick={() => { downloadImage(result.image, `${result.role || 'role'}.jpg`); }}
+                        className="p-2 bg-white rounded-full text-gray-800 hover:bg-purple-500 hover:text-white transition-colors" title="下载图片" aria-label="下载图片"
+                      >
                         <Download className="h-4 w-4" />
                       </button>
                     </div>

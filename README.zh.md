@@ -22,6 +22,12 @@
 - **飞书通知**: 实时进度同步
 - **Token自动刷新**: 无缝认证体验
 
+## 🏗️ 系统架构
+
+![系统架构](docs/architecture/system-architecture.svg)
+
+> 分层拓扑：**接入层**（API 网关）→ **业务服务层**（API / 模型 / 多媒体 / 搜索）→ **异步工作节点**（推理 / 搜索 Worker）→ **核心 AI 能力**（分类 / 检测 / 识别 / 标签 / 关键点）→ **基础设施**（Redis / MySQL / RabbitMQ / Fluent-bit / Grafana）→ **部署层**（Supervisord / Docker Compose / Kubernetes）。
+
 ## 🚀 快速开始
 
 ### 环境要求
@@ -179,13 +185,6 @@ anime_role_detect/
 ├── pyproject.toml          # 项目配置（v2.3.0，版本号权威源）
 └── .env.example            # 环境变量模板
 ```
-
-> **未使用 / 遗留代码说明（2026-07-30 清理）**
-> - 死亡模块 `src/models/training/convert_model_format.py`（语法损坏、无引用）→ 移至 `archived/broken_modules/`。
-> - `scripts/skillhub/` 为遗留实验子项目（自带 venv，无任何引用），保留作历史，不纳入构建。
-> - `src/run/start_all.py`、`start_all_stable.py`、`application.py`、`start_core.py` 为遗留/备用启动器（supervisord/k8s/docker 未使用），保留为开发工具。
-> - 清理了 `src/` 内约 30 处未使用导入 / 未使用变量（低风险 lint 清理）。
-> - 运行时产物（`logs/`、`data/`、`models/`、`*.db`、`dump.rdb`、各类缓存）均已 git 忽略。
 
 ## 🌐 API 接口
 

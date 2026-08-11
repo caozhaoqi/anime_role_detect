@@ -1,9 +1,13 @@
 "use client";
 
 import { useState, useCallback, useEffect, useRef } from "react";
-import { Video, Play, Pause, X, Clock, AlertTriangle, CheckCircle, Download, Loader2, UploadCloud, Film, SlidersHorizontal } from "lucide-react";
+import { Video, Play, Pause, X, Clock, AlertTriangle, CheckCircle, Download, Loader2, UploadCloud, Film, SlidersHorizontal, MessageSquare } from "lucide-react";
 import axios from "axios";
 import EmptyState from "./EmptyState";
+import Spinner from './ui/Spinner';
+import Banner from './ui/Banner';
+import { similarityBadgeColor } from '../lib/confidence';
+import { Message } from '../types';
 
 interface VideoResult {
   timestamp: number;
@@ -18,9 +22,10 @@ interface VideoResult {
 interface VideoPanelProps {
   darkMode: boolean;
   accessToken?: string;
+  onSendToChat?: (msg: Message) => void;
 }
 
-export default function VideoPanel({ darkMode, accessToken }: VideoPanelProps) {
+export default function VideoPanel({ darkMode, accessToken, onSendToChat }: VideoPanelProps) {
   const [selectedVideo, setSelectedVideo] = useState<File | null>(null);
   const [videoPreview, setVideoPreview] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -249,7 +254,7 @@ export default function VideoPanel({ darkMode, accessToken }: VideoPanelProps) {
     : "bg-gradient-to-r from-blue-500 to-indigo-500";
 
   return (
-    <div className={`${darkMode ? "bg-gray-800" : "bg-white"} rounded-xl shadow-lg border ${darkMode ? "border-gray-700" : "border-gray-200"} overflow-hidden animate-fade-in`}>
+    <div className={`${darkMode ? "bg-gray-800" : "bg-white"} rounded-2xl shadow-lg border ${darkMode ? "border-gray-700" : "border-gray-200"} overflow-hidden animate-fade-in`}>
       {/* 标题栏 */}
       <div className={`p-4 border-b ${darkMode ? "border-gray-700" : "border-gray-200"}`}>
         <div className="flex items-center space-x-3">
@@ -265,23 +270,12 @@ export default function VideoPanel({ darkMode, accessToken }: VideoPanelProps) {
 
       {/* 成功提示横幅 */}
       {showSuccess && (
-        <div className="mx-4 mt-4 px-4 py-3 bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-700 rounded-lg flex items-center space-x-3 animate-pulse">
-          <CheckCircle className="h-5 w-5 text-green-500 flex-shrink-0" />
-          <div className="text-sm text-green-700 dark:text-green-300 font-medium">
-            识别完成{outputVideo ? "，标注视频已生成" : ""}！
-          </div>
-        </div>
+        <Banner tone="success" icon={<CheckCircle className="h-5 w-5 text-green-500 flex-shrink-0" />}>识别完成{outputVideo ? "，标注视频已生成" : ""}！</Banner>
       )}
 
       {/* 错误提示横幅 */}
       {showError && (
-        <div className="mx-4 mt-4 px-4 py-3 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700 rounded-lg flex items-center space-x-3">
-          <AlertTriangle className="h-5 w-5 text-red-500 flex-shrink-0" />
-          <div className="text-sm text-red-700 dark:text-red-300 font-medium flex-1">{showError}</div>
-          <button onClick={() => setShowError(null)} className="text-red-400 hover:text-red-600">
-            <X className="h-4 w-4" />
-          </button>
-        </div>
+        <Banner tone="error" icon={<AlertTriangle className="h-5 w-5 text-red-500 flex-shrink-0" />} onClose={() => setShowError(null)}>{showError}</Banner>
       )}
 
       {/* 内容区 */}
@@ -293,7 +287,7 @@ export default function VideoPanel({ darkMode, accessToken }: VideoPanelProps) {
             onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
             onDragLeave={() => setIsDragging(false)}
             onDrop={handleDrop}
-            className={`relative border-2 border-dashed rounded-xl p-8 md:p-10 flex flex-col items-center justify-center text-center cursor-pointer transition-all duration-200 mb-4 ${
+            className={`relative border-2 border-dashed rounded-2xl p-8 md:p-10 flex flex-col items-center justify-center text-center cursor-pointer transition-all duration-200 mb-4 ${
               isDragging
                 ? "border-green-500 bg-green-50 dark:bg-green-900/20 scale-[1.01]"
                 : darkMode
@@ -466,7 +460,7 @@ export default function VideoPanel({ darkMode, accessToken }: VideoPanelProps) {
           <div className="mb-4 p-4 rounded-lg border border-green-200 dark:border-green-700 bg-green-50/50 dark:bg-green-900/20">
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center space-x-2">
-                <Loader2 className="h-4 w-4 text-green-500 animate-spin" />
+                <Spinner size="sm" className="text-green-500" />
                 <span className="text-sm font-medium text-green-700 dark:text-green-300">
                   {progressMessage || "处理中..."}
                 </span>
@@ -491,10 +485,7 @@ export default function VideoPanel({ darkMode, accessToken }: VideoPanelProps) {
         >
           {isProcessing ? (
             <>
-              <svg className="h-5 w-5 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-              </svg>
+              <Spinner size="sm" />
               <span>{outputVideo ? `处理中 ${progress}%` : "识别中..."}</span>
             </>
           ) : (
@@ -540,7 +531,38 @@ export default function VideoPanel({ darkMode, accessToken }: VideoPanelProps) {
 
             {/* 识别结果列表 */}
             <div>
-              <h3 className="text-sm font-medium mb-3">识别结果 ({results.length} 帧)</h3>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-medium">识别结果 ({results.length} 帧)</h3>
+                {results.some((r) => r.roles.length > 0) && (
+                  <button
+                    onClick={() => {
+                      const roleMap = new Map<string, number>();
+                      results.forEach((fr) => fr.roles.forEach((r) => {
+                        const prev = roleMap.get(r.role);
+                        if (prev === undefined || r.similarity > prev) roleMap.set(r.role, r.similarity);
+                      }));
+                      const multiRoles = Array.from(roleMap.entries()).map(([role, similarity]) => ({
+                        role,
+                        similarity,
+                        confidence: similarity,
+                        bbox: { x1: 0, y1: 0, x2: 0, y2: 0 },
+                        used_model: false,
+                      }));
+                      onSendToChat?.({
+                        id: `video-${Date.now()}`,
+                        role: 'assistant',
+                        content: `视频识别完成：共扫描 ${results.length} 帧，检出 ${multiRoles.length} 个角色`,
+                        multi_roles: multiRoles,
+                        timestamp: Date.now(),
+                      });
+                    }}
+                    className="text-xs px-3 py-1 rounded-full bg-green-500 text-white hover:bg-green-600 transition-colors flex items-center space-x-1"
+                  >
+                    <MessageSquare className="h-3.5 w-3.5" />
+                    <span>发送到对话</span>
+                  </button>
+                )}
+              </div>
               <div className="space-y-3 max-h-64 overflow-y-auto">
                 {results.map((result, index) => (
                   <div
@@ -567,13 +589,7 @@ export default function VideoPanel({ darkMode, accessToken }: VideoPanelProps) {
                         result.roles.map((role, rIndex) => (
                           <span
                             key={rIndex}
-                            className={`px-2 py-1 rounded-full text-xs font-medium ${
-                              role.similarity > 0.8
-                                ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
-                                : role.similarity > 0.5
-                                ? "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200"
-                                : "bg-gray-100 text-gray-800 dark:bg-gray-600 dark:text-gray-200"
-                            }`}
+                            className={`px-2 py-1 rounded-full text-xs font-medium ${similarityBadgeColor(role.similarity)}`}
                           >
                             {role.role} ({(role.similarity * 100).toFixed(0)}%)
                           </span>

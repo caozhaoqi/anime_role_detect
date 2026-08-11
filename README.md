@@ -22,6 +22,12 @@ An AI-powered image recognition system designed to identify characters from game
 - **Feishu Notifications**: Real-time progress updates
 - **Token Auto-refresh**: Seamless authentication
 
+## 📐 System Architecture
+
+![System Architecture](docs/architecture/system-architecture.svg)
+
+> Layered topology: **Access** (API Gateway) → **Business services** (API / Model / Multimedia / Search) → **Async workers** (Inference / Search Worker) → **Core AI** (Classification / Detection / Recognition / Tagging / Keypoint) → **Infrastructure** (Redis / MySQL / RabbitMQ / Fluent-bit / Grafana) → **Deployment** (Supervisord / Docker Compose / Kubernetes).
+
 ## 🚀 Quick Start
 
 ### Prerequisites
@@ -191,13 +197,6 @@ anime_role_detect/
 └── .env.example            # Environment template
 ```
 
-> **Note on unused / legacy code (2026-07-30 cleanup)**
-> - Dead module `src/models/training/convert_model_format.py` (syntax-broken, unreferenced) → moved to `archived/broken_modules/`.
-> - `scripts/skillhub/` is a legacy experiment sub-project (bundled venv, not referenced anywhere). Kept for history; excluded from builds.
-> - `src/run/start_all.py`, `start_all_stable.py`, `application.py`, `start_core.py` are legacy/alternative launchers (not used by supervisord/k8s/docker). Kept as dev tools.
-> - Removed ~30 unused imports / unused variables across `src/` (low-risk lint cleanup).
-> - Runtime artifacts (`logs/`, `data/`, `models/`, `*.db`, `dump.rdb`, caches) are git-ignored.
-
 ## 🌐 API Endpoints
 
 | Endpoint | Method | Description |
@@ -297,7 +296,6 @@ python -m pytest tests/integration/ -v
 # Run model benchmark (produces scripts/model_evaluation/benchmark_results.json)
 python scripts/model_evaluation/run_benchmark.py
 ```
-
 
 ## 📚 Documentation
 

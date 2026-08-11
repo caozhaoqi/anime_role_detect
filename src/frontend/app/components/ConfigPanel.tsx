@@ -401,7 +401,8 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ darkMode, config, onConfigUpd
                     type="color"
                     value={localConfig.appearance.primaryColor}
                     onChange={(e) => handleChange('appearance.primaryColor', e.target.value)}
-                    className="w-full h-8 rounded-lg border focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    disabled
+                    className="w-full h-8 rounded-lg border opacity-60 cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
                 <div>
@@ -410,7 +411,8 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ darkMode, config, onConfigUpd
                     type="color"
                     value={localConfig.appearance.secondaryColor}
                     onChange={(e) => handleChange('appearance.secondaryColor', e.target.value)}
-                    className="w-full h-8 rounded-lg border focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    disabled
+                    className="w-full h-8 rounded-lg border opacity-60 cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
                 <div>
@@ -419,7 +421,8 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ darkMode, config, onConfigUpd
                     type="color"
                     value={localConfig.appearance.accentColor}
                     onChange={(e) => handleChange('appearance.accentColor', e.target.value)}
-                    className="w-full h-8 rounded-lg border focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    disabled
+                    className="w-full h-8 rounded-lg border opacity-60 cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
                 <div>
@@ -428,7 +431,8 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ darkMode, config, onConfigUpd
                     type="color"
                     value={localConfig.appearance.successColor}
                     onChange={(e) => handleChange('appearance.successColor', e.target.value)}
-                    className="w-full h-8 rounded-lg border focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    disabled
+                    className="w-full h-8 rounded-lg border opacity-60 cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
                 <div>
@@ -437,7 +441,8 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ darkMode, config, onConfigUpd
                     type="color"
                     value={localConfig.appearance.warningColor}
                     onChange={(e) => handleChange('appearance.warningColor', e.target.value)}
-                    className="w-full h-8 rounded-lg border focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    disabled
+                    className="w-full h-8 rounded-lg border opacity-60 cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
                 <div>
@@ -446,11 +451,16 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ darkMode, config, onConfigUpd
                     type="color"
                     value={localConfig.appearance.errorColor}
                     onChange={(e) => handleChange('appearance.errorColor', e.target.value)}
-                    className="w-full h-8 rounded-lg border focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    disabled
+                    className="w-full h-8 rounded-lg border opacity-60 cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
               </div>
             </div>
+
+            <p className={`text-xs mt-1 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+              coming soon · 主题色暂由全局设计令牌控制，外观配色尚未接入
+            </p>
 
             <div>
               <h4 className="text-md font-medium mb-3 flex items-center gap-2">

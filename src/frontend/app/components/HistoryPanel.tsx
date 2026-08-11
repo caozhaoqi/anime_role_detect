@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Clock, Trash2, Image, Brain, Tag, AlertTriangle, FileText, Check, X, LogIn, RefreshCw } from 'lucide-react';
 import { Message } from '../types';
 import EmptyState from './EmptyState';
+import Spinner from './ui/Spinner';
+import { confidenceText, similarityDotColor } from '../lib/confidence';
 
 interface HistoryPanelProps {
   darkMode: boolean;
@@ -94,7 +96,7 @@ const HistoryPanel: React.FC<HistoryPanelProps> = ({ darkMode, onViewRecord, onD
   };
 
   return (
-    <div className={`p-4 rounded-xl ${darkMode ? 'bg-gray-800' : 'bg-white'} border ${darkMode ? 'border-gray-700' : 'border-gray-200'} shadow-lg h-full`}>
+    <div className={`p-4 rounded-2xl ${darkMode ? 'bg-gray-800' : 'bg-white'} border ${darkMode ? 'border-gray-700' : 'border-gray-200'} shadow-lg h-full`}>
       <div className="flex justify-between items-center mb-4">
         <h3 className="text-lg font-semibold flex items-center gap-2">
           <span className={`w-8 h-8 rounded-lg flex items-center justify-center ${darkMode ? 'bg-gray-700 text-blue-400' : 'bg-blue-50 text-blue-500'}`}>
@@ -122,7 +124,7 @@ const HistoryPanel: React.FC<HistoryPanelProps> = ({ darkMode, onViewRecord, onD
 
       {loading ? (
         <div className="flex justify-center py-8">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" />
+          <Spinner size="md" />
         </div>
       ) : error ? (
         <div className={`p-4 rounded-md ${darkMode ? 'bg-red-900/30' : 'bg-red-100'}`}>
@@ -156,7 +158,7 @@ const HistoryPanel: React.FC<HistoryPanelProps> = ({ darkMode, onViewRecord, onD
           {history.map((record) => (
             <div
               key={record.id}
-              className={`p-3 rounded-xl border cursor-pointer transition-all hover:shadow-md hover:-translate-y-0.5 ${darkMode ? 'bg-gray-700 border-gray-600 hover:border-blue-500' : 'bg-gray-50 border-gray-200 hover:border-blue-300'}`}
+              className={`p-3 rounded-2xl border cursor-pointer transition-all hover:shadow-md ${darkMode ? 'bg-gray-700 border-gray-600 hover:border-blue-500' : 'bg-gray-50 border-gray-200 hover:border-blue-300'}`}
               onClick={() => onViewRecord(record)}
             >
               <div className="flex justify-between items-start">
@@ -217,7 +219,7 @@ const HistoryPanel: React.FC<HistoryPanelProps> = ({ darkMode, onViewRecord, onD
                     <Tag className={`h-4 w-4 ${darkMode ? 'text-purple-400' : 'text-purple-500'}`} />
                     <span className="text-sm font-medium">{record.recognition_result.role}</span>
                     {record.recognition_result.similarity && (
-                      <span className={`text-xs font-semibold ${record.recognition_result.similarity >= 0.8 ? 'text-green-500' : record.recognition_result.similarity >= 0.5 ? 'text-yellow-500' : 'text-red-500'}`}>
+                      <span className={`text-xs font-semibold ${confidenceText(record.recognition_result.similarity)}`}>
                         {(record.recognition_result.similarity * 100).toFixed(1)}%
                       </span>
                     )}
@@ -225,7 +227,7 @@ const HistoryPanel: React.FC<HistoryPanelProps> = ({ darkMode, onViewRecord, onD
                   {record.recognition_result.similarity && (
                     <div className={`h-1.5 rounded-full overflow-hidden ${darkMode ? 'bg-gray-600' : 'bg-gray-200'}`}>
                       <div
-                        className={`h-full rounded-full ${record.recognition_result.similarity >= 0.8 ? 'bg-green-500' : record.recognition_result.similarity >= 0.5 ? 'bg-yellow-500' : 'bg-red-500'}`}
+                        className={`h-full rounded-full ${similarityDotColor(record.recognition_result.similarity)}`}
                         style={{ width: `${Math.min(100, record.recognition_result.similarity * 100)}%` }}
                       />
                     </div>
