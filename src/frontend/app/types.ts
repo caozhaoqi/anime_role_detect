@@ -138,6 +138,9 @@ export interface GradCAMResult {
 export interface RoleInfo {
   idx: number;
   name: string;
+  cn?: string;
+  jp?: string;
+  anime?: string;
 }
 
 export interface FeedbackPayload {

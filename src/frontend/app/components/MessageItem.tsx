@@ -261,7 +261,10 @@ const MessageItem: React.FC<MessageItemProps> = ({ message, darkMode, handleCopy
                       className={`text-xs rounded border ${darkMode ? 'bg-gray-700 border-gray-600 text-gray-100' : 'bg-white border-gray-300 text-gray-900'} px-1 py-0.5 max-w-[140px]`}
                     >
                       <option value="">选择正确角色...</option>
-                      {feedback.roles.map(r => <option key={r.idx} value={r.name}>{r.name}</option>)}
+                      {feedback.roles.map(r => {
+                        const label = r.cn && r.cn !== r.name ? `${r.cn} (${r.name})` : r.name;
+                        return <option key={r.idx} value={r.name}>{label}</option>;
+                      })}
                     </select>
                     <button
                       onClick={() => handleCorrection(-1, message.classification!.role, message.classification!.similarity)}
@@ -358,7 +361,10 @@ const MessageItem: React.FC<MessageItemProps> = ({ message, darkMode, handleCopy
                                 className={`text-xs rounded border ${darkMode ? 'bg-gray-700 border-gray-600 text-gray-100' : 'bg-white border-gray-300 text-gray-900'} px-1 py-0.5 max-w-[140px]`}
                               >
                                 <option value="">选择正确角色...</option>
-                                {feedback.roles.map(r => <option key={r.idx} value={r.name}>{r.name}</option>)}
+                                {feedback.roles.map(r => {
+                                  const label = r.cn && r.cn !== r.name ? `${r.cn} (${r.name})` : r.name;
+                                  return <option key={r.idx} value={r.name}>{label}</option>;
+                                })}
                               </select>
                               <button
                                 onClick={() => handleCorrection(index, role.role, role.similarity)}

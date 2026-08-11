@@ -8,7 +8,7 @@
 import os
 import sys
 import tempfile
-from fastapi import APIRouter, File, UploadFile, Form
+from fastapi import APIRouter, File, UploadFile, Form, Query
 from typing import Optional
 from fastapi.responses import JSONResponse
 
@@ -27,8 +27,8 @@ router = APIRouter(prefix="/api/video", tags=["视频识别"])
 @router.post("/recognize")
 async def recognize_video(
     file: UploadFile = File(...),
-    frame_interval: float = Form(1.0),
-    confidence_threshold: float = Form(0.5),
+    frame_interval: float = Query(1.0, description="抽帧间隔（秒），前端经 query 传入"),
+    confidence_threshold: float = Query(0.5, description="识别置信度阈值，前端经 query 传入"),
 ):
     """
     视频识别端点 - 处理上传的视频文件并识别其中的角色

@@ -54,34 +54,50 @@ async def gradcam_endpoint(file: UploadFile = File(...), target_class: int = For
 
 @router.get("/api/model/roles")
 async def get_roles():
-    """返回角色标签列表（以数据集注册表 class_registry_v2.json 为准，含中文名）"""
+    """返回角色标签列表（以当前实际加载的模型类别为准，含中文名）"""
     try:
         from src.core.utils.role_info_loader import get_role_info
 
         names = []
         registry_path = os.path.join(project_root, "configs", "class_registry_v2.json")
+        registry_active = set()
+        registry_lookup = {}
         if os.path.exists(registry_path):
             with open(registry_path, "r", encoding="utf-8") as f:
                 reg = json.load(f)
             for c in reg.get("classes", []):
                 if c.get("status") == "ACTIVE":
-                    info = get_role_info(c["name"])
-                    names.append({
-                        "name": c["name"],
-                        "cn": info.get("cn") or c.get("name"),
-                        "anime": info.get("anime") or c.get("booru_tag") or "",
-                    })
-        # 兜底：注册表缺失时回退到当前模型类别
-        if not names:
-            clf = EfficientNetClassifier.get_instance()
-            idx_to_class = clf.idx_to_class or {}
+                    registry_active.add(c["name"])
+                    registry_lookup[c["name"]] = c
+
+        # 以当前实际加载模型的类别为权威来源，避免注册表与模型不同步导致缺角色
+        clf = EfficientNetClassifier.get_instance()
+        idx_to_class = clf.idx_to_class or {}
+        if idx_to_class:
             for idx, name in sorted(idx_to_class.items(), key=lambda x: int(x[0])):
                 info = get_role_info(name)
+                reg_entry = registry_lookup.get(name, {})
                 names.append({
+                    "idx": int(idx),
                     "name": name,
-                    "cn": info.get("cn") or name,
-                    "anime": info.get("anime") or "",
+                    "cn": info.get("cn") or reg_entry.get("cn") or name,
+                    "jp": info.get("jp") or "",
+                    "anime": info.get("anime") or reg_entry.get("booru_tag") or "",
                 })
+
+        # 兜底：模型未加载时回退到注册表 ACTIVE 类
+        if not names and registry_active:
+            for name in sorted(registry_active):
+                info = get_role_info(name)
+                reg_entry = registry_lookup.get(name, {})
+                names.append({
+                    "idx": len(names),
+                    "name": name,
+                    "cn": info.get("cn") or reg_entry.get("cn") or name,
+                    "jp": info.get("jp") or "",
+                    "anime": info.get("anime") or reg_entry.get("booru_tag") or "",
+                })
+
         return {"code": 0, "data": {"roles": names, "total": len(names)}}
     except Exception as e:
         logger.error(f"获取角色列表异常: {e}", exc_info=True)

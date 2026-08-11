@@ -752,6 +752,12 @@ class WDViTV3Tagger:
             "scene": {"outdoors", "indoors", "school", "room", "street", "park", "beach"},
             "time": {"night", "day", "sunset", "sunrise"},
             "quality": {"high quality", "masterpiece", "best quality", "detailed", "beautiful"},
+            "style_domain": {
+                "comic", "monochrome", "greyscale", "speech_bubble", "sketch",
+                "multiple_girls", "multiple_boys", "solo", "group",
+                "original", "transparent", "simple_background", "white_background",
+                "absurdres", "lowres", "highres",
+            },
         }
 
         # 已选择的类别标签
@@ -949,9 +955,11 @@ class WDViTV3Tagger:
                 with torch.no_grad():
                     logits = self.wd_model(pixel_tensor)
 
-                # 获取预测结果
-                probabilities = torch.nn.functional.softmax(logits, dim=1).squeeze().cpu().numpy()
-
+                # 获取预测结果（L953，强制单赢家 → 其余概率归零 → 阈值只留 1 个标签）
+                # probabilities = torch.nn.functional.softmax(logits, dim=1).squeeze().cpu().numpy()
+                # # （multi-label 逐标签独立激活）
+                probabilities = torch.nn.functional.sigmoid(logits).squeeze().cpu().numpy()
+                
                 # 生成标签
                 tags = []
                 for i, prob in enumerate(probabilities):
