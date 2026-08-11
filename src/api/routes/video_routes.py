@@ -141,6 +141,20 @@ async def recognize_realtime(
         dict: 服务启动状态
     """
     try:
+        # 特性开关：实时端点默认关闭。VideoRecognitionService.start() 会阻塞事件循环，
+        # 且当前无 WebSocket/轮询消费方，生产环境启用需谨慎（配 ARD_ENABLE_REALTIME_VIDEO=true）
+        from src.config import config
+        if not config.app_features.ENABLE_REALTIME_VIDEO:
+            logger.warning("实时视频识别端点被调用，但该特性未启用（ARD_ENABLE_REALTIME_VIDEO=false）")
+            return JSONResponse(
+                status_code=503,
+                content={
+                    "success": False,
+                    "message": "实时视频识别功能当前未启用。如需开启，请设置环境变量 ARD_ENABLE_REALTIME_VIDEO=true。",
+                    "data": {"status": "disabled", "feature": "realtime_video"},
+                },
+            )
+
         logger.info(f"接收到实时视频识别请求: {video_source}, 帧间隔: {frame_interval}, 置信度阈值: {confidence_threshold}")
 
         # 导入视频识别服务

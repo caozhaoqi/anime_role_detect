@@ -10,6 +10,9 @@ export async function GET() {
       showPlatformInfo: true,
       enableNotifications: true
     },
+    monitor: {
+      baseUrl: process.env.NEXT_PUBLIC_MONITOR_BASE_URL || "http://localhost:9000"
+    },
     features: {
       enableModelSelection: true,
       enableCoremlSwitch: true,

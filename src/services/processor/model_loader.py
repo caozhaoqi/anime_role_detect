@@ -17,7 +17,7 @@ import json
 import torch
 import torch.nn as nn
 import torchvision.models as models
-from typing import Optional, Tuple, Dict, Any
+from typing import Optional, Tuple, Dict, Any, List
 from pathlib import Path
 
 from src.core.logging import get_enhanced_logger as get_logger
@@ -126,6 +126,51 @@ def get_model_class_to_idx_from_training_config(model_dir: str) -> Optional[Dict
             logger.warning(f"从 training_results.json 加载失败：{e}")
 
     return None
+
+
+def get_known_classes(model_name: str) -> Optional[List[str]]:
+    """
+    获取模型已知类别集合（覆盖度透明度用）。
+
+    优先从已加载的模型缓存中读取 class_to_idx（零额外开销）；
+    若未加载，则仅从磁盘读取类别映射文件（training_results.json / class_to_idx.json），
+    不触发完整模型加载，避免为一次覆盖度查询付出 GPU/CPU 加载成本。
+
+    Args:
+        model_name: 模型名称
+
+    Returns:
+        已知类别名称列表；若无法解析则返回 None
+    """
+    # 1. 命中运行时缓存
+    cached = _model_cache.get(model_name)
+    if cached is not None:
+        _, class_to_idx = cached
+        if class_to_idx:
+            return list(class_to_idx.keys())
+
+    # 2. 仅从磁盘读类别映射，不加载权重
+    from src.config import project_config
+
+    model_dir = project_config.paths.MODEL_DIR / model_name
+    if not model_dir.exists():
+        return None
+
+    class_to_idx = get_model_class_to_idx_from_training_config(str(model_dir))
+    if not class_to_idx:
+        class_map_path = model_dir / "class_to_idx.json"
+        if class_map_path.exists():
+            try:
+                with open(class_map_path, "r", encoding="utf-8") as f:
+                    class_to_idx = json.load(f)
+            except Exception as e:
+                logger.warning(f"从 class_to_idx.json 读取失败：{e}")
+                class_to_idx = {}
+
+    if not class_to_idx:
+        return None
+
+    return list(class_to_idx.keys())
 
 
 def load_trained_model(

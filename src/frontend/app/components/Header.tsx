@@ -94,7 +94,7 @@ export default function Header({
             )}
             
             <button
-              onClick={() => window.open('http://localhost:8080/monitor/', '_blank')}
+              onClick={() => window.open(config.monitor?.baseUrl || 'http://localhost:9000', '_blank')}
               className={`p-2 rounded-lg ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'} transition-colors`}
               title="系统监控"
             >

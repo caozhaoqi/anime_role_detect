@@ -25,6 +25,48 @@ logger = get_logger("api.routes.classification")
 router = APIRouter()
 
 
+def _extract_predicted_role(result: dict) -> Optional[str]:
+    """从识别结果中抽取首要预测角色名（用于覆盖度标注）"""
+    role_info = result.get("role_info") or result.get("classification") or result.get("ai_predicted_role")
+    if isinstance(role_info, dict):
+        return role_info.get("name") or role_info.get("role") or role_info.get("character")
+    if isinstance(role_info, str):
+        return role_info
+    # 多角色场景：取第一个 detections 中的角色
+    detections = result.get("detections") or []
+    if detections and isinstance(detections[0], dict):
+        return detections[0].get("role") or detections[0].get("name")
+    return None
+
+
+def annotate_coverage(result: dict, model_name: str) -> dict:
+    """
+    覆盖度透明度：标注预测角色是否在模型已知类别集合内。
+
+    让用户/前端知道识别结果是否落在模型训练分布内（known/unknown），
+    对 long-tail 角色与未收录角色给出明确信号。
+    """
+    try:
+        from src.services.processor.model_loader import get_known_classes
+        known = get_known_classes(model_name)
+    except Exception as e:
+        logger.warning(f"获取模型已知类别失败，跳过覆盖度标注: {e}")
+        return result
+
+    if not known:
+        # 无法解析类别映射时不污染响应
+        return result
+
+    predicted = _extract_predicted_role(result)
+    result["model_coverage"] = {
+        "model_name": model_name,
+        "known_class_count": len(known),
+        "predicted_role": predicted,
+        "is_known": (predicted in known) if predicted else None,
+    }
+    return result
+
+
 @router.post("/api/classify")
 async def classify_image(
     file: UploadFile = File(...),
@@ -66,6 +108,7 @@ async def classify_image(
         )
         result["summary"] = summary
         result = convert_numpy_types(result)
+        result = annotate_coverage(result, model_name)
 
         try:
             recognition_service = get_recognition_service()
@@ -95,6 +138,37 @@ async def classify_image(
         from src.core.error.error_handler import raise_app_error
         from src.core.error.error_codes import ErrorCode
         raise_app_error(error_code=ErrorCode.CLASSIFICATION_FAILED, status_code=500, detail=str(e))
+
+
+@router.get("/api/classify/coverage")
+async def get_model_coverage(model_name: str = "resnet18_loli8"):
+    """
+    模型覆盖度元信息 — 返回指定模型的已知类别集合摘要。
+
+    前端可用于向用户说明"该模型能识别哪些角色/共多少类"，
+    以及为 unknown 结果提供上下文（不落在训练分布内）。
+    """
+    try:
+        from src.services.processor.model_loader import get_known_classes
+        known = get_known_classes(model_name)
+        if not known:
+            return {
+                "success": False,
+                "message": f"无法解析模型 {model_name} 的类别映射（可能未训练或缺少 class_to_idx）",
+                "data": {"model_name": model_name, "known_class_count": 0, "classes": []},
+            }
+        return {
+            "success": True,
+            "message": "获取模型覆盖度成功",
+            "data": {
+                "model_name": model_name,
+                "known_class_count": len(known),
+                "classes": sorted(known),
+            },
+        }
+    except Exception as e:
+        logger.error(f"获取模型覆盖度失败: {e}")
+        return {"success": False, "message": f"获取模型覆盖度失败: {str(e)}", "data": None}
 
 
 @router.post("/api/classify/async")
