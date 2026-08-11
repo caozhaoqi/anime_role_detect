@@ -84,7 +84,7 @@ export default function Login({ darkMode, onLogin, onRegister, isLoading, error 
             {isRegistering ? '用户注册' : '用户登录'}
           </h2>
           <p className={`mt-2 text-center text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-            {isRegistering ? '创建新账号以使用全部功能' : '请输入账号密码'}
+            {isRegistering ? '创建新账号以使用全部功能' : '输入账号密码登录'}
           </p>
         </div>
 
@@ -133,7 +133,7 @@ export default function Login({ darkMode, onLogin, onRegister, isLoading, error 
                       ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400 focus:ring-green-500 focus:border-green-500'
                       : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500 focus:ring-green-500 focus:border-green-500'
                   } focus:outline-none focus:ring-2 sm:text-sm`}
-                  placeholder="输入密码（至少4位）"
+                  placeholder="输入密码（至少8位）"
                   disabled={isLoading}
                   minLength={4}
                 />
@@ -332,9 +332,9 @@ export default function Login({ darkMode, onLogin, onRegister, isLoading, error 
               </button>
             </div>
 
-            <div className={`text-center text-xs ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>
+            {/* <div className={`text-center text-xs ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>
               账号由环境变量配置 · 首次启动默认密码见日志
-            </div>
+            </div> */}
           </form>
         )}
       </div>

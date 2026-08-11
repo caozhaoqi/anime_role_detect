@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest) {
-  console.log('前端API路由接收到视频识别POST请求');
+  console.log('前端API路由接收到视频标注识别POST请求');
   try {
     // 从 URL query 透传视频识别参数（VideoPanel 以 query 传参）
     const searchParams = request.nextUrl.searchParams;
@@ -15,8 +15,10 @@ export async function POST(request: NextRequest) {
     }
 
     const qsStr = qs.toString();
-    const backendUrl = `http://127.0.0.1:8080/api/video/recognize${qsStr ? `?${qsStr}` : ''}`;
-    console.log('准备转发请求到后端API:', backendUrl);
+    // 目标走 api-gateway，由网关再转发到 multimedia-service:8002 的
+    // /video/recognize-with-overlay（与 /api/video/recognize 同源入口，便于统一鉴权/限流）。
+    const backendUrl = `http://127.0.0.1:8080/api/video/recognize-with-overlay${qsStr ? `?${qsStr}` : ''}`;
+    console.log('准备转发请求到后端multimedia服务:', backendUrl);
 
     const authHeader = request.headers.get('authorization');
     const headers: HeadersInit = {
@@ -27,9 +29,10 @@ export async function POST(request: NextRequest) {
       headers['Authorization'] = authHeader;
     }
 
-    // 修复（2026-08-10）：直接转发原始请求体字节流，不再解析 formData 后重建 FormData。
-    // 原实现 request.formData() → 重新 append File → fetch 会在 Node 下把已消费的
-    // 文件流重新序列化，导致文件部件丢失/0字节 → 后端收不到 file 字段 → 422。
+    // 修复（2026-08-10）：overlay 标注模式此前无显式路由，只能走 next.config.js
+    // 的 rewrite 代理；Next.js 的 rewrite 代理默认请求体上限 10MB，视频 >10MB 时
+    // 直接 "Request body exceeded 10MB" + ECONNRESET（见 logs/services/frontend/frontend.err.log）。
+    // 这里改为显式路由 + 直接转发原始请求体字节流，绕过该代理上限，与非标注模式一致。
     const response = await fetch(backendUrl, {
       method: 'POST',
       headers,
@@ -50,7 +53,7 @@ export async function POST(request: NextRequest) {
     console.log('后端API返回结果:', result);
     return NextResponse.json(result, { status: 200 });
   } catch (error) {
-    console.error('视频识别失败:', error);
-    return NextResponse.json({ error: 'Video recognition failed' }, { status: 500 });
+    console.error('视频标注识别失败:', error);
+    return NextResponse.json({ error: 'Video overlay recognition failed' }, { status: 500 });
   }
 }

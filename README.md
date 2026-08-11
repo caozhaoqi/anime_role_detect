@@ -106,7 +106,11 @@ kubectl get pods -n anime-role-detect
 | API Service | http://localhost:8001 | 8001 |
 | Multimedia Service | http://localhost:8002 | 8002 |
 | Search Service | http://localhost:8003 | 8003 |
+| Monitoring | http://localhost:8888 | 8888 |
 | Supervisor Dashboard | http://localhost:9001 | 9001 |
+| RabbitMQ Management | http://localhost:15672 | 15672 |
+
+> Infrastructure ports: Redis 6379, MySQL 3306, RabbitMQ 5672, fluent-bit 2020 (Docker Compose only).
 
 ### API Documentation
 - **Swagger Docs**: `http://localhost:8080/docs`
@@ -123,47 +127,67 @@ kubectl get pods -n anime-role-detect
 anime_role_detect/
 ├── src/                    # Source code (editable install: pip install -e .)
 │   ├── api/                # Backend API service (FastAPI, port 8001)
-│   │   └── routes/         # API route definitions (classify, auth, collector, ...)
+│   │   └── routes/         # API routes (classification, auth, collector, search, video,
+│   │                       #   cleaning, history, models, onnx_inference, async_inference,
+│   │                       #   tracing, version, health, misc)
 │   ├── services/           # Microservices
-│   │   ├── api_gateway/    # API Gateway (FastAPI, port 8080)
-│   │   ├── model_service/  # Model Service (port 8000)
-│   │   ├── multimedia_service/  # Multimedia Service (port 8002)
-│   │   ├── search_service/ # Search Service + worker (port 8003)
+│   │   ├── api_gateway/    # API Gateway (port 8080, aggregates Swagger docs)
+│   │   ├── model_service/  # Model Service (port 8000, includes keypoint_worker)
+│   │   ├── multimedia_service/  # Multimedia Service (port 8002, video rendering)
+│   │   ├── search_service/ # Search Service + worker (port 8003, CLIP+FAISS)
 │   │   ├── inference_worker/   # CLIP inference worker
+│   │   ├── inference_queue/    # Inference queue manager (Redis/Memory fallback)
 │   │   ├── cache_service/  # Redis Cache Service
-│   │   ├── video_service/  # Video Recognition Service
-│   │   ├── messaging/      # Message queue (aio_pika)
-│   │   └── processor/      # Model loaders / image processors
-│   ├── core/               # Core functionality (classification, detection, tagging,
-│   │                       #   recognition, ocr, logging, config, cache, ...)
-│   ├── data/               # Data collection & preprocessing pipelines
-│   ├── data_pipeline/      # Data cleaning / building / webui pipelines
+│   │   ├── model/          # Business model services (classify/recognize/NSFW/multi-model/version)
+│   │   ├── processor/      # Model loaders / image processors / preprocessors
+│   │   ├── support/        # Database service and support layer
+│   │   ├── training/       # Training-related services
+│   │   └── notification_service.py  # Feishu notifications
+│   ├── core/               # Core capabilities
+│   │   ├── classification/ # EfficientNet/MobileNet/DeepDanbooru classification
+│   │   ├── detection/      # YOLO multi-role detection + anime_face_detector
+│   │   ├── recognition/    # CLIP/ArcFace open-set recognition + feature store
+│   │   ├── tagging/        # WD-ViT-Tagger + DeepDanbooru tagging
+│   │   ├── keypoint/       # MediaPipe keypoints
+│   │   ├── ocr/            # EasyOCR
+│   │   ├── feature_extraction/  # Feature extraction (incl. CoreML)
+│   │   ├── log_fusion/     # Log fusion
+│   │   ├── preprocessing/  # Image/data preprocessors
+│   │   ├── config/         # Configuration (ServiceConfig / DeviceManager)
+│   │   ├── cache/          # Cache abstractions
+│   │   ├── logging/        # Structured logging (loguru JSON)
+│   │   └── ...             # error / exception / feedback / version / utils
+│   ├── data/               # Data collection / cleaning / augmentation / search index
+│   ├── data_pipeline/      # Data cleaning pipeline + active_learning + Streamlit webui
 │   ├── data_collection/    # (Legacy) keyword-based collector entry
-│   ├── models/             # Training / evaluation / prediction modules
-│   ├── tasks/              # Celery tasks (classify, image, video, model, cleanup)
-│   ├── utils/              # Shared utilities (image, http, concurrency, monitoring)
-│   ├── middleware/         # HTTP middleware
-│   ├── frontend/           # Frontend (Next.js 15 + React 18 + TypeScript)
-│   └── run/                # Service management & monitor dashboard
+│   ├── models/             # Database models + training / evaluation / prediction / deployment
+│   ├── tasks/              # Celery tasks (classify/image/video/model/cleanup)
+│   ├── utils/              # Shared utilities (image, http, concurrency, memory, monitoring, config)
+│   ├── middleware/         # HTTP middleware (auth_enhanced / monitoring / tracing)
+│   ├── frontend/           # Frontend (Next.js 15 + React 18 + TypeScript App Router)
+│   ├── run/                # Service management / monitor dashboard / launch scripts
+│   ├── cache/              # HuggingFace / Keras model cache directories
+│   └── static/             # Static assets
 ├── models/                 # Model weights (git-ignored)
-├── tests/                  # Test suites (unit / integration / model / workflow)
-├── docs/                   # Documentation (architecture, deployment, training, blog)
-├── scripts/                # Utility scripts (k8s, monitoring, data_*, evaluation, ...)
+├── tests/                  # Test suites (unit / integration / model / workflow / regression / performance / benchmark)
+├── docs/                   # Documentation (architecture / deployment / training / blog / testing / technical_challenges)
+├── scripts/                # Utility scripts (k8s, monitoring, data_*, model_evaluation, coreml, detection, ...)
 │   └── skillhub/           # ⚠️ Archived experiment sub-project (88MB, not referenced)
 ├── archived/               # Historical / broken modules (spider_image_system, arona, ...)
-├── deployment/             # Kubernetes & Docker deployment files
-├── k8s/                    # Kustomize overlays (base / ci) + local registry helpers
-├── config/                 # Config templates
-├── supervisord.conf        # Process manager configuration (11 programs)
-├── docker-compose.yml      # Docker Compose configuration
-├── Dockerfile              # Backend Dockerfile
-├── Dockerfile.model        # Model Service Dockerfile
+├── deployment/             # Docker deployment files (11 Dockerfile.* + nginx + grafana)
+├── k8s/                    # Kustomize (base/ + overlays/ci/)
+├── config/                 # Config templates (config.ini / config.py)
+├── supervisord.conf        # Process manager configuration (12 programs)
+├── docker-compose.yml      # Docker Compose configuration (13 services)
+├── Dockerfile              # Backend Dockerfile (root)
+├── Dockerfile.model        # Model Service Dockerfile (root)
+├── requirements.txt        # Full dependencies
 ├── requirements-base.txt   # Base dependencies (for base image)
 ├── requirements-ml.txt     # ML dependencies
 ├── requirements-model-service.txt
 ├── requirements-scripts.txt
 ├── requirements-dev.txt    # Development dependencies
-├── pyproject.toml          # Project configuration (v2.3.0)
+├── pyproject.toml          # Project configuration (v2.3.0, authoritative version source)
 └── .env.example            # Environment template
 ```
 
@@ -180,12 +204,22 @@ anime_role_detect/
 |----------|--------|-------------|
 | `/api/classify` | POST | Image classification |
 | `/api/classify/multi-role` | POST | Multi-character detection (YOLO) |
-| `/api/search/image` | POST | Reverse image search |
+| `/api/classify/async` | POST | Async classification (task queue) |
+| `/api/search/image` | POST | Reverse image search (CLIP+FAISS) |
 | `/api/video/recognize` | POST | Video recognition |
+| `/api/collect` | POST | Data collection task |
+| `/api/cleaning` | POST | Data cleaning task |
+| `/api/history` | GET | Recognition history |
+| `/api/models` | GET | Model info & version |
+| `/api/onnx/infer` | POST | ONNX inference |
 | `/api/health` | GET | Health check |
 | `/api/services` | GET | Service status |
 | `/api/auth/login` | POST | User login |
 | `/api/auth/refresh` | POST | Refresh token |
+| `/api/version` | GET | Version info |
+| `/metrics` | GET | Prometheus metrics |
+
+> Full route definitions in [src/api/routes/](src/api/routes/). Gateway aggregated docs: `http://localhost:8080/docs`.
 
 ## 🔧 Configuration
 
@@ -203,16 +237,15 @@ anime_role_detect/
 
 The project includes comprehensive Docker support:
 
-- **docker-compose.yml**: Multi-service orchestration with Redis, MySQL, RabbitMQ, and all application services
-- **Dockerfile**: Multi-stage build for backend services
-- **Dockerfile.model**: Optimized model service image
-- **deployment/Dockerfile.frontend**: Frontend Next.js deployment with Nginx
+- **docker-compose.yml**: Multi-service orchestration (13 services) with Redis, MySQL, RabbitMQ, fluent-bit, and all application services
+- **Root Dockerfile**: Backend service image
+- **Root Dockerfile.model**: Model service image
+- **deployment/**: 11 Dockerfiles (base / ml-base / api-service / api-gateway / model-service / multimedia-service / search-service / search-worker / inference-worker / monitoring / frontend) + nginx.conf + grafana dashboard
+- **Resource limits**: model-service 4G/4cpu, others 256M-1.5G (compressed in compose file)
 
 ## 📊 Model Performance
 
-### Latest Benchmark Results (2026-07-28, `scripts/model_evaluation/benchmark_results.json`)
-
-> ⚠️ **Data note**: the test set (`final_dataset`, 1,275 images, 51 classes × 25) is **sampled from the same source as the training set** — the same images appear in both train and test, which inflates the headline number. On a **no-overlap split** (70/15/15, seed=42, test never seen in training) the true per-image generalization Top-1 is **82.65%** — only 1.65pp below the 84.00% same-image figure, confirming the model's per-image generalization for the 51 known classes is genuine (not merely memorized). Full analysis: `scripts/model_evaluation/leakage_report.html`; summary: `docs/training/DATA_LEAKAGE_STATUS.md`.
+### Latest Benchmark Results
 
 **Production model**: `efficientnet_b3` (`models/efficientnet_b3/model_best.pth`), 51 classes, 256×256 input, 45.99 MB, 11.9M params, evaluated on Apple MPS.
 
@@ -269,10 +302,13 @@ python scripts/model_evaluation/run_benchmark.py
 ## 📚 Documentation
 
 For detailed documentation:
-- `docs/architecture/PROJECT_STRUCTURE.md` - Project structure & known issues
+- `docs/architecture/` - Project structure & architecture design
 - `docs/deployment/` - Deployment guides (Kubernetes, Ubuntu)
-- `docs/training/` - Model training guides
+- `docs/training/` - Model training guides + data leakage analysis
 - `docs/blog/` - Technical blog posts
+- `docs/testing/` - Testing guides
+- `docs/technical_challenges/` - Technical challenges & solutions
+- `docs/system_design.md` / `docs/system_design_perf.md` - System design & performance optimization plan
 
 ## 🤝 Contributing
 
@@ -287,7 +323,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-**Version**: v2.3.0 | **Last Updated**: July 2026 | **Maintainer**: ARD Team
+**Version**: v2.3.0 | **Last Updated**: Aug 2026 | **Maintainer**: ARD Team
 
 ---
 

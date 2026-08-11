@@ -95,7 +95,11 @@ docker-compose down
 | API 服务 | http://localhost:8001 | 8001 |
 | 多媒体服务 | http://localhost:8002 | 8002 |
 | 搜索服务 | http://localhost:8003 | 8003 |
+| 监控服务 | http://localhost:8888 | 8888 |
 | Supervisor 管理面板 | http://localhost:9001 | 9001 |
+| RabbitMQ 管理面板 | http://localhost:15672 | 15672 |
+
+> 基础设施端口：Redis 6379、MySQL 3306、RabbitMQ 5672、fluent-bit 2020（仅 Docker Compose 暴露）。
 
 ### API 文档
 - **Swagger 文档**: `http://localhost:8080/docs`
@@ -112,46 +116,67 @@ docker-compose down
 anime_role_detect/
 ├── src/                    # 源代码（可编辑安装：pip install -e .）
 │   ├── api/                # 后端API服务（FastAPI，端口8001）
-│   │   └── routes/         # API路由（classify、auth、collector 等）
+│   │   └── routes/         # API路由（classification、auth、collector、search、video、
+│   │                       #   cleaning、history、models、onnx_inference、async_inference、
+│   │                       #   tracing、version、health、misc）
 │   ├── services/           # 微服务
-│   │   ├── api_gateway/    # API网关（端口8080）
-│   │   ├── model_service/  # 模型服务（端口8000）
-│   │   ├── multimedia_service/  # 多媒体服务（端口8002）
-│   │   ├── search_service/ # 搜索服务 + worker（端口8003）
+│   │   ├── api_gateway/    # API网关（端口8080，聚合 Swagger 文档）
+│   │   ├── model_service/  # 模型服务（端口8000，含 keypoint_worker）
+│   │   ├── multimedia_service/  # 多媒体服务（端口8002，含视频渲染）
+│   │   ├── search_service/ # 搜索服务 + worker（端口8003，CLIP+FAISS）
 │   │   ├── inference_worker/   # CLIP 推理 worker
-│   │   ├── cache_service/  # Redis缓存服务
-│   │   ├── video_service/  # 视频识别服务
-│   │   ├── messaging/      # 消息队列（aio_pika）
-│   │   └── processor/      # 模型加载器 / 图像处理器
-│   ├── core/               # 核心功能（分类、检测、打标、识别、ocr、日志、配置、缓存…）
-│   ├── data/               # 数据采集与预处理流水线
-│   ├── data_pipeline/      # 数据清洗 / 构建 / webui 流水线
+│   │   ├── inference_queue/    # 推理队列管理（Redis/Memory 兜底）
+│   │   ├── cache_service/  # Redis 缓存服务
+│   │   ├── model/          # 业务模型服务（分类/识别/NSFW/多模型/版本）
+│   │   ├── processor/      # 模型加载器 / 图像处理器 / 预处理器
+│   │   ├── support/        # 数据库服务等支撑层
+│   │   ├── training/       # 训练相关服务
+│   │   └── notification_service.py  # 飞书通知
+│   ├── core/               # 核心能力
+│   │   ├── classification/ # EfficientNet/MobileNet/DeepDanbooru 分类
+│   │   ├── detection/      # YOLO 多角色检测 + anime_face_detector
+│   │   ├── recognition/    # CLIP/ArcFace 开集识别 + 特征存储
+│   │   ├── tagging/        # WD-ViT-Tagger + DeepDanbooru 标签
+│   │   ├── keypoint/       # MediaPipe 关键点
+│   │   ├── ocr/            # EasyOCR
+│   │   ├── feature_extraction/  # 特征提取（含 CoreML）
+│   │   ├── log_fusion/     # 日志融合
+│   │   ├── preprocessing/  # 图像/数据预处理器
+│   │   ├── config/         # 配置（ServiceConfig / DeviceManager）
+│   │   ├── cache/          # 缓存抽象
+│   │   ├── logging/        # 结构化日志（loguru JSON）
+│   │   └── ...             # error / exception / feedback / version / utils
+│   ├── data/               # 数据采集 / 清洗 / 增强 / 搜索索引
+│   ├── data_pipeline/      # 数据清洗流水线 + active_learning + Streamlit webui
 │   ├── data_collection/    # （遗留）关键词采集入口
-│   ├── models/             # 训练 / 评估 / 预测模块
-│   ├── tasks/              # Celery 任务（分类、图像、视频、模型、清理）
-│   ├── utils/              # 公共工具（图像、http、并发、监控）
-│   ├── middleware/         # HTTP 中间件
-│   ├── frontend/           # 前端（Next.js 15 + React 18 + TypeScript）
-│   └── run/                # 服务管理与监控面板
+│   ├── models/             # 数据库模型 + 训练 / 评估 / 预测 / 部署模块
+│   ├── tasks/              # Celery 任务（classify/image/video/model/cleanup）
+│   ├── utils/              # 公共工具（图像、http、并发、内存、监控、配置）
+│   ├── middleware/         # HTTP 中间件（auth_enhanced / monitoring / tracing）
+│   ├── frontend/           # 前端（Next.js 15 + React 18 + TypeScript App Router）
+│   ├── run/                # 服务管理 / 监控面板 / 启动脚本
+│   ├── cache/              # HuggingFace / Keras 模型缓存目录
+│   └── static/             # 静态资源
 ├── models/                 # 模型权重（git 忽略）
-├── tests/                  # 测试套件（unit / integration / model / workflow）
-├── docs/                   # 文档（架构、部署、训练、博客）
-├── scripts/                # 工具脚本（k8s、监控、data_*、评估…）
+├── tests/                  # 测试套件（unit / integration / model / workflow / regression / performance / benchmark）
+├── docs/                   # 文档（architecture / deployment / training / blog / testing / technical_challenges）
+├── scripts/                # 工具脚本（k8s、监控、data_*、model_evaluation、coreml、detection…）
 │   └── skillhub/           # ⚠️ 归档的实验子项目（88MB，无引用）
 ├── archived/               # 历史 / 损坏模块（spider_image_system、arona…）
-├── deployment/             # Kubernetes 与 Docker 部署文件
-├── k8s/                    # Kustomize 覆盖（base / ci）+ 本地 registry 辅助
-├── config/                 # 配置模板
-├── supervisord.conf        # 进程管理器配置（11 个程序）
-├── docker-compose.yml      # Docker Compose 配置
-├── Dockerfile              # 后端 Dockerfile
-├── Dockerfile.model        # 模型服务 Dockerfile
+├── deployment/             # Docker 部署文件（11 个 Dockerfile.* + nginx + grafana）
+├── k8s/                    # Kustomize（base/ + overlays/ci/）
+├── config/                 # 配置模板（config.ini / config.py）
+├── supervisord.conf        # 进程管理器配置（12 个程序）
+├── docker-compose.yml      # Docker Compose 配置（13 个服务）
+├── Dockerfile              # 后端 Dockerfile（根目录）
+├── Dockerfile.model        # 模型服务 Dockerfile（根目录）
+├── requirements.txt        # 完整依赖
 ├── requirements-base.txt   # 基础依赖（base 镜像用）
 ├── requirements-ml.txt     # ML 依赖
 ├── requirements-model-service.txt
 ├── requirements-scripts.txt
 ├── requirements-dev.txt    # 开发依赖
-├── pyproject.toml          # 项目配置（v2.3.0）
+├── pyproject.toml          # 项目配置（v2.3.0，版本号权威源）
 └── .env.example            # 环境变量模板
 ```
 
@@ -168,12 +193,22 @@ anime_role_detect/
 |------|------|------|
 | `/api/classify` | POST | 图片分类 |
 | `/api/classify/multi-role` | POST | 多角色检测（YOLO） |
-| `/api/search/image` | POST | 图片搜索 |
+| `/api/classify/async` | POST | 异步分类（任务队列） |
+| `/api/search/image` | POST | 反向图片搜索（CLIP+FAISS） |
 | `/api/video/recognize` | POST | 视频识别 |
+| `/api/collect` | POST | 数据采集任务 |
+| `/api/cleaning` | POST | 数据清洗任务 |
+| `/api/history` | GET | 识别历史记录 |
+| `/api/models` | GET | 模型信息与版本 |
+| `/api/onnx/infer` | POST | ONNX 推理 |
 | `/api/health` | GET | 健康检查 |
 | `/api/services` | GET | 服务状态 |
 | `/api/auth/login` | POST | 用户登录 |
-| `/api/auth/refresh` | POST | 刷新Token |
+| `/api/auth/refresh` | POST | 刷新 Token |
+| `/api/version` | GET | 版本信息 |
+| `/metrics` | GET | Prometheus 指标 |
+
+> 完整路由定义见 [src/api/routes/](src/api/routes/)。网关聚合文档地址：`http://localhost:8080/docs`。
 
 ## 🔧 配置
 
@@ -191,16 +226,15 @@ anime_role_detect/
 
 项目包含完整的 Docker 支持：
 
-- **docker-compose.yml**: 多服务编排，包含 Redis、MySQL、RabbitMQ 和所有应用服务
-- **Dockerfile**: 后端服务多阶段构建
-- **Dockerfile.model**: 优化的模型服务镜像
-- **deployment/Dockerfile.frontend**: 前端 Next.js 部署（带 Nginx）
+- **docker-compose.yml**: 多服务编排（13 个服务），含 Redis、MySQL、RabbitMQ、fluent-bit 和所有应用服务
+- **根目录 Dockerfile**: 后端服务镜像
+- **根目录 Dockerfile.model**: 模型服务镜像
+- **deployment/**: 11 个 Dockerfile（base / ml-base / api-service / api-gateway / model-service / multimedia-service / search-service / search-worker / inference-worker / monitoring / frontend）+ nginx.conf + grafana 看板
+- **资源限制**: model-service 4G/4cpu，其余 256M-1.5G（已在 compose 文件中压缩优化）
 
 ## 📊 模型性能
 
-### 最新基准测试结果（2026-07-28，`scripts/model_evaluation/benchmark_results.json`）
-
-> ⚠️ **数据说明**：测试集（`final_dataset`，1,275 张图，51 类 × 25 张）**与训练集同源采样**——同一张图既进训练又进测试，会抬高头条数字。在**无交叠切分**（70/15/15，seed=42，测试集训练全程不可见）下，真实逐图泛化 Top-1 为 **82.65%**——仅比 84.00% 同图数字低 1.65 个百分点，证明模型对 51 个已知角色的**逐图泛化是真实的**（并非单纯记图）。完整分析：`scripts/model_evaluation/leakage_report.html`；汇总：`docs/training/DATA_LEAKAGE_STATUS.md`。
+### 最新基准测试结果
 
 **生产模型**：`efficientnet_b3`（`models/efficientnet_b3/model_best.pth`），51 类，256×256 输入，45.99 MB，11.9M 参数，于 Apple MPS 评测。
 
@@ -256,10 +290,13 @@ python scripts/model_evaluation/run_benchmark.py
 ## 📚 文档
 
 详细文档请参考：
-- `docs/architecture/PROJECT_STRUCTURE.md` - 项目结构与已知问题
+- `docs/architecture/` - 项目结构与架构设计
 - `docs/deployment/` - 部署指南（Kubernetes、Ubuntu）
-- `docs/training/` - 模型训练指南
+- `docs/training/` - 模型训练指南 + 数据泄漏分析
 - `docs/blog/` - 技术博客
+- `docs/testing/` - 测试指南
+- `docs/technical_challenges/` - 技术挑战与解决方案
+- `docs/system_design.md` / `docs/system_design_perf.md` - 系统设计与性能优化方案
 
 ## 🤝 贡献
 
@@ -274,7 +311,7 @@ python scripts/model_evaluation/run_benchmark.py
 
 ---
 
-**版本**: v2.3.0 | **最后更新**: 2026年7月 | **维护者**: ARD Team
+**版本**: v2.3.0 | **最后更新**: 2026年8月 | **维护者**: ARD Team
 
 ---
 

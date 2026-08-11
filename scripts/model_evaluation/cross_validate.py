@@ -30,9 +30,9 @@ from PIL import Image
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-MODEL_PATH = PROJECT_ROOT / "models" / "efficientnet_b3_v3" / "model_best.pth"
-CLASS_IDX_PATH = PROJECT_ROOT / "models" / "efficientnet_b3_v3" / "class_to_idx.json"
-TRAINING_RESULTS_PATH = PROJECT_ROOT / "models" / "efficientnet_b3_v3" / "training_results.json"
+MODEL_PATH = PROJECT_ROOT / "models" / "efficientnet_b3_v7" / "model_best.pth"
+CLASS_IDX_PATH = PROJECT_ROOT / "models" / "efficientnet_b3_v7" / "class_to_idx.json"
+TRAINING_RESULTS_PATH = PROJECT_ROOT / "models" / "efficientnet_b3_v7" / "training_results.json"
 FINAL_DIR = PROJECT_ROOT / "data" / "final_dataset"
 TRAIN_DIR = PROJECT_ROOT / "data" / "training_dataset"
 IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp"}
