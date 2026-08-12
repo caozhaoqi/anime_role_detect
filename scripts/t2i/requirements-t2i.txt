@@ -1,0 +1,10 @@
+# T2I (SDXL + LoRA) 训练依赖。基于 diffusers，独立安装于项目 .venv 之外或专用 venv。
+# 安装：pip install -r scripts/t2i/requirements-t2i.txt
+torch>=2.1
+torchvision>=0.16
+diffusers>=0.30
+transformers>=4.40
+accelerate>=0.30
+peft>=0.12
+Pillow>=10.0
+tqdm>=4.66

@@ -198,3 +198,6 @@ archived/spider_image_system/
 
 # 运行时缓存（测试/运行期间生成的 pickle 缓存）
 cache/
+
+t2i-mac/
+models_cache/

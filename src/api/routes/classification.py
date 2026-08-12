@@ -47,7 +47,7 @@ def annotate_coverage(result: dict, model_name: str) -> dict:
     对 long-tail 角色与未收录角色给出明确信号。
     """
     try:
-        from src.services.processor.model_loader import get_known_classes
+        from src.services.processor.model_loader import get_known_classes, is_role_known
         known = get_known_classes(model_name)
     except Exception as e:
         logger.warning(f"获取模型已知类别失败，跳过覆盖度标注: {e}")
@@ -58,11 +58,12 @@ def annotate_coverage(result: dict, model_name: str) -> dict:
         return result
 
     predicted = _extract_predicted_role(result)
+    is_known = is_role_known(model_name, predicted)
     result["model_coverage"] = {
         "model_name": model_name,
         "known_class_count": len(known),
         "predicted_role": predicted,
-        "is_known": (predicted in known) if predicted else None,
+        "is_known": is_known,
     }
     return result
 
