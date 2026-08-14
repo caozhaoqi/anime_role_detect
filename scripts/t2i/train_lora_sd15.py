@@ -88,6 +88,10 @@ def main():
     ap.add_argument("--smoke-generate", action="store_true", help="训练后加载 LoRA 生成 1 张图验证")
     ap.add_argument("--test-prompt", default=None)
     ap.add_argument("--dry-run", action="store_true", help="只校验数据通路与依赖，不训练")
+    ap.add_argument("--generate-only", action="store_true",
+                    help="跳过训练，仅加载已保存 LoRA 生成 smoke 图（配合 --smoke-generate 语义）")
+    ap.add_argument("--inference-steps", type=int, default=50,
+                    help="生成步数（越大越稳；默认 50，PoC 用 25 偏少易出多脸/抽象）")
     args = ap.parse_args()
 
     examples = build_examples(args.metadata, role=args.role, limit=args.limit)
@@ -203,6 +207,19 @@ def main():
                 print(f"[train] epoch {epoch} step {i} loss {loss.item():.4f} | RSS {rss:.0f}MB MPS {mps:.0f}MB")
 
     out = Path(args.output_dir); out.mkdir(parents=True, exist_ok=True)
+
+    # --generate-only: 跳过训练，直接加载已保存 LoRA 生成（重训是长任务，LoRA 已落盘时用这个）
+    if args.generate_only:
+        print(f"[generate] 加载已保存 LoRA: {out}")
+        pipe.load_lora_weights(str(out))
+        prompt = args.test_prompt or (examples[0][1] if examples else "solo, anime style, high quality")
+        print(f"[generate] 生成: {prompt!r} (steps={args.inference_steps})")
+        img = pipe(prompt, num_inference_steps=args.inference_steps, guidance_scale=7.5).images[0]
+        smoke_path = out / "smoke_test.png"
+        img.save(smoke_path)
+        print(f"[generate] 已保存: {smoke_path}")
+        return
+
     unet.save_attn_procs(out)  # 保存 pytorch_lora_weights.bin（SD1.5 格式）
     print(f"[done] LoRA 已保存: {out}")
 
@@ -210,8 +227,8 @@ def main():
         prompt = args.test_prompt or examples[0][1]
         print(f"[smoke] 把组件搬到 {device} 并生成: {prompt!r}")
         pipe = pipe.to(device)
-        pipe.load_attn_procs(out)
-        img = pipe(prompt, num_inference_steps=25, guidance_scale=7.5).images[0]
+        pipe.load_lora_weights(str(out))
+        img = pipe(prompt, num_inference_steps=args.inference_steps, guidance_scale=7.5).images[0]
         smoke_path = out / "smoke_test.png"
         img.save(smoke_path)
         print(f"[smoke] 已保存: {smoke_path}")
