@@ -204,3 +204,19 @@ cache/
 
 t2i-mac/
 models_cache/
+.env.*
+!.env.example
+!.env.template
+
+# 大模型权重（体积大，勿入库；*.pth/*.pt/*.ckpt 已在上方忽略）
+*.safetensors
+
+# 本项目实际日志目录（老规则只忽略了 logs/，本目录名不同）
+anime_role_detect_logs/
+
+# AI / 编码工具产物（注意：保留 .workbuddy —— 那是本项目记忆，勿忽略）
+.qoder/
+.trae/
+.codebuddy/
+.claude/
+.cursor/

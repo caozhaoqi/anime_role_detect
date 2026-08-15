@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { Message } from '../types';
 import { HistoryRecord } from '../api/services/HistoryService';
+import { GenerationService } from '../api/services/GenerationService';
 import { useAppStore } from '../store/useAppStore';
 
 export const useChat = () => {
@@ -9,12 +10,13 @@ export const useChat = () => {
     {
       id: '1',
       role: 'assistant',
-      content: '你好！我是动漫角色识别助手。请上传一张动漫角色图片，我将尝试识别出这个角色。',
+      content: '你好！我是动漫角色识别助手。请上传一张动漫角色图片，我将尝试识别出这个角色。也可以说"生成 <角色名>"来画出对应角色的图像。',
       timestamp: Date.now(),
     },
   ]);
   const [inputText, setInputText] = useState('');
   const [copySuccess, setCopySuccess] = useState<string | null>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
 
   const addMessage = useCallback((message: Message) => {
     setMessages((prev) => [...prev, message]);
@@ -90,17 +92,111 @@ export const useChat = () => {
       {
         id: '1',
         role: 'assistant',
-        content: '你好！我是动漫角色识别助手。请上传一张动漫角色图片，我将尝试识别出这个角色。',
+        content: '你好！我是动漫角色识别助手。请上传一张动漫角色图片，我将尝试识别出这个角色。也可以说"生成 <角色名>"来画出对应角色的图像。',
         timestamp: Date.now(),
       },
     ]);
     setInputText('');
   }, []);
 
+  /**
+   * 对话生成：把用户输入当作 t2i 聊天意图，调用后端 /api/t2i/chat。
+   * 后端负责角色名匹配 + 意图识别；命中的话直接出图，未命中则给出提示。
+   * 返回 { shouldLogout } 以便上层在鉴权失败时跳转登录。
+   */
+  const generateFromChat = useCallback(
+    async (
+      text: string,
+      opts?: { method?: 'ip_adapter' | 'lora'; num?: number; onUnauthorized?: () => void }
+    ): Promise<{ shouldLogout: boolean }> => {
+      const userMsg: Message = {
+        id: `u-${Date.now()}`,
+        role: 'user',
+        content: text,
+        timestamp: Date.now(),
+      };
+      addMessage(userMsg);
+
+      const thinkingId = `t2i-think-${Date.now()}`;
+      addMessage({
+        id: thinkingId,
+        role: 'assistant',
+        content: '正在生成角色图像…',
+        isThinking: true,
+        isThinkingFinished: false,
+        timestamp: Date.now(),
+      });
+
+      setIsGenerating(true);
+      try {
+        const data = await GenerationService.chat(
+          text,
+          opts?.method ?? 'ip_adapter',
+          opts?.num ?? 1
+        );
+        // 未命中角色 / 无生成意图：直接把后端提示语作为助手消息
+        if (!data.job_id) {
+          replaceThinkingWithMessages([
+            {
+              id: `t2i-${Date.now()}`,
+              role: 'assistant',
+              content: data.reply || '未识别到角色。',
+              timestamp: Date.now(),
+            },
+          ]);
+          return { shouldLogout: false };
+        }
+        // 命中角色：轮询生成作业直到出图（后台推理，UI 不卡）
+        const job = await GenerationService.pollJob(data.job_id);
+        const result = job.result!;
+        const assistantMsg: Message = {
+          id: `t2i-${Date.now()}`,
+          role: 'assistant',
+          content: `已为角色「${data.matched_role}」生成 ${result.images.length} 张图。`,
+          generated_role: data.matched_role ?? null,
+          generated_images: result.images,
+          generated_method: result.method,
+          generated_fell_back: result.fell_back,
+          timestamp: Date.now(),
+        };
+        replaceThinkingWithMessages([assistantMsg]);
+        return { shouldLogout: false };
+      } catch (e: any) {
+        const status = e?.response?.status;
+        let errMsg = '生成失败，请稍后重试';
+        if (status === 401) {
+          opts?.onUnauthorized?.();
+          return { shouldLogout: true };
+        }
+        if (status === 404) {
+          errMsg = e?.response?.data?.detail || '未找到该角色的参考图';
+        } else if (e?.response?.data?.detail) {
+          errMsg = String(e.response.data.detail);
+        } else if (e?.message) {
+          errMsg = e.message;
+        }
+        replaceThinkingWithMessages([
+          {
+            id: `t2i-err-${Date.now()}`,
+            role: 'assistant',
+            content: `生成失败：${errMsg}`,
+            error: errMsg,
+            timestamp: Date.now(),
+          },
+        ]);
+        return { shouldLogout: false };
+      } finally {
+        setIsGenerating(false);
+      }
+    },
+    [addMessage, replaceThinkingWithMessages]
+  );
+
   return {
     messages,
     inputText,
     copySuccess,
+    isGenerating,
     setInputText,
     addMessage,
     addMessages,
@@ -111,5 +207,6 @@ export const useChat = () => {
     handleCopyMessage,
     handleDownloadMessage,
     resetMessages,
+    generateFromChat,
   };
 };

@@ -28,8 +28,16 @@ config = get_service_config()
 from src.core.logging import get_enhanced_logger as get_logger
 from src.core.logging_setup import setup_logging
 from src.services.api_gateway.routing import resolve_route
+from src.core.service_registry import registry
 
 logger = get_logger("api_gateway")
+
+# D: t2i 服务自注册路由（装饰器自动发现）。import 即触发其 register_route，
+# 网关无需手写 ROUTE_TABLE；t2i 模块缺失时降级，不阻断网关启动。
+try:
+    import src.services.t2i_service.router  # noqa: F401
+except Exception as _e:  # t2i 未安装/导入失败
+    logger.warning(f"t2i 路由自注册跳过: {_e}")
 
 # 2.5 结构化日志：统一 loguru 输出为 JSON 行（幂等，仅配置一次）
 setup_logging("api-gateway")
@@ -58,6 +66,12 @@ SERVICES = {
         "url": config.SEARCH_SERVICE_URL,
         "prefix": "/api/search",
         "name": "搜索服务 (Search Service)",
+        "docs_path": "/openapi.json",
+    },
+    "t2i": {
+        "url": config.T2I_SERVICE_URL,
+        "prefix": "/api/t2i",
+        "name": "角色生成服务 (T2I Service)",
         "docs_path": "/openapi.json",
     },
 }
@@ -408,7 +422,8 @@ async def custom_swagger_ui_html():
                     {url: "/api/core/openapi.json", name: "核心API服务"},
                     {url: "/api/model/openapi.json", name: "模型服务"},
                     {url: "/api/multimedia/openapi.json", name: "多媒体服务"},
-                    {url: "/api/search/openapi.json", name: "搜索服务"}
+                    {url: "/api/search/openapi.json", name: "搜索服务"},
+                    {url: "/api/t2i/openapi.json", name: "角色生成服务"}
                 ],
                 dom_id: "#swagger-ui",
                 deepLinking: true
@@ -465,6 +480,9 @@ async def get_and_fix_openapi(service_key: str):
                         full_path = path
                     else:
                         full_path = f"{prefix}{path}".replace("//", "/")
+                elif service_key == "t2i":
+                    # t2i 服务路径已带 /api 前缀，原样保留
+                    full_path = path
                 elif service_key == "api":
                     # core api 服务：路径已经有 /api 前缀，不需要重复添加
                     # 例如 /api/classify -> /api/classify
@@ -508,6 +526,11 @@ async def search_openapi():
     return await get_and_fix_openapi("search")
 
 
+@app.get("/api/t2i/openapi.json", include_in_schema=False)
+async def t2i_openapi():
+    return await get_and_fix_openapi("t2i")
+
+
 # --- 原有代理路由逻辑 ---
 
 
@@ -523,12 +546,14 @@ async def root():
             "core_json": "/api/core/openapi.json",
             "multimedia_json": "/api/multimedia/openapi.json",
             "search_json": "/api/search/openapi.json",
+            "t2i_json": "/api/t2i/openapi.json",
         },
         "services": {
             "model": "模型服务 - 角色识别、特征提取",
             "api": "核心API服务 - 业务逻辑",
             "multimedia": "多媒体服务 - 视频处理",
             "search": "搜索服务 - 以图搜图",
+            "t2i": "角色生成服务 - IP-Adapter / LoRA 生成",
         },
     }
 
@@ -579,6 +604,12 @@ async def check_services():
                 "error": str(e),
             }
     return {"services": status, "gateway_status": "running"}
+
+
+@app.get("/api/gateway/routes")
+async def gateway_routes():
+    """暴露 ServiceRegistry 已注册路由与服务拓扑（feature D），供前端可观测面板展示。"""
+    return {"success": True, "services": registry.get_services(), "routes": registry.get_routes()}
 
 
 @app.api_route("/api/video/result/{filename}", methods=["GET"])
@@ -636,13 +667,19 @@ async def proxy_request(request: Request, path: str):
         logger.warning(f"上游[{service}]熔断中，快速失败返回 503")
         raise HTTPException(status_code=503, detail=f"上游服务[{service}]暂时不可用（熔断保护）")
 
-    max_retries = 3
+    # t2i 生成为长耗时任务（首次需加载 SD1.5 + IP-Adapter 模型，常 30~120s），
+    # 网关侧需放宽超时并取消重试，否则请求会在模型加载完成前被 httpx 砍掉，
+    # 前端表现为「点击生成一直转圈 / 卡死」。其余路由保持 60s。
+    is_long_task = service == "t2i"
+    req_timeout = 600.0 if is_long_task else 60.0
+    max_retries = 1 if is_long_task else 3
     retry_delay = 0.5
 
     for attempt in range(max_retries):
         try:
             response = await client.request(
-                method=request.method, url=url, headers=headers, content=body
+                method=request.method, url=url, headers=headers, content=body,
+                timeout=req_timeout,
             )
 
             # 5xx 视为上游故障：计入熔断，但仍把上游 5xx 转发给客户端（保持原有语义）

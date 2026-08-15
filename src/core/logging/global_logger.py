@@ -80,7 +80,8 @@ class GlobalLogger:
             rotation="100 MB",
             retention="7 days",
             compression="zip",
-            level="DEBUG",
+            # INFO：避免 DEBUG 级资源采样刷屏统一日志（log_viewer.py 仍读 unified.log）
+            level="INFO",
             format=log_format_plain, colorize=False,
             enqueue=True,
         )
@@ -130,6 +131,18 @@ class GlobalLogger:
 
         # 控制台输出配置
         logger.add(sys.stdout, level="INFO", format=log_format_plain, colorize=False)
+
+        # 抑制第三方库的 INFO/DEBUG 噪音（标准 logging 体系）。
+        # transformers / diffusers 等加载模型时会刷大量 INFO；抬高到 WARNING 可显著减少噪音，
+        # 且不影响项目自身的业务/错误日志（业务走 loguru，与标准 logging 互相独立）。
+        import logging as _std_logging
+
+        for _lib in (
+            "transformers", "diffusers", "modelscope", "accelerate",
+            "matplotlib", "PIL", "urllib3", "httpx",
+            "uvicorn", "uvicorn.access", "uvicorn.error",
+        ):
+            _std_logging.getLogger(_lib).setLevel(_std_logging.WARNING)
 
     def get_logger(self, name: str = "global"):
         """

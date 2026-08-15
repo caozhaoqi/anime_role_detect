@@ -2,70 +2,60 @@
 # -*- coding: utf-8 -*-
 """API 网关路由表：路径 → 下游服务的**单一事实源**。
 
-取代 ``app.py:proxy_request`` 中原先硬编码的 ``if/elif`` 分支，
-以及原 ``SERVICES`` 字典里隐含的路由知识 —— 二者曾是双份真相源，
-加服务时改一处漏一处就会漂移。
+取代原先硬编码的 ``ROUTE_TABLE`` 列表与 ``SERVICES`` 字典两份真相源（加服务时改一处漏一处）。
 
-设计要点：
-- 本模块为**纯函数**，不依赖任何 Web 框架 / 网络 / 配置，**可直接单测**。
-- 下游服务的根 URL 由调用方（``app.py`` 的 ``SERVICES`` 注册表）注入，
-  路由表本身不硬编码任何 ``config.*_URL``。
-- ``ROUTE_TABLE`` 顺序即优先级，首个匹配生效。
-- ``match_exact``：path 精确相等；``match_prefix``：path.startswith；
-  ``match_default``：兜底（应放在最后）。
-- 命中后按 ``strip`` 去除 path 前缀，再套用 ``template``
-  （``{base}``=服务根 URL，``{path}``=处理后的 path）。
+- 路由规则通过 ``src.core.service_registry`` 的 ``register_route`` **声明式注册**，
+  由 ``register_default_routes()`` 在 import 时装配；t2i 等独立服务也可在自己的模块里
+  调用 ``register_route`` 自注册（见 ``src/services/t2i_service/router.py``），无需回改本文件。
+- 下游服务根 URL 由调用方（``app.py`` 的 ``SERVICES`` 注册表）注入，路由表本身不硬编码任何
+  ``config.*_URL``。
+- 顺序即优先级，首个匹配生效；``match_default`` 必须最后注册。``register_route`` 按名称去重，
+  重复注册后者覆盖前者（幂等，支持自注册与默认注册并存）。
 """
 from __future__ import annotations
 
-from typing import Dict, List, Tuple
+from typing import Dict, Tuple
 
-ROUTE_TABLE: List[Dict] = [
-    {
-        "name": "search",
-        "service": "search",
-        "match_prefix": ["search/image", "search/build-index", "search/stats"],
-        "template": "{base}/api/{path}",
-    },
-    {
-        "name": "video",
-        "service": "multimedia",
-        "match_prefix": ["video/"],
-        "strip": "video/",
-        "template": "{base}/video/{path}",
-    },
-    {
-        "name": "classify-multi-role",
-        "service": "model",
-        "match_exact": ["classify/multi-role"],
-        "template": "{base}/api/model/detect-multiple",
-    },
-    {
-        "name": "classify",
-        "service": "model",
-        "match_prefix": ["classify"],
-        "template": "{base}/api/{path}",
-    },
-    {
-        "name": "model-health",
-        "service": "model",
-        "match_exact": ["model"],
-        "template": "{base}/api/health",
-    },
-    {
-        "name": "model-sub",
-        "service": "model",
-        "match_prefix": ["model/"],
-        "strip": "model/",
-        "template": "{base}/api/model/{path}",
-    },
-    {
-        "name": "default",
-        "service": "api",
-        "match_default": True,
-        "template": "{base}/api/{path}",
-    },
-]
+from src.core.service_registry import registry
+
+
+def register_default_routes() -> None:
+    """装配网关默认路由（非 t2i 的稳态路由）。幂等，可重复调用。"""
+    # t2i 服务在 src/services/t2i_service/router.py 自注册；此处保留同名兜底，确保
+    # 即使 t2i 模块未被 import，网关仍能把 t2i/ 流量正确转发（去重后仅保留一条）。
+    registry.register_route(
+        name="t2i", service="t2i", match_prefix=["t2i/"], strip="t2i/",
+        template="{base}/api/t2i/{path}",
+    )
+    registry.register_route(
+        name="search", service="search",
+        match_prefix=["search/image", "search/build-index", "search/stats"],
+        template="{base}/api/{path}",
+    )
+    registry.register_route(
+        name="video", service="multimedia", match_prefix=["video/"], strip="video/",
+        template="{base}/video/{path}",
+    )
+    registry.register_route(
+        name="classify-multi-role", service="model", match_exact=["classify/multi-role"],
+        template="{base}/api/model/detect-multiple",
+    )
+    registry.register_route(
+        name="classify", service="model", match_prefix=["classify"],
+        template="{base}/api/{path}",
+    )
+    registry.register_route(
+        name="model-health", service="model", match_exact=["model"],
+        template="{base}/api/health",
+    )
+    registry.register_route(
+        name="model-sub", service="model", match_prefix=["model/"], strip="model/",
+        template="{base}/api/model/{path}",
+    )
+    registry.register_route(
+        name="default", service="api", match_default=True,
+        template="{base}/api/{path}",
+    )
 
 
 def resolve_route(path: str, service_urls: Dict[str, dict]) -> Tuple[str, str]:
@@ -78,26 +68,8 @@ def resolve_route(path: str, service_urls: Dict[str, dict]) -> Tuple[str, str]:
     Returns:
         ``(service_name, target_url)``
     """
-    for rule in ROUTE_TABLE:
-        matched = False
-        if rule.get("match_exact") and path in rule["match_exact"]:
-            matched = True
-        elif rule.get("match_prefix") and any(
-            path.startswith(p) for p in rule["match_prefix"]
-        ):
-            matched = True
-        elif rule.get("match_default"):
-            matched = True
-        if not matched:
-            continue
+    return registry.resolve_route(path, service_urls)
 
-        base = service_urls[rule["service"]]["url"]
-        if rule.get("strip"):
-            rest = path[len(rule["strip"]):]
-            url = rule["template"].format(base=base, path=rest)
-        else:
-            url = rule["template"].format(base=base, path=path)
-        return rule["service"], url
 
-    # 兜底（理论上 default 规则已覆盖所有情况）
-    return "api", f"{service_urls.get('api', {}).get('url', '')}/api/{path}"
+# import 时装配默认路由（幂等）
+register_default_routes()

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { User, LogOut, History, Settings, Moon, Sun, Activity, SlidersHorizontal } from "lucide-react";
 import { AuthState } from "../types";
 
@@ -57,6 +58,7 @@ export default function Header({
 }: HeaderProps) {
   const [internalBatchUpload, setInternalBatchUpload] = useState(isBatchUpload);
   const [showOptions, setShowOptions] = useState(false);
+  const router = useRouter();
 
   const handleBatchUploadToggle = () => {
     const newValue = !internalBatchUpload;
@@ -94,9 +96,9 @@ export default function Header({
             )}
             
             <button
-              onClick={() => window.open(config.monitor?.baseUrl || 'http://localhost:9000', '_blank')}
+              onClick={() => router.push('/monitor')}
               className={`p-2 rounded-lg ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'} transition-colors`}
-              title="系统监控"
+              title="系统监控面板"
             >
               <Activity className="h-5 w-5 text-green-500" />
             </button>

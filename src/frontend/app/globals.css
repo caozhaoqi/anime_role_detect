@@ -4,6 +4,9 @@
   --color-chat: #3b82f6;   /* 蓝：对话/角色识别 */
   --color-video: #22c55e;  /* 绿：视频识别 */
   --color-search: #a855f7; /* 紫：以图搜图 */
+  --color-generate: #4285f4; /* 蓝：角色图像生成（与前端主色 --primary 一致，统一配色） */
+  --color-success: #22c55e; /* 绿：成功/完成（语义） */
+  --color-danger: #ef4444;  /* 红：失败/错误（语义） */
 }
 
 /* 暗色模式：html.dark 时激活所有 dark: 前缀类（class 策略） */

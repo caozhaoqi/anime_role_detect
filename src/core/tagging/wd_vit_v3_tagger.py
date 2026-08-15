@@ -15,6 +15,7 @@ import threading
 import subprocess
 import re
 import time
+import logging
 
 # ==================== 【第零步：清理系统信号量】 ====================
 # 清理之前崩溃进程泄漏的 macOS System V 信号量

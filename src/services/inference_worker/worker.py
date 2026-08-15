@@ -289,11 +289,22 @@ def main():
         )
         pool.start()
         
+        # 心跳日志降级：仅在「处理量/失败量」发生变化时打 INFO，否则降为 DEBUG。
+        # jsonl/控制台 sink 均为 INFO 级别 → 空闲（total_processed 不变）时静默，
+        # 不再每 10 秒刷一条无意义统计（见 2026-08-15 日志噪音诊断）。
+        _last_total = -1
+        _last_failed = -1
         try:
             while True:
                 time.sleep(10)
                 stats = pool.get_stats()
-                logger.info(f"Worker池统计: {stats}")
+                total = stats.get("total_processed", 0)
+                failed = stats.get("total_failed", 0)
+                if total != _last_total or failed != _last_failed:
+                    logger.info(f"Worker池统计: {stats}")
+                    _last_total, _last_failed = total, failed
+                else:
+                    logger.debug(f"Worker池统计(无变化): {stats}")
         except KeyboardInterrupt:
             pool.stop()
     else:

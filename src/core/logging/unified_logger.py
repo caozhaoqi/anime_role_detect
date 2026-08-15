@@ -18,6 +18,9 @@ LOG_FILES = {
 def setup_logger(name: str, log_file: str = None, level=logging.INFO) -> logging.Logger:
     logger = logging.getLogger(name)
     logger.setLevel(level)
+    # 避免子 logger 的日志冒泡到 root logger 的 console handler 造成重复输出
+    # （log_manager.LogManager 会在导入时给 root logger 挂 handler）。
+    logger.propagate = False
 
     if logger.handlers:
         return logger

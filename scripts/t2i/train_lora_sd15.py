@@ -51,8 +51,13 @@ def build_examples(metadata_csv, role=None, limit=None):
     return examples
 
 
-def _detect_device():
+def _detect_device(override: str = "auto"):
     import torch
+    # 显式指定设备（opt-in）：用户可用 --device mps 在 Mac 上尝试 MPS 训练提速，
+    # 或 --device cuda 在 GPU 机器上训练。默认 auto 仍走下面的保守策略。
+    if override in ("mps", "cuda", "cpu"):
+        dtype = torch.float16 if override == "cuda" else torch.float32
+        return override, dtype
     # Mac MPS 上 SD 训练不稳：fp16 训练触发 MPS 混合精度算子崩溃
     # ('mps.multiply' requires same element type)；fp32 训练 unet 整体搬 MPS 易 OOM 杀进程。
     # 统一退回 CPU 训练——底座冻结、只训 LoRA，内存安全（底座在 CPU 不占 MPS 统一内存），
@@ -85,6 +90,9 @@ def main():
     ap.add_argument("--learning-rate", type=float, default=1e-4)
     ap.add_argument("--limit", type=int, help="调试：仅取前 N 条样本")
     ap.add_argument("--mixed-prec", action="store_true", help="MPS 上用 float16（更快但可能不稳定）")
+    ap.add_argument("--device", default="auto", choices=["auto", "cpu", "mps", "cuda"],
+                    help="训练设备：auto=Mac 强制 CPU（防 MPS OOM，慢但必跑完）；"
+                         "可选 mps/cuda 提速（MPS 训练可能不稳，仅提速验证时使用）")
     ap.add_argument("--smoke-generate", action="store_true", help="训练后加载 LoRA 生成 1 张图验证")
     ap.add_argument("--test-prompt", default=None)
     ap.add_argument("--dry-run", action="store_true", help="只校验数据通路与依赖，不训练")
@@ -116,7 +124,7 @@ def main():
     from torchvision import transforms
     from PIL import Image
 
-    device, default_dtype = _detect_device()
+    device, default_dtype = _detect_device(args.device)
     # MPS 16GB OOM 治理：unet 用 float32 在 MPS 训练（最稳），但 vae/text_encoder 留在 CPU
     # （offload），避免 4.5GB 权重全常驻 MPS 触发 jetdam 杀进程（实测整体 to(device) 必 OOM）。
     weight_dtype = default_dtype

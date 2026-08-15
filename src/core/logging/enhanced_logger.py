@@ -62,7 +62,9 @@ class EnhancedLogger:
 
     def _format_log_record(self, record):
         extra = record.get("extra", {})
-        return "{time:YYYY-MM-DD HH:mm:ss.SSS} | {trace_id} | {request_id} | {level: <8} | {component} | {name}:{function}:{line} | {message}".format(
+        # 注意：loguru 对「callable format」不会自动补换行，必须自行在末尾加 \n，
+        # 否则所有记录会被粘连成一行（wc -l = 0），日志查看器按 \n 切分时会整文件变成一条。
+        return "{time:YYYY-MM-DD HH:mm:ss.SSS} | {trace_id} | {request_id} | {level: <8} | {component} | {name}:{function}:{line} | {message}\n".format(
             time=record["time"],
             trace_id=extra.get("trace_id", "-"),
             request_id=extra.get("request_id", "-"),
@@ -83,7 +85,7 @@ class EnhancedLogger:
         logger.add(
             json_log_file,
             rotation="00:00",
-            retention="14 days",
+            retention="7 days",
             compression="zip",
             level="INFO",
             serialize=True,
@@ -94,9 +96,10 @@ class EnhancedLogger:
         logger.add(
             unified_log_file,
             rotation="100 MB",
-            retention="7 days",
+            retention="3 days",
             compression="zip",
-            level="DEBUG",
+            # INFO：避免 DEBUG 级资源采样（每 30s 一条）刷屏统一日志，淹没应用日志
+            level="INFO",
             format=log_format,
             colorize=False,
             enqueue=True,
@@ -106,7 +109,7 @@ class EnhancedLogger:
         logger.add(
             system_log_file,
             rotation="100 MB",
-            retention="7 days",
+            retention="3 days",
             compression="zip",
             level="INFO",
             format=log_format,
@@ -118,7 +121,7 @@ class EnhancedLogger:
         logger.add(
             inference_log_file,
             rotation="100 MB",
-            retention="14 days",
+            retention="7 days",
             compression="zip",
             level="INFO",
             format=log_format,
@@ -130,7 +133,7 @@ class EnhancedLogger:
         logger.add(
             training_log_file,
             rotation="200 MB",
-            retention="30 days",
+            retention="10 days",
             compression="zip",
             level="INFO",
             format=log_format,
@@ -142,7 +145,7 @@ class EnhancedLogger:
         logger.add(
             error_log_file,
             rotation="50 MB",
-            retention="30 days",
+            retention="10 days",
             compression="zip",
             level="ERROR",
             format=log_format,
@@ -166,7 +169,7 @@ class EnhancedLogger:
         logger.add(
             operation_log_file,
             rotation="100 MB",
-            retention="30 days",
+            retention="10 days",
             compression="zip",
             level="INFO",
             format=log_format,
@@ -175,6 +178,18 @@ class EnhancedLogger:
         )
 
         logger.add(sys.stdout, level="INFO", format=log_format, colorize=False)
+
+        # 抑制第三方库的 INFO/DEBUG 噪音（标准 logging 体系）。
+        # transformers / diffusers 等加载模型时会刷大量 INFO；抬高到 WARNING 可显著减少噪音，
+        # 且不影响项目自身的业务/错误日志（业务走 loguru，与标准 logging 互相独立）。
+        import logging as _std_logging
+
+        for _lib in (
+            "transformers", "diffusers", "modelscope", "accelerate",
+            "matplotlib", "PIL", "urllib3", "httpx",
+            "uvicorn", "uvicorn.access", "uvicorn.error",
+        ):
+            _std_logging.getLogger(_lib).setLevel(_std_logging.WARNING)
 
     def _get_base_extra(self, component: str = "service", log_type: str = "system") -> Dict[str, Any]:
         return {

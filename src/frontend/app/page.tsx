@@ -38,6 +38,17 @@ const VideoPanel = dynamic(() => import('./components/VideoPanel'), {
   ssr: false,
 });
 
+const GeneratePanel = dynamic(() => import('./components/GeneratePanel'), {
+  loading: () => <div className="animate-pulse h-96 bg-gray-100 dark:bg-gray-700 rounded-lg" />,
+  ssr: false,
+});
+
+// 对话生成意图关键词：命中且未上传图片时，把输入当作 t2i 聊天请求
+const T2I_INTENT_KW = [
+  '生成', '画', '出图', '图片', '角色图', '绘', '做一张', '来一张',
+  'generate', 'make', 'draw', 'create', 'image of', 'picture',
+];
+
 export default function AnimeRoleDetect() {
   useGlobalErrorHandler();
 
@@ -52,7 +63,7 @@ export default function AnimeRoleDetect() {
     handleUnauthorized,
   } = useAuth();
 
-  const { messages, inputText, copySuccess, setInputText, addMessage, replaceThinkingWithMessages, handleViewHistoryRecord, handleCopyMessage, handleDownloadMessage, resetMessages } = useChat();
+  const { messages, inputText, copySuccess, isGenerating, setInputText, addMessage, replaceThinkingWithMessages, handleViewHistoryRecord, handleCopyMessage, handleDownloadMessage, resetMessages, generateFromChat } = useChat();
 
   const addToast = useAppStore((s) => s.addToast);
 
@@ -74,7 +85,7 @@ export default function AnimeRoleDetect() {
   const [useYolo, setUseYolo] = useState(false);
   const [isBatchUpload, setIsBatchUpload] = useState(false);
   const [config, setConfig] = useState(ConfigManager.getConfig());
-  const [activePanel, setActivePanel] = useState<'classify' | 'search' | 'video'>('classify');
+  const [activePanel, setActivePanel] = useState<'classify' | 'search' | 'video' | 'generate'>('classify');
 
   useEffect(() => {
     initApiClient({
@@ -145,7 +156,19 @@ export default function AnimeRoleDetect() {
   }, []);
 
   const handleSend = useCallback(async () => {
-    if ((!inputText.trim() && !selectedImage && selectedImages.length === 0) || isProcessing) {
+    if ((!inputText.trim() && !selectedImage && selectedImages.length === 0) || isProcessing || isGenerating) {
+      return;
+    }
+
+    // 对话生成意图：未上传图片且输入含"生成/画/…"关键词时，走 t2i 聊天生成
+    const hasT2iIntent = !isBatchUpload && !selectedImage && selectedImages.length === 0 && inputText.trim().length > 0 &&
+      T2I_INTENT_KW.some((k) => inputText.toLowerCase().includes(k.toLowerCase()));
+    if (hasT2iIntent) {
+      const { shouldLogout } = await generateFromChat(inputText, { onUnauthorized: handleLogout });
+      if (shouldLogout) {
+        return;
+      }
+      setInputText('');
       return;
     }
 
@@ -190,7 +213,7 @@ export default function AnimeRoleDetect() {
     }
 
     setInputText('');
-  }, [inputText, selectedImage, imagePreview, selectedImages, imagePreviews, isBatchUpload, isProcessing, removeImage, clearBatchImages, useCoreML, selectedModel, useAttributes, multiRole, useYolo, classify, batchClassify, replaceThinkingWithMessages, handleLogout, setInputText]);
+  }, [inputText, selectedImage, imagePreview, selectedImages, imagePreviews, isBatchUpload, isProcessing, isGenerating, removeImage, clearBatchImages, useCoreML, selectedModel, useAttributes, multiRole, useYolo, classify, batchClassify, replaceThinkingWithMessages, generateFromChat, handleLogout, setInputText]);
 
   const handleKeyPress = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -322,6 +345,7 @@ export default function AnimeRoleDetect() {
                       inputText={inputText}
                       isBatchUpload={isBatchUpload}
                       isProcessing={isProcessing}
+                      isGenerating={isGenerating}
                       selectedImage={selectedImage}
                       imagePreview={imagePreview}
                       selectedImages={selectedImages}
@@ -338,6 +362,8 @@ export default function AnimeRoleDetect() {
                     />
                       ) : activePanel === 'search' ? (
                         <SearchPanel darkMode={darkMode} accessToken={authState.accessToken ?? undefined} onSendToChat={handleSendToChat} />
+                      ) : activePanel === 'generate' ? (
+                        <GeneratePanel darkMode={darkMode} />
                       ) : (
                         <VideoPanel darkMode={darkMode} accessToken={authState.accessToken ?? undefined} onSendToChat={handleSendToChat} />
                       )}
