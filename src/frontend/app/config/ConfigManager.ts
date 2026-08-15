@@ -8,6 +8,10 @@ interface UIConfig {
   enableNotifications: boolean;
 }
 
+interface MonitorConfig {
+  baseUrl: string;
+}
+
 interface FeaturesConfig {
   enableModelSelection: boolean;
   enableCoremlSwitch: boolean;
@@ -70,6 +74,7 @@ interface AnimationsConfig {
 
 export interface AppConfig {
   ui: UIConfig;
+  monitor: MonitorConfig;
   features: FeaturesConfig;
   api: APIConfig;
   messages: MessagesConfig;
@@ -104,6 +109,9 @@ class ConfigManager {
         animateTransitions: true,
         showPlatformInfo: true,
         enableNotifications: true
+      },
+      monitor: {
+        baseUrl: process.env.NEXT_PUBLIC_MONITOR_BASE_URL || "http://localhost:9000"
       },
       features: {
         enableModelSelection: true,
@@ -191,6 +199,10 @@ class ConfigManager {
 
   public getUIConfig(): UIConfig {
     return this.config.ui;
+  }
+
+  public getMonitorConfig(): MonitorConfig {
+    return this.config.monitor;
   }
 
   public getFeaturesConfig(): FeaturesConfig {

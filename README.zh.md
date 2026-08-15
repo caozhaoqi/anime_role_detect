@@ -22,6 +22,12 @@
 - **飞书通知**: 实时进度同步
 - **Token自动刷新**: 无缝认证体验
 
+## 🏗️ 系统架构
+
+![系统架构](docs/architecture/system-architecture.svg)
+
+> 分层拓扑：**接入层**（API 网关）→ **业务服务层**（API / 模型 / 多媒体 / 搜索）→ **异步工作节点**（推理 / 搜索 Worker）→ **核心 AI 能力**（分类 / 检测 / 识别 / 标签 / 关键点）→ **基础设施**（Redis / MySQL / RabbitMQ / Fluent-bit / Grafana）→ **部署层**（Supervisord / Docker Compose / Kubernetes）。
+
 ## 🚀 快速开始
 
 ### 环境要求
@@ -180,13 +186,6 @@ anime_role_detect/
 └── .env.example            # 环境变量模板
 ```
 
-> **未使用 / 遗留代码说明（2026-07-30 清理）**
-> - 死亡模块 `src/models/training/convert_model_format.py`（语法损坏、无引用）→ 移至 `archived/broken_modules/`。
-> - `scripts/skillhub/` 为遗留实验子项目（自带 venv，无任何引用），保留作历史，不纳入构建。
-> - `src/run/start_all.py`、`start_all_stable.py`、`application.py`、`start_core.py` 为遗留/备用启动器（supervisord/k8s/docker 未使用），保留为开发工具。
-> - 清理了 `src/` 内约 30 处未使用导入 / 未使用变量（低风险 lint 清理）。
-> - 运行时产物（`logs/`、`data/`、`models/`、`*.db`、`dump.rdb`、各类缓存）均已 git 忽略。
-
 ## 🌐 API 接口
 
 | 接口 | 方法 | 描述 |
@@ -234,32 +233,35 @@ anime_role_detect/
 
 ## 📊 模型性能
 
-### 最新基准测试结果
+### 当前分类模型（v9，EfficientNet-B3）
 
-**生产模型**：`efficientnet_b3`（`models/efficientnet_b3/model_best.pth`），51 类，256×256 输入，45.99 MB，11.9M 参数，于 Apple MPS 评测。
+`efficientnet_b3_v9` —— EfficientNet-B3 主干，**167 个角色类别**，规范预处理 `Resize(288)→CenterCrop(256)`，在留出测试集（按 post_id 分组、训练/测试无交叠）上评测。训练于 2026-08-12。
 
 | 指标 | 数值 |
 |------|------|
-| Top-1 准确率（无交叠切分，**诚实逐图泛化**） | **82.65%** |
-| Top-1 准确率（同图测试，泄漏上限） | 84.00% |
-| Top-5 准确率 | **93.96%** |
-| Macro-F1（同图测试） | **0.8401** |
-| 单图延迟 | **29.04 ms**（34.44 FPS） |
-| 批量(32)吞吐 | **31.11 FPS** |
-| 首次请求延迟 | **< 500ms**（带预热） |
+| Top-1 准确率（留出 TEST，诚实） | **61.19%** |
+| Top-5 准确率 | **78.48%** |
+| Macro-F1（167 类） | **0.5633** |
+| Weighted-F1 | 0.6071 |
+| 平衡准确率 | 0.5741 |
+| 验证集最佳 Macro-F1（选型指标） | 0.5875（验证 Top-1 63.15%） |
 
-**最弱类别**（准确率）：`silver_wolf` 64%，`Klee` / `aglaea` / `clorinde` / `kafka` 68%。
-**最易混淆对**：`clorinde` → `Furina`。
+> **部署说明**：运行中的后端当前默认加载 `efficientnet_b3_v4`（174 类）；v9 为最新经诚实评测的 checkpoint，待提升为默认。逐类完整报告见 `deliverables/gstack/model-baseline-v9-honest-2026-08-12.md`。
+
+### 已弃用指标（请勿使用）
+
+早期文档曾报告 `efficientnet_b3` 在 51 类下的 **Top-1 84.00% / 82.65%** 与 **Macro-F1 0.8401**。这些数字源于**训练/测试数据泄漏**（同一批图既用于训练又用于测试），已被上方诚实的 167 类评测取代。泄漏分析见 `docs/training/DATA_LEAKAGE_STATUS.md`。
 
 ### 多角色检测（YOLOv8n）
 
-`yolov8n.pt` 为 COCO 预训练基线（6.25 MB，3.15M 参数），**未**在动漫角色上微调 —— 平均置信度 0.444，MPS 下约 4 FPS。微调待完成（见已知问题）。
+`yolov8n.pt` 为 COCO 预训练基线（6.25 MB，3.15M 参数），**未**在动漫角色上微调 —— 平均置信度 0.444，MPS 下约 4 FPS。微调待完成。
 
-### 模型对比（参考，训练态）
+### 模型对比（参考）
 
-| 模型 | 类别数 | Top-1 | 说明 |
-|------|--------|-------|------|
-| EfficientNet-B3（生产） | 51 | **82.65%** | 诚实逐图泛化（无交叠切分）；84.00% 为同图泄漏上限 |
+| 模型 | 类别数 | Top-1（诚实 TEST） | 说明 |
+|------|--------|---------------------|------|
+| EfficientNet-B3 v9（最新） | 167 | **61.19%** | 诚实留出 TEST；Macro-F1 0.5633 |
+| EfficientNet-B3 v4（当前服务默认） | 174 | — | 后端当前默认加载 |
 | EfficientNet-B0 / MobileNetV2 / ResNet50 | — | — | 早期实验，见 `docs/blog/10_training_and_evaluation.md` |
 
 ## 🔒 安全
@@ -311,7 +313,7 @@ python scripts/model_evaluation/run_benchmark.py
 
 ---
 
-**版本**: v2.3.0 | **最后更新**: 2026年8月 | **维护者**: ARD Team
+**版本**: v2.4.0 | **最后更新**: 2026-08-12 | **维护者**: ARD Team
 
 ---
 

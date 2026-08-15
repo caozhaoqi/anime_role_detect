@@ -13,6 +13,7 @@ import { useImageUpload } from './hooks/useImageUpload';
 import { useRecognition } from './hooks/useRecognition';
 import { useChat } from './hooks/useChat';
 import { useAppStore } from './store/useAppStore';
+import { Message } from './types';
 import ErrorBoundary, { useGlobalErrorHandler } from './components/ErrorBoundary';
 import ToastContainer from './components/ToastContainer';
 import dynamic from 'next/dynamic';
@@ -37,11 +38,6 @@ const VideoPanel = dynamic(() => import('./components/VideoPanel'), {
   ssr: false,
 });
 
-const CleaningPanel = dynamic(() => import('./components/CleaningPanel'), {
-  loading: () => <div className="animate-pulse h-96 bg-gray-100 dark:bg-gray-700 rounded-lg" />,
-  ssr: false,
-});
-
 export default function AnimeRoleDetect() {
   useGlobalErrorHandler();
 
@@ -57,6 +53,8 @@ export default function AnimeRoleDetect() {
   } = useAuth();
 
   const { messages, inputText, copySuccess, setInputText, addMessage, replaceThinkingWithMessages, handleViewHistoryRecord, handleCopyMessage, handleDownloadMessage, resetMessages } = useChat();
+
+  const addToast = useAppStore((s) => s.addToast);
 
   const { selectedImage, imagePreview, selectedImages, imagePreviews, isDragging, handleImageSelect, handleDrop, handleDragEnter, handleDragOver, handleDragLeave, removeImage, removeBatchImage, clearBatchImages, reset } = useImageUpload({
     onMessageAdd: addMessage,
@@ -76,7 +74,7 @@ export default function AnimeRoleDetect() {
   const [useYolo, setUseYolo] = useState(false);
   const [isBatchUpload, setIsBatchUpload] = useState(false);
   const [config, setConfig] = useState(ConfigManager.getConfig());
-  const [activePanel, setActivePanel] = useState<'classify' | 'search' | 'video' | 'cleaning'>('classify');
+  const [activePanel, setActivePanel] = useState<'classify' | 'search' | 'video'>('classify');
 
   useEffect(() => {
     initApiClient({
@@ -200,6 +198,12 @@ export default function AnimeRoleDetect() {
       handleSend();
     }
   }, [handleSend]);
+
+  const handleSendToChat = useCallback((msg: Message) => {
+    addMessage(msg);
+    setActivePanel('classify');
+    addToast('已发送到对话', 'success');
+  }, [addMessage, setActivePanel, addToast]);
 
   const handleConfigUpdate = useCallback((newConfig: any) => {
     setConfig(newConfig);
@@ -332,13 +336,11 @@ export default function AnimeRoleDetect() {
                       onCopyMessage={handleCopyMessage}
                       onDownloadMessage={handleDownloadMessage}
                     />
-                  ) : activePanel === 'search' ? (
-                    <SearchPanel darkMode={darkMode} accessToken={authState.accessToken ?? undefined} />
-                  ) : activePanel === 'video' ? (
-                    <VideoPanel darkMode={darkMode} accessToken={authState.accessToken ?? undefined} />
-                  ) : (
-                    <CleaningPanel darkMode={darkMode} accessToken={authState.accessToken ?? undefined} />
-                  )}
+                      ) : activePanel === 'search' ? (
+                        <SearchPanel darkMode={darkMode} accessToken={authState.accessToken ?? undefined} onSendToChat={handleSendToChat} />
+                      ) : (
+                        <VideoPanel darkMode={darkMode} accessToken={authState.accessToken ?? undefined} onSendToChat={handleSendToChat} />
+                      )}
                 </div>
               </div>
             </main>

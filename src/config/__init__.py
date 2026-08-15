@@ -117,6 +117,18 @@ class InferenceConfig:
 # ============================================================================
 # 网络与采集配置（原 utils/config_manager.py）
 # ============================================================================
+class AppFeatureConfig:
+    """应用特性开关与 UI 服务地址 — 统一由环境变量控制，供前后端共享语义"""
+
+    # 监控面板 base URL（monitor_dashboard 服务地址；前端 Header 监控按钮跳转用）
+    MONITOR_BASE_URL: str = os.getenv("ARD_MONITOR_BASE_URL", "http://localhost:9000")
+
+    # 实时视频识别端点开关（默认关闭：该端点会阻塞 worker 且无消费方）
+    ENABLE_REALTIME_VIDEO: bool = os.getenv("ARD_ENABLE_REALTIME_VIDEO", "false").lower() in (
+        "1", "true", "yes", "on"
+    )
+
+
 class NetworkConfig:
     """网络请求与采集参数"""
 
@@ -358,6 +370,7 @@ class _UnifiedConfig:
         self.storage = StorageConfig
         self.concurrency = ConcurrencyConfig
         self.datasource = DataSourceConfig
+        self.app_features = AppFeatureConfig
 
     # --- 旧式属性代理（兼容 from src.config.config import config） ---
 

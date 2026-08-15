@@ -17,7 +17,7 @@ import json
 import torch
 import torch.nn as nn
 import torchvision.models as models
-from typing import Optional, Tuple, Dict, Any
+from typing import Optional, Tuple, Dict, Any, List
 from pathlib import Path
 
 from src.core.logging import get_enhanced_logger as get_logger
@@ -126,6 +126,131 @@ def get_model_class_to_idx_from_training_config(model_dir: str) -> Optional[Dict
             logger.warning(f"从 training_results.json 加载失败：{e}")
 
     return None
+
+
+def _load_class_names_from_disk(model_name: str) -> Optional[List[str]]:
+    """
+    从模型目录的 training_results.json 读取 class_names（真实角色名列表，按索引顺序）。
+    仅用于把数字键 class_to_idx 还原为真实角色名。
+    """
+    try:
+        from src.config import project_config
+
+        model_dir = project_config.paths.MODEL_DIR / model_name
+        tr = model_dir / "training_results.json"
+        if tr.exists():
+            with open(tr, "r", encoding="utf-8") as f:
+                d = json.load(f)
+            cn = d.get("class_names")
+            if cn and isinstance(cn, list):
+                return cn
+    except Exception as e:
+        logger.warning(f"读取模型 {model_name} 的 class_names 失败：{e}")
+    return None
+
+
+def _resolve_known_names(
+    class_to_idx: Dict[str, int], class_names: Optional[List[str]]
+) -> Optional[List[str]]:
+    """
+    把 class_to_idx 解析为真实角色名列表，供覆盖度透明度使用。
+
+    两种映射形态都兼容：
+    - 键已是真实角色名（如 v4 的 174 类）→ 直接返回。
+    - 键是数字串（如 v7/v8/v9 的 '0'..'167'）→ 借助 training_results.json 的
+      class_names[idx] 还原真实角色名，保证与 serving 管线输出的 predicted_role 一致。
+    """
+    if not class_to_idx:
+        return None
+    # 键已是真实角色名（非全数字）
+    if not all(str(k).isdigit() for k in class_to_idx.keys()):
+        return list(class_to_idx.keys())
+    # 数字键：借助 class_names[idx] 还原真名
+    if class_names:
+        try:
+            return [
+                class_names[int(k)]
+                for k in sorted(class_to_idx.keys(), key=lambda x: int(x))
+            ]
+        except (ValueError, IndexError):
+            logger.warning("class_names 与 class_to_idx 长度/索引不匹配，回退数字键")
+            return list(class_to_idx.keys())
+    return list(class_to_idx.keys())
+
+
+def get_known_classes(model_name: str) -> Optional[List[str]]:
+    """
+    获取模型已知类别集合（真实角色名，覆盖度透明度用）。
+
+    优先从已加载的模型缓存中读取 class_to_idx（零额外开销）；
+    若未加载，则仅从磁盘读取类别映射文件（training_results.json / class_to_idx.json），
+    不触发完整模型加载，避免为一次覆盖度查询付出 GPU/CPU 加载成本。
+
+    Returns:
+        已知类别（真实角色名）列表；若无法解析则返回 None
+    """
+    # 1. 命中运行时缓存
+    cached = _model_cache.get(model_name)
+    if cached is not None:
+        _, class_to_idx = cached
+        if class_to_idx:
+            names = _load_class_names_from_disk(model_name)
+            return _resolve_known_names(class_to_idx, names)
+
+    # 2. 仅从磁盘读类别映射，不加载权重
+    from src.config import project_config
+
+    model_dir = project_config.paths.MODEL_DIR / model_name
+    if not model_dir.exists():
+        return None
+
+    class_to_idx = get_model_class_to_idx_from_training_config(str(model_dir))
+    if not class_to_idx:
+        class_map_path = model_dir / "class_to_idx.json"
+        if class_map_path.exists():
+            try:
+                with open(class_map_path, "r", encoding="utf-8") as f:
+                    class_to_idx = json.load(f)
+            except Exception as e:
+                logger.warning(f"从 class_to_idx.json 读取失败：{e}")
+                class_to_idx = {}
+
+    if not class_to_idx:
+        return None
+
+    class_names = _load_class_names_from_disk(model_name)
+    return _resolve_known_names(class_to_idx, class_names)
+
+
+def is_role_known(model_name: str, predicted_role: Optional[str]) -> Optional[bool]:
+    """
+    判定预测角色是否在模型已知类别集合内（覆盖度透明度核心判定）。
+
+    返回：
+      - True  : 已知角色（落在训练分布内）
+      - False : 未知角色（不在训练集中）
+      - None  : 无法解析类别映射 / 无预测角色
+    兼容两种 serving 路径：predicted_role 既可能是真实角色名，
+    也可能是旧推理路径输出的数字索引串（此时用 class_names[idx] 还原再判定）。
+    """
+    if not predicted_role:
+        return None
+    known = get_known_classes(model_name)
+    if not known:
+        return None
+    if predicted_role in known:
+        return True
+    # 兼容数字标签（部分旧推理路径输出 idx 字符串）
+    if str(predicted_role).isdigit():
+        names = _load_class_names_from_disk(model_name)
+        if names:
+            try:
+                idx = int(predicted_role)
+                if 0 <= idx < len(names):
+                    return names[idx] in known
+            except (ValueError, IndexError):
+                pass
+    return False
 
 
 def load_trained_model(

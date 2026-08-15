@@ -2,6 +2,16 @@
 
 
 
+## v2.4.0
+### 2026-08-12
+
+- 模型 v9（EfficientNet-B3，167 类）训练完成并产出诚实基线：留出 TEST Top-1 61.19% / Top-5 78.48% / Macro-F1 0.5633 / Weighted-F1 0.6071 / 平衡准确率 0.5741（canonical 预处理 Resize(288)→CenterCrop(256)，n=1608，skipped=0）
+- 修复评测口径：PIL 惰性句柄导致大图静默丢弃（skipped=223），改为打开即 `im.copy()` 强制解码 → skipped=0
+- 修复覆盖率统计失效：class_to_idx 数字键致 `is_known` 恒 False，重写 `get_known_classes` 返真名 + 新增 `is_role_known` 双判定
+- 数据泄漏治理收口：确认 v9 与 v7 基线处于同一测试集（split_hash 差异仅源于 T3-1 标签清理，post_id 分组切分未变），评测无泄漏、可直接比较
+- 更新 README（中英文）模型性能章节与 DATA_LEAKAGE_STATUS 状态说明，弃用 51 类 84%/82.65% 泄漏数字
+- 注：后端默认仍加载 efficientnet_b3_v4（174 类），v9 待切换为默认
+
 ## v2.3.2
 ### 2026-07-30
 

@@ -22,6 +22,12 @@ An AI-powered image recognition system designed to identify characters from game
 - **Feishu Notifications**: Real-time progress updates
 - **Token Auto-refresh**: Seamless authentication
 
+## 📐 System Architecture
+
+![System Architecture](docs/architecture/system-architecture.svg)
+
+> Layered topology: **Access** (API Gateway) → **Business services** (API / Model / Multimedia / Search) → **Async workers** (Inference / Search Worker) → **Core AI** (Classification / Detection / Recognition / Tagging / Keypoint) → **Infrastructure** (Redis / MySQL / RabbitMQ / Fluent-bit / Grafana) → **Deployment** (Supervisord / Docker Compose / Kubernetes).
+
 ## 🚀 Quick Start
 
 ### Prerequisites
@@ -191,13 +197,6 @@ anime_role_detect/
 └── .env.example            # Environment template
 ```
 
-> **Note on unused / legacy code (2026-07-30 cleanup)**
-> - Dead module `src/models/training/convert_model_format.py` (syntax-broken, unreferenced) → moved to `archived/broken_modules/`.
-> - `scripts/skillhub/` is a legacy experiment sub-project (bundled venv, not referenced anywhere). Kept for history; excluded from builds.
-> - `src/run/start_all.py`, `start_all_stable.py`, `application.py`, `start_core.py` are legacy/alternative launchers (not used by supervisord/k8s/docker). Kept as dev tools.
-> - Removed ~30 unused imports / unused variables across `src/` (low-risk lint cleanup).
-> - Runtime artifacts (`logs/`, `data/`, `models/`, `*.db`, `dump.rdb`, caches) are git-ignored.
-
 ## 🌐 API Endpoints
 
 | Endpoint | Method | Description |
@@ -245,32 +244,35 @@ The project includes comprehensive Docker support:
 
 ## 📊 Model Performance
 
-### Latest Benchmark Results
+### Current Classification Model (v9, EfficientNet-B3)
 
-**Production model**: `efficientnet_b3` (`models/efficientnet_b3/model_best.pth`), 51 classes, 256×256 input, 45.99 MB, 11.9M params, evaluated on Apple MPS.
+`efficientnet_b3_v9` — EfficientNet-B3 backbone, **167 character classes**, canonical preprocessing `Resize(288)→CenterCrop(256)`, evaluated on the held-out test split (post_id-grouped, no train/test overlap). Trained 2026-08-12.
 
 | Metric | Value |
 |--------|-------|
-| Top-1 Accuracy (no-overlap split, **honest per-image**) | **82.65%** |
-| Top-1 Accuracy (same-image test, leaked upper bound) | 84.00% |
-| Top-5 Accuracy | **93.96%** |
-| Macro-F1 (same-image test) | **0.8401** |
-| Single-image Latency | **29.04 ms** (34.44 FPS) |
-| Batch (32) Throughput | **31.11 FPS** |
-| First Request Latency | **< 500ms** (with warm-up) |
+| Top-1 Accuracy (held-out TEST, honest) | **61.19%** |
+| Top-5 Accuracy | **78.48%** |
+| Macro-F1 (167 classes) | **0.5633** |
+| Weighted-F1 | 0.6071 |
+| Balanced Accuracy | 0.5741 |
+| Validation Best Macro-F1 (model-selection metric) | 0.5875 (Val Top-1 63.15%) |
 
-**Weakest classes** (accuracy): `silver_wolf` 64%, `Klee` / `aglaea` / `clorinde` / `kafka` 68%.
-**Most confused pair**: `clorinde` → `Furina`.
+> **Deployment note**: the running backend currently loads `efficientnet_b3_v4` (174 classes) by default; v9 is the latest honestly-evaluated checkpoint and is pending promotion to default. Full per-class report: `deliverables/gstack/model-baseline-v9-honest-2026-08-12.md`.
+
+### Deprecated metrics (do not use)
+
+Earlier documentation reported `efficientnet_b3` at 51 classes with **Top-1 84.00% / 82.65%** and **Macro-F1 0.8401**. These came from a **train/test leakage** (same images used for both training and testing) and were superseded by the honest 167-class evaluation above. See `docs/training/DATA_LEAKAGE_STATUS.md` for the leakage analysis.
 
 ### Multi-role Detection (YOLOv8n)
 
-`yolov8n.pt` is the COCO-pretrained baseline (6.25 MB, 3.15M params). It is **not fine-tuned** on anime characters — avg confidence 0.444, ~4 FPS on MPS. Fine-tuning is pending (see known issues).
+`yolov8n.pt` is the COCO-pretrained baseline (6.25 MB, 3.15M params). It is **not fine-tuned** on anime characters — avg confidence 0.444, ~4 FPS on MPS. Fine-tuning is pending.
 
-### Model Comparison (reference, training-state)
+### Model Comparison (reference)
 
-| Model | Classes | Top-1 | Note |
-|-------|---------|-------|------|
-| EfficientNet-B3 (production) | 51 | **82.65%** | Honest per-image (no-overlap split); 84.00% is the same-image leaked upper bound |
+| Model | Classes | Top-1 (honest TEST) | Note |
+|-------|---------|---------------------|------|
+| EfficientNet-B3 v9 (latest) | 167 | **61.19%** | Honest held-out TEST; Macro-F1 0.5633 |
+| EfficientNet-B3 v4 (serving default) | 174 | — | Currently loaded by backend |
 | EfficientNet-B0 / MobileNetV2 / ResNet50 | — | — | Earlier experiments, see `docs/blog/10_training_and_evaluation.md` |
 
 ## 🔒 Security
@@ -298,7 +300,6 @@ python -m pytest tests/integration/ -v
 python scripts/model_evaluation/run_benchmark.py
 ```
 
-
 ## 📚 Documentation
 
 For detailed documentation:
@@ -323,7 +324,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-**Version**: v2.3.0 | **Last Updated**: Aug 2026 | **Maintainer**: ARD Team
+**Version**: v2.4.0 | **Last Updated**: 2026-08-12 | **Maintainer**: ARD Team
 
 ---
 
