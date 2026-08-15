@@ -28,6 +28,9 @@ class ServiceConfig(BaseSettings):
     SEARCH_SERVICE_HOST: str = "localhost"
     SEARCH_SERVICE_PORT: int = 8003
 
+    T2I_SERVICE_HOST: str = "localhost"
+    T2I_SERVICE_PORT: int = 8100
+
     API_GATEWAY_HOST: str = "0.0.0.0"
     API_GATEWAY_PORT: int = 8080
 
@@ -97,6 +100,10 @@ class ServiceConfig(BaseSettings):
         return f"http://{self.SEARCH_SERVICE_HOST}:{self.SEARCH_SERVICE_PORT}"
 
     @property
+    def T2I_SERVICE_URL(self) -> str:
+        return f"http://{self.T2I_SERVICE_HOST}:{self.T2I_SERVICE_PORT}"
+
+    @property
     def API_GATEWAY_URL(self) -> str:
         return f"http://{self.API_GATEWAY_HOST}:{self.API_GATEWAY_PORT}"
 
@@ -106,6 +113,7 @@ class ServiceConfig(BaseSettings):
         "CORE_API_PORT",
         "MULTIMEDIA_SERVICE_PORT",
         "SEARCH_SERVICE_PORT",
+        "T2I_SERVICE_PORT",
         "API_GATEWAY_PORT",
         "REDIS_PORT",
         "MYSQL_PORT",

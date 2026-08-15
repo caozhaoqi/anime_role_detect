@@ -1,18 +1,18 @@
 "use client";
 
-import { ImageIcon, Search, Video } from "lucide-react";
+import { ImageIcon, Search, Video, Wand2 } from "lucide-react";
 
 interface TabSwitcherProps {
   darkMode: boolean;
-  activePanel: 'classify' | 'search' | 'video';
-  onPanelChange: (panel: 'classify' | 'search' | 'video') => void;
+  activePanel: 'classify' | 'search' | 'video' | 'generate';
+  onPanelChange: (panel: 'classify' | 'search' | 'video' | 'generate') => void;
 }
 
-type TabAccent = 'chat' | 'search' | 'video';
+type TabAccent = 'chat' | 'search' | 'video' | 'generate';
 
 interface Tab {
-  id: 'classify' | 'search' | 'video';
-  icon: typeof ImageIcon | typeof Search | typeof Video;
+  id: 'classify' | 'search' | 'video' | 'generate';
+  icon: typeof ImageIcon | typeof Search | typeof Video | typeof Wand2;
   label: string;
   accent: TabAccent;
 }
@@ -22,9 +22,10 @@ export default function TabSwitcher({ darkMode, activePanel, onPanelChange }: Ta
     { id: 'classify', icon: ImageIcon, label: '角色识别', accent: 'chat' },
     { id: 'search', icon: Search, label: '以图搜图', accent: 'search' },
     { id: 'video', icon: Video, label: '视频识别', accent: 'video' },
+    { id: 'generate', icon: Wand2, label: '图像生成', accent: 'generate' },
   ];
 
-  // 三强调色令牌（Tailwind v4 @theme 声明）：每个 tab 对应一个 accent
+  // 四强调色令牌（Tailwind v4 @theme 声明）：每个 tab 对应一个 accent
   const accentClasses: Record<TabAccent, { active: string; iconBgActive: string; iconBgInactive: string }> = {
     chat: {
       active: darkMode ? 'text-chat border-chat' : 'text-chat border-chat',
@@ -39,6 +40,11 @@ export default function TabSwitcher({ darkMode, activePanel, onPanelChange }: Ta
     video: {
       active: darkMode ? 'text-video border-video' : 'text-video border-video',
       iconBgActive: darkMode ? 'bg-video/20 text-video' : 'bg-video text-white',
+      iconBgInactive: darkMode ? 'bg-gray-700 text-gray-400' : 'bg-gray-100 text-gray-500',
+    },
+    generate: {
+      active: darkMode ? 'text-generate border-generate' : 'text-generate border-generate',
+      iconBgActive: darkMode ? 'bg-generate/20 text-generate' : 'bg-generate text-white',
       iconBgInactive: darkMode ? 'bg-gray-700 text-gray-400' : 'bg-gray-100 text-gray-500',
     },
   };

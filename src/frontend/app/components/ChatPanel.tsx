@@ -13,6 +13,7 @@ interface ChatPanelProps {
   inputText: string;
   isBatchUpload: boolean;
   isProcessing: boolean;
+  isGenerating?: boolean;
   selectedImage: File | null;
   imagePreview: string | null;
   selectedImages: File[];
@@ -34,6 +35,7 @@ export default function ChatPanel({
   inputText,
   isBatchUpload,
   isProcessing,
+  isGenerating = false,
   selectedImage,
   imagePreview,
   selectedImages,
@@ -167,13 +169,18 @@ export default function ChatPanel({
           </div>
           <button
             onClick={onSend}
-            disabled={(!inputText.trim() && !selectedImage && selectedImages.length === 0) || isProcessing}
-            className={`w-full md:w-auto min-w-[120px] bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white px-4 py-2 md:px-6 md:py-3 rounded-lg font-medium transition-all flex items-center justify-center space-x-1 md:space-x-2 ${(!inputText.trim() && !selectedImage && selectedImages.length === 0) || isProcessing ? 'opacity-50 cursor-not-allowed' : 'transform hover:scale-105 hover:shadow-lg'}`}
+            disabled={(!inputText.trim() && !selectedImage && selectedImages.length === 0) || isProcessing || isGenerating}
+            className={`w-full md:w-auto min-w-[120px] bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white px-4 py-2 md:px-6 md:py-3 rounded-lg font-medium transition-all flex items-center justify-center space-x-1 md:space-x-2 ${(!inputText.trim() && !selectedImage && selectedImages.length === 0) || isProcessing || isGenerating ? 'opacity-50 cursor-not-allowed' : 'transform hover:scale-105 hover:shadow-lg'}`}
           >
             {isProcessing ? (
               <>
                 <Spinner size="sm" />
                 <span className="text-sm font-medium">识别中</span>
+              </>
+            ) : isGenerating ? (
+              <>
+                <Sparkles className="h-4 w-4 md:h-5 md:w-5 animate-pulse" />
+                <span className="text-sm font-medium">生成中</span>
               </>
             ) : (
               <>

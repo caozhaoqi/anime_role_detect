@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Bot, User, Copy, Download, ChevronDown, Flame, Pencil, Target, TriangleAlert, Bug, CheckCircle, Loader2 } from 'lucide-react';
+import { Bot, User, Copy, Download, ChevronDown, Flame, Pencil, Target, TriangleAlert, Bug, CheckCircle, Loader2, Wand2 } from 'lucide-react';
 import { Message } from '../types';
 import CollapsibleSection from './CollapsibleSection';
 import AutoCollapse from './AutoCollapse';
@@ -190,6 +190,34 @@ const MessageItem: React.FC<MessageItemProps> = ({ message, darkMode, handleCopy
             >
               <p className="whitespace-pre-wrap break-words mb-0">{message.content}</p>
             </AutoCollapse>
+          )}
+
+          {message.generated_images && message.generated_images.length > 0 && (
+            <div className="mt-3">
+              <div className="flex items-center flex-wrap gap-x-2 gap-y-1 mb-2">
+                <Wand2 className="h-4 w-4 text-generate" />
+                <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
+                  生成图像{message.generated_role ? ` · ${message.generated_role}` : ''}
+                </span>
+                {message.generated_method && (
+                  <span className={`px-2 py-0.5 rounded-full text-xs ${darkMode ? 'bg-generate/20 text-generate' : 'bg-generate/10 text-generate'}`}>
+                    {message.generated_method === 'lora' ? 'LoRA' : 'IP-Adapter'}
+                  </span>
+                )}
+                {message.generated_fell_back && (
+                  <span className="px-2 py-0.5 rounded-full text-xs bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300">
+                    已回退 IP-Adapter
+                  </span>
+                )}
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                {message.generated_images.map((src, i) => (
+                  <div key={i} className="rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700 shadow-sm">
+                    <img src={src} alt={`generated-${i + 1}`} className="w-full h-auto object-cover" />
+                  </div>
+                ))}
+              </div>
+            </div>
           )}
 
           {message.classification && (

@@ -54,7 +54,9 @@ def log_resource_summary(data: dict):
     disk_used = disk.get("used", 0) / (1024 ** 3)
     disk_pct = disk.get("percent", 0)
 
-    logger.info(
+    # 周期采样降级为 DEBUG：jsonl/控制台 sink 均为 INFO 级别，
+    # 因此空闲时的资源采样不再刷屏；仅超阈值告警保留 WARNING（见日志噪音诊断）。
+    logger.debug(
         f"资源使用 | CPU: {cpu_pct:.1f}% | "
         f"内存: {mem_used:.1f}/{mem_total:.1f}GB ({mem_pct:.1f}%) | "
         f"磁盘: {disk_used:.1f}/{disk_total:.1f}GB ({disk_pct:.1f}%)"

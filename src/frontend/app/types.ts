@@ -117,6 +117,12 @@ export interface Message {
   isThinking?: boolean;
   isThinkingFinished?: boolean;
   error?: string;
+  // T2I 角色生成：对话中触发生成后，assistant 消息携带生成图
+  generated_images?: string[];        // base64 data URI 列表
+  generated_role?: string | null;     // 匹配到的角色名
+  generated_method?: string;          // 实际使用的生成方法（ip_adapter / lora）
+  generated_fell_back?: boolean;      // 是否从 lora 回退到 ip_adapter
+  generated_prompt?: string;
   batch_results?: Array<{
     id: number;
     filename: string;

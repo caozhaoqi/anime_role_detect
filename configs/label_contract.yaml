@@ -1,0 +1,61 @@
+# configs/label_contract.yaml
+# 标签空间 / 评估口径的单一可信源（single source of truth）。
+# 代码、训练脚本、评估报告都必须引用本文件，禁止各自硬编码。
+schema_version: 1
+frozen_at: "2026-08-15"
+source_registry: configs/class_registry_v2.json
+source_baseline_report: deliverables/gstack/model-baseline-v7-2026-08-10.md
+
+# ---- 标签空间 ----
+label_space:
+  raw_total: 171                  # 注册表总类数 (class_registry_v2.json)
+  eval_status_distribution:       # 来自注册表 eval_status 字段
+    FULL: 145
+    PARTIAL: 12
+    TRAIN_ONLY: 10
+    NOT_IN_LABEL_SPACE: 4
+  # 对外报数契约：剔除不可评类后的口径
+  contract_classes: 167           # v7 基线权威口径（基于当时 4 个 TRAIN_ONLY 单图类）
+  rule: |
+    对外评估时，从原始 171 类中剔除 eval_status == "TRAIN_ONLY" 的类。
+    v7 基线按 4 个单图 TRAIN_ONLY 类得到 167 口径；注册表当前标记 10 个 TRAIN_ONLY，
+    若 v8 重训后 TRAIN_ONLY 数变化，167 对照数失效，必须按新切分复算并回填本文件。
+
+# 当前注册表标记的 TRAIN_ONLY 类（直接读此列表决定剔除，勿硬编码）
+train_only_classes:
+  - {id: 43,  name: ellen,             img_count: 2,  distinct_post_ids: 2}
+  - {id: 45,  name: evelyn,            img_count: 1,  distinct_post_ids: 1}
+  - {id: 48,  name: fischl,            img_count: 1,  distinct_post_ids: 1}
+  - {id: 61,  name: hoshimachi_suisei, img_count: 1,  distinct_post_ids: 1}
+  - {id: 64,  name: houshou_marine,    img_count: 2,  distinct_post_ids: 2}
+  - {id: 95,  name: layla,             img_count: 1,  distinct_post_ids: 1}
+  - {id: 99,  name: lumine,            img_count: 11, distinct_post_ids: 11}
+  - {id: 119, name: piper,             img_count: 1,  distinct_post_ids: 1}
+  - {id: 129, name: sapphire,          img_count: 1,  distinct_post_ids: 1}
+  - {id: 165, name: yuuka,             img_count: 3,  distinct_post_ids: 3}
+
+# ---- 切分 ----
+split:
+  dir: data/splits/seed42
+  split_hash: "71b7101b47eb266579dea81bd837dded9c55e2e09c6e31124de1133abd733eeb"
+  seed: 42
+  rule: "按 post_id 分组切分（同一 post 的所有图须在同一 split）；严禁 random_split 同源"
+
+# ---- 评估预处理 ----
+preprocessing:
+  canonical:
+    train: "Resize(288) -> CenterCrop(256)"
+    eval:  "Resize(288) -> CenterCrop(256)"
+  legacy_broken:
+    note: "Resize((256,256)) 改变长宽比，与训练分布不匹配，val 上差 1.77~2.02 点（正确性问题非性能）"
+    status: forbidden
+
+# ---- 指标口径 ----
+metrics:
+  forbidden:
+    - macro_f1_all171   # 含 4 个不可评类，固定 2.34% 折扣，无信息量，从报表删除
+  contract_baseline_v7:  # 167 类契约口径，必须保留作对照锚点
+    test:  {n: 1608, top1: 0.5989, top5: 0.7767, macro_f1: 0.5533, weighted_f1: 0.5946, balanced_acc: 0.5681}
+    val:   {n: 1585, top1: 0.6183, top5: 0.7779, macro_f1: 0.5738}
+    leakage_check: "test-val Top-1 = -1.94pt, z=-1.12, p=0.26 (不显著) -> 已治愈"
+  v8_target: {top1: [0.62, 0.65], macro_f1_167: [0.57, 0.60]}
