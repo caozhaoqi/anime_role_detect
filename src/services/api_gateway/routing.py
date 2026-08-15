@@ -4,7 +4,6 @@
 
 取代原先硬编码的 ``ROUTE_TABLE`` 列表与 ``SERVICES`` 字典两份真相源（加服务时改一处漏一处）。
 
-新设计（借鉴 HCM 的 ``@open_service`` 自动发现，但做减法）：
 - 路由规则通过 ``src.core.service_registry`` 的 ``register_route`` **声明式注册**，
   由 ``register_default_routes()`` 在 import 时装配；t2i 等独立服务也可在自己的模块里
   调用 ``register_route`` 自注册（见 ``src/services/t2i_service/router.py``），无需回改本文件。

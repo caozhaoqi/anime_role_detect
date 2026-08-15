@@ -3,7 +3,6 @@
 """统一服务注册表：用声明式 ``register_*(...)`` 取代网关里手写的两份真相源
 (``SERVICES`` 字典 + ``ROUTE_TABLE`` 列表)。
 
-设计目标（借鉴 HCM 项目的 ``@open_service`` 装饰器自动发现思路，但做减法，
 避免引入元数据引擎复杂度）：
 
 - 各微服务在自己模块里调用 ``register_service`` / ``register_route`` **自注册**，

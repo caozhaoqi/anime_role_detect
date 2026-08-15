@@ -28,6 +28,7 @@ config = get_service_config()
 from src.core.logging import get_enhanced_logger as get_logger
 from src.core.logging_setup import setup_logging
 from src.services.api_gateway.routing import resolve_route
+from src.core.service_registry import registry
 
 logger = get_logger("api_gateway")
 
@@ -603,6 +604,12 @@ async def check_services():
                 "error": str(e),
             }
     return {"services": status, "gateway_status": "running"}
+
+
+@app.get("/api/gateway/routes")
+async def gateway_routes():
+    """暴露 ServiceRegistry 已注册路由与服务拓扑（feature D），供前端可观测面板展示。"""
+    return {"success": True, "services": registry.get_services(), "routes": registry.get_routes()}
 
 
 @app.api_route("/api/video/result/{filename}", methods=["GET"])

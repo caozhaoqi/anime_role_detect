@@ -2,7 +2,6 @@
 # -*- coding: utf-8 -*-
 """轻量 metrics 层：在现有 JSONL 日志之上，补一层可量化的运行指标。
 
-设计取舍（参考 HCM 的 Prometheus 思路但做减法，本项目暂不上全套可观测栈）：
 - 仅用标准库（threading/json/os），主 ``.venv`` 与 ``t2i-mac`` venv 均可 import。
 - 三类原语：``record_latency``(耗时分布) / ``set_gauge``(瞬时值) / ``inc_counter``(计数)。
 - 每条指标同时追加写入 ``logs/metrics.jsonl``（与业务日志分离），并保留内存窗口供
