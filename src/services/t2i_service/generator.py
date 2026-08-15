@@ -23,6 +23,7 @@ from src.services.t2i_service import config
 from src.core.metrics import metrics
 import logging
 import sys
+from typing import Optional, Callable
 
 # t2i 专用 logger：带时间戳，解决 supervisord 捕获的 stdout/stderr 无时间问题
 # （uvicorn 默认格式缺 asctime；裸 logging 也无 formatter）
@@ -88,6 +89,7 @@ class T2IGenerator:
         self._pipe = None
         self._image_encoder = None
         self._device = None
+        self._dtype = None  # 与设备匹配的权重精度；mps→fp16 / cpu→fp32
         self._ip_loaded = False
         self._lora_loaded_for = None  # 当前已注入的 LoRA 角色
         self._busy = False            # 是否正在推理（idle 卸载时需跳过）
@@ -108,8 +110,12 @@ class T2IGenerator:
 
         if self._pipe is not None and self._device == device:
             return
-        dtype = torch.float32  # CPU/MPS 最稳；fp16 需 CUDA
-        _t2i_logger.info(f"[t2i] 加载 SD1.5 底座: {config.SD15_DIR}")
+        # 重要：MPS 上 fp16 会显著削弱 IP-Adapter 角色一致性（实测生成图与角色偏离较大），
+        # 故统一使用 fp32 保真。fp16 的提速收益已让位于画质；若确需提速，应改用其他手段
+        # （如 torch.compile、降低 steps），而非牺牲 IP-Adapter 精度。
+        # CPU 同样 fp32。
+        dtype = torch.float32
+        _t2i_logger.info(f"[t2i] 加载 SD1.5 底座: {config.SD15_DIR} (device={device}, dtype={dtype})")
         pipe = StableDiffusionPipeline.from_pretrained(
             str(config.SD15_DIR),
             torch_dtype=dtype,
@@ -126,6 +132,7 @@ class T2IGenerator:
             pass
         self._pipe = pipe
         self._device = device
+        self._dtype = dtype
         self._ip_loaded = False
         self._lora_loaded_for = None
 
@@ -139,7 +146,8 @@ class T2IGenerator:
         self._ensure_base(device)
         _t2i_logger.info(f"[t2i] 加载 IP-Adapter 权重: {config.IP_MODELS_DIR / config.IP_WEIGHT_NAME}")
         image_encoder = CLIPVisionModelWithProjection.from_pretrained(
-            str(config.IP_MODELS_DIR / "image_encoder"), torch_dtype=torch.float32
+            str(config.IP_MODELS_DIR / "image_encoder"),
+            torch_dtype=self._dtype or torch.float32,
         ).to(device)
         self._pipe.load_ip_adapter(
             str(config.IP_MODELS_DIR),
@@ -187,6 +195,7 @@ class T2IGenerator:
         seed: int = 42,
         device: str | None = None,
         out_dir: Path | None = None,
+        on_progress: Optional[Callable[[int, int, int], None]] = None,
     ) -> dict:
         import torch
         from PIL import Image
@@ -195,21 +204,27 @@ class T2IGenerator:
         self._busy = True
         self._last_used = time.time()
         self._ensure_idle_monitor()
+        _t2i_logger.info(f"[t2i-gen:{role}] 开始生成 role={role} method={method} num={num} steps={steps} cfg={cfg} device={device}")
         # ---- E: metrics 埋点（耗时 / 设备 / MPS 峰值）----
         metrics.inc_counter("t2i.generate.jobs")
         _t_start = time.time()
         _mps_peak_mb = 0.0
         try:
             neg = negative or "low quality, blurry, extra characters, multiple people, deformed, watermark"
+            _t2i_logger.info(f"[t2i-gen:{role}] 进入生成流程 requested_method={method}")
 
             used_method = method
             if method == "lora":
                 ok = self._ensure_lora(role, device)
                 if not ok:
+                    _t2i_logger.info(f"[t2i-gen:{role}] 无 LoRA 权重，回退 ip_adapter")
                     used_method = "ip_adapter"  # 回退
             if used_method == "ip_adapter":
+                _t2i_logger.info(f"[t2i-gen:{role}] 加载/校验 IP-Adapter 权重中…")
                 self._ensure_ip_adapter(device, scale)
+                _t2i_logger.info(f"[t2i-gen:{role}] IP-Adapter 权重就绪")
                 refs = _load_role_refs(role, num_ref, seed)
+                _t2i_logger.info(f"[t2i-gen:{role}] 参考图载入完成: {len(refs)} 张 (num_ref={num_ref})")
             else:
                 refs = None
 
@@ -224,7 +239,9 @@ class T2IGenerator:
 
             images_b64 = []
             saved = []
+            _t2i_logger.info(f"[t2i-gen:{role}] 进入推理循环 num={num} steps={steps} device={device}")
             for i in range(num):
+                _t2i_logger.info(f"[t2i-gen:{role}] 开始第 {i+1}/{num} 张推理 (steps={steps})")
                 # 必须让随机源与模型同设备，否则 mps 模型会触发 CPU 回退慢路径
                 if device == "cpu":
                     gen = torch.Generator().manual_seed(seed + i)
@@ -239,7 +256,20 @@ class T2IGenerator:
                 )
                 if used_method == "ip_adapter":
                     kwargs["ip_adapter_image"] = [refs]
+                # 逐步骤度：把第 i 张图的去噪进度回传给上层 on_progress(img_idx, completed, total)
+                if on_progress is not None:
+                    _img_idx = i
+                    def _step_cb(pipe, step_i, timestep, cb_kwargs, _idx=_img_idx):
+                        try:
+                            on_progress(_idx, step_i + 1, steps)
+                        except Exception:
+                            pass
+                        return cb_kwargs
+                    kwargs["callback_on_step_end"] = _step_cb
+                _t_img = time.time()
                 out: Image.Image = self._pipe(**kwargs).images[0]
+                _dt = time.time() - _t_img
+                _t2i_logger.info(f"[t2i-gen:{role}] 第 {i+1}/{num} 张推理完成 耗时 {_dt:.1f}s")
 
                 fname = f"{role}_{used_method}_{i + 1}.png"
                 save_path = out_dir / fname
@@ -258,6 +288,7 @@ class T2IGenerator:
                         _mps_peak_mb = max(_mps_peak_mb, torch.mps.current_allocated_memory() / 1024 / 1024)
                     except Exception:
                         pass
+            _t2i_logger.info(f"[t2i-gen:{role}] 全部 {num} 张推理完成，进入保存/编码阶段")
         finally:
             self._busy = False
             self._last_used = time.time()

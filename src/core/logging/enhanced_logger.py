@@ -62,7 +62,9 @@ class EnhancedLogger:
 
     def _format_log_record(self, record):
         extra = record.get("extra", {})
-        return "{time:YYYY-MM-DD HH:mm:ss.SSS} | {trace_id} | {request_id} | {level: <8} | {component} | {name}:{function}:{line} | {message}".format(
+        # 注意：loguru 对「callable format」不会自动补换行，必须自行在末尾加 \n，
+        # 否则所有记录会被粘连成一行（wc -l = 0），日志查看器按 \n 切分时会整文件变成一条。
+        return "{time:YYYY-MM-DD HH:mm:ss.SSS} | {trace_id} | {request_id} | {level: <8} | {component} | {name}:{function}:{line} | {message}\n".format(
             time=record["time"],
             trace_id=extra.get("trace_id", "-"),
             request_id=extra.get("request_id", "-"),
@@ -96,7 +98,8 @@ class EnhancedLogger:
             rotation="100 MB",
             retention="3 days",
             compression="zip",
-            level="DEBUG",
+            # INFO：避免 DEBUG 级资源采样（每 30s 一条）刷屏统一日志，淹没应用日志
+            level="INFO",
             format=log_format,
             colorize=False,
             enqueue=True,

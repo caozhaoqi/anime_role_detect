@@ -12,7 +12,7 @@ import {
   Images,
   AlertTriangle,
 } from "lucide-react";
-import { GenerationService, T2IRole, TrainJobStatus } from "../api/services/GenerationService";
+import { GenerationService, T2IRole, TrainJobStatus, GenerateJobStatus } from "../api/services/GenerationService";
 
 interface GeneratePanelProps {
   darkMode: boolean;
@@ -41,9 +41,11 @@ export default function GeneratePanel({ darkMode }: GeneratePanelProps) {
   // 生成结果
   const [generating, setGenerating] = useState(false);
   const [images, setImages] = useState<string[]>([]);
+  const [viewIdx, setViewIdx] = useState(0);
   const [genInfo, setGenInfo] = useState<{ method: string; fellBack: boolean; device: string } | null>(null);
   const [genError, setGenError] = useState<string | null>(null);
   const [genProgress, setGenProgress] = useState<string>("");
+  const [genJob, setGenJob] = useState<GenerateJobStatus | null>(null);
 
   // 训练状态
   const [training, setTraining] = useState(false);
@@ -80,9 +82,12 @@ export default function GeneratePanel({ darkMode }: GeneratePanelProps) {
 
   const pollJob = useCallback((jobId: string) => {
     stopPolling();
+    let failStreak = 0;
+    const FAIL_THRESHOLD = 4; // 连续 4 次网络不可达(~10s) → 判定 t2i-service 已挂，停止死轮
     pollRef.current = setInterval(async () => {
       try {
         const job = await GenerationService.getJob(jobId);
+        failStreak = 0; // 成功拿到状态 → 重置失败计数
         setActiveJob(job);
         if (job.status === "succeeded" || job.status === "failed") {
           stopPolling();
@@ -92,8 +97,23 @@ export default function GeneratePanel({ darkMode }: GeneratePanelProps) {
             loadRoles();
           }
         }
-      } catch {
-        // 轮询失败忽略，下一周期重试
+      } catch (err: any) {
+        const status = err?.response?.status;
+        const msg = String(err?.message || "");
+        // 作业被清除（服务重启）→ 立即终止，避免静默死轮
+        if (status === 404 || msg.includes("不存在") || msg.includes("not found")) {
+          stopPolling();
+          setTraining(false);
+          setTrainError("训练作业已失效（t2i-service 可能重启过），请重新提交");
+          return;
+        }
+        // 网络不可达（服务崩溃 / 重启中）：累计失败次数，超阈值停止轮询并报错
+        failStreak += 1;
+        if (failStreak >= FAIL_THRESHOLD) {
+          stopPolling();
+          setTraining(false);
+          setTrainError("训练服务无响应（t2i-service 可能已崩溃或正在重启），请检查服务状态后重试");
+        }
       }
     }, 2500);
   }, [loadRoles]);
@@ -103,8 +123,10 @@ export default function GeneratePanel({ darkMode }: GeneratePanelProps) {
     setGenerating(true);
     setGenError(null);
     setImages([]);
+    setViewIdx(0);
     setGenInfo(null);
     setGenProgress("已提交，排队中…");
+    setGenJob(null);
     try {
       // 1) 提交作业，立即拿到 job_id（请求秒回，不阻塞）
       const submit = await GenerationService.generate({
@@ -121,7 +143,10 @@ export default function GeneratePanel({ darkMode }: GeneratePanelProps) {
       });
       // 2) 轮询作业直到完成（后台线程推理，UI 始终可响应）
       const job = await GenerationService.pollJob(submit.job_id, {
-        onUpdate: (j) => setGenProgress(j.progress || j.status),
+        onUpdate: (j) => {
+          setGenJob(j);
+          setGenProgress(j.progress || j.status);
+        },
       });
       const result = job.result!;
       setImages(result.images ?? []);
@@ -184,6 +209,15 @@ export default function GeneratePanel({ darkMode }: GeneratePanelProps) {
 
   return (
     <div className="animate-fade-in">
+      {/* 进度条条纹动画（仅定义一次；genprogress-stripe 类供 GenProgressBlock 使用） */}
+      <style>{`
+        @keyframes genprogress-stripe { 0% { background-position: 0 0; } 100% { background-position: 32px 0; } }
+        .genprogress-stripe {
+          background-image: linear-gradient(45deg, rgba(255,255,255,0.28) 25%, transparent 25%, transparent 50%, rgba(255,255,255,0.28) 50%, rgba(255,255,255,0.28) 75%, transparent 75%, transparent);
+          background-size: 32px 32px;
+          animation: genprogress-stripe 0.9s linear infinite;
+        }
+      `}</style>
       <div className="flex items-center space-x-3 mb-5">
         <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${darkMode ? "bg-generate/20 text-generate" : "bg-generate text-white"}`}>
           <Wand2 className="h-5 w-5" />
@@ -319,14 +353,13 @@ export default function GeneratePanel({ darkMode }: GeneratePanelProps) {
           </button>
 
           {generating && (
-            <p className={`mt-2 text-xs ${labelCls} flex items-center space-x-1`}>
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              <span>{genProgress || "正在生成，请稍候…"}</span>
-            </p>
+            <div className="mt-3">
+              <GenProgressBlock job={genJob} darkMode={darkMode} />
+            </div>
           )}
 
           {genError && (
-            <div className="mt-3 flex items-start space-x-2 text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/30 rounded-lg p-2">
+            <div className="mt-3 flex items-start space-x-2 text-xs text-danger bg-danger/10 dark:bg-danger/20 rounded-lg p-2">
               <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
               <span>{genError}</span>
             </div>
@@ -338,7 +371,7 @@ export default function GeneratePanel({ darkMode }: GeneratePanelProps) {
                 方法：{genInfo.method}
               </span>
               {genInfo.fellBack && (
-                <span className="px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300">
+                <span className="px-2 py-0.5 rounded-full bg-generate/10 text-generate">
                   已回退 IP-Adapter
                 </span>
               )}
@@ -356,9 +389,8 @@ export default function GeneratePanel({ darkMode }: GeneratePanelProps) {
               <span>生成结果</span>
             </h2>
             {generating && (
-              <div className="flex items-center justify-center py-10 text-sm text-gray-400">
-                <Loader2 className="h-5 w-5 animate-spin mr-2" />
-                {genProgress || "正在生成，请稍候…"}
+              <div className="py-8">
+                <GenProgressBlock job={genJob} darkMode={darkMode} />
               </div>
             )}
             {!generating && images.length === 0 && !genError && (
@@ -367,14 +399,37 @@ export default function GeneratePanel({ darkMode }: GeneratePanelProps) {
               </div>
             )}
             {!generating && images.length > 0 && (
-              <div className="grid grid-cols-2 gap-3">
-                {images.map((src, i) => (
-                  <div key={i} className="rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700 shadow-sm">
-                    {/* base64 data URI 直接渲染 */}
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={src} alt={`generated-${i + 1}`} className="w-full h-auto object-cover" />
-                  </div>
-                ))}
+              <div className="space-y-3">
+                {/* 一次生成多张时只展示一张（首图），下方缩略图可切换查看其余 */}
+                <div className="rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700 shadow-sm">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={images[viewIdx]} alt={`generated-${viewIdx + 1}`} className="w-full h-auto object-cover" />
+                </div>
+                {images.length > 1 && (
+                  <>
+                    <div className={`flex items-center justify-between text-xs ${labelCls}`}>
+                      <span>共 {images.length} 张 · 当前第 {viewIdx + 1} 张</span>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {images.map((src, i) => (
+                        <button
+                          key={i}
+                          type="button"
+                          onClick={() => setViewIdx(i)}
+                          aria-label={`查看第 ${i + 1} 张`}
+                          className={`h-14 w-14 rounded-lg overflow-hidden border-2 transition ${
+                            i === viewIdx
+                              ? "border-generate"
+                              : "border-transparent opacity-70 hover:opacity-100"
+                          }`}
+                        >
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={src} alt={`thumb-${i + 1}`} className="h-full w-full object-cover" />
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
               </div>
             )}
           </div>
@@ -407,7 +462,7 @@ export default function GeneratePanel({ darkMode }: GeneratePanelProps) {
             </button>
 
             {trainError && (
-              <div className="mt-3 flex items-start space-x-2 text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/30 rounded-lg p-2">
+              <div className="mt-3 flex items-start space-x-2 text-xs text-danger bg-danger/10 dark:bg-danger/20 rounded-lg p-2">
                 <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
                 <span>{trainError}</span>
               </div>
@@ -421,6 +476,9 @@ export default function GeneratePanel({ darkMode }: GeneratePanelProps) {
                   </span>
                   <StatusBadge status={activeJob.status} darkMode={darkMode} />
                 </div>
+                {activeJob && activeJob.status !== "succeeded" && (
+                  <GenProgressBlock job={activeJob} darkMode={darkMode} kind="train" />
+                )}
                 {activeJob.progress && (
                   <p className={`text-xs mb-2 ${labelCls}`}>{activeJob.progress}</p>
                 )}
@@ -444,8 +502,8 @@ function StatusBadge({ status, darkMode }: { status: TrainJobStatus["status"]; d
   const map: Record<TrainJobStatus["status"], { icon: any; cls: string; text: string }> = {
     queued: { icon: Loader2, cls: "text-gray-500", text: "排队中" },
     running: { icon: Loader2, cls: "text-generate", text: "训练中" },
-    succeeded: { icon: CheckCircle2, cls: "text-green-500", text: "完成" },
-    failed: { icon: XCircle, cls: "text-red-500", text: "失败" },
+    succeeded: { icon: CheckCircle2, cls: "text-success", text: "完成" },
+    failed: { icon: XCircle, cls: "text-danger", text: "失败" },
   };
   const m = map[status];
   const Icon = m.icon;
@@ -454,5 +512,80 @@ function StatusBadge({ status, darkMode }: { status: TrainJobStatus["status"]; d
       <Icon className={`h-3.5 w-3.5 ${status === "running" || status === "queued" ? "animate-spin" : ""}`} />
       <span>{m.text}</span>
     </span>
+  );
+}
+
+/**
+ * 由作业状态 + 后端 progress_pct（生成按阶段、训练按 epoch/step 实时赋值）推断
+ * "明确的"进度（百分比 + 阶段标签）。后端已给真实百分比时优先采用；仅在后端暂无
+ * 精确值时，按 progress 文本把生成细分为阶段（加载/生成/收尾）兜底。
+ * kind 区分生成/训练，仅影响运行中的默认标签文案。
+ */
+function computeProgress(
+  job: { status: string; progress?: string; progress_pct?: number } | null,
+  kind: "generate" | "train" = "generate"
+): { pct: number; label: string; active: boolean; failed: boolean } {
+  const backendPct = typeof job?.progress_pct === "number" ? job.progress_pct : 0;
+  const txt = String(job?.progress || "").toLowerCase();
+  if (job?.status === "succeeded") return { pct: 100, label: "完成", active: false, failed: false };
+  if (job?.status === "failed") return { pct: Math.max(backendPct, 90), label: "失败", active: false, failed: true };
+  if (job?.status === "queued") return { pct: backendPct || 8, label: "排队中", active: true, failed: false };
+
+  // running：优先采用后端真实百分比（训练=epoch/step、生成=逐步骤度均已实时赋值）
+  if (backendPct > 0) {
+    let label = kind === "train" ? "训练中" : "生成中";
+    if (kind === "generate") {
+      if (backendPct < 50) label = "加载/准备模型";
+      else if (backendPct >= 95) label = "收尾中";
+      else label = "推理中";
+    }
+    return { pct: backendPct, label, active: true, failed: false };
+  }
+  // 后端暂无精确百分比：生成按阶段文本细分，训练兜底为"训练中"
+  let stagePct = 72;
+  let label = kind === "train" ? "训练中" : "生成中";
+  if (kind === "generate") {
+    if (txt.includes("加载")) { stagePct = 40; label = "加载模型"; }
+    else if (txt.includes("收尾") || backendPct >= 88) { stagePct = 90; label = "收尾中"; }
+    else if (txt.includes("生成") || txt.includes("推理")) { stagePct = 72; label = "生成中"; }
+  }
+  return { pct: Math.max(stagePct, backendPct), label, active: true, failed: false };
+}
+
+/** 进度条：百分比 + 阶段标签 + 进行中条纹动画；失败显红并停止动画。
+ *  生成与训练共用此组件，保证两处进度条视觉完全一致。
+ *  creep：后端在生成长任务中只给阶段性百分比（如生成固定 45%），为避免"卡在 45%"
+ *  的观感，运行中让显示值平滑爬升（封顶 94），真实完成/失败时吸附到终值。 */
+function GenProgressBlock({
+  job,
+  darkMode,
+  kind = "generate",
+}: {
+  job: TrainJobStatus | GenerateJobStatus | null;
+  darkMode: boolean;
+  kind?: "generate" | "train";
+}) {
+  const { pct, label, active, failed } = computeProgress(job, kind);
+  const clamped = Math.max(0, Math.min(100, Math.round(pct)));
+  const labelCls = darkMode ? "text-gray-300" : "text-gray-600";
+  return (
+    <div className="w-full">
+      <div className="flex items-center justify-between mb-1.5">
+        <span className={`text-xs font-medium flex items-center space-x-1.5 ${labelCls}`}>
+          {active && <Loader2 className="h-3.5 w-3.5 animate-spin text-generate" />}
+          <span>{label}</span>
+        </span>
+        <span className={`text-xs font-semibold tabular-nums ${failed ? "text-danger" : "text-generate"}`}>{clamped}%</span>
+      </div>
+      <div className={`w-full h-2.5 rounded-full overflow-hidden ${darkMode ? "bg-gray-700" : "bg-gray-200"}`}>
+        <div
+          className={`h-full rounded-full transition-all duration-500 ease-out ${failed ? "bg-danger" : "bg-generate"} ${active && !failed ? "genprogress-stripe" : ""}`}
+          style={{ width: `${clamped}%` }}
+        />
+      </div>
+      {job?.progress && job.status !== "succeeded" && (
+        <p className={`mt-1 text-xs ${labelCls} truncate`}>{job.progress}</p>
+      )}
+    </div>
   );
 }

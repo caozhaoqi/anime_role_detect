@@ -80,7 +80,8 @@ class GlobalLogger:
             rotation="100 MB",
             retention="7 days",
             compression="zip",
-            level="DEBUG",
+            # INFO：避免 DEBUG 级资源采样刷屏统一日志（log_viewer.py 仍读 unified.log）
+            level="INFO",
             format=log_format_plain, colorize=False,
             enqueue=True,
         )

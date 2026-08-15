@@ -16,6 +16,7 @@
     #   get_enhanced_logger("x").bind(trace_id="abc-123").info("...")
 """
 import sys
+from pathlib import Path
 
 from loguru import logger
 
@@ -81,6 +82,41 @@ def setup_logging(service_name: str, level: str = "INFO") -> None:
         level=level,
         format=_json_format,
         serialize=False,
+    )
+
+    # 同时写入中央统一日志，使业务应用日志进入 logs/anime_role_detect_unified.log
+    # 与 logs/anime_role_detect_structured_{date}.jsonl，供 /logs 查看器与可观测面板消费。
+    # 此前 setup_logging 只写 stdout，导致中央日志文件里只有监控脚本的日志（"全是监控"）。
+    # 这里用与 enhanced_logger 一致的固定文件名，确保日志查看 API 能读到应用日志。
+    _log_dir = Path("logs")
+    _log_dir.mkdir(parents=True, exist_ok=True)
+
+    _plain_format = (
+        "{time:YYYY-MM-DD HH:mm:ss.SSS} | {level: <8} | "
+        "{name}:{function}:{line} | {message}"
+    )
+
+    # 固定文件名（与 enhanced_logger 一致，日志查看 API 默认读 anime_role_detect_unified.log），
+    # 不按 service_name 拼接，否则会变成 api-gateway_unified.log 而脱离统一视图。
+    logger.add(
+        str(_log_dir / "anime_role_detect_unified.log"),
+        rotation="100 MB",
+        retention="3 days",
+        compression="zip",
+        level="INFO",
+        format=_plain_format,
+        colorize=False,
+        enqueue=True,
+    )
+
+    logger.add(
+        str(_log_dir / "anime_role_detect_structured_{time:YYYY-MM-DD}.jsonl"),
+        rotation="00:00",
+        retention="7 days",
+        compression="zip",
+        level="INFO",
+        serialize=True,
+        enqueue=True,
     )
 
     _initialized = True

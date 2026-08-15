@@ -55,6 +55,7 @@ export interface TrainJobStatus {
   role: string;
   status: TrainStatus;
   progress: string;
+  progress_pct?: number;
   log_tail: string[];
   log_lines: number;
   created_at: number;
@@ -67,6 +68,7 @@ export interface GenerateJobStatus extends TrainJobStatus {
   type?: 'train' | 'generate';
   result?: GenerateResult;
   error?: string;
+  progress_pct?: number;
 }
 
 /** 提交生成后即刻返回（不再同步等待出图） */
@@ -100,6 +102,16 @@ export interface SubmitChatResponse {
  * 生成是长任务（首次加载 SD1.5+IP-Adapter 需数十秒~数分钟），统一采用
  * "提交即返回 job_id + 轮询" 模式，避免长连接超时与 UI 卡死。
  */
+/**
+ * 同一 jobId 只允许一个轮询循环在跑（去重）。
+ * 当多个入口（生成面板 / 对话 / React StrictMode 双调用）同时 poll 同一作业时，
+ * 复用同一个 Promise，避免重复请求把网关日志刷成"一直转发"。
+ */
+const _activePolls = new Map<string, Promise<GenerateJobStatus>>();
+
+/** 连续网络不可达达到该次数即判定 t2i-service 已崩溃/重启中，快速失败而非死轮到 30 分钟 */
+const POLL_FAIL_FAST_THRESHOLD = 4;
+
 export class GenerationService {
   static async listRoles(): Promise<T2IRole[]> {
     try {
@@ -144,19 +156,30 @@ export class GenerationService {
   /**
    * 轮询作业直到 succeeded/failed。每 intervalMs 拉一次状态，超时 timeoutMs 抛错。
    * onUpdate 可在每次拉取时拿到最新进度（用于 UI 展示"排队中/生成中…"）。
+   *
+   * 健壮性：
+   * - 去重：同一 jobId 并发只跑一个循环（见 _activePolls）。
+   * - 快速失败：t2i-service 崩溃/重启中时 getJob 会持续连接失败；连续
+   *   POLL_FAIL_FAST_THRESHOLD 次不可达即判定服务已挂，立即 reject，避免前端
+   *   静默死轮到 30 分钟、把网关日志刷成"一直转发"。
    */
   static pollJob(
     jobId: string,
     opts: { intervalMs?: number; timeoutMs?: number; onUpdate?: (job: GenerateJobStatus) => void } = {}
   ): Promise<GenerateJobStatus> {
+    const existing = _activePolls.get(jobId);
+    if (existing) return existing;
+
     const intervalMs = opts.intervalMs ?? 2500;
     // 兜底超时设为 30 分钟：LoRA 训练在 Mac CPU 上单步可达数百秒、整轮常 >10 分钟，
     // 原 10 分钟兜底会在作业完成前放弃 → 误报"超时"。运行中的作业不应被墙钟超时打断。
     const timeoutMs = opts.timeoutMs ?? 1800000; // 30 分钟兜底
-    return new Promise<GenerateJobStatus>((resolve, reject) => {
+    const promise = new Promise<GenerateJobStatus>((resolve, reject) => {
       const start = Date.now();
       let timer: ReturnType<typeof setInterval> | null = null;
-      const stop = () => {
+      let failStreak = 0; // 连续网络不可达计数
+      const cleanup = () => {
+        _activePolls.delete(jobId);
         if (timer) {
           clearInterval(timer);
           timer = null;
@@ -165,35 +188,51 @@ export class GenerationService {
       const tick = async () => {
         try {
           const job = await GenerationService.getJob(jobId);
+          failStreak = 0; // 成功拿到状态 → 重置失败计数
           opts.onUpdate?.(job);
           if (job.status === 'succeeded') {
-            stop();
+            cleanup();
             resolve(job);
             return;
           }
           if (job.status === 'failed') {
-            stop();
+            cleanup();
             reject(new Error(job.error || '生成任务失败'));
             return;
           }
         } catch (err: any) {
-          // 作业不存在（服务重启清掉了内存中的作业线程）→ 立即失败，避免空转 30 分钟
+          // 作业不存在（服务重启清掉了内存中的作业线程）→ 立即失败，避免空转
           const status = err?.response?.status;
           const msg = String(err?.message || "");
           if (status === 404 || msg.includes("不存在") || msg.includes("not found")) {
-            stop();
+            cleanup();
             reject(new Error("生成作业已失效（服务可能重启过），请重新提交"));
             return;
           }
-          // 其它网络抖动：继续重试，直到整体超时
+          // 网关返回 503 = 上游 t2i-service 明确不可用（已崩溃/重启中）。这是确定性故障，
+          // 不必再等 4 次，立即快速失败，避免继续把网关日志刷成"一直转发"。
+          if (status === 503) {
+            cleanup();
+            reject(new Error("生成服务不可用（t2i-service 已停止或正在重启），请检查服务状态后重试"));
+            return;
+          }
+          // 网络不可达（服务崩溃 / 重启中 / 连接拒绝）：累计失败次数，超阈值快速失败
+          failStreak += 1;
+          if (failStreak >= POLL_FAIL_FAST_THRESHOLD) {
+            cleanup();
+            reject(new Error("生成服务无响应（t2i-service 可能已崩溃或正在重启），请检查服务状态后重试"));
+            return;
+          }
         }
         if (Date.now() - start > timeoutMs) {
-          stop();
+          cleanup();
           reject(new Error('生成轮询超时，请稍后在「图像生成」页重试'));
         }
       };
       timer = setInterval(tick, intervalMs);
       tick();
     });
+    _activePolls.set(jobId, promise);
+    return promise;
   }
 }

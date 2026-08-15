@@ -14,6 +14,8 @@ import subprocess
 import threading
 import time
 import uuid
+import re
+import math
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
@@ -42,6 +44,7 @@ class TrainJob:
     status: str = "queued"          # queued | running | succeeded | failed
     log: list[str] = field(default_factory=list)
     progress: str = ""
+    progress_pct: float = 0.0       # 0~100，前端进度条直接消费；阶段边界赋值
     created_at: float = field(default_factory=time.time)
     finished_at: Optional[float] = None
     output_dir: str = ""
@@ -52,6 +55,7 @@ class TrainJob:
             "role": self.role,
             "status": self.status,
             "progress": self.progress,
+            "progress_pct": self.progress_pct,
             "log_tail": self.log[-50:],
             "log_lines": len(self.log),
             "created_at": self.created_at,
@@ -70,6 +74,7 @@ class GenerateJob:
     role: str
     status: str = "queued"          # queued | running | succeeded | failed
     progress: str = ""
+    progress_pct: float = 0.0       # 0~100，前端进度条直接消费；阶段边界赋值
     created_at: float = field(default_factory=time.time)
     finished_at: Optional[float] = None
     result: Optional[dict] = None   # 成功后写入 generate_sync 的完整返回
@@ -83,6 +88,7 @@ class GenerateJob:
             "role": self.role,
             "status": self.status,
             "progress": self.progress,
+            "progress_pct": self.progress_pct,
             "created_at": self.created_at,
             "finished_at": self.finished_at,
             "params": self.params,
@@ -126,6 +132,7 @@ def start_generation(
         role=role,
         status="queued",
         progress="排队中…",
+        progress_pct=8.0,
         params=params,
     )
     with _JOBS_LOCK:
@@ -136,16 +143,31 @@ def start_generation(
 
     def _run():
         gen = T2IGenerator.get_instance()
+
+        def _on_progress(img_idx: int, completed: int, total: int):
+            """逐步骤度回调：把生成进度换算成 45→95 的真实百分比写回 job。"""
+            with _JOBS_LOCK:
+                j = _GEN_JOBS.get(job.job_id)
+                if not j or j.status != "running":
+                    return
+                frac = (img_idx + completed / max(total, 1)) / max(num, 1)
+                j.progress_pct = min(95.0, 45.0 + frac * 50.0)
+                j.progress = f"生成中 {img_idx + 1}/{num} 张 · 步 {completed}/{total}"
+
+        _t2i_logger.info(f"[t2i-gen:{role}] 后台线程启动，准备调用 generate_sync (job={job.job_id})")
         try:
             with _JOBS_LOCK:
                 j = _GEN_JOBS.get(job.job_id)
                 if j:
                     j.status = "running"
                     j.progress = "加载模型并生成中…（首次约 30–60s）"
+                    j.progress_pct = 45.0
+            _t2i_logger.info(f"[t2i-gen:{role}] 调用 generate_sync（首次含 SD1.5+IP-Adapter 加载，可能 30–60s）")
             result = gen.generate_sync(
                 role=role, prompt=prompt, negative=negative, scale=scale,
                 steps=steps, cfg=cfg, num=num, method=method, num_ref=num_ref,
                 seed=seed, device=device,
+                on_progress=_on_progress,
             )
             with _JOBS_LOCK:
                 j = _GEN_JOBS.get(job.job_id)
@@ -153,7 +175,9 @@ def start_generation(
                     j.status = "succeeded"
                     j.result = result
                     j.progress = f"完成（{len(result.get('images', []))} 张，{result.get('method')}）"
+                    j.progress_pct = 100.0
                     j.finished_at = time.time()
+            _t2i_logger.info(f"[t2i-gen:{role}] generate_sync 成功返回，图像数={len(result.get('images', []))} method={result.get('method')} fell_back={result.get('fell_back')}")
         except Exception as e:  # noqa: BLE001
             with _JOBS_LOCK:
                 j = _GEN_JOBS.get(job.job_id)
@@ -203,11 +227,21 @@ def start_training(
     csv_path = build_metadata(role)
     out_dir = config.LORA_DIR / f"{role}_v1"
 
+    # 估算进度分母：参考图数 / 批大小 = 每 epoch 步数（向上取整）；
+    # 训练日志 "[train] epoch E step S loss X" 可据此反推实时百分比。
+    ref_dir = config.DATASET_ROOT / role
+    exts = (".jpg", ".jpeg", ".png", ".webp")
+    n_images = len([p for p in ref_dir.iterdir() if p.suffix.lower() in exts]) if ref_dir.exists() else 0
+    steps_per_epoch = max(1, math.ceil(n_images / batch_size))
+    total_steps = max(1, epochs * steps_per_epoch)
+
     job = TrainJob(
         job_id=uuid.uuid4().hex[:12],
         role=role,
         output_dir=str(out_dir),
         status="running",
+        progress="准备训练环境（加载底座权重到 CPU）…",
+        progress_pct=4.0,
     )
     with _JOBS_LOCK:
         _JOBS[job.job_id] = job
@@ -238,13 +272,23 @@ def start_training(
                 bufsize=1,
             )
             assert proc.stdout is not None
+            epoch_re = re.compile(r"epoch\s+(\d+)\s+step\s+(\d+)(?:\s+loss\s+([\d.]+))?", re.I)
             for line in proc.stdout:
                 line = line.rstrip("\n")
                 with _JOBS_LOCK:
                     j = _JOBS.get(job.job_id)
                     if j:
                         j.log.append(line)
-                        if "loss" in line:
+                        m = epoch_re.search(line)
+                        if m:
+                            ep = int(m.group(1))
+                            st = int(m.group(2))
+                            done = ep * steps_per_epoch + (st + 1)
+                            pct = min(99.0, done / total_steps * 100.0)
+                            j.progress_pct = pct
+                            loss_txt = f" · loss {m.group(3)}" if m.group(3) else ""
+                            j.progress = f"Epoch {ep + 1}/{epochs} · Step {st + 1}{loss_txt}"
+                        elif "loss" in line:
                             j.progress = line
                 _t2i_logger.info(f"[t2i-train:{role}] {line}")
             rc = proc.wait()
@@ -254,6 +298,8 @@ def start_training(
                     j.finished_at = time.time()
                     j.status = "succeeded" if rc == 0 else "failed"
                     j.progress = f"exit_code={rc}"
+                    if rc == 0:
+                        j.progress_pct = 100.0
             # ---- E: 训练耗时 / 设备 / 完成计数 ----
             metrics.record_latency("t2i.train.duration", time.time() - t0)
             metrics.set_gauge("t2i.train.device_is_mps", 0.0)  # 训练当前强制 CPU（见 train_lora_sd15._detect_device）
