@@ -144,15 +144,22 @@ def start_generation(
     def _run():
         gen = T2IGenerator.get_instance()
 
-        def _on_progress(img_idx: int, completed: int, total: int):
-            """逐步骤度回调：把生成进度换算成 45→95 的真实百分比写回 job。"""
-            with _JOBS_LOCK:
-                j = _GEN_JOBS.get(job.job_id)
-                if not j or j.status != "running":
-                    return
-                frac = (img_idx + completed / max(total, 1)) / max(num, 1)
-                j.progress_pct = min(95.0, 45.0 + frac * 50.0)
-                j.progress = f"生成中 {img_idx + 1}/{num} 张 · 步 {completed}/{total}"
+        # 进度估算线程：callback_on_step_end 在 MPS + diffusers 0.30.1 上会让去噪步 270× 变慢
+        # （实测 403s/步、整轮卡死 ~5.5h），故放弃逐步骤度回调，改用"真实已用推理时间 /
+        # 预计总时长"平滑驱动进度条。预计时长 = 加载余量(经验 40s) + num×steps×单步基线
+        # (MPS 实测 ~1.6s/步)，零 MPS 开销，不阻塞推理线程。
+        _est_stop = threading.Event()
+        _infer_start = [0.0]
+        _est_total = max(1.0, 40.0 + num * steps * 1.6)
+
+        def _est_progress():
+            while not _est_stop.is_set():
+                with _JOBS_LOCK:
+                    j = _GEN_JOBS.get(job.job_id)
+                    if j and j.status == "running":
+                        frac = min(1.0, (time.time() - _infer_start[0]) / _est_total)
+                        j.progress_pct = min(95.0, 45.0 + frac * 50.0)
+                time.sleep(0.5)
 
         _t2i_logger.info(f"[t2i-gen:{role}] 后台线程启动，准备调用 generate_sync (job={job.job_id})")
         try:
@@ -163,12 +170,18 @@ def start_generation(
                     j.progress = "加载模型并生成中…（首次约 30–60s）"
                     j.progress_pct = 45.0
             _t2i_logger.info(f"[t2i-gen:{role}] 调用 generate_sync（首次含 SD1.5+IP-Adapter 加载，可能 30–60s）")
-            result = gen.generate_sync(
-                role=role, prompt=prompt, negative=negative, scale=scale,
-                steps=steps, cfg=cfg, num=num, method=method, num_ref=num_ref,
-                seed=seed, device=device,
-                on_progress=_on_progress,
-            )
+            _infer_start[0] = time.time()
+            _est = threading.Thread(target=_est_progress, daemon=True)
+            _est.start()
+            try:
+                result = gen.generate_sync(
+                    role=role, prompt=prompt, negative=negative, scale=scale,
+                    steps=steps, cfg=cfg, num=num, method=method, num_ref=num_ref,
+                    seed=seed, device=device,
+                )
+            finally:
+                _est_stop.set()
+                _est.join(timeout=1.0)
             with _JOBS_LOCK:
                 j = _GEN_JOBS.get(job.job_id)
                 if j:

@@ -134,7 +134,12 @@ export class GenerationService {
   }
 
   static async getJob(jobId: string): Promise<GenerateJobStatus> {
-    const res = await apiClient.get<{ success: boolean } & GenerateJobStatus>(`/t2i/jobs/${jobId}`);
+    // 生成时后端推理线程会占满单进程 GIL，status 端点偶发延迟。放宽本次请求超时
+    // 到 120s（默认 30s），避免正常生成长任务时被 axios 误判超时。
+    const res = await apiClient.get<{ success: boolean } & GenerateJobStatus>(
+      `/t2i/jobs/${jobId}`,
+      { timeout: 120000 }
+    );
     return res.data;
   }
 
