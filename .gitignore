@@ -160,11 +160,14 @@ clip_cache/
 .claude/
 .claude
 anime_role_detect_logs
-run
+# 只忽略根目录 run/（运行时产物：supervisord.pid 等），
+# 不要用裸 "run"——会递归匹配 src/run/（启动脚本目录，需入库）
+/run/
 
 docs/todo.md
 
-tests/
+# 注意：不要整目录忽略 tests/（95+ 测试文件已入库，会拦住新增测试）
+# 只忽略测试产物/素材（见上方 tests/test_images/、tests/test_results/）
 
 run/supervisord.pid
 
@@ -220,3 +223,5 @@ anime_role_detect_logs/
 .codebuddy/
 .claude/
 .cursor/
+scripts/skillhub/tests/
+src/run/sh/kubectl
