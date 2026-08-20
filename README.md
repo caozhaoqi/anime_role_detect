@@ -73,6 +73,9 @@ supervisorctl status
 
 # Stop all services
 supervisorctl stop all
+
+# linux
+nohup ./src/run/sh/run_with_supervisor.sh start >/dev/null 2>&1 &
 ```
 
 ### Docker Deployment
