@@ -5,7 +5,8 @@ set -e
 cd "$(dirname "$0")/../.."
 export PYTHONPATH="$(pwd)"
 
-VENV_PY="t2i-mac/bin/python"
+# P3 修复（2026-08-20）：统一用 python3（与 supervisord.conf 一致）
+VENV_PY="t2i-mac/bin/python3"
 if [ ! -x "$VENV_PY" ]; then
   echo "✗ 未找到 t2i-mac venv，请先创建："
   echo "    python3 -m venv t2i-mac"

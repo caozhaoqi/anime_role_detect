@@ -12,3 +12,7 @@ accelerate==0.27.2
 safetensors==0.4.3
 Pillow==10.3.0
 numpy==1.26.4
+# t2i_service（FastAPI 服务）运行必需 —— 按本文件重建 venv 时勿漏装（P3 修复 2026-08-20）
+fastapi>=0.110
+uvicorn>=0.29
+pydantic>=2.6

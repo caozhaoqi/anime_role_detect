@@ -59,7 +59,11 @@ def _resolve_device(req: str | None) -> str:
 
 
 def _load_role_refs(role: str, num_ref: int, seed: int = 42):
-    """从 data/final_dataset/<role> 载入参考图，必要时随机采样上限。"""
+    """从 data/final_dataset/<role> 载入参考图，必要时随机采样上限。
+
+    P2 修复（2026-08-20）：先采样路径、再打开图片，避免头部角色（100+ 图）
+    全部载入内存后才丢弃。
+    """
     from PIL import Image
 
     ref_dir = config.DATASET_ROOT / role
@@ -71,12 +75,11 @@ def _load_role_refs(role: str, num_ref: int, seed: int = 42):
     if not paths:
         raise FileNotFoundError(f"{ref_dir} 下无图片")
 
-    refs = [Image.open(p).convert("RGB") for p in paths]
-    if num_ref and len(refs) > num_ref:
+    if num_ref and len(paths) > num_ref:
         import random as _rnd
         rng = _rnd.Random(seed)
-        refs = rng.sample(refs, num_ref)
-    return refs
+        paths = rng.sample(paths, num_ref)
+    return [Image.open(p).convert("RGB") for p in paths]
 
 
 class T2IGenerator:
@@ -180,6 +183,16 @@ class T2IGenerator:
             self._pipe.set_ip_adapter_scale(scale)
             return
         self._ensure_base(device)
+        # P1 修复（2026-08-20）：若之前挂了 LoRA，先卸载再挂 IP-Adapter，
+        # 否则 LoRA 权重仍挂在 UNet 上，双重条件注入污染生成结果。
+        # （_ensure_lora 挂 LoRA 前已有 unload_ip_adapter，此处补上反向清理。）
+        if self._lora_loaded_for is not None:
+            try:
+                self._pipe.unload_lora_weights()
+                _t2i_logger.info(f"[t2i] 卸载残留 LoRA({self._lora_loaded_for})，准备挂载 IP-Adapter")
+            except Exception as _le:  # noqa: BLE001
+                _t2i_logger.warning(f"[t2i] 卸载 LoRA 失败（忽略）：{_le}")
+            self._lora_loaded_for = None
         _t2i_logger.info(f"[t2i] 加载 IP-Adapter 权重: {config.IP_MODELS_DIR / config.IP_WEIGHT_NAME}")
         image_encoder = CLIPVisionModelWithProjection.from_pretrained(
             str(config.IP_MODELS_DIR / "image_encoder"),
@@ -319,7 +332,9 @@ class T2IGenerator:
                 )
                 for _j, out in enumerate(outs):
                     _i = global_idx + _j
-                    fname = f"{role}_{used_method}_{_i + 1}.png"
+                    # P2 修复（2026-08-20）：文件名加时间戳前缀，避免同一角色同方法多次
+                    # 生成覆盖旧文件（原 {role}_{method}_{i}.png 每次从 1 重算）
+                    fname = f"{role}_{used_method}_{int(time.time())}_{_i + 1}.png"
                     save_path = out_dir / fname
                     out.save(save_path)
                     saved.append(str(save_path))

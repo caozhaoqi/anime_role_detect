@@ -43,7 +43,8 @@ def build_examples(metadata_csv, role=None, limit=None):
     examples = []
     with open(metadata_csv, newline="", encoding="utf-8") as f:
         for row in csv.DictReader(f):
-            if role and row["role"] != role:
+            # role 列可能缺失（旧版两列 CSV）：用 .get() 防御，仅当列存在时过滤
+            if role and row.get("role") not in (None, "", role):
                 continue
             examples.append((row["image_path"], row["caption"]))
             if limit and len(examples) >= limit:
