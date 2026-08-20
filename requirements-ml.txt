@@ -16,7 +16,7 @@ accelerate==0.24.1
 mlflow==2.10.2
 
 # 标签生成 / CLIP（与 torch==2.1.0 兼容）
-transformers==4.34.0
+transformers==5.5.0
 
 # 向量索引（用于搜索）
 faiss-cpu==1.9.0
@@ -25,4 +25,4 @@ faiss-cpu==1.9.0
 onnxruntime==1.18.0
 
 # ONNX 工具
-onnx==1.15.0
+onnx==1.22.0

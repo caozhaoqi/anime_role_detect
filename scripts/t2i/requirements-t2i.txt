@@ -2,9 +2,9 @@
 # 安装：pip install -r scripts/t2i/requirements-t2i.txt
 torch>=2.1
 torchvision>=0.16
-diffusers>=0.30
-transformers>=4.40
+diffusers>=0.38.0
+transformers>=5.5.0
 accelerate>=0.30
 peft>=0.12
-Pillow>=10.0
+Pillow>=12.3.0
 tqdm>=4.66
