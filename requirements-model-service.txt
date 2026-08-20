@@ -14,7 +14,7 @@ torch==2.1.0+cpu
 torchvision==0.16.0+cpu
 
 # 图像处理
-Pillow==11.3.0
+Pillow==12.3.0
 pillow-heif==0.21.0
 opencv-python-headless==4.13.0.92
 numpy==1.26.4
@@ -23,7 +23,7 @@ numpy==1.26.4
 easyocr==1.7.2
 
 # 标签生成 / CLIP（与 torch==2.1.0+cpu 兼容）
-transformers==4.34.0
+transformers==5.5.0
 
 # 数据处理
 pandas==2.3.3

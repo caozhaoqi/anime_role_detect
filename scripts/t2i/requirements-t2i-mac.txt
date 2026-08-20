@@ -5,12 +5,12 @@
 # 注意：Mac 用系统 /usr/bin/python3 (3.9.6)，因为托管 python 3.13 与 torch 2.x 不兼容。
 torch==2.3.1
 torchvision==0.18.1
-diffusers==0.30.1
+diffusers==0.38.0
 peft==0.11.1
-transformers==4.38.2
+transformers==5.5.0
 accelerate==0.27.2
 safetensors==0.4.3
-Pillow==10.3.0
+Pillow==12.3.0
 numpy==1.26.4
 # t2i_service（FastAPI 服务）运行必需 —— 按本文件重建 venv 时勿漏装（P3 修复 2026-08-20）
 fastapi>=0.110
