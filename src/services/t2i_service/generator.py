@@ -59,7 +59,11 @@ def _resolve_device(req: str | None) -> str:
 
 
 def _load_role_refs(role: str, num_ref: int, seed: int = 42):
-    """从 data/final_dataset/<role> 载入参考图，必要时随机采样上限。"""
+    """从 data/final_dataset/<role> 载入参考图，必要时随机采样上限。
+
+    P2 修复（2026-08-20）：先采样路径、再打开图片，避免头部角色（100+ 图）
+    全部载入内存后才丢弃。
+    """
     from PIL import Image
 
     ref_dir = config.DATASET_ROOT / role
@@ -71,12 +75,11 @@ def _load_role_refs(role: str, num_ref: int, seed: int = 42):
     if not paths:
         raise FileNotFoundError(f"{ref_dir} 下无图片")
 
-    refs = [Image.open(p).convert("RGB") for p in paths]
-    if num_ref and len(refs) > num_ref:
+    if num_ref and len(paths) > num_ref:
         import random as _rnd
         rng = _rnd.Random(seed)
-        refs = rng.sample(refs, num_ref)
-    return refs
+        paths = rng.sample(paths, num_ref)
+    return [Image.open(p).convert("RGB") for p in paths]
 
 
 class T2IGenerator:
@@ -130,6 +133,42 @@ class T2IGenerator:
             pipe.enable_vae_tiling()
         except Exception:
             pass
+        # 调度器优化（零画质风险提速）：DPM++(多步) 收敛远快于默认 PNDM，
+        # 同质量下 steps 可从 30 降到 ~20（见 config.DEFAULT_STEPS）。它只替换 pipe.scheduler，
+        # 与 IP-Adapter（UNet 注意力钩子）完全不冲突。try/except 兜底，失败则保留原调度器。
+        try:
+            from diffusers import DPMSolverMultistepScheduler
+            pipe.scheduler = DPMSolverMultistepScheduler.from_config(pipe.scheduler.config)
+            _t2i_logger.info(
+                f"[t2i] 调度器已切换为 DPMSolverMultistepScheduler（steps 默认 {config.DEFAULT_STEPS}，同质量更省步）"
+            )
+        except Exception as _se:  # noqa: BLE001
+            _t2i_logger.warning(f"[t2i] 调度器切换失败，保留默认 PNDM：{_se}")
+        # 实验性提速：编译 UNet 计算图。不牺牲精度（区别于 fp16），仅融合/重排算子提速。
+        # - 必须在 IP-Adapter/LoRA 注入前编译，使编译图包含已挂载的注意力处理器。
+        # - MPS 上 inductor 后端支持有限，可能 graph break 或回退 eager（无提速但不崩）。
+        #   开启 suppress_errors：即使首步编译失败也自动降级 eager，不会让整次生成 500。
+        # - 首次推理触发编译开销（首图更慢），后续复用缓存。
+        # - torch.compile 返回的 OptimizedModule 会转发属性访问（已验证 2.3.1），
+        #   故 load_ip_adapter / set_ip_adapter_scale 仍能作用于内部原始 UNet。
+        if getattr(config, "COMPILE_UNET", False):
+            if device == "mps":
+                # torch 2.3.1 的 inductor 后端显式断言 "Device mps not supported"：
+                # 首次推理会触发 BackendCompilerFailed（靠 suppress_errors 不崩、自动回退 eager），
+                # 但每个去噪步都会重试验图编译，把 .err.log 刷成吨警告且零提速。故 MPS 直接跳过。
+                _t2i_logger.info(
+                    "[t2i] 跳过 torch.compile：当前 torch 2.3.1 的 inductor 后端不支持 MPS，"
+                    "编译只会回退 eager 且刷警告、无提速"
+                )
+            else:
+                try:
+                    import torch as _torch
+                    _torch._dynamo.config.suppress_errors = True
+                    # MPS 不支持 CUDA-graph 类 backend（reduce-overhead），统一用 default(inductor)
+                    pipe.unet = _torch.compile(pipe.unet, mode="default", fullgraph=False)
+                    _t2i_logger.info(f"[t2i] UNet 已提交 torch.compile（device={device}, mode=default）；首次推理将编译")
+                except Exception as _ce:  # noqa: BLE001
+                    _t2i_logger.warning(f"[t2i] torch.compile(UNet) 提交失败，回退 eager UNet: {_ce}")
         self._pipe = pipe
         self._device = device
         self._dtype = dtype
@@ -144,6 +183,16 @@ class T2IGenerator:
             self._pipe.set_ip_adapter_scale(scale)
             return
         self._ensure_base(device)
+        # P1 修复（2026-08-20）：若之前挂了 LoRA，先卸载再挂 IP-Adapter，
+        # 否则 LoRA 权重仍挂在 UNet 上，双重条件注入污染生成结果。
+        # （_ensure_lora 挂 LoRA 前已有 unload_ip_adapter，此处补上反向清理。）
+        if self._lora_loaded_for is not None:
+            try:
+                self._pipe.unload_lora_weights()
+                _t2i_logger.info(f"[t2i] 卸载残留 LoRA({self._lora_loaded_for})，准备挂载 IP-Adapter")
+            except Exception as _le:  # noqa: BLE001
+                _t2i_logger.warning(f"[t2i] 卸载 LoRA 失败（忽略）：{_le}")
+            self._lora_loaded_for = None
         _t2i_logger.info(f"[t2i] 加载 IP-Adapter 权重: {config.IP_MODELS_DIR / config.IP_WEIGHT_NAME}")
         image_encoder = CLIPVisionModelWithProjection.from_pretrained(
             str(config.IP_MODELS_DIR / "image_encoder"),
@@ -239,49 +288,64 @@ class T2IGenerator:
 
             images_b64 = []
             saved = []
-            _t2i_logger.info(f"[t2i-gen:{role}] 进入推理循环 num={num} steps={steps} device={device}")
-            for i in range(num):
-                _t2i_logger.info(f"[t2i-gen:{role}] 开始第 {i+1}/{num} 张推理 (steps={steps})")
+            # 安全批生成：把 num 张按 T2I_MAX_BATCH 切分，每批一次 pipeline 调用
+            # （num_images_per_prompt）并行出多张，摊薄 UNet 开销提速。
+            # - MPS 统一内存峰值敏感（本机曾 89.8% OOM），故限制批大小上限；OOM 时把
+            #   T2I_MAX_BATCH 调小（=1 即退化为逐张）即可。
+            # - 画质/角色一致性不受影响：同模型同 IP-Adapter 条件，只是并行噪声采样。
+            # - 种子：每个 chunk 用独立 generator（seed + chunk*batch_size）顺序抽 batch_size
+            #   张，与旧逐张 seed+i 分布不同（不同随机样本，但非更差）。
+            max_batch = int(getattr(config, "T2I_MAX_BATCH", 2))
+            batch_size = 1 if num <= 1 else max(1, min(num, max_batch))
+            _t2i_logger.info(
+                f"[t2i-gen:{role}] 进入推理（批生成） num={num} batch_size={batch_size} steps={steps} device={device}"
+            )
+            global_idx = 0
+            chunk = 0
+            while global_idx < num:
+                b = min(batch_size, num - global_idx)
+                _t2i_logger.info(f"[t2i-gen:{role}] 开始第 {global_idx+1}..{global_idx+b}/{num} 张（batch={b}）推理")
                 # 必须让随机源与模型同设备，否则 mps 模型会触发 CPU 回退慢路径
                 if device == "cpu":
-                    gen = torch.Generator().manual_seed(seed + i)
+                    gen = torch.Generator().manual_seed(seed + chunk * batch_size)
                 else:
-                    gen = torch.Generator(device=device).manual_seed(seed + i)
+                    gen = torch.Generator(device=device).manual_seed(seed + chunk * batch_size)
                 kwargs = dict(
                     prompt=txt,
                     negative_prompt=neg,
                     num_inference_steps=steps,
                     guidance_scale=cfg,
                     generator=gen,
+                    num_images_per_prompt=b,
                 )
                 if used_method == "ip_adapter":
                     kwargs["ip_adapter_image"] = [refs]
-                # 逐步骤度：把第 i 张图的去噪进度回传给上层 on_progress(img_idx, completed, total)
-                if on_progress is not None:
-                    _img_idx = i
-                    def _step_cb(pipe, step_i, timestep, cb_kwargs, _idx=_img_idx):
-                        try:
-                            on_progress(_idx, step_i + 1, steps)
-                        except Exception:
-                            pass
-                        return cb_kwargs
-                    kwargs["callback_on_step_end"] = _step_cb
+                # 注意：曾在此处挂 callback_on_step_end 做"真·逐步骤度"，但实测在
+                # MPS + diffusers 0.30.1 上会导致每步强制设备同步，去噪步从 ~1.5s 暴涨到
+                # ~400s/步（270× 变慢），整轮生成卡死 5.5h。故移除，进度改由 training.py
+                # 的"时间估算线程"平滑驱动（零 MPS 开销）。
                 _t_img = time.time()
-                out: Image.Image = self._pipe(**kwargs).images[0]
+                outs = self._pipe(**kwargs).images  # 列表：长度 = b
                 _dt = time.time() - _t_img
-                _t2i_logger.info(f"[t2i-gen:{role}] 第 {i+1}/{num} 张推理完成 耗时 {_dt:.1f}s")
-
-                fname = f"{role}_{used_method}_{i + 1}.png"
-                save_path = out_dir / fname
-                out.save(save_path)
-                saved.append(str(save_path))
-
-                buf = BytesIO()
-                out.save(buf, format="PNG")
-                images_b64.append(
-                    "data:image/png;base64," + __import__("base64").b64encode(buf.getvalue()).decode()
+                _t2i_logger.info(
+                    f"[t2i-gen:{role}] 第 {global_idx+1}..{global_idx+b}/{num} 张推理完成 耗时 {_dt:.1f}s"
                 )
-                # MPS 分配器缓存不主动归还系统，逐张释放以拉平内存尖峰
+                for _j, out in enumerate(outs):
+                    _i = global_idx + _j
+                    # P2 修复（2026-08-20）：文件名加时间戳前缀，避免同一角色同方法多次
+                    # 生成覆盖旧文件（原 {role}_{method}_{i}.png 每次从 1 重算）
+                    fname = f"{role}_{used_method}_{int(time.time())}_{_i + 1}.png"
+                    save_path = out_dir / fname
+                    out.save(save_path)
+                    saved.append(str(save_path))
+                    buf = BytesIO()
+                    out.save(buf, format="PNG")
+                    images_b64.append(
+                        "data:image/png;base64," + __import__("base64").b64encode(buf.getvalue()).decode()
+                    )
+                global_idx += b
+                chunk += 1
+                # MPS 分配器缓存不主动归还系统，逐批释放以拉平内存尖峰
                 if device == "mps":
                     try:
                         torch.mps.empty_cache()

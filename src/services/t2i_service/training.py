@@ -64,6 +64,23 @@ class TrainJob:
         }
 
 
+# 作业保留时长：完成超过该秒数的作业会被惰性清理（P1 修复 2026-08-20，防字典无限增长）
+JOB_TTL_SECONDS = 3600
+
+
+def _cleanup_expired_jobs():
+    """惰性清理：删除已完成且超过 TTL 的作业，防止 _JOBS/_GEN_JOBS 无限增长。"""
+    now = time.time()
+    with _JOBS_LOCK:
+        for store in (_JOBS, _GEN_JOBS):
+            expired = [
+                jid for jid, j in store.items()
+                if j.finished_at is not None and (now - j.finished_at) > JOB_TTL_SECONDS
+            ]
+            for jid in expired:
+                del store[jid]
+
+
 @dataclass
 class GenerateJob:
     """异步图像生成作业：提交即返回 job_id，后台线程执行推理，前端轮询进度。
@@ -81,7 +98,7 @@ class GenerateJob:
     error: Optional[str] = None
     params: dict = field(default_factory=dict)
 
-    def to_dict(self) -> dict:
+    def to_dict(self, include_images: bool = True) -> dict:
         d = {
             "job_id": self.job_id,
             "type": "generate",
@@ -94,7 +111,12 @@ class GenerateJob:
             "params": self.params,
         }
         if self.result is not None:
-            d["result"] = self.result
+            if include_images:
+                d["result"] = self.result
+            else:
+                # 列表接口裁剪掉 base64 图片，避免一次返回全部历史图片（P1 修复）
+                d["result"] = {k: v for k, v in self.result.items() if k != "images"}
+                d["result"]["image_count"] = len(self.result.get("images", []))
         if self.error:
             d["error"] = self.error
         return d
@@ -144,15 +166,25 @@ def start_generation(
     def _run():
         gen = T2IGenerator.get_instance()
 
-        def _on_progress(img_idx: int, completed: int, total: int):
-            """逐步骤度回调：把生成进度换算成 45→95 的真实百分比写回 job。"""
-            with _JOBS_LOCK:
-                j = _GEN_JOBS.get(job.job_id)
-                if not j or j.status != "running":
-                    return
-                frac = (img_idx + completed / max(total, 1)) / max(num, 1)
-                j.progress_pct = min(95.0, 45.0 + frac * 50.0)
-                j.progress = f"生成中 {img_idx + 1}/{num} 张 · 步 {completed}/{total}"
+        # 进度估算线程：callback_on_step_end 在 MPS + diffusers 0.30.1 上会让去噪步 270× 变慢
+        # （实测 403s/步、整轮卡死 ~5.5h），故放弃逐步骤度回调，改用"真实已用推理时间 /
+        # 预计总时长"平滑驱动进度条。零 MPS 开销，不阻塞推理线程。
+        # P2 修复（2026-08-20）：基线按 device 区分——MPS ~2s/步，CPU 实测 12s+/步
+        # （日志实测 50 步 ~10min、首帧 141s 冷启动），统一 1.6s/步会严重低估。
+        _est_stop = threading.Event()
+        _infer_start = [0.0]
+        dev = (device or "auto").lower()
+        step_base = 2.0 if dev in ("auto", "mps") else 15.0   # auto 在 Mac 解析为 mps
+        _est_total = max(1.0, 60.0 + num * steps * step_base)
+
+        def _est_progress():
+            while not _est_stop.is_set():
+                with _JOBS_LOCK:
+                    j = _GEN_JOBS.get(job.job_id)
+                    if j and j.status == "running":
+                        frac = min(1.0, (time.time() - _infer_start[0]) / _est_total)
+                        j.progress_pct = min(95.0, 45.0 + frac * 50.0)
+                time.sleep(0.5)
 
         _t2i_logger.info(f"[t2i-gen:{role}] 后台线程启动，准备调用 generate_sync (job={job.job_id})")
         try:
@@ -163,12 +195,18 @@ def start_generation(
                     j.progress = "加载模型并生成中…（首次约 30–60s）"
                     j.progress_pct = 45.0
             _t2i_logger.info(f"[t2i-gen:{role}] 调用 generate_sync（首次含 SD1.5+IP-Adapter 加载，可能 30–60s）")
-            result = gen.generate_sync(
-                role=role, prompt=prompt, negative=negative, scale=scale,
-                steps=steps, cfg=cfg, num=num, method=method, num_ref=num_ref,
-                seed=seed, device=device,
-                on_progress=_on_progress,
-            )
+            _infer_start[0] = time.time()
+            _est = threading.Thread(target=_est_progress, daemon=True)
+            _est.start()
+            try:
+                result = gen.generate_sync(
+                    role=role, prompt=prompt, negative=negative, scale=scale,
+                    steps=steps, cfg=cfg, num=num, method=method, num_ref=num_ref,
+                    seed=seed, device=device,
+                )
+            finally:
+                _est_stop.set()
+                _est.join(timeout=1.0)
             with _JOBS_LOCK:
                 j = _GEN_JOBS.get(job.job_id)
                 if j:
@@ -193,7 +231,12 @@ def start_generation(
 
 
 def build_metadata(role: str) -> Path:
-    """为角色生成 metadata.csv（image_path, caption），供 train_lora_sd15.py 使用。"""
+    """为角色生成 metadata.csv（image_path, caption, role, has_identity_token），供 train_lora_sd15.py 使用。
+
+    列格式与 scripts/t2i/prepare_captions.py 对齐（含 role 列）。
+    注意：train_lora_sd15.py 的 build_examples 在传入 --role 时会读取 row["role"]，
+    缺该列会 KeyError 崩溃（P0 修复，2026-08-20）。
+    """
     ref_dir = config.DATASET_ROOT / role
     if not ref_dir.exists():
         raise FileNotFoundError(f"参考图目录不存在: {ref_dir}")
@@ -210,9 +253,9 @@ def build_metadata(role: str) -> Path:
     caption = f"{role}, solo character, anime style, high quality, detailed"
     with open(csv_path, "w", newline="", encoding="utf-8") as f:
         w = csv.writer(f)
-        w.writerow(["image_path", "caption"])
+        w.writerow(["image_path", "caption", "role", "has_identity_token"])
         for p in paths:
-            w.writerow([str(p), caption])
+            w.writerow([str(p), caption, role, "True"])
     return csv_path
 
 
@@ -248,10 +291,13 @@ def start_training(
 
     venv_py = config.T2I_VENV_PYTHON
     train_script = config.SCRIPTS_T2I / "train_lora_sd15.py"
+    # P0 修复（2026-08-20）：必须显式传本地底座路径。train_lora_sd15.py 默认值是 HF hub id
+    # （stable-diffusion-v1-5/stable-diffusion-v1-5），本机 HF 不通会下载失败。
     cmd = [
         str(venv_py), str(train_script),
         "--metadata", str(csv_path),
         "--role", role,
+        "--base-model", str(config.SD15_DIR),
         "--output-dir", str(out_dir),
         "--rank", str(rank),
         "--resolution", str(resolution),
@@ -318,6 +364,7 @@ def start_training(
 
 def get_job(job_id: str):
     """按 job_id 查找训练或生成作业（两者共用 id 命名空间，互不冲突）。"""
+    _cleanup_expired_jobs()
     with _JOBS_LOCK:
         j = _JOBS.get(job_id)
         if j is not None:
@@ -327,6 +374,7 @@ def get_job(job_id: str):
 
 def list_jobs():
     """返回全部训练 + 生成作业（按创建时间倒序）。"""
+    _cleanup_expired_jobs()
     with _JOBS_LOCK:
         all_jobs = list(_JOBS.values()) + list(_GEN_JOBS.values())
     all_jobs.sort(key=lambda j: j.created_at, reverse=True)

@@ -9,8 +9,11 @@
 from __future__ import annotations
 
 import argparse
+import os
+import secrets
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.exceptions import HTTPException
 
 from src.services.t2i_service import config
 from src.services.t2i_service.router import router
@@ -21,6 +24,27 @@ app = FastAPI(
     description="角色图像生成微服务（IP-Adapter 免训练 / LoRA 训练）",
     version="1.0.0",
 )
+
+# ========== 内部服务认证中间件（P1 修复 2026-08-20，复用 model-service 模式）==========
+# t2i 服务的生成/训练/卸载都是重资源操作，非本机访问必须持有内部令牌。
+# 本机（supervisord 启动、网关转发、健康检查）默认豁免，无需令牌。
+_INTERNAL_TOKEN = os.environ.get("INTERNAL_SERVICE_TOKEN", "")
+_INTERNAL_IPS = {ip.strip() for ip in os.environ.get("INTERNAL_IPS", "127.0.0.1,localhost,::1").split(",") if ip.strip()}
+_INTERNAL_EXEMPT_PATHS = {"/api/health", "/live", "/ready", "/"}
+
+
+@app.middleware("http")
+async def internal_auth_middleware(request: Request, call_next):
+    """内部服务认证：要求请求来自内部 IP 或持有内部服务令牌。"""
+    if request.url.path in _INTERNAL_EXEMPT_PATHS:
+        return await call_next(request)
+    client_host = request.client.host if request.client else "unknown"
+    if client_host not in _INTERNAL_IPS and client_host not in {"127.0.0.1", "::1", "localhost"}:
+        token = request.headers.get("X-Internal-Service-Token", "")
+        if _INTERNAL_TOKEN and not secrets.compare_digest(token, _INTERNAL_TOKEN):
+            raise HTTPException(status_code=403, detail="Forbidden: internal service only")
+    return await call_next(request)
+
 
 app.include_router(router)
 

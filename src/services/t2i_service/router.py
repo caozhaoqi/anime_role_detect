@@ -145,7 +145,8 @@ async def job_status(job_id: str):
 
 @router.get("/api/t2i/jobs")
 async def jobs():
-    return {"success": True, "jobs": [j.to_dict() for j in list_jobs()]}
+    # 列表接口裁剪掉 base64 图片（P1 修复），单查接口 /jobs/{id} 仍返回全量
+    return {"success": True, "jobs": [j.to_dict(include_images=False) for j in list_jobs()]}
 
 
 # ----------------------------------------------------------------------
@@ -168,7 +169,7 @@ async def chat(req: ChatRequest):
             hit_role = name
             break
 
-    has_intent = any(k in msg.lower() for k in _INTENT_KW) or any(k in lower for k in _INTENT_KW)
+    has_intent = any(k in lower for k in _INTENT_KW)
 
     if hit_role and has_intent:
         try:
